@@ -70,7 +70,7 @@ export default function AppSidebar() {
 
   const candidateNavItems = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
-    { icon: Search, label: "Find Jobs", to: "/find-jobs" },
+    { icon: Briefcase, label: "Apply Now", to: "/apply" },
     { icon: FileText, label: "Applications", to: "/applications" },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
     { icon: MessageSquare, label: "Messages", to: "/messages" },

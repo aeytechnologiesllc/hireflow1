@@ -25,6 +25,7 @@ import {
   Edit,
   Trash2,
   Loader2,
+  Send,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -528,6 +529,26 @@ export default function Dashboard() {
         </Card>
       )}
 
+      {/* Apply Now CTA - Candidate */}
+      {!isEmployer && (
+        <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
+          <CardContent className="p-8 flex items-center justify-between">
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-foreground">Ready to Apply?</h3>
+              <p className="text-muted-foreground max-w-md">
+                Have an application code from an employer? Enter it to view and apply for the position.
+              </p>
+            </div>
+            <Button size="lg" className="h-14 px-8 text-lg" asChild>
+              <Link to="/apply">
+                <Send className="h-5 w-5 mr-2" />
+                Apply Now
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent Applications - Candidate */}
       {!isEmployer && (
         <Card className="bg-card border-border">
@@ -554,9 +575,9 @@ export default function Dashboard() {
               <div className="text-center py-8 text-muted-foreground">
                 <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No applications yet</p>
-                <p className="text-sm mt-1">Start applying to jobs to track your progress</p>
+                <p className="text-sm mt-1">Enter an application code to apply for your first job</p>
                 <Button className="mt-4" asChild>
-                  <Link to="/find-jobs">Browse Jobs</Link>
+                  <Link to="/apply">Apply Now</Link>
                 </Button>
               </div>
             )}

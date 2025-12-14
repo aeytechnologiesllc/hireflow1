@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { 
   FileText, 
   Sparkles, 
@@ -18,7 +22,7 @@ import {
   Send,
   User,
   Building2,
-  Calendar,
+  CalendarIcon,
   DollarSign,
   PenTool,
   Check,
@@ -90,7 +94,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
   const [companyName, setCompanyName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [salary, setSalary] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>();
   const [additionalTerms, setAdditionalTerms] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
@@ -112,7 +116,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     setCompanyName("");
     setJobTitle("");
     setSalary("");
-    setStartDate("");
+    setStartDate(undefined);
     setAdditionalTerms("");
     setGeneratedContent("");
     setIsGenerating(false);
@@ -188,7 +192,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           companyName,
           jobTitle: recipient.jobTitle || jobTitle,
           salary,
-          startDate,
+          startDate: startDate ? format(startDate, "PPP") : "",
           additionalTerms,
         },
       });
@@ -227,7 +231,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           companyName,
           jobTitle: recipient.jobTitle || jobTitle,
           salary,
-          startDate,
+          startDate: startDate ? format(startDate, "PPP") : "",
           recipientName: recipient.name || recipientName,
           recipientEmail: recipient.email || recipientEmail,
         },
@@ -524,14 +528,32 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
+                        <CalendarIcon className="h-4 w-4" />
                         Start Date
                       </Label>
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !startDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {startDate ? format(startDate, "PPP") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={startDate}
+                            onSelect={setStartDate}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 )}
