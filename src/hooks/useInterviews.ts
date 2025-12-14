@@ -21,23 +21,27 @@ export function useInterviews() {
   return useQuery({
     queryKey: ["interviews", user?.id, role],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch interviews with applications and jobs
+      const { data: interviews, error: intError } = await supabase
         .from("interviews")
         .select(`
           *,
           applications(
             id,
             candidate_id,
-            jobs(*),
-            profiles:candidate_id(*)
+            jobs(*)
           )
         `)
         .order("scheduled_at", { ascending: true });
 
-      if (error) throw error;
-      
+      if (intError) throw intError;
+
+      if (!interviews || interviews.length === 0) {
+        return [] as InterviewWithDetails[];
+      }
+
       // Filter based on role
-      const filtered = (data as any[]).filter((interview) => {
+      const filtered = (interviews as any[]).filter((interview) => {
         if (role === "employer") {
           return interview.applications?.jobs?.employer_id === user!.id;
         } else {
@@ -45,7 +49,31 @@ export function useInterviews() {
         }
       });
 
-      return filtered as InterviewWithDetails[];
+      if (filtered.length === 0) {
+        return [] as InterviewWithDetails[];
+      }
+
+      // Get unique candidate IDs
+      const candidateIds = [...new Set(filtered.map((i) => i.applications?.candidate_id).filter(Boolean))];
+
+      // Fetch profiles for all candidates
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", candidateIds);
+
+      if (profileError) throw profileError;
+
+      // Map profiles to interviews
+      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+
+      return filtered.map((interview) => ({
+        ...interview,
+        applications: interview.applications ? {
+          ...interview.applications,
+          profiles: profileMap.get(interview.applications.candidate_id) || null,
+        } : null,
+      })) as InterviewWithDetails[];
     },
     enabled: !!user,
   });
@@ -59,24 +87,28 @@ export function useUpcomingInterviews() {
     queryFn: async () => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
+      const { data: interviews, error: intError } = await supabase
         .from("interviews")
         .select(`
           *,
           applications(
             id,
             candidate_id,
-            jobs(*),
-            profiles:candidate_id(*)
+            jobs(*)
           )
         `)
         .eq("status", "scheduled")
         .gte("scheduled_at", now)
         .order("scheduled_at", { ascending: true });
 
-      if (error) throw error;
-      
-      const filtered = (data as any[]).filter((interview) => {
+      if (intError) throw intError;
+
+      if (!interviews || interviews.length === 0) {
+        return [] as InterviewWithDetails[];
+      }
+
+      // Filter based on role
+      const filtered = (interviews as any[]).filter((interview) => {
         if (role === "employer") {
           return interview.applications?.jobs?.employer_id === user!.id;
         } else {
@@ -84,7 +116,30 @@ export function useUpcomingInterviews() {
         }
       });
 
-      return filtered as InterviewWithDetails[];
+      if (filtered.length === 0) {
+        return [] as InterviewWithDetails[];
+      }
+
+      // Get unique candidate IDs
+      const candidateIds = [...new Set(filtered.map((i) => i.applications?.candidate_id).filter(Boolean))];
+
+      // Fetch profiles
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", candidateIds);
+
+      if (profileError) throw profileError;
+
+      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+
+      return filtered.map((interview) => ({
+        ...interview,
+        applications: interview.applications ? {
+          ...interview.applications,
+          profiles: profileMap.get(interview.applications.candidate_id) || null,
+        } : null,
+      })) as InterviewWithDetails[];
     },
     enabled: !!user,
   });

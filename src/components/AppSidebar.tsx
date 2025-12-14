@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotifications";
 import {
   LayoutDashboard,
   Briefcase,
@@ -13,6 +14,7 @@ import {
   Search,
   UserPlus,
   Sparkles,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,13 +55,14 @@ function NavItem({ icon: Icon, label, to, badge }: NavItemProps) {
 export default function AppSidebar() {
   const { role } = useAuth();
   const isEmployer = role === "employer";
+  const { data: unreadNotifications } = useUnreadNotificationCount();
 
   const employerNavItems = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Jobs", to: "/jobs" },
     { icon: Users, label: "Applicants", to: "/applicants" },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
-    { icon: MessageSquare, label: "Messages", to: "/messages", badge: 3 },
+    { icon: MessageSquare, label: "Messages", to: "/messages" },
     { icon: FileText, label: "Documents", to: "/documents" },
     { icon: UserPlus, label: "Team", to: "/team" },
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
@@ -70,8 +73,8 @@ export default function AppSidebar() {
     { icon: Search, label: "Find Jobs", to: "/find-jobs" },
     { icon: FileText, label: "Applications", to: "/applications" },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
-    { icon: MessageSquare, label: "Messages", to: "/messages", badge: 2 },
-    { icon: FileText, label: "Documents", to: "/documents" },
+    { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: User, label: "Profile", to: "/profile" },
   ];
 
   const navItems = isEmployer ? employerNavItems : candidateNavItems;
@@ -94,14 +97,13 @@ export default function AppSidebar() {
             icon={item.icon}
             label={item.label}
             to={item.to}
-            badge={item.badge}
           />
         ))}
       </nav>
 
       {/* Bottom section */}
       <div className="p-4 border-t border-border space-y-1">
-        <NavItem icon={Bell} label="Notifications" to="/notifications" />
+        <NavItem icon={Bell} label="Notifications" to="/notifications" badge={unreadNotifications || 0} />
         <NavItem icon={Settings} label="Settings" to="/settings" />
       </div>
     </aside>
