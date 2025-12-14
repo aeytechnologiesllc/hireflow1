@@ -6,11 +6,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, Download, Clock, CheckCircle, XCircle, Eye, PenTool } from "lucide-react";
+import { FileText, Plus, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
-import { DocumentViewerDialog } from "@/components/documents/DocumentViewerDialog";
+import { DocumentWizard } from "@/components/documents/DocumentWizard";
+import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
 
 const statusConfig = {
   pending: { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending" },
@@ -23,8 +23,8 @@ export default function Documents() {
   const isEmployer = role === "employer";
   const { data: documents, isLoading } = useDocuments();
   const { data: applications = [] } = useApplicationsForDocuments();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [viewerDialogOpen, setViewerDialogOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithApplication | null>(null);
 
   const pendingDocs = documents?.filter(d => d.status === "pending") || [];
@@ -33,7 +33,7 @@ export default function Documents() {
 
   const handleViewDocument = (doc: DocumentWithApplication) => {
     setSelectedDocument(doc);
-    setViewerDialogOpen(true);
+    setSigningDialogOpen(true);
   };
 
   const renderDocumentCard = (doc: DocumentWithApplication) => {
@@ -55,12 +55,6 @@ export default function Documents() {
                   <span>•</span>
                   <span>{format(new Date(doc.created_at), "MMM d, yyyy")}</span>
                 </div>
-                {doc.applications?.profiles && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {isEmployer ? "To: " : "From: "}
-                    {doc.applications.profiles.full_name || doc.applications.profiles.email}
-                  </p>
-                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -68,11 +62,7 @@ export default function Documents() {
                 <StatusIcon className="h-3 w-3 mr-1" />
                 {status?.label}
               </Badge>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => handleViewDocument(doc)}
-              >
+              <Button variant="ghost" size="icon" onClick={() => handleViewDocument(doc)}>
                 {doc.status === "pending" && !isEmployer ? (
                   <PenTool className="h-4 w-4" />
                 ) : (
@@ -88,74 +78,44 @@ export default function Documents() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Documents</h2>
           <p className="text-muted-foreground mt-1">
-            {isEmployer 
-              ? "Create and manage contracts, offer letters, and NDAs"
-              : "Review and sign documents from employers"}
+            {isEmployer ? "Create AI-powered contracts, offer letters, and NDAs" : "Review and sign documents"}
           </p>
         </div>
-        {isEmployer && applications.length > 0 && (
-          <Button className="gap-2" onClick={() => setCreateDialogOpen(true)}>
-            <Upload className="h-4 w-4" />
+        {isEmployer && (
+          <Button className="gap-2" onClick={() => setWizardOpen(true)}>
+            <Wand2 className="h-4 w-4" />
             Create Document
           </Button>
         )}
       </div>
 
-      {/* Documents List */}
       {isLoading ? (
         <div className="space-y-4">
-          <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </div>
       ) : documents && documents.length > 0 ? (
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="all">
-              All ({documents.length})
-            </TabsTrigger>
-            <TabsTrigger value="pending">
-              Pending ({pendingDocs.length})
-            </TabsTrigger>
-            <TabsTrigger value="signed">
-              Signed ({signedDocs.length})
-            </TabsTrigger>
-            <TabsTrigger value="declined">
-              Declined ({declinedDocs.length})
-            </TabsTrigger>
+            <TabsTrigger value="all">All ({documents.length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
+            <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
+            <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="all" className="space-y-4">
-            {documents.map(renderDocumentCard)}
-          </TabsContent>
-
+          <TabsContent value="all" className="space-y-4">{documents.map(renderDocumentCard)}</TabsContent>
           <TabsContent value="pending" className="space-y-4">
-            {pendingDocs.length > 0 ? (
-              pendingDocs.map(renderDocumentCard)
-            ) : (
-              <EmptyState message="No pending documents" />
-            )}
+            {pendingDocs.length > 0 ? pendingDocs.map(renderDocumentCard) : <EmptyState message="No pending documents" />}
           </TabsContent>
-
           <TabsContent value="signed" className="space-y-4">
-            {signedDocs.length > 0 ? (
-              signedDocs.map(renderDocumentCard)
-            ) : (
-              <EmptyState message="No signed documents" />
-            )}
+            {signedDocs.length > 0 ? signedDocs.map(renderDocumentCard) : <EmptyState message="No signed documents" />}
           </TabsContent>
-
           <TabsContent value="declined" className="space-y-4">
-            {declinedDocs.length > 0 ? (
-              declinedDocs.map(renderDocumentCard)
-            ) : (
-              <EmptyState message="No declined documents" />
-            )}
+            {declinedDocs.length > 0 ? declinedDocs.map(renderDocumentCard) : <EmptyState message="No declined documents" />}
           </TabsContent>
         </Tabs>
       ) : (
@@ -164,37 +124,20 @@ export default function Documents() {
             <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
             <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              {isEmployer 
-                ? "Create and send documents like contracts, offer letters, and NDAs to candidates."
-                : "Documents sent to you by employers will appear here for you to review and sign."}
+              {isEmployer ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here."}
             </p>
-            {isEmployer && applications.length > 0 && (
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" />
+            {isEmployer && (
+              <Button onClick={() => setWizardOpen(true)}>
+                <Wand2 className="h-4 w-4 mr-2" />
                 Create Your First Document
               </Button>
-            )}
-            {isEmployer && applications.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                You need applicants in "Reviewing", "Interview", or "Hired" status to send documents.
-              </p>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Dialogs */}
-      <CreateDocumentDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        applications={applications}
-      />
-
-      <DocumentViewerDialog
-        document={selectedDocument}
-        open={viewerDialogOpen}
-        onOpenChange={setViewerDialogOpen}
-      />
+      <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
+      <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
     </div>
   );
 }

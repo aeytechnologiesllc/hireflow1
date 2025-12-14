@@ -2,3 +2,6 @@ project_id = "yvczrgulhswbxsfnyqan"
 
 [functions.ai-analyze]
 verify_jwt = true
+
+[functions.ai-generate-document]
+verify_jwt = true
