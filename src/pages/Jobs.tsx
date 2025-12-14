@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -171,9 +172,11 @@ export default function Jobs() {
           <h2 className="text-2xl font-bold text-foreground">Job Postings</h2>
           <p className="text-muted-foreground mt-1">Manage your job listings and track applications</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create New Job
+        <Button className="gap-2" asChild>
+          <Link to="/jobs/create">
+            <Plus className="h-4 w-4" />
+            Create New Job
+          </Link>
         </Button>
       </div>
 
@@ -246,9 +249,11 @@ export default function Jobs() {
               <p className="text-muted-foreground max-w-md mx-auto mb-6">
                 Create your first job posting to start receiving applications.
               </p>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create New Job
+              <Button className="gap-2" asChild>
+                <Link to="/jobs/create">
+                  <Plus className="h-4 w-4" />
+                  Create New Job
+                </Link>
               </Button>
             </CardContent>
           </Card>
