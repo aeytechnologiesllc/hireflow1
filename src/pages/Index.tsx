@@ -1,6 +1,13 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, type Easing } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   ArrowRight,
   CheckCircle,
@@ -12,7 +19,8 @@ import {
   Target,
   Users,
   ChartBar,
-  Rocket
+  Rocket,
+  X
 } from "lucide-react";
 
 const stats = [
@@ -29,6 +37,13 @@ const features = [
     description: "AVA evaluates every candidate with custom workflows and intelligent scoring in seconds",
     titleColor: "text-foreground",
     iconBg: "bg-fuchsia-500",
+    detailedDescription: "AVA, our intelligent AI assistant, automatically reviews and scores every application the moment it's submitted. Using advanced natural language processing and machine learning, AVA analyzes resumes, cover letters, and application responses to identify the most qualified candidates.",
+    highlights: [
+      "Instant evaluation of all incoming applications",
+      "Smart scoring based on job requirements",
+      "Bias-free screening process",
+      "Detailed analysis reports for each candidate"
+    ],
   },
   {
     icon: Zap,
@@ -36,6 +51,13 @@ const features = [
     description: "Generate perfect application questions and screening steps in under 30 seconds",
     titleColor: "text-emerald-400",
     iconBg: "bg-fuchsia-500",
+    detailedDescription: "Create comprehensive job postings in seconds, not hours. Simply enter your job title and let AVA generate everything else — from job descriptions and requirements to custom screening questions and assessment workflows.",
+    highlights: [
+      "AI-generated job descriptions",
+      "Smart application questions",
+      "Auto-configured screening workflows",
+      "One-click publishing"
+    ],
   },
   {
     icon: Target,
@@ -43,6 +65,13 @@ const features = [
     description: "Typing tests, video responses, skill assessments — fully automated",
     titleColor: "text-foreground",
     iconBg: "bg-purple-500",
+    detailedDescription: "Design multi-stage hiring pipelines with powerful assessment tools. Include typing speed tests for support roles, video introductions for customer-facing positions, chat simulations for service roles, and custom quizzes to test specific knowledge.",
+    highlights: [
+      "Typing speed assessments",
+      "Video introduction recording",
+      "Live chat simulation tests",
+      "Custom quiz builder"
+    ],
   },
   {
     icon: Users,
@@ -50,6 +79,13 @@ const features = [
     description: "Pipeline view, bulk actions, and real-time candidate updates",
     titleColor: "text-foreground",
     iconBg: "bg-fuchsia-500",
+    detailedDescription: "Track every candidate's journey through your hiring pipeline with our intuitive dashboard. See real-time updates as candidates complete phases, perform bulk actions on multiple applicants, and never lose track of promising talent.",
+    highlights: [
+      "Visual pipeline management",
+      "Real-time status updates",
+      "Bulk actions and filtering",
+      "Candidate comparison tools"
+    ],
   },
   {
     icon: ChartBar,
@@ -57,6 +93,13 @@ const features = [
     description: "AI recommendations with detailed analysis for every single candidate",
     titleColor: "text-emerald-400",
     iconBg: "bg-purple-500",
+    detailedDescription: "Get comprehensive insights into each candidate with AVA's detailed analysis. View scoring breakdowns, competency assessments, and personalized recommendations that help you make data-driven hiring decisions with confidence.",
+    highlights: [
+      "Detailed scoring breakdowns",
+      "Competency assessments",
+      "Interview recommendations",
+      "Hiring analytics dashboard"
+    ],
   },
   {
     icon: Clock,
@@ -64,6 +107,13 @@ const features = [
     description: "Stop manually reviewing hundreds of applications. Let AVA do it.",
     titleColor: "text-foreground",
     iconBg: "bg-purple-500",
+    detailedDescription: "Reclaim your time with automated candidate screening. AVA works 24/7, reviewing applications as they come in and advancing qualified candidates automatically. Spend your time interviewing great candidates, not sorting through unqualified ones.",
+    highlights: [
+      "Automated first-round screening",
+      "Auto-advance qualified candidates",
+      "Rejection email automation",
+      "Focus on top talent only"
+    ],
   },
 ];
 
@@ -101,6 +151,8 @@ const scaleIn = {
 };
 
 export default function Index() {
+  const [selectedFeature, setSelectedFeature] = useState<typeof features[0] | null>(null);
+
   return (
     <div className="min-h-screen bg-[hsl(220,20%,8%)] overflow-x-hidden">
       {/* Navigation */}
@@ -357,6 +409,7 @@ export default function Index() {
                   y: -5,
                   borderColor: "hsl(220, 15%, 30%)"
                 }}
+                onClick={() => setSelectedFeature(feature)}
                 className="group p-6 rounded-2xl bg-[hsl(220,15%,10%)] border border-[hsl(220,15%,15%)] transition-colors cursor-pointer"
               >
                 <motion.div 
@@ -496,6 +549,74 @@ export default function Index() {
           </div>
         </div>
       </motion.footer>
+      {/* Feature Detail Dialog */}
+      <Dialog open={!!selectedFeature} onOpenChange={() => setSelectedFeature(null)}>
+        <DialogContent className="bg-[hsl(220,15%,10%)] border-[hsl(220,15%,18%)] text-white max-w-lg p-0 overflow-hidden">
+          {selectedFeature && (
+            <>
+              {/* Header with gradient */}
+              <div className={`p-6 pb-4 relative ${
+                selectedFeature.iconBg === "bg-fuchsia-500" 
+                  ? "bg-gradient-to-br from-fuchsia-500/20 to-purple-500/10" 
+                  : "bg-gradient-to-br from-purple-500/20 to-fuchsia-500/10"
+              }`}>
+                <motion.div 
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className={`w-16 h-16 rounded-xl ${selectedFeature.iconBg} flex items-center justify-center mb-4`}
+                >
+                  <selectedFeature.icon className="h-8 w-8 text-white" />
+                </motion.div>
+                <DialogHeader>
+                  <DialogTitle className={`text-2xl font-bold ${selectedFeature.titleColor}`}>
+                    {selectedFeature.title}
+                  </DialogTitle>
+                </DialogHeader>
+              </div>
+              
+              {/* Content */}
+              <div className="p-6 pt-2 space-y-6">
+                <p className="text-gray-300 leading-relaxed">
+                  {selectedFeature.detailedDescription}
+                </p>
+                
+                {/* Highlights */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
+                    Key Features
+                  </h4>
+                  <ul className="space-y-2">
+                    {selectedFeature.highlights.map((highlight, index) => (
+                      <motion.li 
+                        key={index}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-3 text-gray-300"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                          <CheckCircle className="h-3 w-3 text-emerald-400" />
+                        </div>
+                        {highlight}
+                      </motion.li>
+                    ))}
+                  </ul>
+                </div>
+                
+                {/* CTA */}
+                <Link to="/auth" onClick={() => setSelectedFeature(null)}>
+                  <Button className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white">
+                    <Rocket className="mr-2 h-4 w-4" />
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
