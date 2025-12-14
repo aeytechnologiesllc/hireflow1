@@ -18,6 +18,8 @@ import {
   Link2,
   Sparkles,
   Loader2,
+  Zap,
+  Hand,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,17 +32,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useState } from "react";
-import type { Job } from "@/hooks/useJobs";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
+import type { JobWithApplicationCount } from "@/hooks/useJobs";
 
 interface JobCardProps {
-  job: Job;
+  job: JobWithApplicationCount;
   onDelete: (id: string) => void;
-  onViewDetails: (job: Job) => void;
-  onViewWorkflow: (job: Job) => void;
-  onEdit: (job: Job) => void;
-  onDuplicate: (job: Job) => void;
+  onViewDetails: (job: JobWithApplicationCount) => void;
+  onViewWorkflow: (job: JobWithApplicationCount) => void;
+  onEdit: (job: JobWithApplicationCount) => void;
+  onDuplicate: (job: JobWithApplicationCount) => void;
   isDeleting: boolean;
 }
 
@@ -100,10 +102,24 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               </DropdownMenu>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusStyles[job.status]}`}>
                 {job.status}
               </span>
+              {job.processing_mode && (
+                <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                  job.processing_mode === "auto" 
+                    ? "bg-blue-500/20 text-blue-400" 
+                    : "bg-orange-500/20 text-orange-400"
+                }`}>
+                  {job.processing_mode === "auto" ? (
+                    <Zap className="h-3 w-3" />
+                  ) : (
+                    <Hand className="h-3 w-3" />
+                  )}
+                  {job.processing_mode === "auto" ? "Autopilot" : "Manual"}
+                </span>
+              )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
@@ -127,7 +143,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               <span>•</span>
               <div className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                <span>0 applicants</span>
+                <span>{job.application_count} applicant{job.application_count !== 1 ? "s" : ""}</span>
               </div>
               <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
@@ -147,7 +163,7 @@ export default function Jobs() {
   const deleteJob = useDeleteJob();
   const createJob = useCreateJob();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
 
@@ -160,23 +176,23 @@ export default function Jobs() {
     }
   };
 
-  const handleViewDetails = (job: Job) => {
+  const handleViewDetails = (job: JobWithApplicationCount) => {
     setSelectedJob(job);
     setShowDetailsDialog(true);
   };
 
-  const handleViewWorkflow = (job: Job) => {
+  const handleViewWorkflow = (job: JobWithApplicationCount) => {
     setSelectedJob(job);
     setShowWorkflowDialog(true);
   };
 
-  const handleEdit = (job: Job) => {
+  const handleEdit = (job: JobWithApplicationCount) => {
     navigate(`/jobs/edit/${job.id}`);
   };
 
-  const handleDuplicate = async (job: Job) => {
+  const handleDuplicate = async (job: JobWithApplicationCount) => {
     try {
-      const { id, created_at, updated_at, employer_id, job_code, ...jobData } = job;
+      const { id, created_at, updated_at, employer_id, job_code, application_count, ...jobData } = job;
       await createJob.mutateAsync({
         ...jobData,
         title: `${job.title} (Copy)`,
