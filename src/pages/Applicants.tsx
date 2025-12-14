@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +19,6 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
-import ApplicantDetailsDialog from "@/components/ApplicantDetailsDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -34,10 +34,10 @@ interface ApplicantCardProps {
   application: ApplicationWithCandidate;
   onStatusChange: (id: string, status: string) => void;
   onScheduleInterview: (application: ApplicationWithCandidate) => void;
-  onViewDetails: (application: ApplicationWithCandidate) => void;
+  onNavigateToDetails: (id: string) => void;
 }
 
-function ApplicantCard({ application, onStatusChange, onScheduleInterview, onViewDetails }: ApplicantCardProps) {
+function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
   
@@ -48,7 +48,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onVie
   return (
     <Card 
       className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
-      onClick={() => onViewDetails(application)}
+      onClick={() => onNavigateToDetails(application.id)}
     >
       <CardContent className="p-6">
         <div className="flex items-start gap-4">
@@ -73,7 +73,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onVie
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border-border">
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails(application); }}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onNavigateToDetails(application.id); }}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
@@ -151,14 +151,14 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onVie
 }
 
 export default function Applicants() {
+  const navigate = useNavigate();
   const { role } = useAuth();
   const isEmployer = role === "employer";
-  const { data: applications, isLoading, refetch } = useEmployerApplications();
+  const { data: applications, isLoading } = useEmployerApplications();
   const { data: stats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
 
   const handleStatusChange = async (id: string, status: string) => {
@@ -175,23 +175,8 @@ export default function Applicants() {
     setScheduleDialogOpen(true);
   };
 
-  const handleViewDetails = (application: ApplicationWithCandidate) => {
-    setSelectedApplication(application);
-    setDetailsDialogOpen(true);
-  };
-
-  const handleAnalysisComplete = async (analysis: string, score: number | null) => {
-    if (!selectedApplication) return;
-    try {
-      await updateApplication.mutateAsync({
-        id: selectedApplication.id,
-        ai_analysis: analysis,
-        ai_score: score,
-      });
-      refetch();
-    } catch (error) {
-      console.error("Failed to save analysis:", error);
-    }
+  const handleNavigateToDetails = (id: string) => {
+    navigate(`/applicants/${id}`);
   };
 
   const filteredApplications = applications?.filter((app) => {
@@ -292,7 +277,7 @@ export default function Applicants() {
               application={application}
               onStatusChange={handleStatusChange}
               onScheduleInterview={handleScheduleInterview}
-              onViewDetails={handleViewDetails}
+              onNavigateToDetails={handleNavigateToDetails}
             />
           ))
         ) : (
@@ -313,13 +298,6 @@ export default function Applicants() {
         candidateName={selectedApplication?.profiles?.full_name || "Candidate"}
         open={scheduleDialogOpen}
         onOpenChange={setScheduleDialogOpen}
-      />
-
-      <ApplicantDetailsDialog
-        application={selectedApplication}
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        onAnalyze={handleAnalysisComplete}
       />
     </div>
   );
