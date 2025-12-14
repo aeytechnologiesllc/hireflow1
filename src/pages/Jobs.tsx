@@ -32,17 +32,19 @@ import { format } from "date-fns";
 import { useState } from "react";
 import type { Job } from "@/hooks/useJobs";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
+import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 
 interface JobCardProps {
   job: Job;
   onDelete: (id: string) => void;
   onViewDetails: (job: Job) => void;
+  onViewWorkflow: (job: Job) => void;
   onEdit: (job: Job) => void;
   onDuplicate: (job: Job) => void;
   isDeleting: boolean;
 }
 
-function JobCard({ job, onDelete, onViewDetails, onEdit, onDuplicate, isDeleting }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, isDeleting }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -68,6 +70,11 @@ function JobCard({ job, onDelete, onViewDetails, onEdit, onDuplicate, isDeleting
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onViewWorkflow(job)}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    View Workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => onEdit(job)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Job
@@ -142,6 +149,7 @@ export default function Jobs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
 
   const handleDelete = async (id: string) => {
     try {
@@ -155,6 +163,11 @@ export default function Jobs() {
   const handleViewDetails = (job: Job) => {
     setSelectedJob(job);
     setShowDetailsDialog(true);
+  };
+
+  const handleViewWorkflow = (job: Job) => {
+    setSelectedJob(job);
+    setShowWorkflowDialog(true);
   };
 
   const handleEdit = (job: Job) => {
@@ -270,6 +283,7 @@ export default function Jobs() {
               job={job} 
               onDelete={handleDelete}
               onViewDetails={handleViewDetails}
+              onViewWorkflow={handleViewWorkflow}
               onEdit={handleEdit}
               onDuplicate={handleDuplicate}
               isDeleting={deleteJob.isPending}
@@ -300,6 +314,13 @@ export default function Jobs() {
         open={showDetailsDialog}
         onOpenChange={setShowDetailsDialog}
         showApplyButton={false}
+      />
+
+      {/* Job Workflow Dialog */}
+      <JobWorkflowDialog
+        job={selectedJob}
+        open={showWorkflowDialog}
+        onOpenChange={setShowWorkflowDialog}
       />
     </div>
   );
