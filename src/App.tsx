@@ -20,6 +20,7 @@ import Applications from "./pages/Applications";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import CreateJob from "./pages/CreateJob";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/jobs" element={<Jobs />} />
+              <Route path="/jobs/create" element={<CreateJob />} />
               <Route path="/applicants" element={<Applicants />} />
               <Route path="/interviews" element={<Interviews />} />
               <Route path="/messages" element={<Messages />} />
