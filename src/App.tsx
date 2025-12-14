@@ -16,6 +16,7 @@ import Documents from "./pages/Documents";
 import Team from "./pages/Team";
 import Analytics from "./pages/Analytics";
 import ApplyWithCode from "./pages/ApplyWithCode";
+import JobDetails from "./pages/JobDetails";
 import Applications from "./pages/Applications";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/team" element={<Team />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/apply" element={<ApplyWithCode />} />
+              <Route path="/job/:id" element={<JobDetails />} />
               <Route path="/applications" element={<Applications />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
