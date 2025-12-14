@@ -9,16 +9,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Dialog, DialogContent, DialogHeader, DialogTitle 
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { 
   ArrowLeft, FileText, MessageSquare, Sparkles, 
   XCircle, GripHorizontal, Clock, RefreshCw, 
   FileCheck, ClipboardList, Video, Keyboard, 
-  Eye, Users, CheckCircle, Loader2, Mail
+  Eye, Users, CheckCircle, Loader2, Mail, ExternalLink
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
-
 interface WorkflowStep {
   id: string;
   title: string;
@@ -70,6 +73,8 @@ export default function ApplicantDetails() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showApplicationDialog, setShowApplicationDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -432,7 +437,7 @@ ${application.cover_letter || "Not provided"}
       {/* Applicant Info */}
       <Card className="bg-card border-border">
         <CardContent className="p-6">
-          {/* Phase Tags */}
+          {/* Phase Tags - Clickable */}
           <div className="flex flex-wrap gap-2 mb-6">
             {isAutoPilot && (
               <Badge className="bg-primary/20 text-primary border-primary/30">
@@ -440,14 +445,21 @@ ${application.cover_letter || "Not provided"}
                 Auto-Pilot
               </Badge>
             )}
-            <Badge variant="outline" className="gap-1">
+            <Badge 
+              variant="outline" 
+              className="gap-1 cursor-pointer hover:bg-accent transition-colors"
+              onClick={() => setShowApplicationDialog(true)}
+            >
               <FileCheck className="h-3 w-3" />
               Application
             </Badge>
-            {phaseScores["resume"] && (
-              <Badge className="bg-success/20 text-success border-success/30">
+            {(application.resume_url || phaseScores["resume"]) && (
+              <Badge 
+                className="bg-success/20 text-success border-success/30 cursor-pointer hover:bg-success/30 transition-colors"
+                onClick={() => setShowResumeDialog(true)}
+              >
                 <FileText className="h-3 w-3 mr-1" />
-                Resume ({phaseScores["resume"]})
+                Resume {phaseScores["resume"] ? `(${phaseScores["resume"]})` : ""}
               </Badge>
             )}
           </div>
@@ -556,6 +568,133 @@ ${application.cover_letter || "Not provided"}
           )}
         </CardContent>
       </Card>
+      {/* Application Data Dialog */}
+      <Dialog open={showApplicationDialog} onOpenChange={setShowApplicationDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCheck className="h-5 w-5 text-primary" />
+              Application Submission
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6">
+              {/* Cover Letter */}
+              {application.cover_letter && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-foreground">Cover Letter</h4>
+                  <div className="p-4 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap">
+                    {application.cover_letter}
+                  </div>
+                </div>
+              )}
+              
+              {/* Application Questions & Answers */}
+              {(() => {
+                const questions = (job?.application_questions as any[]) || [];
+                const notes = application.notes;
+                let answers: Record<string, any> = {};
+                
+                if (notes) {
+                  try {
+                    answers = JSON.parse(notes);
+                  } catch {
+                    // Notes might not be JSON
+                  }
+                }
+                
+                if (questions.length === 0) {
+                  return (
+                    <div className="text-muted-foreground text-sm">
+                      No application questions were configured for this job.
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-foreground">Application Questions</h4>
+                    {questions.map((q: any, index: number) => (
+                      <div key={q.id || index} className="space-y-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {index + 1}. {q.question || q.label || "Question"}
+                        </p>
+                        <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                          {answers[q.id] || answers[`question_${index}`] || (
+                            <span className="text-muted-foreground italic">No answer provided</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              
+              {/* Submitted Date */}
+              <div className="pt-4 border-t border-border text-sm text-muted-foreground">
+                Submitted on {format(new Date(application.created_at), "MMMM d, yyyy 'at' h:mm a")}
+              </div>
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resume Dialog */}
+      <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Resume
+              {phaseScores["resume"] && (
+                <Badge className="bg-success/20 text-success ml-2">
+                  AI Score: {phaseScores["resume"]}/100
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {application.resume_url ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">Candidate Resume</p>
+                      <p className="text-sm text-muted-foreground">PDF Document</p>
+                    </div>
+                  </div>
+                  <Button asChild>
+                    <a 
+                      href={application.resume_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open
+                    </a>
+                  </Button>
+                </div>
+                
+                {/* Resume Preview iframe */}
+                <div className="rounded-lg overflow-hidden border border-border bg-muted h-96">
+                  <iframe 
+                    src={application.resume_url}
+                    className="w-full h-full"
+                    title="Resume Preview"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No resume was uploaded for this application.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
