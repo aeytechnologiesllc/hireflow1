@@ -14,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -44,7 +46,8 @@ import {
   Video,
   MessageSquare,
   Upload,
-  Bot
+  Bot,
+  Hand
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -150,6 +153,8 @@ export default function CreateJob() {
 
   // Workflow state
   const [workflowDifficulty, setWorkflowDifficulty] = useState<string>("medium");
+  const [processingMode, setProcessingMode] = useState<"auto" | "manual">("auto");
+  const [passingScore, setPassingScore] = useState<number>(60);
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
@@ -189,6 +194,12 @@ export default function CreateJob() {
       // Load workflow data
       if (existingJob.workflow_difficulty) {
         setWorkflowDifficulty(existingJob.workflow_difficulty);
+      }
+      if (existingJob.processing_mode) {
+        setProcessingMode(existingJob.processing_mode as "auto" | "manual");
+      }
+      if (existingJob.passing_score) {
+        setPassingScore(existingJob.passing_score);
       }
       if (existingJob.application_questions) {
         setApplicationQuestions(existingJob.application_questions as unknown as ApplicationQuestion[]);
@@ -346,6 +357,8 @@ export default function CreateJob() {
         quiz_questions: quizQuestions as unknown as null,
         workflow_steps: workflowSteps as unknown as null,
         workflow_difficulty: workflowDifficulty,
+        processing_mode: processingMode,
+        passing_score: passingScore,
       };
 
       if (isEditMode && id) {
@@ -1007,6 +1020,80 @@ export default function CreateJob() {
                             );
                           })}
                         </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Processing Mode Selection */}
+                      <div className="space-y-4">
+                        <Label>Processing Mode</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => setProcessingMode("auto")}
+                            className={cn(
+                              "p-4 rounded-xl border-2 transition-all text-left",
+                              processingMode === "auto"
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Zap className="h-5 w-5 text-blue-500" />
+                              <div>
+                                <div className="font-semibold">Auto-Pilot</div>
+                                <div className="text-xs text-muted-foreground">
+                                  AVA automatically evaluates and progresses candidates
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => setProcessingMode("manual")}
+                            className={cn(
+                              "p-4 rounded-xl border-2 transition-all text-left",
+                              processingMode === "manual"
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Hand className="h-5 w-5 text-orange-500" />
+                              <div>
+                                <div className="font-semibold">Manual Review</div>
+                                <div className="text-xs text-muted-foreground">
+                                  You review and approve each phase progression
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+
+                        {/* Passing Score - Only visible in Auto mode */}
+                        {processingMode === "auto" && (
+                          <div className="p-4 rounded-lg bg-muted/30 border border-border space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <Label>Passing Score</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Minimum AI score to auto-advance candidates
+                                </p>
+                              </div>
+                              <div className="text-2xl font-bold text-primary">{passingScore}%</div>
+                            </div>
+                            <Slider
+                              value={[passingScore]}
+                              onValueChange={([value]) => setPassingScore(value)}
+                              min={30}
+                              max={95}
+                              step={5}
+                              className="w-full"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Lenient (30%)</span>
+                              <span>Strict (95%)</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <Button

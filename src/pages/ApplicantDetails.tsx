@@ -509,8 +509,8 @@ ${application.cover_letter || "Not provided"}
         </CardContent>
       </Card>
 
-      {/* Auto-Pilot Mode */}
-      {isAutoPilot && (
+      {/* Processing Mode Indicator */}
+      {isAutoPilot ? (
         <Card className="bg-card border-border border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
@@ -524,6 +524,20 @@ ${application.cover_letter || "Not provided"}
             </div>
           </CardContent>
         </Card>
+      ) : (
+        <Card className="bg-card border-border border-l-4 border-l-orange-500">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Eye className="h-5 w-5 text-orange-500 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-orange-500">Manual Review Mode</h3>
+                <p className="text-sm text-muted-foreground">
+                  Review each phase submission and approve candidates to progress manually.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Applicant Info */}
@@ -531,10 +545,15 @@ ${application.cover_letter || "Not provided"}
         <CardContent className="p-6">
           {/* Phase Tags - Clickable */}
           <div className="flex flex-wrap gap-2 mb-6">
-            {isAutoPilot && (
+            {isAutoPilot ? (
               <Badge className="bg-primary/20 text-primary border-primary/30">
                 <Sparkles className="h-3 w-3 mr-1" />
                 Auto-Pilot
+              </Badge>
+            ) : (
+              <Badge className="bg-orange-500/20 text-orange-500 border-orange-500/30">
+                <Eye className="h-3 w-3 mr-1" />
+                Manual
               </Badge>
             )}
             {workflowBadges.map((badge) => {
