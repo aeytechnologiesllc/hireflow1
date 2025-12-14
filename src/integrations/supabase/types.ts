@@ -270,6 +270,7 @@ export type Database = {
           ai_bias_feedback: string | null
           ai_bias_score: number | null
           application_deadline: string | null
+          application_questions: Json | null
           benefits: string[] | null
           created_at: string
           department: string | null
@@ -280,6 +281,10 @@ export type Database = {
           job_code: string | null
           job_type: string | null
           location: string | null
+          passing_score: number | null
+          processing_mode: string | null
+          quiz_questions: Json | null
+          require_resume: boolean | null
           requirements: string | null
           responsibilities: string | null
           salary_currency: string | null
@@ -289,11 +294,14 @@ export type Database = {
           status: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at: string
+          workflow_difficulty: string | null
+          workflow_steps: Json | null
         }
         Insert: {
           ai_bias_feedback?: string | null
           ai_bias_score?: number | null
           application_deadline?: string | null
+          application_questions?: Json | null
           benefits?: string[] | null
           created_at?: string
           department?: string | null
@@ -304,6 +312,10 @@ export type Database = {
           job_code?: string | null
           job_type?: string | null
           location?: string | null
+          passing_score?: number | null
+          processing_mode?: string | null
+          quiz_questions?: Json | null
+          require_resume?: boolean | null
           requirements?: string | null
           responsibilities?: string | null
           salary_currency?: string | null
@@ -313,11 +325,14 @@ export type Database = {
           status?: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at?: string
+          workflow_difficulty?: string | null
+          workflow_steps?: Json | null
         }
         Update: {
           ai_bias_feedback?: string | null
           ai_bias_score?: number | null
           application_deadline?: string | null
+          application_questions?: Json | null
           benefits?: string[] | null
           created_at?: string
           department?: string | null
@@ -328,6 +343,10 @@ export type Database = {
           job_code?: string | null
           job_type?: string | null
           location?: string | null
+          passing_score?: number | null
+          processing_mode?: string | null
+          quiz_questions?: Json | null
+          require_resume?: boolean | null
           requirements?: string | null
           responsibilities?: string | null
           salary_currency?: string | null
@@ -337,6 +356,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["job_status"]
           title?: string
           updated_at?: string
+          workflow_difficulty?: string | null
+          workflow_steps?: Json | null
         }
         Relationships: []
       }
