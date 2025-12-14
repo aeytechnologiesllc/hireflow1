@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Applicants from "./pages/Applicants";
+import ApplicantDetails from "./pages/ApplicantDetails";
 import Interviews from "./pages/Interviews";
 import Messages from "./pages/Messages";
 import Documents from "./pages/Documents";
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/jobs/create" element={<CreateJob />} />
               <Route path="/jobs/edit/:id" element={<CreateJob />} />
               <Route path="/applicants" element={<Applicants />} />
+              <Route path="/applicants/:id" element={<ApplicantDetails />} />
               <Route path="/interviews" element={<Interviews />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/documents" element={<Documents />} />
