@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import { useCreateJob } from "@/hooks/useJobs";
+import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,8 +120,12 @@ const STEP_TYPE_INFO = {
 
 export default function CreateJob() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   const { role } = useAuth();
   const createJob = useCreateJob();
+  const updateJob = useUpdateJob();
+  const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
   
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -158,6 +162,46 @@ export default function CreateJob() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+
+  // Load existing job data for edit mode
+  useEffect(() => {
+    if (isEditMode && existingJob) {
+      setFormData({
+        title: existingJob.title || "",
+        description: existingJob.description || "",
+        requirements: existingJob.requirements || "",
+        responsibilities: existingJob.responsibilities || "",
+        location: existingJob.location || "",
+        job_type: existingJob.job_type || "full-time",
+        experience_level: existingJob.experience_level || "",
+        department: existingJob.department || "",
+        salary_type: existingJob.salary_min === existingJob.salary_max ? "fixed" : "range",
+        salary_period: "yearly",
+        salary_min: existingJob.salary_min?.toString() || "",
+        salary_max: existingJob.salary_max?.toString() || "",
+        salary_fixed: existingJob.salary_min === existingJob.salary_max ? existingJob.salary_min?.toString() || "" : "",
+        salary_currency: existingJob.salary_currency || "USD",
+        skills_required: existingJob.skills_required?.join(", ") || "",
+        benefits: existingJob.benefits?.join(", ") || "",
+        application_deadline: existingJob.application_deadline ? new Date(existingJob.application_deadline) : null,
+      });
+      
+      // Load workflow data
+      if (existingJob.workflow_difficulty) {
+        setWorkflowDifficulty(existingJob.workflow_difficulty);
+      }
+      if (existingJob.application_questions) {
+        setApplicationQuestions(existingJob.application_questions as unknown as ApplicationQuestion[]);
+        setWorkflowGenerated(true);
+      }
+      if (existingJob.quiz_questions) {
+        setQuizQuestions(existingJob.quiz_questions as unknown as QuizQuestion[]);
+      }
+      if (existingJob.workflow_steps) {
+        setWorkflowSteps(existingJob.workflow_steps as unknown as WorkflowStep[]);
+      }
+    }
+  }, [isEditMode, existingJob]);
 
   const handleChange = (field: string, value: string | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -277,7 +321,7 @@ export default function CreateJob() {
 
     setIsSubmitting(true);
     try {
-      await createJob.mutateAsync({
+      const jobData = {
         title: formData.title,
         description: formData.description,
         requirements: formData.requirements || null,
@@ -302,13 +346,20 @@ export default function CreateJob() {
         quiz_questions: quizQuestions as unknown as null,
         workflow_steps: workflowSteps as unknown as null,
         workflow_difficulty: workflowDifficulty,
-      });
+      };
 
-      toast.success(status === "published" ? "Job published successfully!" : "Job saved as draft");
+      if (isEditMode && id) {
+        await updateJob.mutateAsync({ id, ...jobData });
+        toast.success(status === "published" ? "Job updated and published!" : "Job updated");
+      } else {
+        await createJob.mutateAsync(jobData);
+        toast.success(status === "published" ? "Job published successfully!" : "Job saved as draft");
+      }
+      
       navigate("/jobs");
     } catch (error) {
-      console.error("Error creating job:", error);
-      toast.error("Failed to create job");
+      console.error("Error saving job:", error);
+      toast.error(isEditMode ? "Failed to update job" : "Failed to create job");
     } finally {
       setIsSubmitting(false);
     }
@@ -388,8 +439,12 @@ export default function CreateJob() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Create New Job</h2>
-            <p className="text-muted-foreground mt-1">AI-powered job posting wizard</p>
+            <h2 className="text-2xl font-bold text-foreground">
+              {isEditMode ? "Edit Job" : "Create New Job"}
+            </h2>
+            <p className="text-muted-foreground mt-1">
+              {isEditMode ? "Update your job posting" : "AI-powered job posting wizard"}
+            </p>
           </div>
         </div>
         
