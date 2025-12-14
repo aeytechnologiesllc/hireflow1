@@ -591,37 +591,49 @@ ${application.cover_letter || "Not provided"}
               
               {/* Application Questions & Answers */}
               {(() => {
-                const questions = (job?.application_questions as any[]) || [];
                 const notes = application.notes;
-                let answers: Record<string, any> = {};
+                let applicationAnswers: { question: string; answer: string }[] = [];
                 
                 if (notes) {
                   try {
-                    answers = JSON.parse(notes);
+                    const parsed = JSON.parse(notes);
+                    if (parsed.applicationAnswers && Array.isArray(parsed.applicationAnswers)) {
+                      applicationAnswers = parsed.applicationAnswers;
+                    }
                   } catch {
                     // Notes might not be JSON
                   }
                 }
                 
-                if (questions.length === 0) {
+                if (applicationAnswers.length === 0) {
                   return (
                     <div className="text-muted-foreground text-sm">
-                      No application questions were configured for this job.
+                      No application answers were submitted.
                     </div>
                   );
                 }
                 
                 return (
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-foreground">Application Questions</h4>
-                    {questions.map((q: any, index: number) => (
-                      <div key={q.id || index} className="space-y-2">
+                    <h4 className="font-semibold text-foreground">Application Answers</h4>
+                    {applicationAnswers.map((item, index) => (
+                      <div key={index} className="space-y-2">
                         <p className="text-sm font-medium text-foreground">
-                          {index + 1}. {q.question || q.label || "Question"}
+                          {index + 1}. {item.question}
                         </p>
                         <div className="p-3 bg-muted/50 rounded-lg text-sm">
-                          {answers[q.id] || answers[`question_${index}`] || (
-                            <span className="text-muted-foreground italic">No answer provided</span>
+                          {item.answer?.startsWith("http") ? (
+                            <a 
+                              href={item.answer} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline flex items-center gap-2"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View Uploaded File
+                            </a>
+                          ) : (
+                            item.answer || <span className="text-muted-foreground italic">No answer provided</span>
                           )}
                         </div>
                       </div>
