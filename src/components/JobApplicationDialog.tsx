@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface JobApplicationDialogProps {
@@ -29,18 +30,70 @@ export default function JobApplicationDialog({
 }: JobApplicationDialogProps) {
   const [coverLetter, setCoverLetter] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const createApplication = useCreateApplication();
+
+  const analyzeApplication = async (jobData: Tables<"jobs">) => {
+    if (!coverLetter && !resumeUrl) return null;
+
+    setIsAnalyzing(true);
+    try {
+      const content = `
+Job Title: ${jobData.title}
+Job Description: ${jobData.description}
+Requirements: ${jobData.requirements || "Not specified"}
+
+Candidate Cover Letter:
+${coverLetter || "Not provided"}
+
+Resume URL: ${resumeUrl || "Not provided"}
+      `;
+
+      const { data, error } = await supabase.functions.invoke("ai-analyze", {
+        body: {
+          type: "application",
+          content,
+          context: {
+            skills_required: jobData.skills_required,
+            experience_level: jobData.experience_level,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      // Extract score from analysis (simple regex for "Score: XX" pattern)
+      const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
+      const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+
+      return {
+        analysis: data.analysis,
+        score: score && score >= 0 && score <= 100 ? score : null,
+      };
+    } catch (error) {
+      console.error("AI analysis error:", error);
+      return null;
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!job) return;
 
     try {
+      // Run AI analysis
+      const aiResult = await analyzeApplication(job);
+
       await createApplication.mutateAsync({
         job_id: job.id,
         cover_letter: coverLetter || null,
         resume_url: resumeUrl || null,
+        ai_analysis: aiResult?.analysis || null,
+        ai_score: aiResult?.score || null,
       });
+
       toast.success("Application submitted successfully!");
       onOpenChange(false);
       setCoverLetter("");
@@ -49,6 +102,8 @@ export default function JobApplicationDialog({
       toast.error(error.message || "Failed to submit application");
     }
   };
+
+  const isPending = createApplication.isPending || isAnalyzing;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,15 +136,23 @@ export default function JobApplicationDialog({
               className="bg-background border-border resize-none"
             />
           </div>
+
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm text-muted-foreground">
+              Your application will be analyzed by AI to help employers understand your fit
+            </span>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createApplication.isPending}>
-              {createApplication.isPending && (
+            <Button type="submit" disabled={isPending}>
+              {isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Submit Application
+              {isAnalyzing ? "Analyzing..." : "Submit Application"}
             </Button>
           </DialogFooter>
         </form>

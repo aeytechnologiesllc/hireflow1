@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview } from "@/hooks/useInterviews";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Plus, Clock, Video, MapPin, MoreVertical, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Plus, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format, isPast, isFuture } from "date-fns";
+import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 
 const statusColors: Record<string, string> = {
@@ -27,9 +29,10 @@ interface InterviewCardProps {
   interview: InterviewWithDetails;
   isEmployer: boolean;
   onStatusChange: (id: string, status: string) => void;
+  onGenerateQuestions: (interview: InterviewWithDetails) => void;
 }
 
-function InterviewCard({ interview, isEmployer, onStatusChange }: InterviewCardProps) {
+function InterviewCard({ interview, isEmployer, onStatusChange, onGenerateQuestions }: InterviewCardProps) {
   const application = interview.applications;
   const job = application?.jobs;
   const profile = application?.profiles as any;
@@ -72,9 +75,17 @@ function InterviewCard({ interview, isEmployer, onStatusChange }: InterviewCardP
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-popover border-border">
+                      <DropdownMenuItem onClick={() => onGenerateQuestions(interview)}>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        AI Questions
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onStatusChange(interview.id, "completed")}>
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark as Completed
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onStatusChange(interview.id, "no_show")} className="text-yellow-500">
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Mark as No Show
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onStatusChange(interview.id, "cancelled")} className="text-destructive">
                         <XCircle className="h-4 w-4 mr-2" />
@@ -112,6 +123,12 @@ function InterviewCard({ interview, isEmployer, onStatusChange }: InterviewCardP
                   </a>
                 </Button>
               )}
+              {interview.ai_questions && interview.ai_questions.length > 0 && (
+                <div className="flex items-center gap-1 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  <span>{interview.ai_questions.length} AI questions</span>
+                </div>
+              )}
             </div>
 
             {interview.notes && (
@@ -127,8 +144,10 @@ function InterviewCard({ interview, isEmployer, onStatusChange }: InterviewCardP
 export default function Interviews() {
   const { role } = useAuth();
   const isEmployer = role === "employer";
-  const { data: interviews, isLoading } = useInterviews();
+  const { data: interviews, isLoading, refetch } = useInterviews();
   const updateInterview = useUpdateInterview();
+  const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState<InterviewWithDetails | null>(null);
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -136,6 +155,24 @@ export default function Interviews() {
       toast.success(`Interview marked as ${status}`);
     } catch (error) {
       toast.error("Failed to update interview");
+    }
+  };
+
+  const handleGenerateQuestions = (interview: InterviewWithDetails) => {
+    setSelectedInterview(interview);
+    setQuestionsDialogOpen(true);
+  };
+
+  const handleQuestionsGenerated = async (questions: string[]) => {
+    if (!selectedInterview) return;
+    try {
+      await updateInterview.mutateAsync({
+        id: selectedInterview.id,
+        ai_questions: questions,
+      });
+      refetch();
+    } catch (error) {
+      console.error("Failed to save questions:", error);
     }
   };
 
@@ -158,12 +195,6 @@ export default function Interviews() {
               : "View your upcoming interviews"}
           </p>
         </div>
-        {isEmployer && (
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Schedule Interview
-          </Button>
-        )}
       </div>
 
       {isLoading ? (
@@ -183,6 +214,7 @@ export default function Interviews() {
                   interview={interview}
                   isEmployer={isEmployer}
                   onStatusChange={handleStatusChange}
+                  onGenerateQuestions={handleGenerateQuestions}
                 />
               ))}
             </div>
@@ -198,6 +230,7 @@ export default function Interviews() {
                   interview={interview}
                   isEmployer={isEmployer}
                   onStatusChange={handleStatusChange}
+                  onGenerateQuestions={handleGenerateQuestions}
                 />
               ))}
             </div>
@@ -216,6 +249,13 @@ export default function Interviews() {
           </CardContent>
         </Card>
       )}
+
+      <InterviewQuestionsDialog
+        interview={selectedInterview}
+        open={questionsDialogOpen}
+        onOpenChange={setQuestionsDialogOpen}
+        onQuestionsGenerated={handleQuestionsGenerated}
+      />
     </div>
   );
 }

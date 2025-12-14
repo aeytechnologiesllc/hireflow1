@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import JobApplicationDialog from "@/components/JobApplicationDialog";
+import JobDetailsDialog from "@/components/JobDetailsDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 export default function FindJobs() {
@@ -18,6 +19,7 @@ export default function FindJobs() {
   const [locationQuery, setLocationQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<Tables<"jobs"> | null>(null);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   const filteredJobs = jobs?.filter((job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -35,8 +37,14 @@ export default function FindJobs() {
     return `Up to ${curr} ${max?.toLocaleString()}`;
   };
 
+  const handleViewDetails = (job: Tables<"jobs">) => {
+    setSelectedJob(job);
+    setDetailsDialogOpen(true);
+  };
+
   const handleApply = (job: Tables<"jobs">) => {
     setSelectedJob(job);
+    setDetailsDialogOpen(false);
     setApplyDialogOpen(true);
   };
 
@@ -107,7 +115,11 @@ export default function FindJobs() {
           </>
         ) : filteredJobs && filteredJobs.length > 0 ? (
           filteredJobs.map((job) => (
-            <Card key={job.id} className="bg-card border-border hover:border-primary/50 transition-colors">
+            <Card 
+              key={job.id} 
+              className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => handleViewDetails(job)}
+            >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="space-y-3 flex-1">
@@ -157,7 +169,9 @@ export default function FindJobs() {
                       </div>
                     )}
                   </div>
-                  <Button onClick={() => handleApply(job)}>Apply Now</Button>
+                  <Button onClick={(e) => { e.stopPropagation(); handleApply(job); }}>
+                    Apply Now
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -174,6 +188,13 @@ export default function FindJobs() {
           </Card>
         )}
       </div>
+
+      <JobDetailsDialog
+        job={selectedJob}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        onApply={() => handleApply(selectedJob!)}
+      />
 
       <JobApplicationDialog
         job={selectedJob}
