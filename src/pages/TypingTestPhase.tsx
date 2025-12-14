@@ -31,16 +31,27 @@ const typingTexts = [
   "Problem-solving is a critical skill in any workplace. When faced with challenges, taking a step back to analyze the situation, considering multiple solutions, and implementing the best approach can lead to positive outcomes for everyone involved."
 ];
 
+interface WorkflowStep {
+  id: string;
+  title: string;
+  type: string;
+  description?: string;
+  required?: boolean;
+  config?: Record<string, any>;
+}
+
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
   job_id: string;
   phase: string | null;
   notes: string | null;
+  status: string;
   jobs: {
     title: string;
     processing_mode: string | null;
     passing_score: number | null;
+    workflow_steps?: WorkflowStep[] | null;
   } | null;
 }
 
@@ -73,12 +84,24 @@ export default function TypingTestPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score)")
+        .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
         .eq("id", id!)
         .single();
 
       if (error) throw error;
-      return data as ApplicationDetails;
+      
+      // Parse workflow_steps from JSON
+      const parsed = {
+        ...data,
+        jobs: data.jobs ? {
+          ...data.jobs,
+          workflow_steps: Array.isArray(data.jobs.workflow_steps) 
+            ? data.jobs.workflow_steps as unknown as WorkflowStep[]
+            : null
+        } : null
+      };
+      
+      return parsed as ApplicationDetails;
     },
     enabled: !!id && !!user,
   });
@@ -211,30 +234,56 @@ export default function TypingTestPhase() {
       const isAutoMode = application.jobs?.processing_mode !== "manual";
       const passingScore = application.jobs?.passing_score || 60;
       
+      // Build the full phases list to find the next phase
+      const workflowSteps = application.jobs?.workflow_steps || [];
+      const allPhases = [
+        { id: "application", type: "application" },
+        ...workflowSteps.map(step => ({ id: step.id, type: step.type })),
+        { id: "review", type: "review" },
+        { id: "interview", type: "interview" },
+        { id: "hired", type: "hired" },
+      ];
+      
+      // Find current step index
+      const currentIndex = allPhases.findIndex(p => p.id === stepId);
+      
       let newPhase = application.phase;
-      if (isAutoMode && results.score >= passingScore) {
-        // In auto mode, advance to next phase if passed
-        // For now, just mark the current phase as completed
-        newPhase = stepId; // Keep at current step, AI will advance
+      let newStatus = application.status;
+      
+      if (isAutoMode) {
+        if (results.passed) {
+          // Advance to next phase
+          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+            newPhase = allPhases[currentIndex + 1].id;
+          }
+          toast.success("Typing test submitted successfully!", {
+            description: "Great job! You passed and advanced to the next phase.",
+          });
+        } else {
+          // Failed - reject the application
+          newStatus = "rejected";
+          toast.error("Typing test not passed", {
+            description: `You scored ${results.score}% but needed ${passingScore}% to pass.`,
+          });
+        }
+      } else {
+        // Manual mode - just save results, employer will review
+        toast.success("Typing test submitted successfully!", {
+          description: "Your results have been recorded. The employer will review your submission.",
+        });
       }
 
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase_ai_analysis: isAutoMode 
-            ? `Typing test: ${results.wpm} WPM, ${results.accuracy}% accuracy, Score: ${results.score}%. ${results.passed ? "PASSED" : "FAILED"}`
-            : null,
+          phase: newPhase,
+          status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
+          phase_ai_analysis: `Typing test: ${results.wpm} WPM, ${results.accuracy}% accuracy, Score: ${results.score}%. ${results.passed ? "PASSED" : "FAILED"}`,
         })
         .eq("id", id!);
 
       if (error) throw error;
-
-      toast.success("Typing test submitted successfully!", {
-        description: results.passed 
-          ? "Great job! You passed the typing test."
-          : "Your results have been recorded.",
-      });
 
       navigate(`/applications/${id}`);
     } catch (error) {
