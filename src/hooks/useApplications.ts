@@ -40,18 +40,41 @@ export function useEmployerApplications() {
   return useQuery({
     queryKey: ["applications", "employer", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get applications with jobs
+      const { data: applications, error: appError } = await supabase
         .from("applications")
-        .select("*, jobs!inner(*), profiles:candidate_id(*)");
+        .select("*, jobs!inner(*)")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      
+      if (appError) throw appError;
+
       // Filter to only show applications for jobs owned by this employer
-      const filtered = (data as any[]).filter(
+      const filtered = (applications as any[]).filter(
         (app) => app.jobs?.employer_id === user!.id
       );
-      
-      return filtered as ApplicationWithCandidate[];
+
+      if (filtered.length === 0) {
+        return [] as ApplicationWithCandidate[];
+      }
+
+      // Get unique candidate IDs
+      const candidateIds = [...new Set(filtered.map((app) => app.candidate_id))];
+
+      // Fetch profiles for all candidates
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", candidateIds);
+
+      if (profileError) throw profileError;
+
+      // Map profiles to applications
+      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+
+      return filtered.map((app) => ({
+        ...app,
+        profiles: profileMap.get(app.candidate_id) || null,
+      })) as ApplicationWithCandidate[];
     },
     enabled: !!user,
   });
