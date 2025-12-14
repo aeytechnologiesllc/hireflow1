@@ -1,0 +1,186 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface JobContentRequest {
+  field: string;
+  title: string;
+  department?: string;
+  experience_level?: string;
+  job_type?: string;
+  location?: string;
+  existingContent?: string;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const body: JobContentRequest = await req.json();
+    const { field, title, department, experience_level, job_type, location, existingContent } = body;
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    let prompt = "";
+    let systemPrompt = "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language.";
+
+    if (field === "full") {
+      prompt = `Generate a complete job posting for the following position:
+
+Title: ${title}
+${department ? `Department: ${department}` : ""}
+${experience_level ? `Experience Level: ${experience_level}` : ""}
+${job_type ? `Job Type: ${job_type}` : ""}
+${location ? `Location: ${location}` : ""}
+
+Return a JSON object with these fields:
+- description: A compelling 2-3 paragraph description of the role and opportunity
+- responsibilities: 5-7 bullet points of key responsibilities (each starting with an action verb)
+- requirements: 5-7 bullet points of required qualifications and skills
+- skills: Comma-separated list of 6-10 relevant technical and soft skills
+- benefits: Comma-separated list of 5-8 common benefits
+
+Return ONLY valid JSON, no markdown or extra text.`;
+    } else if (field === "description") {
+      prompt = `Write a compelling 2-3 paragraph job description for a ${title} position${department ? ` in ${department}` : ""}${experience_level ? ` at ${experience_level} level` : ""}.
+
+Focus on:
+- What makes this role exciting
+- The team and culture
+- Impact the person will have
+- Growth opportunities
+
+${existingContent ? `Improve upon this existing content: ${existingContent}` : ""}
+
+Return only the description text, no headers or formatting.`;
+    } else if (field === "responsibilities") {
+      prompt = `Write 5-7 key responsibilities for a ${title} position${department ? ` in ${department}` : ""}.
+
+Each responsibility should:
+- Start with an action verb
+- Be specific and measurable
+- Focus on outcomes and impact
+
+${existingContent ? `Improve upon these existing responsibilities: ${existingContent}` : ""}
+
+Return as bullet points (each line starting with "• ").`;
+    } else if (field === "requirements") {
+      prompt = `Write 5-7 requirements for a ${title} position${experience_level ? ` at ${experience_level} level` : ""}.
+
+Include:
+- Required education/experience
+- Technical skills
+- Soft skills
+- Any certifications
+
+${existingContent ? `Improve upon these existing requirements: ${existingContent}` : ""}
+
+Return as bullet points (each line starting with "• ").`;
+    } else if (field === "skills_required") {
+      prompt = `List 6-10 relevant skills for a ${title} position${department ? ` in ${department}` : ""}.
+
+Include both technical and soft skills appropriate for ${experience_level || "mid-level"} candidates.
+
+${existingContent ? `Build upon these existing skills: ${existingContent}` : ""}
+
+Return as a comma-separated list only.`;
+    } else if (field === "benefits") {
+      prompt = `List 5-8 attractive benefits for a ${title} position.
+
+Include a mix of:
+- Health and wellness
+- Financial benefits
+- Work-life balance
+- Professional development
+- Unique perks
+
+${existingContent ? `Build upon these existing benefits: ${existingContent}` : ""}
+
+Return as a comma-separated list only.`;
+    }
+
+    console.log("Generating job content for field:", field);
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI API error:", response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      throw new Error(`AI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("No content generated");
+    }
+
+    console.log("Content generated successfully for field:", field);
+
+    // Parse response based on field type
+    if (field === "full") {
+      try {
+        // Try to parse as JSON
+        const cleanedContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const parsed = JSON.parse(cleanedContent);
+        return new Response(
+          JSON.stringify(parsed),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (e) {
+        // If parsing fails, return the raw content
+        return new Response(
+          JSON.stringify({ description: content }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ content }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Error generating job content:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.ai-generate-document]
 verify_jwt = true
+
+[functions.ai-generate-job-content]
+verify_jwt = true
