@@ -127,8 +127,8 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
   };
 
   const getSelectedRecipient = () => {
-    if (isManualRecipient) {
-      return { name: recipientName, email: recipientEmail };
+    if (applications.length === 0 || isManualRecipient) {
+      return { name: recipientName, email: recipientEmail, jobTitle };
     }
     const app = applications.find(a => a.id === selectedApplication);
     return {
@@ -143,9 +143,11 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       case 0:
         return !!documentType;
       case 1:
-        return isManualRecipient 
-          ? (recipientName.trim() && recipientEmail.trim())
-          : !!selectedApplication;
+        // If no applications or manual mode, check name and email fields
+        if (applications.length === 0 || isManualRecipient) {
+          return !!(recipientName.trim() && recipientEmail.trim());
+        }
+        return !!selectedApplication;
       case 2:
         return companyName.trim() && (jobTitle.trim() || getSelectedRecipient().jobTitle);
       case 3:
