@@ -1,5 +1,4 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +11,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Settings() {
-  const { user } = useAuth();
-  const { data: profile, isLoading } = useProfile();
+  const { user, role } = useAuth();
+  const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -28,16 +27,72 @@ export default function Settings() {
     }
   };
 
-  if (isLoading) {
+  // Candidate Settings - Simple view
+  if (!isEmployer) {
     return (
       <div className="space-y-6 max-w-2xl">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-64 w-full" />
+        {/* Header */}
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Settings</h2>
+          <p className="text-muted-foreground mt-1">Manage your account</p>
+        </div>
+
+        {/* Account Settings */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-lg">Account</CardTitle>
+            <CardDescription>Your account information</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input 
+                id="email" 
+                type="email" 
+                value={user?.email || ""} 
+                className="bg-background" 
+                disabled 
+              />
+              <p className="text-xs text-muted-foreground">
+                This is the email you use to sign in
+              </p>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">Sign Out</p>
+                <p className="text-sm text-muted-foreground">Sign out of your account</p>
+              </div>
+              <Button variant="outline" onClick={handleSignOut} disabled={isSigningOut}>
+                {isSigningOut ? "Signing out..." : "Sign Out"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Delete Account */}
+        <Card className="bg-card border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
+            <CardDescription>Irreversible actions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">Delete Account</p>
+                <p className="text-sm text-muted-foreground">
+                  Permanently delete your account and all data
+                </p>
+              </div>
+              <Button variant="destructive">Delete Account</Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  // Employer Settings - Full view
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
