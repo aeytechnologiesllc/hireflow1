@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ChevronRight, 
@@ -17,12 +18,33 @@ import {
   Loader2,
   Sparkles,
   ClipboardList,
-  Send
+  Send,
+  X,
+  File
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateApplication } from "@/hooks/useApplications";
 import type { Tables, Json } from "@/integrations/supabase/types";
+
+// Country codes for phone input
+const countryCodes = [
+  { code: "+1", country: "US", flag: "🇺🇸" },
+  { code: "+1", country: "CA", flag: "🇨🇦" },
+  { code: "+44", country: "UK", flag: "🇬🇧" },
+  { code: "+49", country: "DE", flag: "🇩🇪" },
+  { code: "+33", country: "FR", flag: "🇫🇷" },
+  { code: "+81", country: "JP", flag: "🇯🇵" },
+  { code: "+86", country: "CN", flag: "🇨🇳" },
+  { code: "+91", country: "IN", flag: "🇮🇳" },
+  { code: "+61", country: "AU", flag: "🇦🇺" },
+  { code: "+55", country: "BR", flag: "🇧🇷" },
+  { code: "+52", country: "MX", flag: "🇲🇽" },
+  { code: "+34", country: "ES", flag: "🇪🇸" },
+  { code: "+39", country: "IT", flag: "🇮🇹" },
+  { code: "+31", country: "NL", flag: "🇳🇱" },
+  { code: "+82", country: "KR", flag: "🇰🇷" },
+];
 
 interface CandidateApplicationWizardProps {
   job: Tables<"jobs">;
@@ -33,10 +55,24 @@ interface CandidateApplicationWizardProps {
 interface ApplicationQuestion {
   id: string;
   question: string;
-  type: "text" | "textarea" | "select";
+  type: "text" | "textarea" | "select" | "email" | "phone";
   required: boolean;
   options?: string[];
 }
+
+// Email validation regex
+const isValidEmail = (email: string) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Format phone number with dashes (e.g., 123-456-7890)
+const formatPhoneNumber = (value: string) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers.length <= 3) return numbers;
+  if (numbers.length <= 6) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+  return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
+};
 
 export default function CandidateApplicationWizard({ 
   job, 
@@ -46,6 +82,7 @@ export default function CandidateApplicationWizard({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createApplication = useCreateApplication();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Parse application questions from job
   const applicationQuestions: ApplicationQuestion[] = Array.isArray(job.application_questions) 
@@ -64,18 +101,26 @@ export default function CandidateApplicationWizard({
 
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [phoneCountryCodes, setPhoneCountryCodes] = useState<Record<string, string>>({});
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeUrl, setResumeUrl] = useState("");
   const [coverLetter, setCoverLetter] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const currentStepData = steps[currentStep];
 
   const resetWizard = () => {
     setCurrentStep(0);
     setAnswers({});
+    setPhoneCountryCodes({});
+    setResumeFile(null);
     setResumeUrl("");
     setCoverLetter("");
+    setValidationErrors({});
   };
 
   const handleClose = () => {
@@ -83,19 +128,130 @@ export default function CandidateApplicationWizard({
     onOpenChange(false);
   };
 
+  // File upload handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  }, []);
+
+  const handleFileSelect = async (file: File) => {
+    // Validate file type
+    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PDF or Word document");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
+    }
+
+    setResumeFile(file);
+    setIsUploading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from("resumes")
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("resumes")
+        .getPublicUrl(fileName);
+
+      setResumeUrl(urlData.publicUrl);
+      toast.success("Resume uploaded successfully");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload resume. Please try again.");
+      setResumeFile(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const removeFile = () => {
+    setResumeFile(null);
+    setResumeUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Validation for email/phone fields
+  const validateField = (question: ApplicationQuestion, value: string) => {
+    if (question.type === "email" && value && !isValidEmail(value)) {
+      return "Please enter a valid email address";
+    }
+    if (question.type === "phone" && value) {
+      const phoneDigits = value.replace(/\D/g, "");
+      if (phoneDigits.length < 10) {
+        return "Please enter a valid phone number";
+      }
+    }
+    return "";
+  };
+
+  const handleAnswerChange = (questionId: string, value: string, question: ApplicationQuestion) => {
+    let formattedValue = value;
+    
+    // Format phone numbers
+    if (question.type === "phone") {
+      formattedValue = formatPhoneNumber(value);
+    }
+
+    setAnswers(prev => ({ ...prev, [questionId]: formattedValue }));
+
+    // Validate on change
+    const error = validateField(question, formattedValue);
+    setValidationErrors(prev => ({ ...prev, [questionId]: error }));
+  };
+
   const canProceed = () => {
     if (!currentStepData) return false;
 
     switch (currentStepData.id) {
       case "questions":
-        // Check all required questions are answered
-        return applicationQuestions.every(q => 
+        // Check all required questions are answered and valid
+        const hasRequiredAnswers = applicationQuestions.every(q => 
           !q.required || (answers[q.id] && answers[q.id].trim())
         );
+        const hasNoErrors = Object.values(validationErrors).every(err => !err);
+        return hasRequiredAnswers && hasNoErrors;
       case "resume":
         // Resume is required if job requires it
         if (requiresResume && !resumeUrl.trim()) return false;
-        return true;
+        return !isUploading;
       case "review":
         return true;
       default:
@@ -260,7 +416,7 @@ Resume URL: ${resumeUrl || "Not provided"}
                     {question.type === "textarea" ? (
                       <Textarea
                         value={answers[question.id] || ""}
-                        onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                        onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
                         placeholder="Enter your answer..."
                         className="min-h-[100px]"
                       />
@@ -279,10 +435,57 @@ Resume URL: ${resumeUrl || "Not provided"}
                           </div>
                         ))}
                       </RadioGroup>
+                    ) : question.type === "email" ? (
+                      <div className="space-y-1">
+                        <Input
+                          type="email"
+                          value={answers[question.id] || ""}
+                          onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
+                          placeholder="email@example.com"
+                          className={validationErrors[question.id] ? "border-destructive" : ""}
+                        />
+                        {validationErrors[question.id] && (
+                          <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
+                        )}
+                      </div>
+                    ) : question.type === "phone" ? (
+                      <div className="space-y-1">
+                        <div className="flex gap-2">
+                          <Select
+                            value={phoneCountryCodes[question.id] || "+1"}
+                            onValueChange={(value) => setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }))}
+                          >
+                            <SelectTrigger className="w-[120px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {countryCodes.map((cc) => (
+                                <SelectItem key={`${cc.code}-${cc.country}`} value={cc.code}>
+                                  <span className="flex items-center gap-2">
+                                    <span>{cc.flag}</span>
+                                    <span>{cc.code}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="tel"
+                            value={answers[question.id] || ""}
+                            onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
+                            placeholder="123-456-7890"
+                            className={`flex-1 ${validationErrors[question.id] ? "border-destructive" : ""}`}
+                            maxLength={12}
+                          />
+                        </div>
+                        {validationErrors[question.id] && (
+                          <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
+                        )}
+                      </div>
                     ) : (
                       <Input
                         value={answers[question.id] || ""}
-                        onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                        onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
                         placeholder="Enter your answer..."
                       />
                     )}
@@ -307,24 +510,90 @@ Resume URL: ${resumeUrl || "Not provided"}
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="space-y-2">
-                  <Label htmlFor="resumeUrl" className="text-base">
-                    Resume URL
+                <div className="space-y-3">
+                  <Label className="text-base">
+                    Resume
                     {requiresResume && <span className="text-destructive ml-1">*</span>}
                   </Label>
-                  <div className="relative">
-                    <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="resumeUrl"
-                      value={resumeUrl}
-                      onChange={(e) => setResumeUrl(e.target.value)}
-                      placeholder="https://example.com/my-resume.pdf"
-                      className="pl-10"
-                    />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Provide a link to your resume (Google Drive, Dropbox, etc.)
-                  </p>
+                  
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+
+                  {/* Drag & Drop Zone */}
+                  {!resumeFile ? (
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`
+                        relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+                        transition-all duration-200
+                        ${isDragging 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-primary/50 hover:bg-muted/30"
+                        }
+                      `}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={`
+                          w-14 h-14 rounded-full flex items-center justify-center transition-colors
+                          ${isDragging ? "bg-primary/20" : "bg-muted"}
+                        `}>
+                          <Upload className={`h-6 w-6 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                        </div>
+                        <div>
+                          <p className="text-foreground font-medium">
+                            {isDragging ? "Drop your resume here" : "Drag and drop your resume"}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            or <span className="text-primary underline">browse files</span>
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Supports PDF, DOC, DOCX (max 10MB)
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-border rounded-xl p-4 bg-muted/20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                          <File className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{resumeFile.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                        {isUploading ? (
+                          <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                        ) : resumeUrl ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile();
+                          }}
+                          className="shrink-0"
+                          disabled={isUploading}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
