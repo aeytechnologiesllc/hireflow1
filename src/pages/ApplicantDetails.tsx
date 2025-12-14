@@ -75,6 +75,7 @@ export default function ApplicantDetails() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -279,11 +280,102 @@ ${application.cover_letter || "Not provided"}
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
     : profile?.email?.[0]?.toUpperCase() || "?";
 
-  // Parse phase scores from phase_ai_analysis if available
-  const phaseScores: Record<string, number> = {};
-  if (application.ai_score) {
-    phaseScores["resume"] = application.ai_score;
-  }
+  // Parse submitted data from notes
+  const parsedNotes = (() => {
+    try {
+      return application.notes ? JSON.parse(application.notes) : {};
+    } catch {
+      return {};
+    }
+  })();
+
+  // Check which workflow steps have data submitted
+  const getStepSubmissionData = (stepId: string, stepType: string) => {
+    // Check for specific data types
+    if (stepType === "quiz") {
+      return parsedNotes.quizAnswers?.[stepId] || parsedNotes.quizAnswers;
+    }
+    if (stepType === "typing_test") {
+      return parsedNotes.typingTestResult;
+    }
+    if (stepType === "video_intro") {
+      return parsedNotes.videoIntroUrl;
+    }
+    if (stepType === "chat_simulation") {
+      return parsedNotes.chatSimulationResult;
+    }
+    return parsedNotes[stepId];
+  };
+
+  // Build badge data from workflow steps
+  const workflowBadges = (() => {
+    const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
+    const badges: { id: string; title: string; type: string; hasData: boolean; score?: number; icon: any }[] = [];
+    
+    // Application badge (always present)
+    const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
+    badges.push({
+      id: "application",
+      title: "Application",
+      type: "application",
+      hasData: hasApplicationData,
+      icon: FileCheck,
+    });
+    
+    // Resume badge (if resume uploaded)
+    if (job?.require_resume !== false || application.resume_url) {
+      badges.push({
+        id: "resume",
+        title: "Resume",
+        type: "resume",
+        hasData: !!application.resume_url,
+        score: application.ai_score || undefined,
+        icon: FileText,
+      });
+    }
+    
+    // Workflow step badges
+    if (workflowSteps && workflowSteps.length > 0) {
+      workflowSteps.forEach(step => {
+        const stepData = getStepSubmissionData(step.id, step.type);
+        badges.push({
+          id: step.id,
+          title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
+          type: step.type,
+          hasData: !!stepData,
+          score: stepData?.score,
+          icon: stepTypeIcons[step.type] || ClipboardList,
+        });
+      });
+    }
+    
+    return badges;
+  })();
+
+  // Get data for a specific badge/step
+  const getBadgeDialogContent = (badgeId: string, badgeType: string) => {
+    if (badgeId === "application") {
+      return {
+        title: "Application Submission",
+        content: parsedNotes.applicationAnswers || [],
+        type: "application",
+      };
+    }
+    if (badgeId === "resume") {
+      return {
+        title: "Resume",
+        content: application.resume_url,
+        type: "resume",
+      };
+    }
+    
+    const stepData = getStepSubmissionData(badgeId, badgeType);
+    return {
+      title: workflowBadges.find(b => b.id === badgeId)?.title || badgeId,
+      content: stepData,
+      type: badgeType,
+    };
+  };
 
   return (
     <div 
@@ -445,23 +537,33 @@ ${application.cover_letter || "Not provided"}
                 Auto-Pilot
               </Badge>
             )}
-            <Badge 
-              variant="outline" 
-              className="gap-1 cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => setShowApplicationDialog(true)}
-            >
-              <FileCheck className="h-3 w-3" />
-              Application
-            </Badge>
-            {(application.resume_url || phaseScores["resume"]) && (
-              <Badge 
-                className="bg-success/20 text-success border-success/30 cursor-pointer hover:bg-success/30 transition-colors"
-                onClick={() => setShowResumeDialog(true)}
-              >
-                <FileText className="h-3 w-3 mr-1" />
-                Resume {phaseScores["resume"] ? `(${phaseScores["resume"]})` : ""}
-              </Badge>
-            )}
+            {workflowBadges.map((badge) => {
+              const Icon = badge.icon;
+              return (
+                <Badge 
+                  key={badge.id}
+                  variant={badge.hasData ? undefined : "outline"}
+                  className={`gap-1 cursor-pointer transition-colors ${
+                    badge.hasData 
+                      ? "bg-success/20 text-success border-success/30 hover:bg-success/30" 
+                      : "hover:bg-accent"
+                  }`}
+                  onClick={() => {
+                    if (badge.id === "application") {
+                      setShowApplicationDialog(true);
+                    } else if (badge.id === "resume") {
+                      setShowResumeDialog(true);
+                    } else {
+                      setActiveBadgeDialog(badge.id);
+                    }
+                  }}
+                >
+                  <Icon className="h-3 w-3" />
+                  {badge.title}
+                  {badge.score && ` (${badge.score})`}
+                </Badge>
+              );
+            })}
           </div>
 
           {/* Name & Details */}
@@ -658,9 +760,9 @@ ${application.cover_letter || "Not provided"}
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Resume
-              {phaseScores["resume"] && (
+              {application.ai_score && (
                 <Badge className="bg-success/20 text-success ml-2">
-                  AI Score: {phaseScores["resume"]}/100
+                  AI Score: {application.ai_score}/100
                 </Badge>
               )}
             </DialogTitle>
@@ -705,6 +807,121 @@ ${application.cover_letter || "Not provided"}
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workflow Step Data Dialog */}
+      <Dialog open={!!activeBadgeDialog} onOpenChange={(open) => !open && setActiveBadgeDialog(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          {activeBadgeDialog && (() => {
+            const badge = workflowBadges.find(b => b.id === activeBadgeDialog);
+            const dialogData = getBadgeDialogContent(activeBadgeDialog, badge?.type || "");
+            const Icon = badge?.icon || ClipboardList;
+            
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Icon className="h-5 w-5 text-primary" />
+                    {dialogData.title}
+                    {badge?.score && (
+                      <Badge className="bg-success/20 text-success ml-2">
+                        Score: {badge.score}
+                      </Badge>
+                    )}
+                  </DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  {dialogData.content ? (
+                    <div className="space-y-4">
+                      {dialogData.type === "quiz" && Array.isArray(dialogData.content) && (
+                        dialogData.content.map((item: any, index: number) => (
+                          <div key={index} className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">
+                              {index + 1}. {item.question}
+                            </p>
+                            <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                              {item.answer || <span className="text-muted-foreground italic">No answer</span>}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      
+                      {dialogData.type === "typing_test" && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="p-4 bg-muted/50 rounded-lg text-center">
+                              <p className="text-2xl font-bold text-foreground">{dialogData.content.wpm || "N/A"}</p>
+                              <p className="text-sm text-muted-foreground">Words Per Minute</p>
+                            </div>
+                            <div className="p-4 bg-muted/50 rounded-lg text-center">
+                              <p className="text-2xl font-bold text-foreground">{dialogData.content.accuracy || "N/A"}%</p>
+                              <p className="text-sm text-muted-foreground">Accuracy</p>
+                            </div>
+                            <div className="p-4 bg-muted/50 rounded-lg text-center">
+                              <p className="text-2xl font-bold text-foreground">{dialogData.content.score || "N/A"}</p>
+                              <p className="text-sm text-muted-foreground">Score</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {dialogData.type === "video_intro" && (
+                        <div className="space-y-4">
+                          {typeof dialogData.content === "string" ? (
+                            <div className="rounded-lg overflow-hidden border border-border bg-muted">
+                              <video 
+                                src={dialogData.content} 
+                                controls 
+                                className="w-full"
+                              />
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-muted/50 rounded-lg">
+                              <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(dialogData.content, null, 2)}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {dialogData.type === "chat_simulation" && (
+                        <div className="space-y-4">
+                          {dialogData.content.messages?.map((msg: any, index: number) => (
+                            <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                              <div className={`p-3 rounded-lg max-w-[80%] ${
+                                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                              }`}>
+                                {msg.content}
+                              </div>
+                            </div>
+                          )) || (
+                            <div className="p-4 bg-muted/50 rounded-lg">
+                              <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(dialogData.content, null, 2)}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!["quiz", "typing_test", "video_intro", "chat_simulation"].includes(dialogData.type) && (
+                        <div className="p-4 bg-muted/50 rounded-lg">
+                          <pre className="text-sm whitespace-pre-wrap">
+                            {typeof dialogData.content === "object" 
+                              ? JSON.stringify(dialogData.content, null, 2) 
+                              : dialogData.content}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Icon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No data has been submitted for this step yet.</p>
+                    </div>
+                  )}
+                </ScrollArea>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
