@@ -1,12 +1,157 @@
 import { useAuth } from "@/hooks/useAuth";
+import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { useState } from "react";
+import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+
+const statusColors: Record<string, string> = {
+  pending: "bg-yellow-500/20 text-yellow-500",
+  reviewing: "bg-blue-500/20 text-blue-500",
+  interview: "bg-purple-500/20 text-purple-500",
+  offered: "bg-primary/20 text-primary",
+  hired: "bg-success/20 text-success",
+  rejected: "bg-destructive/20 text-destructive",
+};
+
+interface ApplicantCardProps {
+  application: ApplicationWithCandidate;
+  onStatusChange: (id: string, status: string) => void;
+}
+
+function ApplicantCard({ application, onStatusChange }: ApplicantCardProps) {
+  const profile = application.profiles;
+  const job = application.jobs;
+  
+  const initials = profile?.full_name
+    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
+    : profile?.email?.[0]?.toUpperCase() || "?";
+
+  return (
+    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
+      <CardContent className="p-6">
+        <div className="flex items-start gap-4">
+          <Avatar className="h-12 w-12">
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {profile?.full_name || "Unknown Candidate"}
+                </h3>
+                <p className="text-sm text-muted-foreground">{profile?.email}</p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border-border">
+                  <DropdownMenuItem>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Message
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "reviewing")}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Mark as Reviewing
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "interview")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Schedule Interview
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "rejected")} className="text-destructive">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3">
+              <Badge className={statusColors[application.status]}>
+                {application.status}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                Applied for <span className="text-foreground font-medium">{job?.title}</span>
+              </span>
+            </div>
+
+            <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
+              {profile?.location && <span>{profile.location}</span>}
+              {profile?.experience_years && (
+                <span>{profile.experience_years} years exp.</span>
+              )}
+              <span>Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
+            </div>
+
+            {application.ai_score && (
+              <div className="mt-3 flex items-center gap-2">
+                <div className="text-xs font-medium text-muted-foreground">AI Score:</div>
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${application.ai_score}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-primary">{application.ai_score}%</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Applicants() {
   const { role } = useAuth();
   const isEmployer = role === "employer";
+  const { data: applications, isLoading } = useEmployerApplications();
+  const { data: stats } = useApplicationStats();
+  const updateApplication = useUpdateApplication();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      await updateApplication.mutateAsync({ id, status: status as any });
+      toast.success(`Application status updated to ${status}`);
+    } catch (error) {
+      toast.error("Failed to update application status");
+    }
+  };
+
+  const filteredApplications = applications?.filter((app) => {
+    const name = app.profiles?.full_name?.toLowerCase() || "";
+    const email = app.profiles?.email?.toLowerCase() || "";
+    const query = searchQuery.toLowerCase();
+    return name.includes(query) || email.includes(query);
+  });
 
   if (!isEmployer) {
     return (
@@ -34,6 +179,40 @@ export default function Applicants() {
         </div>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-5 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Total</p>
+            <p className="text-2xl font-bold text-foreground">{stats?.total || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Pending</p>
+            <p className="text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Reviewing</p>
+            <p className="text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Interview</p>
+            <p className="text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Hired</p>
+            <p className="text-2xl font-bold text-primary">{stats?.hired || 0}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
@@ -41,6 +220,8 @@ export default function Applicants() {
           <Input 
             placeholder="Search applicants..." 
             className="pl-10 bg-card border-border"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <Button variant="outline" className="gap-2">
@@ -49,16 +230,33 @@ export default function Applicants() {
         </Button>
       </div>
 
-      {/* Empty State */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-12 text-center">
-          <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-xl font-semibold text-foreground mb-2">No applicants yet</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            When candidates apply to your job postings, they'll appear here. Share your job links to start receiving applications.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Applicant List */}
+      <div className="space-y-4">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </>
+        ) : filteredApplications && filteredApplications.length > 0 ? (
+          filteredApplications.map((application) => (
+            <ApplicantCard 
+              key={application.id} 
+              application={application}
+              onStatusChange={handleStatusChange}
+            />
+          ))
+        ) : (
+          <Card className="bg-card border-border">
+            <CardContent className="p-12 text-center">
+              <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No applicants yet</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                When candidates apply to your job postings, they'll appear here. Share your job links to start receiving applications.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
