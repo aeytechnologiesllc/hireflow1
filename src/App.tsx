@@ -20,6 +20,10 @@ import ApplyWithCode from "./pages/ApplyWithCode";
 import JobDetails from "./pages/JobDetails";
 import Applications from "./pages/Applications";
 import CandidateApplicationDetail from "./pages/CandidateApplicationDetail";
+import TypingTestPhase from "./pages/TypingTestPhase";
+import QuizPhase from "./pages/QuizPhase";
+import VideoIntroPhase from "./pages/VideoIntroPhase";
+import ChatSimulationPhase from "./pages/ChatSimulationPhase";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -56,6 +60,10 @@ const App = () => (
               <Route path="/job/:id" element={<JobDetails />} />
               <Route path="/applications" element={<Applications />} />
               <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
+              <Route path="/applications/:id/typing-test/:stepId" element={<TypingTestPhase />} />
+              <Route path="/applications/:id/quiz/:stepId" element={<QuizPhase />} />
+              <Route path="/applications/:id/video-intro/:stepId" element={<VideoIntroPhase />} />
+              <Route path="/applications/:id/chat-simulation/:stepId" element={<ChatSimulationPhase />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
