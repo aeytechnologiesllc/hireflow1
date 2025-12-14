@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
+import ApplicantDetailsDialog from "@/components/ApplicantDetailsDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -33,9 +34,10 @@ interface ApplicantCardProps {
   application: ApplicationWithCandidate;
   onStatusChange: (id: string, status: string) => void;
   onScheduleInterview: (application: ApplicationWithCandidate) => void;
+  onViewDetails: (application: ApplicationWithCandidate) => void;
 }
 
-function ApplicantCard({ application, onStatusChange, onScheduleInterview }: ApplicantCardProps) {
+function ApplicantCard({ application, onStatusChange, onScheduleInterview, onViewDetails }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
   
@@ -44,7 +46,10 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview }: App
     : profile?.email?.[0]?.toUpperCase() || "?";
 
   return (
-    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
+    <Card 
+      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={() => onViewDetails(application)}
+    >
       <CardContent className="p-6">
         <div className="flex items-start gap-4">
           <Avatar className="h-12 w-12">
@@ -62,38 +67,38 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview }: App
                 <p className="text-sm text-muted-foreground">{profile?.email}</p>
               </div>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="text-muted-foreground">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border-border">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails(application); }}>
                     <Eye className="h-4 w-4 mr-2" />
-                    View Profile
+                    View Details
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Mail className="h-4 w-4 mr-2" />
                     Send Message
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "reviewing")}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onStatusChange(application.id, "reviewing"); }}>
                     <Eye className="h-4 w-4 mr-2" />
                     Mark as Reviewing
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onScheduleInterview(application)}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onScheduleInterview(application); }}>
                     <Calendar className="h-4 w-4 mr-2" />
                     Schedule Interview
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "offered")}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onStatusChange(application.id, "offered"); }}>
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Extend Offer
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "hired")}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onStatusChange(application.id, "hired"); }}>
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Mark as Hired
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "rejected")} className="text-destructive">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onStatusChange(application.id, "rejected"); }} className="text-destructive">
                     <XCircle className="h-4 w-4 mr-2" />
                     Reject
                   </DropdownMenuItem>
@@ -120,6 +125,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview }: App
 
             {application.ai_score && (
               <div className="mt-3 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
                 <div className="text-xs font-medium text-muted-foreground">AI Score:</div>
                 <div className="flex items-center gap-1">
                   <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
@@ -142,11 +148,12 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview }: App
 export default function Applicants() {
   const { role } = useAuth();
   const isEmployer = role === "employer";
-  const { data: applications, isLoading } = useEmployerApplications();
+  const { data: applications, isLoading, refetch } = useEmployerApplications();
   const { data: stats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
 
   const handleStatusChange = async (id: string, status: string) => {
@@ -161,6 +168,25 @@ export default function Applicants() {
   const handleScheduleInterview = (application: ApplicationWithCandidate) => {
     setSelectedApplication(application);
     setScheduleDialogOpen(true);
+  };
+
+  const handleViewDetails = (application: ApplicationWithCandidate) => {
+    setSelectedApplication(application);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleAnalysisComplete = async (analysis: string, score: number | null) => {
+    if (!selectedApplication) return;
+    try {
+      await updateApplication.mutateAsync({
+        id: selectedApplication.id,
+        ai_analysis: analysis,
+        ai_score: score,
+      });
+      refetch();
+    } catch (error) {
+      console.error("Failed to save analysis:", error);
+    }
   };
 
   const filteredApplications = applications?.filter((app) => {
@@ -261,6 +287,7 @@ export default function Applicants() {
               application={application}
               onStatusChange={handleStatusChange}
               onScheduleInterview={handleScheduleInterview}
+              onViewDetails={handleViewDetails}
             />
           ))
         ) : (
@@ -281,6 +308,13 @@ export default function Applicants() {
         candidateName={selectedApplication?.profiles?.full_name || "Candidate"}
         open={scheduleDialogOpen}
         onOpenChange={setScheduleDialogOpen}
+      />
+
+      <ApplicantDetailsDialog
+        application={selectedApplication}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        onAnalyze={handleAnalysisComplete}
       />
     </div>
   );
