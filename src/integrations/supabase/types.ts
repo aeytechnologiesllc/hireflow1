@@ -70,36 +70,137 @@ export type Database = {
           },
         ]
       }
+      document_audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          document_id: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          document_id: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          document_id?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_audit_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_templates: {
+        Row: {
+          content: string
+          created_at: string
+          employer_id: string
+          id: string
+          name: string
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          employer_id: string
+          id?: string
+          name: string
+          template_type: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          employer_id?: string
+          id?: string
+          name?: string
+          template_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           application_id: string
           created_at: string
+          decline_reason: string | null
+          declined_at: string | null
           document_type: string | null
+          expires_at: string | null
           file_url: string
           id: string
+          ip_address: string | null
           name: string
+          recipient_id: string | null
+          reminder_sent_at: string | null
+          sender_id: string | null
+          signature_data: string | null
           signed_at: string | null
           status: Database["public"]["Enums"]["document_status"]
+          user_agent: string | null
+          viewed_at: string | null
         }
         Insert: {
           application_id: string
           created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
           document_type?: string | null
+          expires_at?: string | null
           file_url: string
           id?: string
+          ip_address?: string | null
           name: string
+          recipient_id?: string | null
+          reminder_sent_at?: string | null
+          sender_id?: string | null
+          signature_data?: string | null
           signed_at?: string | null
           status?: Database["public"]["Enums"]["document_status"]
+          user_agent?: string | null
+          viewed_at?: string | null
         }
         Update: {
           application_id?: string
           created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
           document_type?: string | null
+          expires_at?: string | null
           file_url?: string
           id?: string
+          ip_address?: string | null
           name?: string
+          recipient_id?: string | null
+          reminder_sent_at?: string | null
+          sender_id?: string | null
+          signature_data?: string | null
           signed_at?: string | null
           status?: Database["public"]["Enums"]["document_status"]
+          user_agent?: string | null
+          viewed_at?: string | null
         }
         Relationships: [
           {
