@@ -1,334 +1,381 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import DashboardLayout from "@/components/DashboardLayout";
 import {
   Briefcase,
   Users,
-  Calendar,
-  MessageSquare,
-  FileText,
-  User,
-  TrendingUp,
   Clock,
   CheckCircle2,
-  Plus,
+  Loader2,
+  LogOut,
+  Link2,
+  Copy,
+  Share2,
+  Eye,
+  MoreVertical,
+  Sparkles,
+  ChevronUp,
 } from "lucide-react";
 
-export default function Dashboard() {
-  const { user, role } = useAuth();
-  const isEmployer = role === "employer";
-  const userName = user?.user_metadata?.full_name?.split(" ")[0] || "there";
+// Wave SVG component for stat cards
+function WaveGradient({ color }: { color: string }) {
+  const gradientId = `wave-gradient-${color}`;
+  
+  const colorMap: Record<string, { from: string; to: string }> = {
+    green: { from: "#10b981", to: "#059669" },
+    blue: { from: "#3b82f6", to: "#2563eb" },
+    purple: { from: "#a855f7", to: "#7c3aed" },
+  };
+
+  const colors = colorMap[color] || colorMap.green;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Welcome Section */}
-        <div className="flex items-center justify-between">
+    <svg
+      className="absolute bottom-0 left-0 right-0 h-16 w-full"
+      viewBox="0 0 400 60"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={colors.from} stopOpacity="0.3" />
+          <stop offset="50%" stopColor={colors.to} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={colors.from} stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M0,30 Q50,10 100,30 T200,30 T300,30 T400,30 L400,60 L0,60 Z"
+        fill={`url(#${gradientId})`}
+      />
+      <path
+        d="M0,40 Q50,20 100,40 T200,40 T300,40 T400,40 L400,60 L0,60 Z"
+        fill={`url(#${gradientId})`}
+        opacity="0.5"
+      />
+    </svg>
+  );
+}
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: React.ElementType;
+  color: "green" | "blue" | "purple";
+  borderColor: string;
+  iconBgColor: string;
+  iconColor: string;
+}
+
+function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, iconBgColor, iconColor }: StatCardProps) {
+  return (
+    <Card className={`relative overflow-hidden bg-card border-l-4 ${borderColor}`}>
+      <CardContent className="pt-4 pb-16">
+        <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">
-              Welcome back, {userName}!
-            </h2>
-            <p className="text-muted-foreground mt-1">
-              {isEmployer
-                ? "Here's what's happening with your hiring process today."
-                : "Here's an overview of your job search progress."}
-            </p>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-4xl font-bold text-foreground mt-2">{value}</p>
+            <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
           </div>
-          {isEmployer && (
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Post New Job
-            </Button>
-          )}
+          <div className={`w-10 h-10 rounded-lg ${iconBgColor} flex items-center justify-center`}>
+            <Icon className={`h-5 w-5 ${iconColor}`} />
+          </div>
+        </div>
+      </CardContent>
+      <WaveGradient color={color} />
+    </Card>
+  );
+}
+
+interface JobPostingCardProps {
+  title: string;
+  status: "active" | "paused" | "closed";
+  isAutoPilot?: boolean;
+  code: string;
+  company: string;
+  type: string;
+  applicants: number;
+  createdDate: string;
+}
+
+function JobPostingCard({ title, status, isAutoPilot, code, company, type, applicants, createdDate }: JobPostingCardProps) {
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                status === "active" 
+                  ? "bg-primary/20 text-primary" 
+                  : status === "paused"
+                  ? "bg-warning/20 text-warning"
+                  : "bg-muted text-muted-foreground"
+              }`}>
+                {status}
+              </span>
+              {isAutoPilot && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-Pilot
+                </span>
+              )}
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="text-muted-foreground">
+            <ChevronUp className="h-5 w-5" />
+          </Button>
         </div>
 
+        {/* Code section */}
+        <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            <span className="text-sm text-muted-foreground">Code:</span>
+            <span className="text-sm font-bold text-primary">{code}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="text-primary gap-1 h-8">
+              <Copy className="h-4 w-4" />
+              Code
+            </Button>
+            <Button variant="ghost" size="sm" className="text-primary gap-1 h-8">
+              <Link2 className="h-4 w-4" />
+              Link
+            </Button>
+            <Button variant="ghost" size="sm" className="text-primary gap-1 h-8">
+              <Share2 className="h-4 w-4" />
+              Share
+            </Button>
+          </div>
+        </div>
+
+        {/* Job details */}
+        <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
+          <span>{company}</span>
+          <span>•</span>
+          <span>{type}</span>
+          <span>•</span>
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4" />
+            <span>{applicants} applicants</span>
+          </div>
+          <span className="text-xs">Created {createdDate}</span>
+        </div>
+
+        {/* Actions */}
+        <div className="mt-4 flex items-center gap-4">
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 h-8">
+            <Eye className="h-4 w-4" />
+            View Applicants
+          </Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 h-8">
+            <MoreVertical className="h-4 w-4" />
+            More Actions
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user, role, loading, signOut } = useAuth();
+  const isEmployer = role === "employer";
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-xl font-bold text-gradient">HireFlow</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              {user.email}
+            </div>
+            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium capitalize">
+              {role}
+            </div>
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-6 py-8">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {isEmployer ? (
             <>
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Active Jobs</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">12</p>
-                      <p className="text-xs text-success flex items-center gap-1 mt-2">
-                        <TrendingUp className="h-3 w-3" />
-                        +2 this week
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Briefcase className="h-6 w-6 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Applicants</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">248</p>
-                      <p className="text-xs text-success flex items-center gap-1 mt-2">
-                        <TrendingUp className="h-3 w-3" />
-                        +18 this week
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                      <Users className="h-6 w-6 text-accent" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Interviews Scheduled</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">8</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
-                        <Clock className="h-3 w-3" />
-                        3 today
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-                      <Calendar className="h-6 w-6 text-success" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Unread Messages</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">5</p>
-                      <p className="text-xs text-warning flex items-center gap-1 mt-2">
-                        <MessageSquare className="h-3 w-3" />
-                        Reply needed
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                      <MessageSquare className="h-6 w-6 text-warning" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <StatCard
+                title="Active Jobs"
+                value={1}
+                subtitle="Open positions"
+                icon={Briefcase}
+                color="green"
+                borderColor="border-l-primary"
+                iconBgColor="bg-primary/20"
+                iconColor="text-primary"
+              />
+              <StatCard
+                title="Total Applicants"
+                value={0}
+                subtitle="No applications"
+                icon={Users}
+                color="blue"
+                borderColor="border-l-blue-500"
+                iconBgColor="bg-blue-500/20"
+                iconColor="text-blue-500"
+              />
+              <StatCard
+                title="Under Review"
+                value={0}
+                subtitle="No pending"
+                icon={Clock}
+                color="purple"
+                borderColor="border-l-accent"
+                iconBgColor="bg-accent/20"
+                iconColor="text-accent"
+              />
+              <StatCard
+                title="Hired"
+                value={0}
+                subtitle="No hires"
+                icon={CheckCircle2}
+                color="green"
+                borderColor="border-l-primary"
+                iconBgColor="bg-primary/20"
+                iconColor="text-primary"
+              />
             </>
           ) : (
             <>
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Applications</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">15</p>
-                      <p className="text-xs text-success flex items-center gap-1 mt-2">
-                        <CheckCircle2 className="h-3 w-3" />
-                        5 in review
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Interviews</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">3</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
-                        <Clock className="h-3 w-3" />
-                        1 tomorrow
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                      <Calendar className="h-6 w-6 text-accent" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Saved Jobs</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">24</p>
-                      <p className="text-xs text-success flex items-center gap-1 mt-2">
-                        <TrendingUp className="h-3 w-3" />
-                        +5 new matches
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-                      <Briefcase className="h-6 w-6 text-success" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Messages</p>
-                      <p className="text-3xl font-bold text-foreground mt-1">2</p>
-                      <p className="text-xs text-warning flex items-center gap-1 mt-2">
-                        <MessageSquare className="h-3 w-3" />
-                        Reply needed
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                      <MessageSquare className="h-6 w-6 text-warning" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <StatCard
+                title="Applications"
+                value={0}
+                subtitle="Submitted"
+                icon={Briefcase}
+                color="green"
+                borderColor="border-l-primary"
+                iconBgColor="bg-primary/20"
+                iconColor="text-primary"
+              />
+              <StatCard
+                title="Interviews"
+                value={0}
+                subtitle="Scheduled"
+                icon={Clock}
+                color="blue"
+                borderColor="border-l-blue-500"
+                iconBgColor="bg-blue-500/20"
+                iconColor="text-blue-500"
+              />
+              <StatCard
+                title="In Review"
+                value={0}
+                subtitle="Pending"
+                icon={Users}
+                color="purple"
+                borderColor="border-l-accent"
+                iconBgColor="bg-accent/20"
+                iconColor="text-accent"
+              />
+              <StatCard
+                title="Offers"
+                value={0}
+                subtitle="Received"
+                icon={CheckCircle2}
+                color="green"
+                borderColor="border-l-primary"
+                iconBgColor="bg-primary/20"
+                iconColor="text-primary"
+              />
             </>
           )}
         </div>
 
-        {/* Quick Actions & Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Quick Actions */}
+        {/* Recent Job Postings */}
+        {isEmployer && (
           <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Actions</CardTitle>
-              <CardDescription>
-                {isEmployer ? "Common hiring tasks" : "Jump back in"}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Recent Job Postings</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">Your latest jobs with application codes</p>
+              </div>
+              <Button variant="ghost" className="text-muted-foreground">
+                View All
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {isEmployer ? (
-                <>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <Briefcase className="h-5 w-5 text-primary" />
-                    Create New Job Posting
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <Users className="h-5 w-5 text-accent" />
-                    Review Pending Applications
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <Calendar className="h-5 w-5 text-success" />
-                    Schedule Interview
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                    Invite Team Member
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <Briefcase className="h-5 w-5 text-primary" />
-                    Browse New Jobs
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <FileText className="h-5 w-5 text-accent" />
-                    Update Resume
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <Calendar className="h-5 w-5 text-success" />
-                    Prepare for Interview
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                    Complete Profile
-                  </Button>
-                </>
-              )}
+            <CardContent className="space-y-4">
+              <JobPostingCard
+                title="Chat Support"
+                status="active"
+                isAutoPilot={true}
+                code="7CZNT4"
+                company="Souther Digital Tech"
+                type="Full-Time"
+                applicants={0}
+                createdDate="11/28/2025"
+              />
             </CardContent>
           </Card>
+        )}
 
-          {/* Recent Activity */}
+        {/* Candidate View - Recent Applications */}
+        {!isEmployer && (
           <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Activity</CardTitle>
-              <CardDescription>Latest updates and notifications</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Recent Applications</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">Track your job applications</p>
+              </div>
+              <Button variant="ghost" className="text-muted-foreground">
+                View All
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {isEmployer ? (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
-                        <Users className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">New application received</p>
-                        <p className="text-xs text-muted-foreground">John Smith applied for Senior Developer</p>
-                        <p className="text-xs text-muted-foreground mt-1">2 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center mt-0.5">
-                        <Calendar className="h-4 w-4 text-success" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">Interview completed</p>
-                        <p className="text-xs text-muted-foreground">Sarah Johnson - Product Manager</p>
-                        <p className="text-xs text-muted-foreground mt-1">5 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center mt-0.5">
-                        <MessageSquare className="h-4 w-4 text-warning" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">New message</p>
-                        <p className="text-xs text-muted-foreground">Mike Chen sent you a message</p>
-                        <p className="text-xs text-muted-foreground mt-1">Yesterday</p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center mt-0.5">
-                        <CheckCircle2 className="h-4 w-4 text-success" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">Application reviewed</p>
-                        <p className="text-xs text-muted-foreground">TechCorp reviewed your application</p>
-                        <p className="text-xs text-muted-foreground mt-1">1 hour ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
-                        <Calendar className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">Interview invitation</p>
-                        <p className="text-xs text-muted-foreground">StartupXYZ invited you for an interview</p>
-                        <p className="text-xs text-muted-foreground mt-1">3 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center mt-0.5">
-                        <Briefcase className="h-4 w-4 text-accent" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">New job match</p>
-                        <p className="text-xs text-muted-foreground">5 new jobs match your profile</p>
-                        <p className="text-xs text-muted-foreground mt-1">Yesterday</p>
-                      </div>
-                    </div>
-                  </>
-                )}
+              <div className="text-center py-8 text-muted-foreground">
+                <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No applications yet</p>
+                <p className="text-sm mt-1">Start applying to jobs to track your progress</p>
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-    </DashboardLayout>
+        )}
+      </main>
+    </div>
   );
 }
