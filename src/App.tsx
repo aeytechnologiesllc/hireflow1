@@ -19,6 +19,7 @@ import Analytics from "./pages/Analytics";
 import ApplyWithCode from "./pages/ApplyWithCode";
 import JobDetails from "./pages/JobDetails";
 import Applications from "./pages/Applications";
+import CandidateApplicationDetail from "./pages/CandidateApplicationDetail";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -54,6 +55,7 @@ const App = () => (
               <Route path="/apply" element={<ApplyWithCode />} />
               <Route path="/job/:id" element={<JobDetails />} />
               <Route path="/applications" element={<Applications />} />
+              <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />

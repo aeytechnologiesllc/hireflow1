@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, FileText, MapPin, Briefcase, Calendar } from "lucide-react";
+import { Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, Play, Clock, Sparkles, Hand } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -34,23 +35,42 @@ interface ApplicationCardProps {
 }
 
 function ApplicationCard({ application }: ApplicationCardProps) {
+  const navigate = useNavigate();
   const job = application.jobs;
+  const isManualMode = job?.processing_mode === "manual";
+  const hasActionRequired = application.phase && application.phase !== "application" && application.status === "pending";
 
   return (
-    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
+    <Card 
+      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group"
+      onClick={() => navigate(`/applications/${application.id}`)}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
                   {job?.title || "Unknown Position"}
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
               </div>
-              <Badge className={statusColors[application.status]}>
-                {statusLabels[application.status] || application.status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className={statusColors[application.status]}>
+                  {statusLabels[application.status] || application.status}
+                </Badge>
+                {isManualMode ? (
+                  <Badge variant="outline" className="gap-1">
+                    <Hand className="h-3 w-3" />
+                    Manual
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    Auto
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -72,27 +92,48 @@ function ApplicationCard({ application }: ApplicationCardProps) {
               </div>
             </div>
 
-            {application.phase && (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Current Phase: </span>
-                <span className="text-foreground font-medium capitalize">{application.phase}</span>
-              </div>
-            )}
-
-            {application.ai_score && (
-              <div className="flex items-center gap-2">
-                <div className="text-xs font-medium text-muted-foreground">Match Score:</div>
-                <div className="flex items-center gap-1">
-                  <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${application.ai_score}%` }}
-                    />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {application.phase && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Current Phase: </span>
+                    <span className="text-foreground font-medium capitalize">{application.phase}</span>
                   </div>
-                  <span className="text-sm font-medium text-primary">{application.ai_score}%</span>
-                </div>
+                )}
+
+                {application.ai_score && (
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-medium text-muted-foreground">Score:</div>
+                    <div className="flex items-center gap-1">
+                      <div className="h-2 w-16 bg-secondary rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${application.ai_score}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-primary">{application.ai_score}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Action Indicator */}
+              <div className="flex items-center gap-2">
+                {hasActionRequired && (
+                  <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
+                    <Play className="h-3 w-3" />
+                    Action Required
+                  </Badge>
+                )}
+                {application.status === "reviewing" && (
+                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1">
+                    <Clock className="h-3 w-3" />
+                    Under Review
+                  </Badge>
+                )}
+                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
@@ -101,11 +142,37 @@ function ApplicationCard({ application }: ApplicationCardProps) {
 }
 
 export default function Applications() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const isEmployer = role === "employer";
-  const { data: applications, isLoading } = useCandidateApplications();
+  const { data: applications, isLoading, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  // Subscribe to real-time updates for all candidate applications
+  useEffect(() => {
+    if (!user || isEmployer) return;
+
+    const channel = supabase
+      .channel("candidate-applications")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "applications",
+          filter: `candidate_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("Application updated:", payload);
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, isEmployer, refetch]);
 
   const filteredApplications = applications?.filter((app) => {
     const matchesSearch = app.jobs?.title?.toLowerCase().includes(searchQuery.toLowerCase());
