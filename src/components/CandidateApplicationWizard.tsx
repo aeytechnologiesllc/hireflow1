@@ -55,7 +55,7 @@ interface CandidateApplicationWizardProps {
 interface ApplicationQuestion {
   id: string;
   question: string;
-  type: "text" | "textarea" | "select" | "email" | "phone";
+  type: "text" | "textarea" | "select" | "email" | "phone" | "file";
   required: boolean;
   options?: string[];
 }
@@ -110,6 +110,11 @@ export default function CandidateApplicationWizard({
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [questionFiles, setQuestionFiles] = useState<Record<string, File>>({});
+  const [questionFileUrls, setQuestionFileUrls] = useState<Record<string, string>>({});
+  const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
+  const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
+  const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const currentStepData = steps[currentStep];
 
@@ -121,6 +126,10 @@ export default function CandidateApplicationWizard({
     setResumeUrl("");
     setCoverLetter("");
     setValidationErrors({});
+    setQuestionFiles({});
+    setQuestionFileUrls({});
+    setUploadingQuestions({});
+    setDraggingQuestion(null);
   };
 
   const handleClose = () => {
@@ -128,7 +137,7 @@ export default function CandidateApplicationWizard({
     onOpenChange(false);
   };
 
-  // File upload handlers
+  // File upload handlers for resume step
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -147,6 +156,104 @@ export default function CandidateApplicationWizard({
       handleFileSelect(files[0]);
     }
   }, []);
+
+  // Question file upload handlers
+  const handleQuestionDragOver = useCallback((e: React.DragEvent, questionId: string) => {
+    e.preventDefault();
+    setDraggingQuestion(questionId);
+  }, []);
+
+  const handleQuestionDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggingQuestion(null);
+  }, []);
+
+  const handleQuestionDrop = useCallback((e: React.DragEvent, questionId: string) => {
+    e.preventDefault();
+    setDraggingQuestion(null);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleQuestionFileSelect(files[0], questionId);
+    }
+  }, []);
+
+  const handleQuestionFileSelect = async (file: File, questionId: string) => {
+    // Validate file type
+    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PDF or Word document");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
+    }
+
+    setQuestionFiles(prev => ({ ...prev, [questionId]: file }));
+    setUploadingQuestions(prev => ({ ...prev, [questionId]: true }));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${questionId}-${Date.now()}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from("resumes")
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("resumes")
+        .getPublicUrl(fileName);
+
+      setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      toast.success("File uploaded successfully");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload file. Please try again.");
+      setQuestionFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[questionId];
+        return newFiles;
+      });
+    } finally {
+      setUploadingQuestions(prev => ({ ...prev, [questionId]: false }));
+    }
+  };
+
+  const handleQuestionFileInputChange = (e: React.ChangeEvent<HTMLInputElement>, questionId: string) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleQuestionFileSelect(files[0], questionId);
+    }
+  };
+
+  const removeQuestionFile = (questionId: string) => {
+    setQuestionFiles(prev => {
+      const newFiles = { ...prev };
+      delete newFiles[questionId];
+      return newFiles;
+    });
+    setQuestionFileUrls(prev => {
+      const newUrls = { ...prev };
+      delete newUrls[questionId];
+      return newUrls;
+    });
+    setAnswers(prev => {
+      const newAnswers = { ...prev };
+      delete newAnswers[questionId];
+      return newAnswers;
+    });
+    if (questionFileInputRefs.current[questionId]) {
+      questionFileInputRefs.current[questionId]!.value = "";
+    }
+  };
 
   const handleFileSelect = async (file: File) => {
     // Validate file type
@@ -243,11 +350,16 @@ export default function CandidateApplicationWizard({
     switch (currentStepData.id) {
       case "questions":
         // Check all required questions are answered and valid
-        const hasRequiredAnswers = applicationQuestions.every(q => 
-          !q.required || (answers[q.id] && answers[q.id].trim())
-        );
+        const hasRequiredAnswers = applicationQuestions.every(q => {
+          if (!q.required) return true;
+          if (q.type === "file") {
+            return !!questionFileUrls[q.id];
+          }
+          return answers[q.id] && answers[q.id].trim();
+        });
         const hasNoErrors = Object.values(validationErrors).every(err => !err);
-        return hasRequiredAnswers && hasNoErrors;
+        const noUploadsInProgress = !Object.values(uploadingQuestions).some(v => v);
+        return hasRequiredAnswers && hasNoErrors && noUploadsInProgress;
       case "resume":
         // Resume is required if job requires it
         if (requiresResume && !resumeUrl.trim()) return false;
@@ -480,6 +592,87 @@ Resume URL: ${resumeUrl || "Not provided"}
                         </div>
                         {validationErrors[question.id] && (
                           <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
+                        )}
+                      </div>
+                    ) : question.type === "file" ? (
+                      <div className="space-y-2">
+                        {/* Hidden file input */}
+                        <input
+                          ref={(el) => { questionFileInputRefs.current[question.id] = el; }}
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          onChange={(e) => handleQuestionFileInputChange(e, question.id)}
+                          className="hidden"
+                        />
+
+                        {/* Drag & Drop Zone */}
+                        {!questionFiles[question.id] ? (
+                          <div
+                            onDragOver={(e) => handleQuestionDragOver(e, question.id)}
+                            onDragLeave={handleQuestionDragLeave}
+                            onDrop={(e) => handleQuestionDrop(e, question.id)}
+                            onClick={() => questionFileInputRefs.current[question.id]?.click()}
+                            className={`
+                              relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer
+                              transition-all duration-200
+                              ${draggingQuestion === question.id 
+                                ? "border-primary bg-primary/10" 
+                                : "border-border hover:border-primary/50 hover:bg-muted/30"
+                              }
+                            `}
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <div className={`
+                                w-12 h-12 rounded-full flex items-center justify-center transition-colors
+                                ${draggingQuestion === question.id ? "bg-primary/20" : "bg-muted"}
+                              `}>
+                                <Upload className={`h-5 w-5 ${draggingQuestion === question.id ? "text-primary" : "text-muted-foreground"}`} />
+                              </div>
+                              <div>
+                                <p className="text-foreground font-medium text-sm">
+                                  {draggingQuestion === question.id ? "Drop your file here" : "Drag and drop your file"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  or <span className="text-primary underline">browse files</span>
+                                </p>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Supports PDF, DOC, DOCX (max 10MB)
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border border-border rounded-xl p-3 bg-muted/20">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                                <File className="h-5 w-5 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground text-sm truncate">{questionFiles[question.id].name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(questionFiles[question.id].size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                              {uploadingQuestions[question.id] ? (
+                                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                              ) : questionFileUrls[question.id] ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : null}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeQuestionFile(question.id);
+                                }}
+                                className="shrink-0 h-8 w-8"
+                                disabled={uploadingQuestions[question.id]}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     ) : (
