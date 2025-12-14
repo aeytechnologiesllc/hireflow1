@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useEmployerJobs, useJobStats, useDeleteJob } from "@/hooks/useJobs";
+import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,14 +31,18 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useState } from "react";
 import type { Job } from "@/hooks/useJobs";
+import JobDetailsDialog from "@/components/JobDetailsDialog";
 
 interface JobCardProps {
   job: Job;
   onDelete: (id: string) => void;
+  onViewDetails: (job: Job) => void;
+  onEdit: (job: Job) => void;
+  onDuplicate: (job: Job) => void;
   isDeleting: boolean;
 }
 
-function JobCard({ job, onDelete, isDeleting }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onEdit, onDuplicate, isDeleting }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -60,15 +64,15 @@ function JobCard({ job, onDelete, isDeleting }: JobCardProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border-border">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onViewDetails(job)}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit(job)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Job
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDuplicate(job)}>
                     <Copy className="h-4 w-4 mr-2" />
                     Duplicate
                   </DropdownMenuItem>
@@ -129,11 +133,15 @@ function JobCard({ job, onDelete, isDeleting }: JobCardProps) {
 
 export default function Jobs() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const isEmployer = role === "employer";
   const { data: jobs, isLoading } = useEmployerJobs();
   const { data: stats } = useJobStats();
   const deleteJob = useDeleteJob();
+  const createJob = useCreateJob();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
   const handleDelete = async (id: string) => {
     try {
@@ -141,6 +149,29 @@ export default function Jobs() {
       toast.success("Job deleted successfully");
     } catch (error) {
       toast.error("Failed to delete job");
+    }
+  };
+
+  const handleViewDetails = (job: Job) => {
+    setSelectedJob(job);
+    setShowDetailsDialog(true);
+  };
+
+  const handleEdit = (job: Job) => {
+    navigate(`/jobs/edit/${job.id}`);
+  };
+
+  const handleDuplicate = async (job: Job) => {
+    try {
+      const { id, created_at, updated_at, employer_id, job_code, ...jobData } = job;
+      await createJob.mutateAsync({
+        ...jobData,
+        title: `${job.title} (Copy)`,
+        status: "draft",
+      });
+      toast.success("Job duplicated successfully");
+    } catch (error) {
+      toast.error("Failed to duplicate job");
     }
   };
 
@@ -238,6 +269,9 @@ export default function Jobs() {
               key={job.id} 
               job={job} 
               onDelete={handleDelete}
+              onViewDetails={handleViewDetails}
+              onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
               isDeleting={deleteJob.isPending}
             />
           ))
@@ -259,6 +293,14 @@ export default function Jobs() {
           </Card>
         )}
       </div>
+
+      {/* Job Details Dialog */}
+      <JobDetailsDialog
+        job={selectedJob}
+        open={showDetailsDialog}
+        onOpenChange={setShowDetailsDialog}
+        showApplyButton={false}
+      />
     </div>
   );
 }

@@ -25,6 +25,25 @@ export function useEmployerJobs() {
   });
 }
 
+export function useJob(id: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["jobs", "single", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("id", id!)
+        .single();
+
+      if (error) throw error;
+      return data as Job;
+    },
+    enabled: !!user && !!id,
+  });
+}
+
 export function usePublishedJobs() {
   return useQuery({
     queryKey: ["jobs", "published"],
