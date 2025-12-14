@@ -7,6 +7,8 @@ import { Search, Filter, MapPin, Briefcase, DollarSign, Clock } from "lucide-rea
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import JobApplicationDialog from "@/components/JobApplicationDialog";
+import type { Tables } from "@/integrations/supabase/types";
 
 export default function FindJobs() {
   const { role } = useAuth();
@@ -14,6 +16,8 @@ export default function FindJobs() {
   const { data: jobs, isLoading } = usePublishedJobs();
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
+  const [selectedJob, setSelectedJob] = useState<Tables<"jobs"> | null>(null);
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
 
   const filteredJobs = jobs?.filter((job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -29,6 +33,11 @@ export default function FindJobs() {
     if (min && max) return `${curr} ${min.toLocaleString()} - ${max.toLocaleString()}`;
     if (min) return `${curr} ${min.toLocaleString()}+`;
     return `Up to ${curr} ${max?.toLocaleString()}`;
+  };
+
+  const handleApply = (job: Tables<"jobs">) => {
+    setSelectedJob(job);
+    setApplyDialogOpen(true);
   };
 
   if (isEmployer) {
@@ -98,7 +107,7 @@ export default function FindJobs() {
           </>
         ) : filteredJobs && filteredJobs.length > 0 ? (
           filteredJobs.map((job) => (
-            <Card key={job.id} className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer">
+            <Card key={job.id} className="bg-card border-border hover:border-primary/50 transition-colors">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="space-y-3 flex-1">
@@ -148,7 +157,7 @@ export default function FindJobs() {
                       </div>
                     )}
                   </div>
-                  <Button>Apply Now</Button>
+                  <Button onClick={() => handleApply(job)}>Apply Now</Button>
                 </div>
               </CardContent>
             </Card>
@@ -165,6 +174,12 @@ export default function FindJobs() {
           </Card>
         )}
       </div>
+
+      <JobApplicationDialog
+        job={selectedJob}
+        open={applyDialogOpen}
+        onOpenChange={setApplyDialogOpen}
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { Card, CardContent } from "@/components/ui/card";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useState } from "react";
+import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -31,9 +32,10 @@ const statusColors: Record<string, string> = {
 interface ApplicantCardProps {
   application: ApplicationWithCandidate;
   onStatusChange: (id: string, status: string) => void;
+  onScheduleInterview: (application: ApplicationWithCandidate) => void;
 }
 
-function ApplicantCard({ application, onStatusChange }: ApplicantCardProps) {
+function ApplicantCard({ application, onStatusChange, onScheduleInterview }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
   
@@ -79,9 +81,17 @@ function ApplicantCard({ application, onStatusChange }: ApplicantCardProps) {
                     <Eye className="h-4 w-4 mr-2" />
                     Mark as Reviewing
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "interview")}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
+                  <DropdownMenuItem onClick={() => onScheduleInterview(application)}>
+                    <Calendar className="h-4 w-4 mr-2" />
                     Schedule Interview
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "offered")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Extend Offer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onStatusChange(application.id, "hired")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark as Hired
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onStatusChange(application.id, "rejected")} className="text-destructive">
                     <XCircle className="h-4 w-4 mr-2" />
@@ -136,6 +146,8 @@ export default function Applicants() {
   const { data: stats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
   const [searchQuery, setSearchQuery] = useState("");
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -144,6 +156,11 @@ export default function Applicants() {
     } catch (error) {
       toast.error("Failed to update application status");
     }
+  };
+
+  const handleScheduleInterview = (application: ApplicationWithCandidate) => {
+    setSelectedApplication(application);
+    setScheduleDialogOpen(true);
   };
 
   const filteredApplications = applications?.filter((app) => {
@@ -243,6 +260,7 @@ export default function Applicants() {
               key={application.id} 
               application={application}
               onStatusChange={handleStatusChange}
+              onScheduleInterview={handleScheduleInterview}
             />
           ))
         ) : (
@@ -257,6 +275,13 @@ export default function Applicants() {
           </Card>
         )}
       </div>
+
+      <ScheduleInterviewDialog
+        applicationId={selectedApplication?.id || null}
+        candidateName={selectedApplication?.profiles?.full_name || "Candidate"}
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+      />
     </div>
   );
 }
