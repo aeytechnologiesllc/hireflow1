@@ -8,18 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
   Loader2, 
-  Sparkles, 
-  AlertCircle, 
   CheckCircle2, 
-  X,
   Wand2,
   FileText,
   DollarSign,
@@ -33,12 +28,6 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-interface BiasAnalysis {
-  score: number;
-  issues: string[];
-  suggestions: string[];
-  analysis: string;
-}
 
 const WIZARD_STEPS = [
   { id: "basic", title: "Basic Info", icon: FileText },
@@ -70,16 +59,11 @@ export default function CreateJob() {
     application_deadline: "",
   });
 
-  const [biasAnalysis, setBiasAnalysis] = useState<BiasAnalysis | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (field === "description" || field === "requirements") {
-      setBiasAnalysis(null);
-    }
   };
 
   const generateField = async (field: string, context?: string) => {
@@ -152,67 +136,6 @@ export default function CreateJob() {
     }
   };
 
-  const analyzeForBias = async () => {
-    if (!formData.description && !formData.requirements) {
-      toast.error("Please add a description or requirements to analyze");
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      const content = `
-Job Title: ${formData.title}
-
-Description:
-${formData.description}
-
-Requirements:
-${formData.requirements}
-
-Responsibilities:
-${formData.responsibilities}
-      `.trim();
-
-      const { data, error } = await supabase.functions.invoke("ai-analyze", {
-        body: { type: "job-bias", content },
-      });
-
-      if (error) throw error;
-
-      const analysisText = data.analysis;
-      const scoreMatch = analysisText.match(/(?:Bias\s+)?Score[:\s]+(\d+)/i);
-      const score = scoreMatch ? parseInt(scoreMatch[1]) : 75;
-
-      const issues: string[] = [];
-      const suggestions: string[] = [];
-      
-      const issuesMatch = analysisText.match(/Issues Found[:\s]*\n([\s\S]*?)(?=\n\n|Suggested|$)/i);
-      if (issuesMatch) {
-        const issueLines = issuesMatch[1].split("\n").filter((line: string) => line.trim().startsWith("-") || line.trim().startsWith("•"));
-        issues.push(...issueLines.map((line: string) => line.replace(/^[-•]\s*/, "").trim()).filter(Boolean));
-      }
-
-      const suggestionsMatch = analysisText.match(/Suggested Improvements[:\s]*\n([\s\S]*?)(?=\n\n|Rewritten|$)/i);
-      if (suggestionsMatch) {
-        const suggestionLines = suggestionsMatch[1].split("\n").filter((line: string) => line.trim().startsWith("-") || line.trim().startsWith("•"));
-        suggestions.push(...suggestionLines.map((line: string) => line.replace(/^[-•]\s*/, "").trim()).filter(Boolean));
-      }
-
-      setBiasAnalysis({
-        score,
-        issues: issues.length > 0 ? issues : ["No major issues found"],
-        suggestions: suggestions.length > 0 ? suggestions : ["Job posting looks good!"],
-        analysis: analysisText,
-      });
-
-      toast.success("Bias analysis complete");
-    } catch (error) {
-      console.error("Error analyzing for bias:", error);
-      toast.error("Failed to analyze job posting");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   const handleSubmit = async (status: "draft" | "published") => {
     if (!formData.title || !formData.description) {
@@ -238,8 +161,6 @@ ${formData.responsibilities}
         benefits: formData.benefits ? formData.benefits.split(",").map((s) => s.trim()).filter(Boolean) : null,
         application_deadline: formData.application_deadline ? new Date(formData.application_deadline).toISOString() : null,
         status,
-        ai_bias_score: biasAnalysis?.score || null,
-        ai_bias_feedback: biasAnalysis?.analysis || null,
       });
 
       toast.success(status === "published" ? "Job published successfully!" : "Job saved as draft");
@@ -272,17 +193,6 @@ ${formData.responsibilities}
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-primary";
-    if (score >= 60) return "text-yellow-500";
-    return "text-destructive";
-  };
-
-  const getScoreLabel = (score: number) => {
-    if (score >= 80) return "Excellent";
-    if (score >= 60) return "Good";
-    return "Needs Improvement";
-  };
 
   return (
     <div className="space-y-6">
@@ -294,7 +204,7 @@ ${formData.responsibilities}
           </Button>
           <div>
             <h2 className="text-2xl font-bold text-foreground">Create New Job</h2>
-            <p className="text-muted-foreground mt-1">AI-powered job posting with bias detection</p>
+            <p className="text-muted-foreground mt-1">AI-powered job posting wizard</p>
           </div>
         </div>
         
@@ -363,9 +273,9 @@ ${formData.responsibilities}
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-4xl">
         {/* Main Content */}
-        <div className="lg:col-span-2">
+        <div>
           <AnimatePresence mode="wait">
             {/* Step 1: Basic Info */}
             {currentStep === 0 && (
@@ -807,99 +717,6 @@ ${formData.responsibilities}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Sidebar - AI Tools */}
-        <div className="space-y-6">
-          <Card className="bg-card border-border sticky top-6">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                AI Bias Detection
-              </CardTitle>
-              <CardDescription>
-                Analyze your job posting for inclusive language
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button
-                onClick={analyzeForBias}
-                disabled={isAnalyzing || (!formData.description && !formData.requirements)}
-                className="w-full gap-2"
-                variant="outline"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Analyze for Bias
-                  </>
-                )}
-              </Button>
-
-              {biasAnalysis && (
-                <div className="space-y-4">
-                  <Separator />
-                  
-                  <div className="text-center">
-                    <div className={`text-4xl font-bold ${getScoreColor(biasAnalysis.score)}`}>
-                      {biasAnalysis.score}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Inclusivity Score
-                    </div>
-                    <Badge className={`mt-2 ${
-                      biasAnalysis.score >= 80 
-                        ? "bg-primary/20 text-primary" 
-                        : biasAnalysis.score >= 60 
-                        ? "bg-yellow-500/20 text-yellow-500"
-                        : "bg-destructive/20 text-destructive"
-                    }`}>
-                      {getScoreLabel(biasAnalysis.score)}
-                    </Badge>
-                  </div>
-
-                  <Progress value={biasAnalysis.score} className="h-2" />
-
-                  {biasAnalysis.issues.length > 0 && biasAnalysis.issues[0] !== "No major issues found" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        Issues Found
-                      </div>
-                      <ul className="space-y-1">
-                        {biasAnalysis.issues.slice(0, 3).map((issue, i) => (
-                          <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                            <X className="h-3 w-3 mt-0.5 text-destructive flex-shrink-0" />
-                            {issue}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Suggestions
-                    </div>
-                    <ul className="space-y-1">
-                      {biasAnalysis.suggestions.slice(0, 3).map((suggestion, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                          <CheckCircle2 className="h-3 w-3 mt-0.5 text-primary flex-shrink-0" />
-                          {suggestion}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
