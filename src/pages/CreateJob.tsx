@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateJob } from "@/hooks/useJobs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
@@ -23,7 +28,8 @@ import {
   ChevronLeft,
   Eye,
   Save,
-  Send
+  Send,
+  CalendarIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,18 +57,21 @@ export default function CreateJob() {
     job_type: "full-time",
     experience_level: "",
     department: "",
+    salary_type: "range" as "fixed" | "range",
+    salary_period: "yearly" as "hourly" | "monthly" | "yearly",
     salary_min: "",
     salary_max: "",
+    salary_fixed: "",
     salary_currency: "USD",
     skills_required: "",
     benefits: "",
-    application_deadline: "",
+    application_deadline: null as Date | null,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -154,12 +163,16 @@ export default function CreateJob() {
         job_type: formData.job_type,
         experience_level: formData.experience_level || null,
         department: formData.department || null,
-        salary_min: formData.salary_min ? parseInt(formData.salary_min) : null,
-        salary_max: formData.salary_max ? parseInt(formData.salary_max) : null,
+        salary_min: formData.salary_type === "fixed" 
+          ? (formData.salary_fixed ? parseInt(formData.salary_fixed) : null)
+          : (formData.salary_min ? parseInt(formData.salary_min) : null),
+        salary_max: formData.salary_type === "fixed"
+          ? (formData.salary_fixed ? parseInt(formData.salary_fixed) : null)
+          : (formData.salary_max ? parseInt(formData.salary_max) : null),
         salary_currency: formData.salary_currency,
         skills_required: formData.skills_required ? formData.skills_required.split(",").map((s) => s.trim()).filter(Boolean) : null,
         benefits: formData.benefits ? formData.benefits.split(",").map((s) => s.trim()).filter(Boolean) : null,
-        application_deadline: formData.application_deadline ? new Date(formData.application_deadline).toISOString() : null,
+        application_deadline: formData.application_deadline ? formData.application_deadline.toISOString() : null,
         status,
       });
 
@@ -501,8 +514,28 @@ export default function CreateJob() {
                     <CardTitle className="text-lg">Compensation & Benefits</CardTitle>
                     <CardDescription>Salary range and perks</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
+                  <CardContent className="space-y-6">
+                    {/* Salary Type Selection */}
+                    <div className="space-y-3">
+                      <Label>Salary Type</Label>
+                      <RadioGroup
+                        value={formData.salary_type}
+                        onValueChange={(v) => handleChange("salary_type", v)}
+                        className="flex gap-6"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="fixed" id="salary-fixed" />
+                          <Label htmlFor="salary-fixed" className="cursor-pointer font-normal">Fixed Salary</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="range" id="salary-range" />
+                          <Label htmlFor="salary-range" className="cursor-pointer font-normal">Salary Range</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {/* Currency and Period */}
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="salary_currency">Currency</Label>
                         <Select value={formData.salary_currency} onValueChange={(v) => handleChange("salary_currency", v)}>
@@ -510,36 +543,77 @@ export default function CreateJob() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="GBP">GBP</SelectItem>
-                            <SelectItem value="CAD">CAD</SelectItem>
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                            <SelectItem value="CAD">CAD ($)</SelectItem>
+                            <SelectItem value="AUD">AUD ($)</SelectItem>
+                            <SelectItem value="INR">INR (₹)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="salary_min">Minimum Salary</Label>
-                        <Input
-                          id="salary_min"
-                          type="number"
-                          placeholder="50000"
-                          className="bg-background"
-                          value={formData.salary_min}
-                          onChange={(e) => handleChange("salary_min", e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="salary_max">Maximum Salary</Label>
-                        <Input
-                          id="salary_max"
-                          type="number"
-                          placeholder="80000"
-                          className="bg-background"
-                          value={formData.salary_max}
-                          onChange={(e) => handleChange("salary_max", e.target.value)}
-                        />
+                        <Label htmlFor="salary_period">Pay Period</Label>
+                        <Select value={formData.salary_period} onValueChange={(v) => handleChange("salary_period", v)}>
+                          <SelectTrigger className="bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hourly">Per Hour</SelectItem>
+                            <SelectItem value="monthly">Per Month</SelectItem>
+                            <SelectItem value="yearly">Per Year</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
+
+                    {/* Salary Amount(s) */}
+                    {formData.salary_type === "fixed" ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="salary_fixed">Salary Amount</Label>
+                        <Input
+                          id="salary_fixed"
+                          type="number"
+                          placeholder="75000"
+                          className="bg-background"
+                          value={formData.salary_fixed}
+                          onChange={(e) => handleChange("salary_fixed", e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {formData.salary_currency} {formData.salary_period}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="salary_min">Minimum Salary</Label>
+                          <Input
+                            id="salary_min"
+                            type="number"
+                            placeholder="50000"
+                            className="bg-background"
+                            value={formData.salary_min}
+                            onChange={(e) => handleChange("salary_min", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="salary_max">Maximum Salary</Label>
+                          <Input
+                            id="salary_max"
+                            type="number"
+                            placeholder="80000"
+                            className="bg-background"
+                            value={formData.salary_max}
+                            onChange={(e) => handleChange("salary_max", e.target.value)}
+                          />
+                        </div>
+                        <p className="col-span-2 text-xs text-muted-foreground">
+                          {formData.salary_currency} {formData.salary_period}
+                        </p>
+                      </div>
+                    )}
+
+                    <Separator />
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -569,15 +643,41 @@ export default function CreateJob() {
                       <p className="text-xs text-muted-foreground">Separate benefits with commas</p>
                     </div>
 
+                    <Separator />
+
                     <div className="space-y-2">
-                      <Label htmlFor="deadline">Application Deadline</Label>
-                      <Input
-                        id="deadline"
-                        type="date"
-                        className="bg-background"
-                        value={formData.application_deadline}
-                        onChange={(e) => handleChange("application_deadline", e.target.value)}
-                      />
+                      <Label>Application Deadline</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal bg-background",
+                              !formData.application_deadline && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.application_deadline ? (
+                              format(formData.application_deadline, "PPP")
+                            ) : (
+                              <span>Pick a deadline date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.application_deadline || undefined}
+                            onSelect={(date) => handleChange("application_deadline", date || null)}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-xs text-muted-foreground">
+                        When should applications close for this position?
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
