@@ -144,10 +144,14 @@ export type Database = {
       documents: {
         Row: {
           application_id: string
+          candidate_signature_data: string | null
+          candidate_signed_at: string | null
           created_at: string
           decline_reason: string | null
           declined_at: string | null
           document_type: string | null
+          employer_signature_data: string | null
+          employer_signed_at: string | null
           expires_at: string | null
           file_url: string
           id: string
@@ -158,16 +162,21 @@ export type Database = {
           sender_id: string | null
           signature_data: string | null
           signed_at: string | null
+          signing_order: string | null
           status: Database["public"]["Enums"]["document_status"]
           user_agent: string | null
           viewed_at: string | null
         }
         Insert: {
           application_id: string
+          candidate_signature_data?: string | null
+          candidate_signed_at?: string | null
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
           document_type?: string | null
+          employer_signature_data?: string | null
+          employer_signed_at?: string | null
           expires_at?: string | null
           file_url: string
           id?: string
@@ -178,16 +187,21 @@ export type Database = {
           sender_id?: string | null
           signature_data?: string | null
           signed_at?: string | null
+          signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
           viewed_at?: string | null
         }
         Update: {
           application_id?: string
+          candidate_signature_data?: string | null
+          candidate_signed_at?: string | null
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
           document_type?: string | null
+          employer_signature_data?: string | null
+          employer_signed_at?: string | null
           expires_at?: string | null
           file_url?: string
           id?: string
@@ -198,6 +212,7 @@ export type Database = {
           sender_id?: string | null
           signature_data?: string | null
           signed_at?: string | null
+          signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
           viewed_at?: string | null

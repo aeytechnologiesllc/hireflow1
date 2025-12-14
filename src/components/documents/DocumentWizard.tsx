@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -588,31 +589,37 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                 exit={{ opacity: 0, x: -20 }}
                 className="grid grid-cols-1 lg:grid-cols-3 gap-6"
               >
-                {/* Document Preview */}
+                {/* Document Preview & Edit */}
                 <div className="lg:col-span-2 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Document Preview</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={generateDocument}
-                      disabled={isGenerating}
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Regenerate
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <div className="bg-white dark:bg-secondary/30 rounded-xl border border-border p-6 min-h-[400px] max-h-[500px] overflow-y-auto">
-                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-mono text-xs">
-                      {generatedContent}
+                    <h3 className="font-semibold">Document Content</h3>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={generateDocument}
+                        disabled={isGenerating}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Regenerate
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
+                  <Textarea
+                    value={generatedContent}
+                    onChange={(e) => setGeneratedContent(e.target.value)}
+                    className="min-h-[400px] max-h-[500px] font-mono text-xs bg-white dark:bg-secondary/30"
+                    placeholder="Document content will appear here..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You can edit the document content directly above before sending.
+                  </p>
                 </div>
 
                 {/* Signature Fields */}
@@ -623,12 +630,28 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                       Add Field
                     </Button>
                   </div>
+                  
+                  {/* Signing Order Info */}
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      <strong>Signing Order:</strong> Candidate signs first, then employer countersigns.
+                    </p>
+                  </div>
+
                   <div className="space-y-3">
                     {signatureFields.map((field) => (
                       <div
                         key={field.id}
                         className="p-3 rounded-lg border border-border bg-secondary/30 space-y-2"
                       >
+                        <div className="flex items-center gap-2">
+                          {field.id === "recipient" && (
+                            <Badge variant="outline" className="text-xs">Candidate</Badge>
+                          )}
+                          {field.id === "employer" && (
+                            <Badge variant="outline" className="text-xs">Employer</Badge>
+                          )}
+                        </div>
                         <Input
                           value={field.label}
                           onChange={(e) => updateSignatureField(field.id, { label: e.target.value })}
@@ -663,12 +686,12 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                   <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                     <div className="flex items-center gap-2 text-primary mb-2">
                       <PenTool className="h-4 w-4" />
-                      <span className="text-sm font-medium">Signature Preview</span>
+                      <span className="text-sm font-medium">Signing Flow</span>
                     </div>
-                    <div className="border-2 border-dashed border-primary/30 rounded-lg p-4 text-center">
-                      <p className="text-xs text-muted-foreground">
-                        Signature fields will appear here for signing
-                      </p>
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <p>1. Candidate receives & signs</p>
+                      <p>2. Employer countersigns</p>
+                      <p>3. Document is complete</p>
                     </div>
                   </div>
                 </div>

@@ -22,8 +22,11 @@ import {
   PenTool,
   History,
   Eye,
-  Trash2,
-  Undo2
+  Undo2,
+  Edit,
+  Save,
+  UserCheck,
+  Building2
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
@@ -56,7 +59,7 @@ interface DocumentSigningDialogProps {
 
 const statusConfig = {
   pending: { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending Signature" },
-  signed: { color: "bg-success/20 text-success", icon: CheckCircle, label: "Signed" },
+  signed: { color: "bg-success/20 text-success", icon: CheckCircle, label: "Fully Signed" },
   declined: { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" },
 };
 
@@ -69,6 +72,9 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("document");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const canvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentField, setCurrentField] = useState<string | null>(null);
@@ -76,11 +82,20 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   const { role, user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Determine signing state
+  const candidateSigned = !!document?.candidate_signed_at;
+  const employerSigned = !!document?.employer_signed_at;
+  const isFullySigned = candidateSigned && employerSigned;
+
   useEffect(() => {
     if (document && open) {
       fetchAuditLogs();
       parseDocumentData();
       recordDocumentView();
+      setIsEditing(false);
+      setShowDeclineForm(false);
+      setDeclineReason("");
+      setSignatures({});
     }
   }, [document, open]);
 
@@ -107,14 +122,18 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         const jsonString = atob(base64Content);
         const parsed = JSON.parse(jsonString) as DocumentData;
         setDocumentData(parsed);
+        setEditedContent(parsed.content);
       } else if (document.file_url.startsWith("data:text/plain;base64,")) {
         const base64Content = document.file_url.split(",")[1];
+        const content = atob(base64Content);
         setDocumentData({
-          content: atob(base64Content),
+          content,
           signatureFields: [
-            { id: "recipient", label: "Recipient Signature", required: true },
+            { id: "recipient", label: "Candidate Signature", required: true },
+            { id: "employer", label: "Employer Signature", required: true },
           ],
         });
+        setEditedContent(content);
       }
     } catch (error) {
       console.error("Error parsing document:", error);
@@ -214,9 +233,26 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     });
   };
 
+  // Get fields that the current user needs to sign
+  const getSignableFields = () => {
+    if (!documentData?.signatureFields) return [];
+    
+    if (role === "candidate") {
+      // Candidate signs recipient field
+      return documentData.signatureFields.filter(f => f.id === "recipient");
+    } else if (role === "employer") {
+      // Employer signs employer field, but only after candidate has signed
+      if (!candidateSigned) return [];
+      return documentData.signatureFields.filter(f => f.id === "employer");
+    }
+    return [];
+  };
+
+  const signableFields = getSignableFields();
+  const canSign = signableFields.length > 0 && document?.status === "pending";
+
   const allRequiredSigned = () => {
-    if (!documentData?.signatureFields) return false;
-    return documentData.signatureFields
+    return signableFields
       .filter(f => f.required)
       .every(f => signatures[f.id]);
   };
@@ -240,14 +276,25 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         userAgent: navigator.userAgent,
       });
 
+      const updates: Record<string, any> = {
+        user_agent: navigator.userAgent,
+      };
+
+      if (role === "candidate") {
+        updates.candidate_signature_data = signatureData;
+        updates.candidate_signed_at = new Date().toISOString();
+      } else if (role === "employer") {
+        updates.employer_signature_data = signatureData;
+        updates.employer_signed_at = new Date().toISOString();
+        // Both parties have signed - mark as fully signed
+        updates.status = "signed";
+        updates.signed_at = new Date().toISOString();
+        updates.signature_data = signatureData;
+      }
+
       const { error } = await supabase
         .from("documents")
-        .update({
-          status: "signed",
-          signed_at: new Date().toISOString(),
-          signature_data: signatureData,
-          user_agent: navigator.userAgent,
-        })
+        .update(updates)
         .eq("id", document.id);
 
       if (error) throw error;
@@ -255,17 +302,31 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       await supabase.from("document_audit_logs").insert({
         document_id: document.id,
         user_id: user.id,
-        action: "signed",
+        action: role === "candidate" ? "candidate_signed" : "employer_countersigned",
         details: { 
           method: "electronic_signature",
           fieldsCompleted: Object.keys(signatures).length,
+          role,
         },
         user_agent: navigator.userAgent,
       });
 
+      // Notify the other party
+      if (role === "candidate" && document.sender_id) {
+        await supabase.from("notifications").insert({
+          user_id: document.sender_id,
+          title: "Document Signed by Candidate",
+          message: `${document.name} has been signed by the candidate. You can now countersign.`,
+          type: "system" as const,
+          link: "/documents",
+        });
+      }
+
       toast({
-        title: "Document Signed",
-        description: "You have successfully signed this document.",
+        title: role === "candidate" ? "Document Signed" : "Document Countersigned",
+        description: role === "candidate" 
+          ? "You have signed this document. Waiting for employer countersignature."
+          : "Document has been fully signed by both parties.",
       });
 
       queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -309,7 +370,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         document_id: document.id,
         user_id: user.id,
         action: "declined",
-        details: { reason: declineReason },
+        details: { reason: declineReason, role },
         user_agent: navigator.userAgent,
       });
 
@@ -332,6 +393,54 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     }
   };
 
+  const handleSaveEdit = async () => {
+    if (!document || !documentData) return;
+    
+    setIsSavingEdit(true);
+    try {
+      const updatedDocumentData = {
+        ...documentData,
+        content: editedContent,
+      };
+
+      const { error } = await supabase
+        .from("documents")
+        .update({
+          file_url: `data:application/json;base64,${btoa(JSON.stringify(updatedDocumentData))}`,
+        })
+        .eq("id", document.id);
+
+      if (error) throw error;
+
+      await supabase.from("document_audit_logs").insert({
+        document_id: document.id,
+        user_id: user?.id,
+        action: "edited",
+        details: { editedBy: role },
+        user_agent: navigator.userAgent,
+      });
+
+      setDocumentData(updatedDocumentData);
+      setIsEditing(false);
+      
+      toast({
+        title: "Document Updated",
+        description: "Your changes have been saved.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    } catch (error: any) {
+      console.error("Error saving document:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save changes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const handleDownload = () => {
     if (!document || !documentData) return;
     
@@ -348,7 +457,15 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
   const status = statusConfig[document.status as keyof typeof statusConfig];
   const StatusIcon = status?.icon || Clock;
-  const canSign = role === "candidate" && document.status === "pending";
+  const canEdit = role === "employer" && document.status === "pending" && !candidateSigned;
+
+  // Determine signing status display
+  const getSigningStatus = () => {
+    if (isFullySigned) return "Fully Signed";
+    if (candidateSigned && !employerSigned) return "Awaiting Employer Countersignature";
+    if (!candidateSigned) return "Awaiting Candidate Signature";
+    return "Pending";
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -367,11 +484,35 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                 </p>
               </div>
             </div>
-            <Badge className={status?.color}>
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {status?.label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className={status?.color}>
+                <StatusIcon className="h-3 w-3 mr-1" />
+                {status?.label}
+              </Badge>
+            </div>
           </div>
+          
+          {/* Signing Progress */}
+          {document.status === "pending" && (
+            <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border">
+              <p className="text-sm font-medium mb-2">Signing Progress</p>
+              <div className="flex items-center gap-4">
+                <div className={`flex items-center gap-2 ${candidateSigned ? "text-success" : "text-muted-foreground"}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${candidateSigned ? "bg-success/20" : "bg-secondary"}`}>
+                    <UserCheck className="h-3 w-3" />
+                  </div>
+                  <span className="text-xs">Candidate {candidateSigned ? "✓" : "(pending)"}</span>
+                </div>
+                <div className="flex-1 h-0.5 bg-border" />
+                <div className={`flex items-center gap-2 ${employerSigned ? "text-success" : "text-muted-foreground"}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${employerSigned ? "bg-success/20" : "bg-secondary"}`}>
+                    <Building2 className="h-3 w-3" />
+                  </div>
+                  <span className="text-xs">Employer {employerSigned ? "✓" : candidateSigned ? "(your turn)" : "(waiting)"}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -395,12 +536,20 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
           <div className="flex-1 overflow-hidden p-6 pt-4">
             {/* Document View */}
             <TabsContent value="document" className="h-full m-0">
-              <ScrollArea className="h-[calc(70vh-120px)]">
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border p-8 min-h-full shadow-inner">
-                  <pre className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-foreground">
-                    {documentData?.content || "Loading document..."}
-                  </pre>
-                </div>
+              <ScrollArea className="h-[calc(70vh-180px)]">
+                {isEditing ? (
+                  <Textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    className="min-h-[400px] font-serif text-sm leading-relaxed bg-white dark:bg-zinc-900"
+                  />
+                ) : (
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border p-8 min-h-full shadow-inner">
+                    <pre className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-foreground">
+                      {documentData?.content || "Loading document..."}
+                    </pre>
+                  </div>
+                )}
               </ScrollArea>
               
               <div className="flex gap-3 mt-4">
@@ -408,6 +557,31 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
+                {canEdit && (
+                  isEditing ? (
+                    <>
+                      <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+                        {isSavingEdit ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-2" />
+                        )}
+                        Save Changes
+                      </Button>
+                      <Button variant="outline" onClick={() => {
+                        setIsEditing(false);
+                        setEditedContent(documentData?.content || "");
+                      }}>
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" onClick={() => setIsEditing(true)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Document
+                    </Button>
+                  )
+                )}
                 {canSign && (
                   <Button onClick={() => setActiveTab("sign")}>
                     <PenTool className="h-4 w-4 mr-2" />
@@ -463,18 +637,24 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                 <div className="space-y-6">
                   <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
                     <PenTool className="h-8 w-8 text-primary mx-auto mb-2" />
-                    <h3 className="font-semibold">Sign Your Document</h3>
+                    <h3 className="font-semibold">
+                      {role === "candidate" ? "Sign as Candidate" : "Countersign as Employer"}
+                    </h3>
                     <p className="text-sm text-muted-foreground">
-                      Draw your signature in each field below to complete the signing process.
+                      {role === "candidate" 
+                        ? "Draw your signature below. The employer will countersign after you."
+                        : "The candidate has signed. Add your countersignature to complete the document."}
                     </p>
                   </div>
 
                   <ScrollArea className="h-[calc(50vh-120px)]">
                     <div className="space-y-6">
-                      {documentData?.signatureFields.map((field) => (
+                      {signableFields.map((field) => (
                         <div key={field.id} className="space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="flex items-center gap-2">
+                              {field.id === "recipient" && <UserCheck className="h-4 w-4" />}
+                              {field.id === "employer" && <Building2 className="h-4 w-4" />}
                               {field.label}
                               {field.required && (
                                 <span className="text-destructive">*</span>
@@ -544,7 +724,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                       ) : (
                         <CheckCircle className="h-4 w-4 mr-2" />
                       )}
-                      Complete Signing
+                      {role === "candidate" ? "Sign Document" : "Countersign"}
                     </Button>
                   </div>
                 </div>
@@ -565,24 +745,27 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                         className="flex gap-4 p-4 rounded-xl bg-secondary/30 border border-border"
                       >
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          log.action === "signed" ? "bg-success/20" :
+                          log.action.includes("signed") ? "bg-success/20" :
                           log.action === "declined" ? "bg-destructive/20" :
                           log.action === "viewed" ? "bg-blue-500/20" :
+                          log.action === "edited" ? "bg-orange-500/20" :
                           "bg-primary/20"
                         }`}>
-                          {log.action === "signed" ? (
+                          {log.action.includes("signed") ? (
                             <CheckCircle className="h-5 w-5 text-success" />
                           ) : log.action === "declined" ? (
                             <XCircle className="h-5 w-5 text-destructive" />
                           ) : log.action === "viewed" ? (
                             <Eye className="h-5 w-5 text-blue-500" />
+                          ) : log.action === "edited" ? (
+                            <Edit className="h-5 w-5 text-orange-500" />
                           ) : (
                             <FileText className="h-5 w-5 text-primary" />
                           )}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
-                            <p className="font-medium capitalize">{log.action}</p>
+                            <p className="font-medium capitalize">{log.action.replace(/_/g, " ")}</p>
                             <span className="text-sm text-muted-foreground">
                               {format(new Date(log.created_at), "MMM d, yyyy 'at' h:mm a")}
                             </span>
