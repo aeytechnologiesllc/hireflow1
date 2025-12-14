@@ -92,10 +92,11 @@ export default function CandidateApplicationWizard({
   // Determine wizard steps based on job configuration
   const hasQuestions = applicationQuestions.length > 0;
   const requiresResume = job.require_resume !== false;
+  const hasFileQuestionInQuestions = applicationQuestions.some(q => q.type === "file");
 
   const steps = [
     ...(hasQuestions ? [{ id: "questions", title: "Application Questions", icon: ClipboardList }] : []),
-    { id: "resume", title: "Resume & Cover Letter", icon: FileText },
+    { id: "resume", title: hasFileQuestionInQuestions ? "Cover Letter" : "Resume & Cover Letter", icon: FileText },
     { id: "review", title: "Review & Submit", icon: Send },
   ];
 
@@ -361,8 +362,8 @@ export default function CandidateApplicationWizard({
         const noUploadsInProgress = !Object.values(uploadingQuestions).some(v => v);
         return hasRequiredAnswers && hasNoErrors && noUploadsInProgress;
       case "resume":
-        // Resume is required if job requires it
-        if (requiresResume && !resumeUrl.trim()) return false;
+        // Resume is required if job requires it AND there's no file question in application questions
+        if (requiresResume && !hasFileQuestionInQuestions && !resumeUrl.trim()) return false;
         return !isUploading;
       case "review":
         return true;
@@ -703,91 +704,94 @@ Resume URL: ${resumeUrl || "Not provided"}
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="space-y-3">
-                  <Label className="text-base">
-                    Resume
-                    {requiresResume && <span className="text-destructive ml-1">*</span>}
-                  </Label>
-                  
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                  />
+                {/* Only show resume upload if there's no file-type question in application questions */}
+                {!hasFileQuestionInQuestions && (
+                  <div className="space-y-3">
+                    <Label className="text-base">
+                      Resume
+                      {requiresResume && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+                    
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                    />
 
-                  {/* Drag & Drop Zone */}
-                  {!resumeFile ? (
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`
-                        relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
-                        transition-all duration-200
-                        ${isDragging 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-primary/50 hover:bg-muted/30"
-                        }
-                      `}
-                    >
-                      <div className="flex flex-col items-center gap-3">
-                        <div className={`
-                          w-14 h-14 rounded-full flex items-center justify-center transition-colors
-                          ${isDragging ? "bg-primary/20" : "bg-muted"}
-                        `}>
-                          <Upload className={`h-6 w-6 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
-                        </div>
-                        <div>
-                          <p className="text-foreground font-medium">
-                            {isDragging ? "Drop your resume here" : "Drag and drop your resume"}
+                    {/* Drag & Drop Zone */}
+                    {!resumeFile ? (
+                      <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`
+                          relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+                          transition-all duration-200
+                          ${isDragging 
+                            ? "border-primary bg-primary/10" 
+                            : "border-border hover:border-primary/50 hover:bg-muted/30"
+                          }
+                        `}
+                      >
+                        <div className="flex flex-col items-center gap-3">
+                          <div className={`
+                            w-14 h-14 rounded-full flex items-center justify-center transition-colors
+                            ${isDragging ? "bg-primary/20" : "bg-muted"}
+                          `}>
+                            <Upload className={`h-6 w-6 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                          </div>
+                          <div>
+                            <p className="text-foreground font-medium">
+                              {isDragging ? "Drop your resume here" : "Drag and drop your resume"}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              or <span className="text-primary underline">browse files</span>
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Supports PDF, DOC, DOCX (max 10MB)
                           </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            or <span className="text-primary underline">browse files</span>
-                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Supports PDF, DOC, DOCX (max 10MB)
-                        </p>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="border border-border rounded-xl p-4 bg-muted/20">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                          <File className="h-6 w-6 text-primary" />
+                    ) : (
+                      <div className="border border-border rounded-xl p-4 bg-muted/20">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                            <File className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground truncate">{resumeFile.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                          {isUploading ? (
+                            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                          ) : resumeUrl ? (
+                            <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile();
+                            }}
+                            className="shrink-0"
+                            disabled={isUploading}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">{resumeFile.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        {isUploading ? (
-                          <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                        ) : resumeUrl ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFile();
-                          }}
-                          className="shrink-0"
-                          disabled={isUploading}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="coverLetter" className="text-base">
