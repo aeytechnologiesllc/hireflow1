@@ -259,6 +259,9 @@ export default function CandidateApplicationDetail() {
   }
 
   const currentPhase = phases[effectivePhaseIndex];
+  const applicationStatus = application.status;
+  const isRejected = applicationStatus === "rejected";
+  const isHired = applicationStatus === "hired";
 
   return (
     <div className="space-y-6">
@@ -313,6 +316,37 @@ export default function CandidateApplicationDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Application Status */}
+      {isRejected && (
+        <Card className="bg-destructive/10 border-destructive/40">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-destructive">Application Rejected</h3>
+              <p className="text-sm text-muted-foreground">
+                Based on your latest assessment results, this application has been closed. You can still
+                review your previous phases, but no further steps are required.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isHired && (
+        <Card className="bg-success/10 border-success/40">
+          <CardContent className="p-4 flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-success mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-success">You&apos;re Hired!</h3>
+              <p className="text-sm text-muted-foreground">
+                Congratulations! This application has been marked as hired. The employer will contact you
+                with next steps.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress Overview */}
       <Card className="bg-card border-border">
@@ -414,20 +448,26 @@ export default function CandidateApplicationDetail() {
                   </div>
 
                   {/* Action Button */}
-                  {isCurrent && status === "awaiting_action" && phase.type !== "application" && phase.type !== "review" && phase.type !== "interview" && phase.type !== "hired" && (
-                    <Button
-                      onClick={() => handleStartPhase(phase.id, phase.type)}
-                      disabled={activePhaseAction === phase.id}
-                      className="gap-2"
-                    >
-                      {activePhaseAction === phase.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                      Start
-                    </Button>
-                  )}
+                  {isCurrent &&
+                    status === "awaiting_action" &&
+                    application.status !== "rejected" &&
+                    phase.type !== "application" &&
+                    phase.type !== "review" &&
+                    phase.type !== "interview" &&
+                    phase.type !== "hired" && (
+                      <Button
+                        onClick={() => handleStartPhase(phase.id, phase.type)}
+                        disabled={activePhaseAction === phase.id}
+                        className="gap-2"
+                      >
+                        {activePhaseAction === phase.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                        Start
+                      </Button>
+                    )}
 
                   {isCurrent && status === "pending" && (
                     <div className="flex items-center gap-2 text-yellow-500">
