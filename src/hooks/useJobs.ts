@@ -6,20 +6,46 @@ import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 export type Job = Tables<"jobs">;
 export type JobInsert = TablesInsert<"jobs">;
 
+export interface JobWithApplicationCount extends Job {
+  application_count: number;
+}
+
 export function useEmployerJobs() {
   const { user } = useAuth();
 
   return useQuery({
     queryKey: ["jobs", "employer", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get jobs
+      const { data: jobs, error } = await supabase
         .from("jobs")
         .select("*")
         .eq("employer_id", user!.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Job[];
+
+      // Get application counts for all jobs
+      const jobIds = jobs.map(j => j.id);
+      if (jobIds.length === 0) return [] as JobWithApplicationCount[];
+
+      const { data: applications, error: appError } = await supabase
+        .from("applications")
+        .select("job_id")
+        .in("job_id", jobIds);
+
+      if (appError) throw appError;
+
+      // Count applications per job
+      const countMap = new Map<string, number>();
+      applications?.forEach(app => {
+        countMap.set(app.job_id, (countMap.get(app.job_id) || 0) + 1);
+      });
+
+      return jobs.map(job => ({
+        ...job,
+        application_count: countMap.get(job.id) || 0,
+      })) as JobWithApplicationCount[];
     },
     enabled: !!user,
   });

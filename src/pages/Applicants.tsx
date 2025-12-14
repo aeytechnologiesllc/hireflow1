@@ -106,10 +106,15 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onVie
               </DropdownMenu>
             </div>
 
-            <div className="mt-2 flex items-center gap-3">
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
               <Badge className={statusColors[application.status]}>
                 {application.status}
               </Badge>
+              {application.phase && (
+                <Badge variant="outline" className="text-xs">
+                  Phase: {application.phase}
+                </Badge>
+              )}
               <span className="text-sm text-muted-foreground">
                 Applied for <span className="text-foreground font-medium">{job?.title}</span>
               </span>
