@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +6,6 @@ import {
   Users,
   Clock,
   CheckCircle2,
-  Loader2,
-  LogOut,
   Link2,
   Copy,
   Share2,
@@ -21,7 +17,7 @@ import {
 
 // Wave SVG component for stat cards
 function WaveGradient({ color }: { color: string }) {
-  const gradientId = `wave-gradient-${color}`;
+  const gradientId = `wave-gradient-${color}-${Math.random()}`;
   
   const colorMap: Record<string, { from: string; to: string }> = {
     green: { from: "#10b981", to: "#059669" },
@@ -182,200 +178,150 @@ function JobPostingCard({ title, status, isAutoPilot, code, company, type, appli
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const { user, role, loading, signOut } = useAuth();
+  const { role } = useAuth();
   const isEmployer = role === "employer";
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-white" />
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isEmployer ? (
+          <>
+            <StatCard
+              title="Active Jobs"
+              value={1}
+              subtitle="Open positions"
+              icon={Briefcase}
+              color="green"
+              borderColor="border-l-primary"
+              iconBgColor="bg-primary/20"
+              iconColor="text-primary"
+            />
+            <StatCard
+              title="Total Applicants"
+              value={0}
+              subtitle="No applications"
+              icon={Users}
+              color="blue"
+              borderColor="border-l-blue-500"
+              iconBgColor="bg-blue-500/20"
+              iconColor="text-blue-500"
+            />
+            <StatCard
+              title="Under Review"
+              value={0}
+              subtitle="No pending"
+              icon={Clock}
+              color="purple"
+              borderColor="border-l-accent"
+              iconBgColor="bg-accent/20"
+              iconColor="text-accent"
+            />
+            <StatCard
+              title="Hired"
+              value={0}
+              subtitle="No hires"
+              icon={CheckCircle2}
+              color="green"
+              borderColor="border-l-primary"
+              iconBgColor="bg-primary/20"
+              iconColor="text-primary"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Applications"
+              value={0}
+              subtitle="Submitted"
+              icon={Briefcase}
+              color="green"
+              borderColor="border-l-primary"
+              iconBgColor="bg-primary/20"
+              iconColor="text-primary"
+            />
+            <StatCard
+              title="Interviews"
+              value={0}
+              subtitle="Scheduled"
+              icon={Clock}
+              color="blue"
+              borderColor="border-l-blue-500"
+              iconBgColor="bg-blue-500/20"
+              iconColor="text-blue-500"
+            />
+            <StatCard
+              title="In Review"
+              value={0}
+              subtitle="Pending"
+              icon={Users}
+              color="purple"
+              borderColor="border-l-accent"
+              iconBgColor="bg-accent/20"
+              iconColor="text-accent"
+            />
+            <StatCard
+              title="Offers"
+              value={0}
+              subtitle="Received"
+              icon={CheckCircle2}
+              color="green"
+              borderColor="border-l-primary"
+              iconBgColor="bg-primary/20"
+              iconColor="text-primary"
+            />
+          </>
+        )}
+      </div>
+
+      {/* Recent Job Postings */}
+      {isEmployer && (
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Recent Job Postings</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Your latest jobs with application codes</p>
             </div>
-            <span className="text-xl font-bold text-gradient">HireFlow</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              {user.email}
-            </div>
-            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium capitalize">
-              {role}
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleSignOut}>
-              <LogOut className="h-5 w-5" />
+            <Button variant="ghost" className="text-muted-foreground">
+              View All
             </Button>
-          </div>
-        </div>
-      </header>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <JobPostingCard
+              title="Chat Support"
+              status="active"
+              isAutoPilot={true}
+              code="7CZNT4"
+              company="Souther Digital Tech"
+              type="Full-Time"
+              applicants={0}
+              createdDate="11/28/2025"
+            />
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {isEmployer ? (
-            <>
-              <StatCard
-                title="Active Jobs"
-                value={1}
-                subtitle="Open positions"
-                icon={Briefcase}
-                color="green"
-                borderColor="border-l-primary"
-                iconBgColor="bg-primary/20"
-                iconColor="text-primary"
-              />
-              <StatCard
-                title="Total Applicants"
-                value={0}
-                subtitle="No applications"
-                icon={Users}
-                color="blue"
-                borderColor="border-l-blue-500"
-                iconBgColor="bg-blue-500/20"
-                iconColor="text-blue-500"
-              />
-              <StatCard
-                title="Under Review"
-                value={0}
-                subtitle="No pending"
-                icon={Clock}
-                color="purple"
-                borderColor="border-l-accent"
-                iconBgColor="bg-accent/20"
-                iconColor="text-accent"
-              />
-              <StatCard
-                title="Hired"
-                value={0}
-                subtitle="No hires"
-                icon={CheckCircle2}
-                color="green"
-                borderColor="border-l-primary"
-                iconBgColor="bg-primary/20"
-                iconColor="text-primary"
-              />
-            </>
-          ) : (
-            <>
-              <StatCard
-                title="Applications"
-                value={0}
-                subtitle="Submitted"
-                icon={Briefcase}
-                color="green"
-                borderColor="border-l-primary"
-                iconBgColor="bg-primary/20"
-                iconColor="text-primary"
-              />
-              <StatCard
-                title="Interviews"
-                value={0}
-                subtitle="Scheduled"
-                icon={Clock}
-                color="blue"
-                borderColor="border-l-blue-500"
-                iconBgColor="bg-blue-500/20"
-                iconColor="text-blue-500"
-              />
-              <StatCard
-                title="In Review"
-                value={0}
-                subtitle="Pending"
-                icon={Users}
-                color="purple"
-                borderColor="border-l-accent"
-                iconBgColor="bg-accent/20"
-                iconColor="text-accent"
-              />
-              <StatCard
-                title="Offers"
-                value={0}
-                subtitle="Received"
-                icon={CheckCircle2}
-                color="green"
-                borderColor="border-l-primary"
-                iconBgColor="bg-primary/20"
-                iconColor="text-primary"
-              />
-            </>
-          )}
-        </div>
-
-        {/* Recent Job Postings */}
-        {isEmployer && (
-          <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Recent Job Postings</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">Your latest jobs with application codes</p>
-              </div>
-              <Button variant="ghost" className="text-muted-foreground">
-                View All
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <JobPostingCard
-                title="Chat Support"
-                status="active"
-                isAutoPilot={true}
-                code="7CZNT4"
-                company="Souther Digital Tech"
-                type="Full-Time"
-                applicants={0}
-                createdDate="11/28/2025"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Candidate View - Recent Applications */}
-        {!isEmployer && (
-          <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Recent Applications</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">Track your job applications</p>
-              </div>
-              <Button variant="ghost" className="text-muted-foreground">
-                View All
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No applications yet</p>
-                <p className="text-sm mt-1">Start applying to jobs to track your progress</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+      {/* Candidate View - Recent Applications */}
+      {!isEmployer && (
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Recent Applications</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Track your job applications</p>
+            </div>
+            <Button variant="ghost" className="text-muted-foreground">
+              View All
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+              <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No applications yet</p>
+              <p className="text-sm mt-1">Start applying to jobs to track your progress</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
