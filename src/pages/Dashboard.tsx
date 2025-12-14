@@ -1,5 +1,7 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useJobStats, useEmployerJobs } from "@/hooks/useJobs";
+import { useJobStats, useEmployerJobs, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
 import { useApplicationStats } from "@/hooks/useApplications";
 import { useCandidateApplications } from "@/hooks/useApplications";
 import { useUpcomingInterviews } from "@/hooks/useInterviews";
@@ -18,15 +20,25 @@ import {
   Eye,
   MoreVertical,
   Sparkles,
-  ChevronUp,
   Calendar,
   MapPin,
+  Edit,
+  Trash2,
+  Loader2,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Job } from "@/hooks/useJobs";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
+import JobDetailsDialog from "@/components/JobDetailsDialog";
 
 // Wave SVG component for stat cards
 function WaveGradient({ color }: { color: string }) {
@@ -104,37 +116,102 @@ function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, icon
 
 interface JobPostingCardProps {
   job: Job;
+  onViewDetails: (job: Job) => void;
+  onEdit: (job: Job) => void;
+  onDuplicate: (job: Job) => void;
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
 }
 
-function JobPostingCard({ job }: JobPostingCardProps) {
+function JobPostingCard({ job, onViewDetails, onEdit, onDuplicate, onDelete, isDeleting }: JobPostingCardProps) {
+  const getApplyLink = () => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/find-jobs?job=${job.id}`;
+  };
+
   const copyCode = () => {
     if (job.job_code) {
       navigator.clipboard.writeText(job.job_code);
-      toast.success("Code copied to clipboard");
+      toast.success("Job code copied to clipboard");
     }
   };
 
-  const statusMap: Record<string, "active" | "paused" | "closed"> = {
-    published: "active",
-    draft: "paused",
-    closed: "closed",
-    archived: "closed",
+  const copyLink = () => {
+    navigator.clipboard.writeText(getApplyLink());
+    toast.success("Application link copied to clipboard");
+  };
+
+  const shareJob = async () => {
+    const shareData = {
+      title: `Apply for ${job.title}`,
+      text: `Check out this job opportunity: ${job.title}`,
+      url: getApplyLink(),
+    };
+
+    if (navigator.share && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled or error - fall back to copy
+        copyLink();
+      }
+    } else {
+      copyLink();
+    }
+  };
+
+  const statusStyles = {
+    draft: "bg-muted text-muted-foreground",
+    published: "bg-primary/20 text-primary",
+    closed: "bg-destructive/20 text-destructive",
+    archived: "bg-muted text-muted-foreground",
   };
 
   return (
-    <Card className="bg-card border-border">
+    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
+          <div className="space-y-3 flex-1">
+            <div className="flex items-start justify-between">
+              <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border-border">
+                  <DropdownMenuItem onClick={() => onViewDetails(job)}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit(job)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Job
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDuplicate(job)}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="text-destructive"
+                    onClick={() => onDelete(job.id)}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
             <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                job.status === "published" 
-                  ? "bg-primary/20 text-primary" 
-                  : job.status === "draft"
-                  ? "bg-warning/20 text-warning"
-                  : "bg-muted text-muted-foreground"
-              }`}>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusStyles[job.status]}`}>
                 {job.status}
               </span>
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
@@ -144,61 +221,43 @@ function JobPostingCard({ job }: JobPostingCardProps) {
                 </span>
               )}
             </div>
-          </div>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
-            <ChevronUp className="h-5 w-5" />
-          </Button>
-        </div>
 
-        {job.job_code && (
-          <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Code:</span>
-              <span className="text-sm font-bold text-primary">{job.job_code}</span>
+            {job.job_code && (
+              <div className="p-3 rounded-lg bg-muted/30 border border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-primary" />
+                  <span className="text-sm text-muted-foreground">Code:</span>
+                  <span className="text-sm font-bold text-primary">{job.job_code}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={copyCode}>
+                    <Copy className="h-4 w-4" />
+                    Code
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={copyLink}>
+                    <Link2 className="h-4 w-4" />
+                    Link
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={shareJob}>
+                    <Share2 className="h-4 w-4" />
+                    Share
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{job.location || "Remote"}</span>
+              <span>•</span>
+              <span>{job.job_type || "Full-Time"}</span>
+              <span>•</span>
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                <span>0 applicants</span>
+              </div>
+              <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={copyCode}>
-                <Copy className="h-4 w-4" />
-                Code
-              </Button>
-              <Button variant="ghost" size="sm" className="text-primary gap-1 h-8">
-                <Link2 className="h-4 w-4" />
-                Link
-              </Button>
-              <Button variant="ghost" size="sm" className="text-primary gap-1 h-8">
-                <Share2 className="h-4 w-4" />
-                Share
-              </Button>
-            </div>
           </div>
-        )}
-
-        <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-          <span>{job.department || "Company"}</span>
-          <span>•</span>
-          <span>{job.job_type || "Full-Time"}</span>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            <span>0 applicants</span>
-          </div>
-          <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
-        </div>
-
-        <div className="mt-4 flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 h-8" asChild>
-            <Link to="/applicants">
-              <Eye className="h-4 w-4" />
-              View Applicants
-            </Link>
-          </Button>
-          <Button variant="ghost" size="sm" className="text-muted-foreground gap-2 h-8" asChild>
-            <Link to="/jobs">
-              <MoreVertical className="h-4 w-4" />
-              More Actions
-            </Link>
-          </Button>
         </div>
       </CardContent>
     </Card>
@@ -244,19 +303,59 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
 
 export default function Dashboard() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const isEmployer = role === "employer";
   
   // Employer data
   const { data: jobStats, isLoading: isLoadingJobStats } = useJobStats();
   const { data: appStats, isLoading: isLoadingAppStats } = useApplicationStats();
   const { data: jobs, isLoading: isLoadingJobs } = useEmployerJobs();
+  const deleteJob = useDeleteJob();
+  const createJob = useCreateJob();
   
   // Candidate data
   const { data: candidateApps, isLoading: isLoadingCandidateApps } = useCandidateApplications();
   const { data: upcomingInterviews } = useUpcomingInterviews();
 
+  // Job details dialog state
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+
   const isEmployerLoading = isLoadingJobStats || isLoadingAppStats;
   const isCandidateLoading = isLoadingCandidateApps;
+
+  // Job action handlers
+  const handleViewDetails = (job: Job) => {
+    setSelectedJob(job);
+    setShowDetailsDialog(true);
+  };
+
+  const handleEdit = (job: Job) => {
+    navigate(`/jobs/edit/${job.id}`);
+  };
+
+  const handleDuplicate = async (job: Job) => {
+    try {
+      const { id, created_at, updated_at, employer_id, job_code, ...jobData } = job;
+      await createJob.mutateAsync({
+        ...jobData,
+        title: `${job.title} (Copy)`,
+        status: "draft",
+      });
+      toast.success("Job duplicated successfully");
+    } catch (error) {
+      toast.error("Failed to duplicate job");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteJob.mutateAsync(id);
+      toast.success("Job deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete job");
+    }
+  };
 
   // Candidate stats
   const candidateStats = candidateApps?.reduce(
@@ -391,7 +490,15 @@ export default function Dashboard() {
               </>
             ) : jobs && jobs.length > 0 ? (
               jobs.slice(0, 3).map((job) => (
-                <JobPostingCard key={job.id} job={job} />
+                <JobPostingCard 
+                  key={job.id} 
+                  job={job}
+                  onViewDetails={handleViewDetails}
+                  onEdit={handleEdit}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  isDeleting={deleteJob.isPending}
+                />
               ))
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -442,6 +549,14 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Job Details Dialog */}
+      <JobDetailsDialog
+        job={selectedJob}
+        open={showDetailsDialog}
+        onOpenChange={setShowDetailsDialog}
+        showApplyButton={false}
+      />
     </div>
   );
 }
