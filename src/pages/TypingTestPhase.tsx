@@ -64,6 +64,8 @@ export default function TypingTestPhase() {
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const typedTextRef = useRef<string>("");
+  const startTimeRef = useRef<number | null>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -109,19 +111,29 @@ export default function TypingTestPhase() {
 
   const startTest = useCallback(() => {
     setTestState("testing");
-    setStartTime(Date.now());
+    const now = Date.now();
+    setStartTime(now);
+    startTimeRef.current = now;
     setTypedText("");
+    typedTextRef.current = "";
     setTimeLeft(60);
     setTimeout(() => textareaRef.current?.focus(), 100);
   }, []);
 
   const calculateResults = useCallback(() => {
-    const words = typedText.trim().split(/\s+/).filter(Boolean);
-    const elapsedMinutes = startTime ? (Date.now() - startTime) / 60000 : 1;
-    const wpm = Math.round(words.length / elapsedMinutes);
+    const currentTypedText = typedTextRef.current;
+    const currentStartTime = startTimeRef.current;
+    
+    // Calculate elapsed time in minutes
+    const elapsedMs = currentStartTime ? Date.now() - currentStartTime : 60000;
+    const elapsedMinutes = Math.max(elapsedMs / 60000, 0.1); // At least 0.1 minutes to avoid division issues
+    
+    // Count words typed (standard: 5 characters = 1 word)
+    const charCount = currentTypedText.length;
+    const rawWpm = Math.round((charCount / 5) / elapsedMinutes);
 
-    // Calculate accuracy
-    const typedChars = typedText.split("");
+    // Calculate accuracy by comparing character by character
+    const typedChars = currentTypedText.split("");
     const targetChars = targetText.split("");
     let correctChars = 0;
     
@@ -135,15 +147,31 @@ export default function TypingTestPhase() {
       ? Math.round((correctChars / typedChars.length) * 100)
       : 0;
 
+    // Net WPM = (All Typed Entries / 5 - Uncorrected Errors) / Time (min)
+    const errors = typedChars.length - correctChars;
+    const netWpm = Math.max(0, Math.round(((charCount / 5) - (errors / 5)) / elapsedMinutes));
+
     // Calculate overall score (weighted: 60% WPM, 40% accuracy)
-    const wpmScore = Math.min(100, (wpm / 60) * 100);
+    const wpmScore = Math.min(100, (netWpm / 60) * 100);
     const score = Math.round((wpmScore * 0.6) + (accuracy * 0.4));
 
     const passingScore = application?.jobs?.passing_score || 60;
     const passed = score >= passingScore;
 
-    return { wpm, accuracy, score, passed };
-  }, [typedText, targetText, startTime, application]);
+    console.log("Typing test results:", { 
+      typedLength: currentTypedText.length,
+      elapsedMinutes,
+      rawWpm,
+      netWpm,
+      correctChars, 
+      errors,
+      accuracy, 
+      score, 
+      passed 
+    });
+
+    return { wpm: netWpm, accuracy, score, passed };
+  }, [targetText, application]);
 
   const handleTestComplete = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -346,7 +374,10 @@ export default function TypingTestPhase() {
               <Textarea
                 ref={textareaRef}
                 value={typedText}
-                onChange={(e) => setTypedText(e.target.value)}
+                onChange={(e) => {
+                  setTypedText(e.target.value);
+                  typedTextRef.current = e.target.value;
+                }}
                 placeholder="Start typing here..."
                 className="min-h-[150px] font-mono text-lg"
                 autoFocus
