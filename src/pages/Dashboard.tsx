@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import type { Job } from "@/hooks/useJobs";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
+import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 
 // Wave SVG component for stat cards
 function WaveGradient({ color }: { color: string }) {
@@ -117,13 +118,14 @@ function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, icon
 interface JobPostingCardProps {
   job: Job;
   onViewDetails: (job: Job) => void;
+  onViewWorkflow: (job: Job) => void;
   onEdit: (job: Job) => void;
   onDuplicate: (job: Job) => void;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }
 
-function JobPostingCard({ job, onViewDetails, onEdit, onDuplicate, onDelete, isDeleting }: JobPostingCardProps) {
+function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onDelete, isDeleting }: JobPostingCardProps) {
   const getApplyLink = () => {
     const baseUrl = window.location.origin;
     return `${baseUrl}/find-jobs?job=${job.id}`;
@@ -185,6 +187,11 @@ function JobPostingCard({ job, onViewDetails, onEdit, onDuplicate, onDelete, isD
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onViewWorkflow(job)}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    View Workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => onEdit(job)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Job
@@ -320,6 +327,7 @@ export default function Dashboard() {
   // Job details dialog state
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
 
   const isEmployerLoading = isLoadingJobStats || isLoadingAppStats;
   const isCandidateLoading = isLoadingCandidateApps;
@@ -328,6 +336,11 @@ export default function Dashboard() {
   const handleViewDetails = (job: Job) => {
     setSelectedJob(job);
     setShowDetailsDialog(true);
+  };
+
+  const handleViewWorkflow = (job: Job) => {
+    setSelectedJob(job);
+    setShowWorkflowDialog(true);
   };
 
   const handleEdit = (job: Job) => {
@@ -494,6 +507,7 @@ export default function Dashboard() {
                   key={job.id} 
                   job={job}
                   onViewDetails={handleViewDetails}
+                  onViewWorkflow={handleViewWorkflow}
                   onEdit={handleEdit}
                   onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
@@ -556,6 +570,13 @@ export default function Dashboard() {
         open={showDetailsDialog}
         onOpenChange={setShowDetailsDialog}
         showApplyButton={false}
+      />
+
+      {/* Job Workflow Dialog */}
+      <JobWorkflowDialog
+        job={selectedJob}
+        open={showWorkflowDialog}
+        onOpenChange={setShowWorkflowDialog}
       />
     </div>
   );

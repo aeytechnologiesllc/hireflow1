@@ -422,13 +422,30 @@ export default function CreateJob() {
       case 2:
         return true;
       case 3:
-        return workflowGenerated;
+        // In edit mode, workflow is read-only so always allow proceeding
+        return isEditMode || workflowGenerated;
       case 4:
         return !!formData.title && !!formData.description;
       default:
         return true;
     }
   };
+
+  // Get wizard steps - in edit mode, show workflow as read-only
+  const getWizardSteps = () => {
+    if (isEditMode) {
+      return [
+        { id: "basic", title: "Basic Info", icon: FileText },
+        { id: "details", title: "Job Details", icon: Users },
+        { id: "compensation", title: "Compensation", icon: DollarSign },
+        { id: "workflow", title: "Workflow (View Only)", icon: Sparkles },
+        { id: "review", title: "Review & Update", icon: Eye },
+      ];
+    }
+    return WIZARD_STEPS;
+  };
+
+  const wizardSteps = getWizardSteps();
 
   return (
     <div className="space-y-6">
@@ -472,7 +489,7 @@ export default function CreateJob() {
 
       {/* Progress Steps */}
       <div className="flex items-center justify-between px-4 overflow-x-auto">
-        {WIZARD_STEPS.map((step, index) => {
+        {wizardSteps.map((step, index) => {
           const Icon = step.icon;
           const isActive = index === currentStep;
           const isCompleted = index < currentStep;
@@ -504,7 +521,7 @@ export default function CreateJob() {
                 </div>
                 <span className="font-medium hidden lg:block text-sm">{step.title}</span>
               </button>
-              {index < WIZARD_STEPS.length - 1 && (
+              {index < wizardSteps.length - 1 && (
                 <div className={`w-8 h-1 mx-1 rounded-full ${
                   isCompleted ? "bg-primary" : "bg-border"
                 }`} />
@@ -919,73 +936,104 @@ export default function CreateJob() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Difficulty Selection */}
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    AI Hiring Workflow
-                  </CardTitle>
-                  <CardDescription>
-                    Select screening difficulty and generate a complete hiring workflow
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-3">
-                    <Label>Screening Difficulty</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {DIFFICULTY_OPTIONS.map((option) => {
-                        const Icon = option.icon;
-                        return (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              setWorkflowDifficulty(option.value);
-                              setWorkflowGenerated(false);
-                            }}
-                            className={cn(
-                              "p-4 rounded-xl border-2 transition-all text-left",
-                              workflowDifficulty === option.value
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/50"
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Icon className={cn("h-5 w-5", option.color)} />
-                              <div>
-                                <div className="font-semibold">{option.label}</div>
-                                <div className="text-xs text-muted-foreground">{option.description}</div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+              {/* Edit Mode: Read-only workflow view */}
+              {isEditMode ? (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      AI Hiring Workflow (Read Only)
+                    </CardTitle>
+                    <CardDescription>
+                      The workflow cannot be modified after job creation. You can only edit job details.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 rounded-lg bg-muted/30 border border-border text-center">
+                      <Sparkles className="h-8 w-8 mx-auto mb-2 text-primary opacity-50" />
+                      <p className="text-sm text-muted-foreground">
+                        Difficulty: <span className="font-medium text-foreground capitalize">{workflowDifficulty}</span>
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {applicationQuestions.length} application questions • {quizQuestions.length} quiz questions • {workflowSteps.length} workflow steps
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Use "View Workflow" from the job menu to see full details
+                      </p>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Create Mode: Difficulty Selection and Generation */}
+                  <Card className="bg-card border-border">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        AI Hiring Workflow
+                      </CardTitle>
+                      <CardDescription>
+                        Select screening difficulty and generate a complete hiring workflow
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-3">
+                        <Label>Screening Difficulty</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {DIFFICULTY_OPTIONS.map((option) => {
+                            const Icon = option.icon;
+                            return (
+                              <button
+                                key={option.value}
+                                onClick={() => {
+                                  setWorkflowDifficulty(option.value);
+                                  setWorkflowGenerated(false);
+                                }}
+                                className={cn(
+                                  "p-4 rounded-xl border-2 transition-all text-left",
+                                  workflowDifficulty === option.value
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:border-primary/50"
+                                )}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Icon className={cn("h-5 w-5", option.color)} />
+                                  <div>
+                                    <div className="font-semibold">{option.label}</div>
+                                    <div className="text-xs text-muted-foreground">{option.description}</div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                  <Button
-                    onClick={generateWorkflow}
-                    disabled={isGeneratingWorkflow}
-                    className="w-full gap-2"
-                    size="lg"
-                  >
-                    {isGeneratingWorkflow ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Generating Workflow...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5" />
-                        {workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                      <Button
+                        onClick={generateWorkflow}
+                        disabled={isGeneratingWorkflow}
+                        className="w-full gap-2"
+                        size="lg"
+                      >
+                        {isGeneratingWorkflow ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Generating Workflow...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-5 w-5" />
+                            {workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
 
-              {/* Generated Workflow */}
-              {workflowGenerated && (
+              {/* Generated Workflow - Only show in create mode */}
+              {!isEditMode && workflowGenerated && (
                 <>
                   {/* Application Questions */}
                   <Card className="bg-card border-border">
