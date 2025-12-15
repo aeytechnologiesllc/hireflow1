@@ -108,10 +108,13 @@ export default function ChatInterviewPhase() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    // Use setTimeout to ensure DOM has updated
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }, 50);
+  }, [messages, isTyping]);
 
   // Log anti-cheat violation
   const logViolation = (type: AntiCheatViolation['type'], details: string) => {
@@ -725,7 +728,6 @@ export default function ChatInterviewPhase() {
               {/* Chat Area */}
               <ScrollArea 
                 className="h-[400px] rounded-lg border border-border p-4 select-none" 
-                ref={scrollRef}
                 style={{ userSelect: 'none' }}
               >
                 <div className="space-y-4">
@@ -778,6 +780,8 @@ export default function ChatInterviewPhase() {
                       </div>
                     </div>
                   )}
+                  {/* Scroll anchor */}
+                  <div ref={scrollRef} />
                 </div>
               </ScrollArea>
 
