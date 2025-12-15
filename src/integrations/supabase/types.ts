@@ -73,31 +73,64 @@ export type Database = {
       document_audit_logs: {
         Row: {
           action: string
+          consent_confirmed: boolean | null
           created_at: string
           details: Json | null
+          document_hash: string | null
           document_id: string
+          document_version: number | null
           id: string
           ip_address: string | null
+          location_city: string | null
+          location_country: string | null
+          location_region: string | null
+          page_numbers_signed: string[] | null
+          signature_method: string | null
+          signer_email: string | null
+          signer_name: string | null
+          signer_role: string | null
           user_agent: string | null
           user_id: string | null
         }
         Insert: {
           action: string
+          consent_confirmed?: boolean | null
           created_at?: string
           details?: Json | null
+          document_hash?: string | null
           document_id: string
+          document_version?: number | null
           id?: string
           ip_address?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_region?: string | null
+          page_numbers_signed?: string[] | null
+          signature_method?: string | null
+          signer_email?: string | null
+          signer_name?: string | null
+          signer_role?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
         Update: {
           action?: string
+          consent_confirmed?: boolean | null
           created_at?: string
           details?: Json | null
+          document_hash?: string | null
           document_id?: string
+          document_version?: number | null
           id?: string
           ip_address?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_region?: string | null
+          page_numbers_signed?: string[] | null
+          signature_method?: string | null
+          signer_email?: string | null
+          signer_name?: string | null
+          signer_role?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -149,6 +182,7 @@ export type Database = {
           created_at: string
           decline_reason: string | null
           declined_at: string | null
+          document_hash: string | null
           document_type: string | null
           employer_signature_data: string | null
           employer_signed_at: string | null
@@ -156,6 +190,7 @@ export type Database = {
           file_url: string
           id: string
           ip_address: string | null
+          is_voided: boolean | null
           name: string
           recipient_id: string | null
           reminder_sent_at: string | null
@@ -165,7 +200,10 @@ export type Database = {
           signing_order: string | null
           status: Database["public"]["Enums"]["document_status"]
           user_agent: string | null
+          version_number: number | null
           viewed_at: string | null
+          voided_at: string | null
+          voided_reason: string | null
         }
         Insert: {
           application_id: string
@@ -174,6 +212,7 @@ export type Database = {
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
+          document_hash?: string | null
           document_type?: string | null
           employer_signature_data?: string | null
           employer_signed_at?: string | null
@@ -181,6 +220,7 @@ export type Database = {
           file_url: string
           id?: string
           ip_address?: string | null
+          is_voided?: boolean | null
           name: string
           recipient_id?: string | null
           reminder_sent_at?: string | null
@@ -190,7 +230,10 @@ export type Database = {
           signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
+          version_number?: number | null
           viewed_at?: string | null
+          voided_at?: string | null
+          voided_reason?: string | null
         }
         Update: {
           application_id?: string
@@ -199,6 +242,7 @@ export type Database = {
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
+          document_hash?: string | null
           document_type?: string | null
           employer_signature_data?: string | null
           employer_signed_at?: string | null
@@ -206,6 +250,7 @@ export type Database = {
           file_url?: string
           id?: string
           ip_address?: string | null
+          is_voided?: boolean | null
           name?: string
           recipient_id?: string | null
           reminder_sent_at?: string | null
@@ -215,7 +260,10 @@ export type Database = {
           signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
+          version_number?: number | null
           viewed_at?: string | null
+          voided_at?: string | null
+          voided_reason?: string | null
         }
         Relationships: [
           {

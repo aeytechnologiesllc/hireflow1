@@ -23,3 +23,6 @@ verify_jwt = true
 
 [functions.google-calendar]
 verify_jwt = true
+
+[functions.geolocate-ip]
+verify_jwt = false
