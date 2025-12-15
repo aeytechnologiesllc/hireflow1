@@ -1,36 +1,59 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "react-router-dom";
+
+const LAST_SEEN_KEY = "applications_last_seen";
 
 /**
- * Hook to count applications where the candidate needs to take action
- * (i.e., they've been advanced to a new phase that requires their input)
+ * Hook to count applications with new updates since last visit to /applications
  */
 export function usePendingActionsCount() {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+
+  // Mark as seen when visiting /applications
+  const markAsSeen = useCallback(() => {
+    localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+    queryClient.invalidateQueries({ queryKey: ["pending-actions-count"] });
+  }, [queryClient]);
+
+  // Auto-mark as seen when on /applications page
+  useEffect(() => {
+    if (location.pathname === "/applications") {
+      markAsSeen();
+    }
+  }, [location.pathname, markAsSeen]);
 
   const query = useQuery({
     queryKey: ["pending-actions-count", user?.id],
     queryFn: async () => {
+      const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
+      
       // Get all applications for this candidate
       const { data, error } = await supabase
         .from("applications")
-        .select("id, phase, status, notes")
+        .select("id, phase, status, notes, updated_at")
         .eq("candidate_id", user!.id)
         .neq("status", "rejected")
         .neq("status", "hired");
 
       if (error) throw error;
 
-      // Count applications where action is needed
+      // Count applications with new updates since last visit
       let count = 0;
       
       for (const app of data || []) {
+        // Skip if not updated since last seen
+        if (lastSeen && new Date(app.updated_at) <= new Date(lastSeen)) {
+          continue;
+        }
+
         const phase = app.phase || "application";
         
-        // Skip if in waiting phases
+        // Skip if in waiting phases (no action needed)
         if (["application", "review", "interview", "hired"].includes(phase)) {
           continue;
         }
@@ -92,7 +115,6 @@ export function usePendingActionsCount() {
           filter: `candidate_id=eq.${user.id}`,
         },
         () => {
-          // Invalidate the count query when any application changes
           queryClient.invalidateQueries({ queryKey: ["pending-actions-count"] });
           queryClient.invalidateQueries({ queryKey: ["candidate-applications"] });
         }
@@ -104,5 +126,5 @@ export function usePendingActionsCount() {
     };
   }, [user, role, queryClient]);
 
-  return query;
+  return { ...query, markAsSeen };
 }
