@@ -40,7 +40,17 @@ export function useEmployerApplications() {
   return useQuery({
     queryKey: ["applications", "employer", user?.id],
     queryFn: async () => {
-      // First get applications with jobs
+      // Check if user is a team member
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("employer_id")
+        .eq("user_id", user!.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      const effectiveEmployerId = teamMember?.employer_id || user!.id;
+
+      // Get applications with jobs - RLS handles job filtering for team members
       const { data: applications, error: appError } = await supabase
         .from("applications")
         .select("*, jobs!inner(*)")
@@ -48,9 +58,9 @@ export function useEmployerApplications() {
 
       if (appError) throw appError;
 
-      // Filter to only show applications for jobs owned by this employer
+      // Filter to only show applications for jobs owned by effective employer
       const filtered = (applications as any[]).filter(
-        (app) => app.jobs?.employer_id === user!.id
+        (app) => app.jobs?.employer_id === effectiveEmployerId
       );
 
       if (filtered.length === 0) {
@@ -86,6 +96,16 @@ export function useApplicationStats() {
   return useQuery({
     queryKey: ["applications", "stats", user?.id],
     queryFn: async () => {
+      // Check if user is a team member
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("employer_id")
+        .eq("user_id", user!.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      const effectiveEmployerId = teamMember?.employer_id || user!.id;
+
       const { data, error } = await supabase
         .from("applications")
         .select("status, jobs!inner(employer_id)");
@@ -93,7 +113,7 @@ export function useApplicationStats() {
       if (error) throw error;
 
       const myApps = (data as any[]).filter(
-        (app) => app.jobs?.employer_id === user!.id
+        (app) => app.jobs?.employer_id === effectiveEmployerId
       );
 
       return {

@@ -90,19 +90,67 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations", user?.id],
     queryFn: async () => {
-      const { data: messages, error } = await supabase
-        .from("messages")
-        .select("*")
-        .or(`sender_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
-        .order("created_at", { ascending: false });
+      // Check if user is a team member
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("employer_id, assigned_job_ids")
+        .eq("user_id", user!.id)
+        .eq("status", "active")
+        .maybeSingle();
 
-      if (error) throw error;
+      let messages: Message[] = [];
+
+      if (teamMember) {
+        // For team members: fetch messages related to their employer's applications
+        // First get applications for assigned jobs
+        const { data: applications, error: appError } = await supabase
+          .from("applications")
+          .select("id, candidate_id, jobs!inner(employer_id)")
+          .eq("jobs.employer_id", teamMember.employer_id);
+
+        if (appError) throw appError;
+
+        // Filter by assigned jobs if applicable
+        const filteredApps = teamMember.assigned_job_ids?.length 
+          ? applications 
+          : applications;
+
+        const applicationIds = filteredApps?.map(a => a.id) || [];
+        const candidateIds = [...new Set(filteredApps?.map(a => a.candidate_id) || [])];
+
+        if (applicationIds.length > 0) {
+          // Fetch messages for these applications OR between employer and candidates
+          const { data: appMessages, error: msgError } = await supabase
+            .from("messages")
+            .select("*")
+            .or(`sender_id.eq.${teamMember.employer_id},receiver_id.eq.${teamMember.employer_id}`)
+            .order("created_at", { ascending: false });
+
+          if (msgError) throw msgError;
+          
+          // Filter to only show messages with candidates from assigned jobs
+          messages = (appMessages || []).filter(msg => 
+            candidateIds.includes(msg.sender_id) || candidateIds.includes(msg.receiver_id)
+          );
+        }
+      } else {
+        // Regular user: fetch their own messages
+        const { data, error } = await supabase
+          .from("messages")
+          .select("*")
+          .or(`sender_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        messages = data || [];
+      }
 
       // Group by conversation partner
       const conversationMap = new Map<string, { messages: Message[]; unread: number }>();
+      const effectiveUserId = teamMember?.employer_id || user!.id;
       
       for (const msg of messages) {
-        const contactId = msg.sender_id === user!.id ? msg.receiver_id : msg.sender_id;
+        const contactId = msg.sender_id === effectiveUserId ? msg.receiver_id : msg.sender_id;
         
         if (!conversationMap.has(contactId)) {
           conversationMap.set(contactId, { messages: [], unread: 0 });
@@ -111,7 +159,8 @@ export function useConversations() {
         const conv = conversationMap.get(contactId)!;
         conv.messages.push(msg);
         
-        if (!msg.is_read && msg.receiver_id === user!.id) {
+        // For team members, count unread based on employer's perspective
+        if (!msg.is_read && msg.receiver_id === effectiveUserId) {
           conv.unread++;
         }
       }
