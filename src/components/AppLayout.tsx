@@ -105,10 +105,8 @@ export default function AppLayout() {
             <Outlet />
           </main>
           
-          {/* AVA Voice Button - Only for Enterprise employers */}
-          {isEmployer && subscription?.plan_type === 'enterprise' && (
-            <AvaVoiceButton />
-          )}
+          {/* AVA Voice Button - Show for all employers (handles own access states) */}
+          {isEmployer && <AvaVoiceButton />}
         </div>
       </div>
     </TooltipProvider>

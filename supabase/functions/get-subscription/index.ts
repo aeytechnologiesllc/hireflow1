@@ -162,13 +162,14 @@ function getPlanLimits(planType: string) {
         documents: 5,
         teamMembers: 0,
         aiAnalyses: 20,
-        voiceMinutes: 0,
+        voiceMinutes: 5, // 5 minutes trial for voice features
         hasAdvancedAnalytics: false,
         hasTeamPortal: false,
         hasDocuments: true,
         hasPrioritySupport: false,
-        hasVoiceAssistant: false,
+        hasVoiceAssistant: false, // Keep false to differentiate from Enterprise
         hasVoiceInterviews: false,
+        hasVoiceTrialAccess: true, // Special flag for trial voice access
       };
   }
 }
