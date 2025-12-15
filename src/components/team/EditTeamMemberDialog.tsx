@@ -21,7 +21,16 @@ interface EditTeamMemberDialogProps {
 
 type PermissionLevel = "full_admin" | "limited" | "view_only";
 
-const defaultPermissions: Record<PermissionLevel, Partial<TeamMember>> = {
+interface PermissionDefaults {
+  can_create_jobs: boolean;
+  can_delete_jobs: boolean;
+  can_message_candidates: boolean;
+  can_manage_pipeline: boolean;
+  can_schedule_interviews: boolean;
+  can_send_documents: boolean;
+}
+
+const defaultPermissions: Record<PermissionLevel, PermissionDefaults> = {
   full_admin: {
     can_create_jobs: true,
     can_delete_jobs: true,
@@ -53,25 +62,40 @@ export function EditTeamMemberDialog({ open, onOpenChange, member }: EditTeamMem
   const { data: jobs } = useEmployerJobs();
   const updateMember = useUpdateTeamMember();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    department: string;
+    permission_level: PermissionLevel;
+    can_create_jobs: boolean;
+    can_delete_jobs: boolean;
+    can_message_candidates: boolean;
+    can_manage_pipeline: boolean;
+    can_schedule_interviews: boolean;
+    can_send_documents: boolean;
+    assigned_job_ids: string[];
+  }>({
     name: "",
     department: "",
-    permission_level: "limited" as PermissionLevel,
+    permission_level: "limited",
     can_create_jobs: false,
     can_delete_jobs: false,
     can_message_candidates: true,
     can_manage_pipeline: true,
     can_schedule_interviews: true,
     can_send_documents: true,
-    assigned_job_ids: [] as string[],
+    assigned_job_ids: [],
   });
 
   useEffect(() => {
     if (member) {
+      const validLevel = (member.permission_level === "full_admin" || member.permission_level === "limited" || member.permission_level === "view_only") 
+        ? member.permission_level as PermissionLevel 
+        : "limited" as PermissionLevel;
+      
       setFormData({
         name: member.name || "",
         department: member.department || "",
-        permission_level: (member.permission_level === "full_admin" || member.permission_level === "limited" || member.permission_level === "view_only") ? member.permission_level : "limited",
+        permission_level: validLevel,
         can_create_jobs: member.can_create_jobs,
         can_delete_jobs: member.can_delete_jobs,
         can_message_candidates: member.can_message_candidates,
