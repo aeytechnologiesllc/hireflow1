@@ -69,6 +69,135 @@ const phaseColors = {
   upcoming: "bg-muted",
 };
 
+// Component to render AI analysis with proper formatting
+function AIAnalysisContent({ content }: { content: string }) {
+  // Parse the content into sections
+  const sections: { type: 'score' | 'heading' | 'list' | 'paragraph'; text: string }[] = [];
+  
+  const lines = content.split('\n');
+  let currentList: string[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (currentList.length > 0) {
+        sections.push({ type: 'list', text: currentList.join('|||') });
+        currentList = [];
+      }
+      continue;
+    }
+    
+    // Check for score line
+    if (trimmed.match(/^\*\*Overall Score:\s*\d+\*\*$/)) {
+      if (currentList.length > 0) {
+        sections.push({ type: 'list', text: currentList.join('|||') });
+        currentList = [];
+      }
+      const scoreMatch = trimmed.match(/\d+/);
+      if (scoreMatch) {
+        sections.push({ type: 'score', text: scoreMatch[0] });
+      }
+      continue;
+    }
+    
+    // Check for headings (bold text like **Key Strengths:**)
+    if (trimmed.match(/^\*\*[^*]+:\*\*$/)) {
+      if (currentList.length > 0) {
+        sections.push({ type: 'list', text: currentList.join('|||') });
+        currentList = [];
+      }
+      const headingText = trimmed.replace(/\*\*/g, '');
+      sections.push({ type: 'heading', text: headingText });
+      continue;
+    }
+    
+    // Check for recommendation (bold text with value)
+    if (trimmed.match(/^\*\*Recommendation:\s*[^*]+\*\*$/)) {
+      if (currentList.length > 0) {
+        sections.push({ type: 'list', text: currentList.join('|||') });
+        currentList = [];
+      }
+      const recText = trimmed.replace(/\*\*/g, '');
+      sections.push({ type: 'heading', text: recText });
+      continue;
+    }
+    
+    // Check for list items
+    if (trimmed.startsWith('- ')) {
+      currentList.push(trimmed.substring(2));
+      continue;
+    }
+    
+    // Regular paragraph
+    if (currentList.length > 0) {
+      sections.push({ type: 'list', text: currentList.join('|||') });
+      currentList = [];
+    }
+    sections.push({ type: 'paragraph', text: trimmed.replace(/\*\*/g, '') });
+  }
+  
+  // Don't forget remaining list items
+  if (currentList.length > 0) {
+    sections.push({ type: 'list', text: currentList.join('|||') });
+  }
+  
+  return (
+    <div className="space-y-4">
+      {sections.map((section, index) => {
+        if (section.type === 'score') {
+          return (
+            <div key={index} className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Overall Score:</span>
+              <span className="text-2xl font-bold text-primary">{section.text}</span>
+              <span className="text-muted-foreground">/100</span>
+            </div>
+          );
+        }
+        
+        if (section.type === 'heading') {
+          const isRecommendation = section.text.toLowerCase().includes('recommendation');
+          const isStrengths = section.text.toLowerCase().includes('strength');
+          const isConcerns = section.text.toLowerCase().includes('concern') || section.text.toLowerCase().includes('areas');
+          
+          return (
+            <h4 
+              key={index} 
+              className={`font-semibold text-sm pt-2 ${
+                isRecommendation ? 'text-primary' : 
+                isStrengths ? 'text-success' : 
+                isConcerns ? 'text-orange-500' : 
+                'text-foreground'
+              }`}
+            >
+              {section.text}
+            </h4>
+          );
+        }
+        
+        if (section.type === 'list') {
+          const items = section.text.split('|||');
+          return (
+            <ul key={index} className="space-y-2 pl-4">
+              {items.map((item, i) => (
+                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                  <span className="text-primary mt-1.5">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        
+        return (
+          <p key={index} className="text-sm text-muted-foreground leading-relaxed">
+            {section.text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ApplicantDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -805,13 +934,11 @@ ${application.cover_letter || "Not provided"}
               {/* Recommendation */}
               <Card className="bg-primary/5 border-primary/20">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-4">
                     <Sparkles className="h-4 w-4 text-primary" />
                     <span className="font-semibold text-primary">AVA's Recommendation</span>
                   </div>
-                  <p className="text-muted-foreground text-sm whitespace-pre-wrap">
-                    {application.ai_analysis}
-                  </p>
+                  <AIAnalysisContent content={application.ai_analysis} />
                 </CardContent>
               </Card>
             </>
