@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Loader2, X, MessageSquare, Lock, Clock, Send } from "lucide-react";
@@ -31,6 +31,7 @@ export default function AvaVoiceButton() {
   const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
   const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -87,6 +88,13 @@ export default function AvaVoiceButton() {
 
     // Invalidate relevant queries to sync dashboard when AVA performs actions
     if (result?.success) {
+      // Handle navigation commands
+      if (toolName === 'navigate_to_page' && result.action === 'navigate' && result.route) {
+        toast.success(`Opening ${result.page.replace(/_/g, ' ')}...`);
+        navigate(result.route);
+        return;
+      }
+      
       if (toolName === 'move_applicant_to_phase' || toolName === 'reject_applicant') {
         // Refresh application details and applicants list
         if (currentApplicationId) {
@@ -101,7 +109,7 @@ export default function AvaVoiceButton() {
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
     }
-  }, [queryClient, currentApplicationId]);
+  }, [queryClient, currentApplicationId, navigate]);
 
   const {
     isConnected,
@@ -195,20 +203,29 @@ export default function AvaVoiceButton() {
     }
   };
 
-  const getButtonIcon = () => {
+  const getButtonContent = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
-      return <Lock className="h-6 w-6" />;
+      return <Lock className="h-5 w-5" />;
     }
     if (voiceAccessState === 'exhausted') {
-      return <Clock className="h-6 w-6" />;
+      return <Clock className="h-5 w-5" />;
     }
     if (isConnecting) {
-      return <Loader2 className="h-6 w-6 animate-spin text-white" />;
+      return <Loader2 className="h-5 w-5 animate-spin text-white" />;
     }
-    if (isConnected) {
-      return <Mic className={cn("h-6 w-6 text-white", isListening && "animate-pulse")} />;
-    }
-    return <Mic className="h-6 w-6 text-white" />;
+    // Show AVA name with listening indicator
+    return (
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-white text-sm tracking-wide">AVA</span>
+        {isConnected && isListening && (
+          <motion.div
+            className="h-2 w-2 rounded-full bg-white"
+            animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity }}
+          />
+        )}
+      </div>
+    );
   };
 
   const enterprisePrice = pricing.enterprise.monthlyFormatted;
@@ -265,12 +282,16 @@ export default function AvaVoiceButton() {
           onClick={handleButtonClick}
           disabled={isConnecting}
           className={cn(
-            "h-14 w-14 rounded-full shadow-lg transition-all duration-300 relative",
+            "h-14 rounded-full shadow-lg transition-all duration-300 relative",
+            // Pill shape for AVA name, circle for icons
+            voiceAccessState === 'locked' || voiceAccessState === 'expired' || voiceAccessState === 'exhausted' || isConnecting
+              ? "w-14"
+              : "px-5 min-w-14",
             getButtonStyles(),
             isSpeaking && voiceAccessState !== 'locked' && "animate-pulse"
           )}
         >
-          {getButtonIcon()}
+          {getButtonContent()}
         </Button>
 
         {/* Trial minutes remaining badge */}

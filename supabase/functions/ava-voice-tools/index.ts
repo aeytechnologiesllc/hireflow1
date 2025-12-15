@@ -302,6 +302,46 @@ serve(async (req) => {
         break;
       }
 
+      case "navigate_to_page": {
+        const { page, entity_id } = parameters;
+        
+        // Map page names to routes
+        const pageRoutes: Record<string, string> = {
+          "dashboard": "/dashboard",
+          "jobs": "/jobs",
+          "create_job": "/jobs/create",
+          "applicants": "/applicants",
+          "interviews": "/interviews",
+          "messages": "/messages",
+          "documents": "/documents",
+          "team": "/team",
+          "analytics": "/analytics",
+          "settings": "/settings",
+          "notifications": "/notifications"
+        };
+        
+        let route = pageRoutes[page.toLowerCase()];
+        
+        // Handle entity-specific routes
+        if (page === "applicant" && entity_id) {
+          route = `/applicants/${entity_id}`;
+        } else if (page === "job" && entity_id) {
+          route = `/jobs/edit/${entity_id}`;
+        }
+        
+        if (!route) {
+          throw new Error(`Unknown page: ${page}`);
+        }
+        
+        result = { 
+          success: true, 
+          action: "navigate", 
+          route,
+          page 
+        };
+        break;
+      }
+
       default:
         throw new Error(`Unknown tool: ${tool_name}`);
     }
