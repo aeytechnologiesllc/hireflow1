@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotifications";
+import { usePendingDocumentsCount } from "@/hooks/usePendingDocumentsCount";
 import {
   LayoutDashboard,
   Briefcase,
@@ -23,9 +24,10 @@ interface NavItemProps {
   label: string;
   to: string;
   badge?: number;
+  highlight?: boolean;
 }
 
-function NavItem({ icon: Icon, label, to, badge }: NavItemProps) {
+function NavItem({ icon: Icon, label, to, badge, highlight }: NavItemProps) {
   const location = useLocation();
   const isActive = location.pathname === to;
 
@@ -36,15 +38,19 @@ function NavItem({ icon: Icon, label, to, badge }: NavItemProps) {
         "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
         isActive
           ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+        highlight && !isActive && "animate-pulse"
       )}
     >
       <div className="flex items-center gap-3">
-        <Icon className="h-5 w-5" />
+        <Icon className={cn("h-5 w-5", highlight && !isActive && "text-primary")} />
         <span>{label}</span>
       </div>
       {badge !== undefined && badge > 0 && (
-        <span className="px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
+        <span className={cn(
+          "px-2 py-0.5 text-xs rounded-full",
+          highlight ? "bg-primary text-primary-foreground animate-bounce" : "bg-primary text-primary-foreground"
+        )}>
           {badge}
         </span>
       )}
@@ -56,8 +62,9 @@ export default function AppSidebar() {
   const { role } = useAuth();
   const isEmployer = role === "employer";
   const { data: unreadNotifications } = useUnreadNotificationCount();
+  const { data: pendingDocuments } = usePendingDocumentsCount();
 
-  const employerNavItems = [
+  const employerNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Jobs", to: "/jobs" },
     { icon: Users, label: "Applicants", to: "/applicants" },
@@ -68,12 +75,13 @@ export default function AppSidebar() {
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
   ];
 
-  const candidateNavItems = [
+  const candidateNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Apply Now", to: "/apply" },
     { icon: FileText, label: "Applications", to: "/applications" },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
     { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
     { icon: User, label: "Profile", to: "/profile" },
   ];
 
@@ -97,6 +105,8 @@ export default function AppSidebar() {
             icon={item.icon}
             label={item.label}
             to={item.to}
+            badge={item.badge}
+            highlight={item.highlight}
           />
         ))}
       </nav>
