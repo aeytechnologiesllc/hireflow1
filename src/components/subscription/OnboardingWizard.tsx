@@ -120,7 +120,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background">
+    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center overflow-y-auto bg-background py-8 md:py-0">
       {/* Animated background grid */}
       <div className="absolute inset-0 overflow-hidden">
         <div 
@@ -169,7 +169,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       />
 
       {/* Main content */}
-      <div className="relative z-10 w-full max-w-4xl mx-auto px-6">
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-6 pb-8">
         {/* Progress indicators */}
         <div className="flex justify-center gap-3 mb-8">
           {[0, 1, 2, 3].map((s) => (
@@ -453,7 +453,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               </div>
 
               {/* Plans */}
-              <div className="grid md:grid-cols-2 gap-5 w-full max-w-2xl mb-8">
+              <div className="grid md:grid-cols-2 gap-4 md:gap-5 w-full max-w-2xl mb-6 md:mb-8">
                 {PLANS.map((plan, idx) => (
                   <motion.div
                     key={plan.name}
