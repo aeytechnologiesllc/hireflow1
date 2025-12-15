@@ -182,14 +182,18 @@ export default function Team() {
             <Users className="h-4 w-4" />
             Team Members
             {activeMembers.length > 0 && (
-              <Badge variant="secondary" className="ml-1">{activeMembers.length}</Badge>
+              <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground">
+                {activeMembers.length}
+              </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="invitations" className="gap-2">
             <Mail className="h-4 w-4" />
             Invitations
             {pendingInvitations.length > 0 && (
-              <Badge variant="secondary" className="ml-1">{pendingInvitations.length}</Badge>
+              <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground">
+                {pendingInvitations.length}
+              </span>
             )}
           </TabsTrigger>
         </TabsList>
