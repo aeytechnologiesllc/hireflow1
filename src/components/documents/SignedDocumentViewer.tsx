@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
+import { jsPDF } from "jspdf";
 import { 
   FileText, 
   Download, 
@@ -174,16 +175,184 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!document || !documentData) return;
     
-    const blob = new Blob([documentData.content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = window.document.createElement("a");
-    a.href = url;
-    a.download = `${document.name}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4"
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxWidth = pageWidth - margin * 2;
+    let yPosition = margin;
+
+    // Set font
+    pdf.setFont("helvetica");
+
+    // Document header
+    pdf.setFontSize(10);
+    pdf.setTextColor(100);
+    pdf.text(`Document ID: ${document.id.slice(0, 8)}...`, margin, yPosition);
+    pdf.text(
+      `Completed: ${document.signed_at ? format(new Date(document.signed_at), "PPpp") : ""}`,
+      pageWidth - margin,
+      yPosition,
+      { align: "right" }
+    );
+    yPosition += 10;
+
+    // Title
+    pdf.setFontSize(16);
+    pdf.setTextColor(0);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(document.name, margin, yPosition);
+    yPosition += 8;
+
+    // Document type
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(100);
+    pdf.text(document.document_type?.replace(/_/g, " ") || "", margin, yPosition);
+    yPosition += 10;
+
+    // Divider line
+    pdf.setDrawColor(200);
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Document content
+    pdf.setFontSize(11);
+    pdf.setTextColor(0);
+    pdf.setFont("helvetica", "normal");
+    
+    const content = documentData.content;
+    const lines = content.split('\n');
+    
+    const candidatePatterns = [
+      /^(Employee Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Candidate Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Recipient Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Employee:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+    ];
+    
+    const employerPatterns = [
+      /^(Company Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Employer Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Authorized Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Authorized Signatory:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(For .*?:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+    ];
+
+    for (const line of lines) {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 40) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+
+      const isCandidateLine = candidatePatterns.some(pattern => pattern.test(line.trim()));
+      const isEmployerLine = employerPatterns.some(pattern => pattern.test(line.trim()));
+
+      if (isCandidateLine && candidateSignature) {
+        const labelMatch = line.match(/^([^:]+:?\s*)/);
+        const label = labelMatch ? labelMatch[1].trim() : "Employee Signature:";
+        
+        yPosition += 5;
+        pdf.setFont("helvetica", "normal");
+        pdf.text(label, margin, yPosition);
+        yPosition += 5;
+        
+        // Add signature image
+        try {
+          pdf.addImage(candidateSignature, "PNG", margin, yPosition, 50, 15);
+        } catch (e) {
+          pdf.text("[Signed]", margin, yPosition + 8);
+        }
+        
+        // Add date
+        const signDate = document.candidate_signed_at 
+          ? format(new Date(document.candidate_signed_at), "MM/dd/yyyy")
+          : "";
+        pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
+        
+        yPosition += 20;
+        
+        // Draw signature line
+        pdf.setDrawColor(150);
+        pdf.line(margin, yPosition, margin + 60, yPosition);
+        yPosition += 8;
+        
+      } else if (isEmployerLine && employerSignature) {
+        const labelMatch = line.match(/^([^:]+:?\s*)/);
+        const label = labelMatch ? labelMatch[1].trim() : "Company Representative:";
+        
+        yPosition += 5;
+        pdf.setFont("helvetica", "normal");
+        pdf.text(label, margin, yPosition);
+        yPosition += 5;
+        
+        // Add signature image
+        try {
+          pdf.addImage(employerSignature, "PNG", margin, yPosition, 50, 15);
+        } catch (e) {
+          pdf.text("[Signed]", margin, yPosition + 8);
+        }
+        
+        // Add date
+        const signDate = document.employer_signed_at 
+          ? format(new Date(document.employer_signed_at), "MM/dd/yyyy")
+          : "";
+        pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
+        
+        yPosition += 20;
+        
+        // Draw signature line
+        pdf.setDrawColor(150);
+        pdf.line(margin, yPosition, margin + 60, yPosition);
+        yPosition += 8;
+        
+      } else {
+        // Regular text line
+        const wrappedLines = pdf.splitTextToSize(line || " ", maxWidth);
+        for (const wrappedLine of wrappedLines) {
+          if (yPosition > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+          pdf.text(wrappedLine, margin, yPosition);
+          yPosition += 5;
+        }
+      }
+    }
+
+    // Certificate of completion at the bottom
+    if (yPosition > pageHeight - 50) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+    
+    yPosition += 10;
+    pdf.setDrawColor(200);
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
+    
+    pdf.setFontSize(9);
+    pdf.setTextColor(34, 139, 34); // Green color
+    pdf.setFont("helvetica", "bold");
+    pdf.text("✓ Certificate of Completion", margin, yPosition);
+    yPosition += 5;
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(100);
+    pdf.text("This document has been electronically signed by all parties.", margin, yPosition);
+    yPosition += 4;
+    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}`, margin, yPosition);
+
+    // Save the PDF
+    pdf.save(`${document.name}.pdf`);
   };
 
   // Render document content with inline embedded signatures
