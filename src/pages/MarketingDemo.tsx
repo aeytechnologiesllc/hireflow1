@@ -1,26 +1,122 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Users, FileText, BarChart3, Play, RotateCcw, Sparkles, CheckCircle, Star, TrendingUp, MessageSquare, Clock, Shield } from "lucide-react";
+import { 
+  Mic, Users, FileText, BarChart3, Play, RotateCcw, Sparkles, CheckCircle, 
+  Star, TrendingUp, MessageSquare, Clock, Shield, Zap, Video, Keyboard,
+  ClipboardList, Eye, FileCheck, Volume2, VolumeX, ChevronRight, Award,
+  Target, Brain, Bot, PenTool, Send, ArrowRight, Rocket
+} from "lucide-react";
 import hireflowLogo from "@/assets/hireflow-logo.png";
+import { usePricing } from "@/hooks/usePricing";
 
-const SCENE_DURATIONS = [5000, 15000, 15000, 12000, 8000, 5000]; // ms per scene
+// Voice narration scripts for each scene
+const VOICE_SCRIPTS = [
+  "Stop wasting hours on hiring. Let AI do the work.", // Scene 1: Hero
+  "One click. AVA creates your entire hiring workflow—quizzes, assessments, and interviews.", // Scene 2: Workflow
+  "Candidates complete assessments automatically. No scheduling. No coordination.", // Scene 3: Candidate Journey
+  "Track every candidate at a glance. Drag to advance. Click to review.", // Scene 4: Pipeline
+  "AVA analyzes every resume and application. Spots inconsistencies. Ranks candidates instantly.", // Scene 5: Analysis
+  "Set it and forget it. Autopilot advances qualified candidates automatically.", // Scene 6: Autopilot
+  "Control everything with your voice. AVA, move this applicant to interview.", // Scene 7: Voice
+  "Send offers and NDAs. E-signatures and audit trails built in.", // Scene 8: Documents
+  "Start your free trial today.", // Scene 9: CTA
+];
+
+const SCENE_DURATIONS = [3500, 6500, 8000, 7500, 5500, 4500, 6500, 5000, 5000];
 const TOTAL_DURATION = SCENE_DURATIONS.reduce((a, b) => a + b, 0);
 
 export default function MarketingDemo() {
-  const [currentScene, setCurrentScene] = useState(-1); // -1 = not started
+  const [currentScene, setCurrentScene] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const startDemo = () => {
+  // Preload all audio
+  const preloadAudio = useCallback(async () => {
+    setIsLoading(true);
+    const loadedAudios: (HTMLAudioElement | null)[] = [];
+    
+    for (let i = 0; i < VOICE_SCRIPTS.length; i++) {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ text: VOICE_SCRIPTS[i] }),
+          }
+        );
+
+        if (response.ok) {
+          const audioBlob = await response.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          loadedAudios.push(audio);
+        } else {
+          loadedAudios.push(null);
+        }
+      } catch (error) {
+        console.error(`Failed to load audio for scene ${i}:`, error);
+        loadedAudios.push(null);
+      }
+    }
+    
+    audioRefs.current = loadedAudios;
+    setAudioLoaded(true);
+    setIsLoading(false);
+  }, []);
+
+  const playSceneAudio = useCallback((sceneIndex: number) => {
+    if (isMuted || !audioRefs.current[sceneIndex]) return;
+    
+    // Stop any currently playing audio
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+    }
+    
+    const audio = audioRefs.current[sceneIndex];
+    if (audio) {
+      currentAudioRef.current = audio;
+      audio.currentTime = 0;
+      audio.play().catch(console.error);
+    }
+  }, [isMuted]);
+
+  const startDemo = async () => {
+    if (!audioLoaded) {
+      await preloadAudio();
+    }
     setCurrentScene(0);
     setIsPlaying(true);
     setProgress(0);
   };
 
   const restartDemo = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+    }
     setCurrentScene(-1);
     setIsPlaying(false);
     setProgress(0);
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (currentAudioRef.current) {
+      if (!isMuted) {
+        currentAudioRef.current.pause();
+      }
+    }
   };
 
   // Scene progression
@@ -32,12 +128,15 @@ export default function MarketingDemo() {
       return;
     }
 
+    // Play audio for current scene
+    playSceneAudio(currentScene);
+
     const timer = setTimeout(() => {
       setCurrentScene(prev => prev + 1);
     }, SCENE_DURATIONS[currentScene]);
 
     return () => clearTimeout(timer);
-  }, [currentScene, isPlaying]);
+  }, [currentScene, isPlaying, playSceneAudio]);
 
   // Progress bar
   useEffect(() => {
@@ -55,24 +154,35 @@ export default function MarketingDemo() {
       {/* Animated background */}
       <div className="absolute inset-0">
         <motion.div 
-          className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-20 blur-[150px]"
-          style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.5))" }}
-          animate={{ 
-            scale: [1, 1.2, 1],
-            x: [0, 50, 0],
-            y: [0, -30, 0]
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div 
-          className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full opacity-15 blur-[150px]"
-          style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent)/0.5))" }}
+          className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-20 blur-[200px]"
+          style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.3))" }}
           animate={{ 
             scale: [1, 1.3, 1],
-            x: [0, -40, 0],
-            y: [0, 40, 0]
+            x: [0, 80, 0],
+            y: [0, -50, 0],
+            rotate: [0, 45, 0]
           }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div 
+          className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-15 blur-[180px]"
+          style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent)/0.3))" }}
+          animate={{ 
+            scale: [1, 1.4, 1],
+            x: [0, -60, 0],
+            y: [0, 60, 0],
+            rotate: [0, -30, 0]
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-10 blur-[150px]"
+          style={{ background: "linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))" }}
+          animate={{ 
+            scale: [1, 1.2, 1],
+            rotate: [0, 180, 360]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
       </div>
 
@@ -80,135 +190,213 @@ export default function MarketingDemo() {
       <div className="relative z-10 h-full flex flex-col">
         {/* Progress bar */}
         {isPlaying && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-muted/30">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute top-0 left-0 right-0 h-1.5 bg-muted/30"
+          >
             <motion.div 
-              className="h-full bg-gradient-to-r from-primary to-accent"
+              className="h-full bg-gradient-to-r from-primary via-accent to-primary"
               style={{ width: `${progress}%` }}
             />
-          </div>
+          </motion.div>
+        )}
+
+        {/* Mute button */}
+        {isPlaying && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={toggleMute}
+            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-50"
+          >
+            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </motion.button>
         )}
 
         {/* Scene container */}
         <div className="flex-1 flex items-center justify-center p-8">
           <AnimatePresence mode="wait">
-            {currentScene === -1 && <StartScreen key="start" onStart={startDemo} />}
-            {currentScene === 0 && <Scene1Hero key="scene1" />}
-            {currentScene === 1 && <Scene2AvaVoice key="scene2" />}
-            {currentScene === 2 && <Scene3Pipeline key="scene3" />}
-            {currentScene === 3 && <Scene4Documents key="scene4" />}
-            {currentScene === 4 && <Scene5Analytics key="scene5" />}
-            {currentScene === 5 && <Scene6CTA key="scene6" />}
-            {currentScene >= 6 && <EndScreen key="end" onRestart={restartDemo} />}
+            {currentScene === -1 && <StartScreen key="start" onStart={startDemo} isLoading={isLoading} />}
+            {currentScene === 0 && <Scene1Hero key="s1" />}
+            {currentScene === 1 && <Scene2Workflow key="s2" />}
+            {currentScene === 2 && <Scene3CandidateJourney key="s3" />}
+            {currentScene === 3 && <Scene4Pipeline key="s4" />}
+            {currentScene === 4 && <Scene5Analysis key="s5" />}
+            {currentScene === 5 && <Scene6Autopilot key="s6" />}
+            {currentScene === 6 && <Scene7Voice key="s7" />}
+            {currentScene === 7 && <Scene8Documents key="s8" />}
+            {currentScene === 8 && <Scene9CTA key="s9" />}
+            {currentScene >= 9 && <EndScreen key="end" onRestart={restartDemo} />}
           </AnimatePresence>
         </div>
 
         {/* Scene indicators */}
-        {isPlaying && currentScene >= 0 && currentScene < 6 && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2">
+        {isPlaying && currentScene >= 0 && currentScene < 9 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2"
+          >
             {SCENE_DURATIONS.map((_, i) => (
               <div 
                 key={i}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  i === currentScene ? "bg-primary w-8" : i < currentScene ? "bg-primary/60" : "bg-muted/40"
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  i === currentScene ? "bg-primary w-10" : i < currentScene ? "bg-primary/60 w-2" : "bg-muted/40 w-2"
                 }`}
               />
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
   );
 }
 
-// Start Screen
-function StartScreen({ onStart }: { onStart: () => void }) {
+// ============ START SCREEN ============
+function StartScreen({ onStart, isLoading }: { onStart: () => void; isLoading: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
       className="text-center"
     >
-      <motion.img 
-        src={hireflowLogo} 
-        alt="HireFlow" 
-        className="w-24 h-24 mx-auto mb-8"
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      />
-      <h1 className="text-4xl font-bold text-foreground mb-4">HireFlow Marketing Demo</h1>
-      <p className="text-muted-foreground mb-8">60-second auto-playing feature showcase</p>
+      <motion.div
+        className="relative inline-block mb-10"
+        animate={{ rotate: [0, 360] }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+      >
+        <div className="absolute inset-0 w-32 h-32 rounded-full bg-gradient-to-r from-primary via-accent to-primary opacity-30 blur-xl" />
+        <motion.img 
+          src={hireflowLogo} 
+          alt="HireFlow" 
+          className="relative w-32 h-32"
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </motion.div>
+      
+      <motion.h1 
+        className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        HireFlow
+      </motion.h1>
+      
+      <motion.p 
+        className="text-xl text-muted-foreground mb-10"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+      >
+        The Future of Hiring • 48-Second Demo
+      </motion.p>
+      
       <motion.button
         onClick={onStart}
-        className="flex items-center gap-3 mx-auto px-8 py-4 bg-primary text-primary-foreground rounded-full font-semibold text-lg"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+        disabled={isLoading}
+        className="group relative flex items-center gap-4 mx-auto px-10 py-5 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full font-semibold text-xl shadow-2xl shadow-primary/30 disabled:opacity-70"
+        whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px hsl(var(--primary)/0.4)" }}
+        whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
       >
-        <Play className="w-6 h-6" />
-        Start Demo
+        {isLoading ? (
+          <>
+            <motion.div 
+              className="w-7 h-7 border-3 border-primary-foreground/30 border-t-primary-foreground rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            Loading Audio...
+          </>
+        ) : (
+          <>
+            <Play className="w-7 h-7" />
+            Start Demo
+            <ChevronRight className="w-5 h-5 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+          </>
+        )}
       </motion.button>
-      <p className="text-xs text-muted-foreground mt-4">Best viewed at 1920×1080 for screen recording</p>
+      
+      <motion.p 
+        className="text-sm text-muted-foreground mt-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.9 }}
+      >
+        🔊 Turn on audio for the full experience
+      </motion.p>
     </motion.div>
   );
 }
 
-// Scene 1: Hero Intro (5s)
+// ============ SCENE 1: HERO ============
 function Scene1Hero() {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.5 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.4 }}
       className="text-center"
     >
-      <motion.img 
-        src={hireflowLogo} 
-        alt="HireFlow" 
-        className="w-32 h-32 mx-auto mb-8"
-        initial={{ scale: 0, rotate: -180 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: "spring", duration: 1 }}
-      />
+      <motion.div className="relative inline-block mb-8">
+        <motion.div 
+          className="absolute inset-0 w-40 h-40 rounded-full bg-gradient-to-r from-primary to-accent opacity-40 blur-2xl"
+          animate={{ scale: [1, 1.3, 1], rotate: [0, 180, 360] }}
+          transition={{ duration: 3, repeat: Infinity }}
+        />
+        <motion.img 
+          src={hireflowLogo} 
+          alt="HireFlow" 
+          className="relative w-40 h-40"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", duration: 0.8 }}
+        />
+      </motion.div>
+      
       <motion.h1 
-        className="text-6xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent mb-6"
+        className="text-7xl md:text-8xl font-bold mb-8"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.6 }}
+      >
+        <span className="bg-gradient-to-r from-primary via-foreground to-accent bg-clip-text text-transparent">
+          The Future
+        </span>
+        <br />
+        <span className="text-foreground">of Hiring</span>
+      </motion.h1>
+      
+      <motion.div 
+        className="flex items-center justify-center gap-10 mt-12"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        The Future of Hiring
-      </motion.h1>
-      <motion.p 
-        className="text-2xl text-muted-foreground"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-      >
-        AI-Powered Recruitment Platform
-      </motion.p>
-      <motion.div 
-        className="flex items-center justify-center gap-8 mt-12"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.5 }}
+        transition={{ delay: 0.8 }}
       >
         {[
-          { icon: Mic, label: "Voice AI" },
-          { icon: Users, label: "Smart Pipeline" },
-          { icon: FileText, label: "E-Signatures" },
-          { icon: BarChart3, label: "Analytics" },
+          { icon: Mic, label: "Voice AI", color: "from-emerald-500 to-teal-500" },
+          { icon: Brain, label: "Smart Analysis", color: "from-purple-500 to-pink-500" },
+          { icon: FileText, label: "E-Signatures", color: "from-blue-500 to-cyan-500" },
+          { icon: Zap, label: "Autopilot", color: "from-orange-500 to-amber-500" },
         ].map((item, i) => (
           <motion.div 
             key={item.label}
-            className="flex flex-col items-center gap-2"
+            className="flex flex-col items-center gap-3"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 1.8 + i * 0.1 }}
+            transition={{ delay: 1 + i * 0.1 }}
           >
-            <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center">
-              <item.icon className="w-7 h-7 text-primary" />
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg`}>
+              <item.icon className="w-8 h-8 text-white" />
             </div>
-            <span className="text-sm text-muted-foreground">{item.label}</span>
+            <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
           </motion.div>
         ))}
       </motion.div>
@@ -216,18 +404,652 @@ function Scene1Hero() {
   );
 }
 
-// Scene 2: AVA Voice Assistant (15s)
-function Scene2AvaVoice() {
+// ============ SCENE 2: WORKFLOW GENERATION ============
+function Scene2Workflow() {
+  const [step, setStep] = useState(0);
+  const jobTitle = "Senior Product Manager";
+  
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setStep(1), 500),   // Show input
+      setTimeout(() => setStep(2), 1500),  // Typing animation done
+      setTimeout(() => setStep(3), 2500),  // Click generate
+      setTimeout(() => setStep(4), 3500),  // Show phases
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const phases = [
+    { icon: FileCheck, label: "Application", color: "from-blue-500 to-cyan-500" },
+    { icon: ClipboardList, label: "Quiz", color: "from-purple-500 to-pink-500" },
+    { icon: Video, label: "Video Intro", color: "from-rose-500 to-orange-500" },
+    { icon: Keyboard, label: "Typing Test", color: "from-amber-500 to-yellow-500" },
+    { icon: MessageSquare, label: "Chat Sim", color: "from-green-500 to-emerald-500" },
+    { icon: Mic, label: "Interview", color: "from-primary to-accent" },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-4xl"
+    >
+      <motion.div 
+        className="flex items-center gap-3 justify-center mb-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <Sparkles className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-3xl font-bold text-foreground">AI Workflow Generation</span>
+      </motion.div>
+
+      <motion.div 
+        className="bg-card/60 backdrop-blur-xl rounded-3xl border border-border/50 p-8 shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        {/* Job title input */}
+        <div className="mb-8">
+          <label className="text-sm text-muted-foreground mb-2 block">Job Title</label>
+          <div className="relative">
+            <div className="w-full p-4 bg-muted/30 border border-border/50 rounded-xl text-xl font-medium text-foreground">
+              {step >= 1 && <TypewriterText text={jobTitle} delay={80} />}
+              {step < 2 && <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.5, repeat: Infinity }}>|</motion.span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Generate button */}
+        <motion.button
+          className={`w-full py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all ${
+            step >= 3 
+              ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30" 
+              : "bg-muted/50 text-muted-foreground"
+          }`}
+          animate={step === 3 ? { scale: [1, 0.98, 1] } : {}}
+        >
+          {step >= 3 && step < 4 ? (
+            <>
+              <motion.div 
+                className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              Generating Workflow...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              Generate Workflow
+            </>
+          )}
+        </motion.button>
+
+        {/* Generated phases */}
+        {step >= 4 && (
+          <motion.div 
+            className="mt-8 grid grid-cols-6 gap-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {phases.map((phase, i) => (
+              <motion.div
+                key={phase.label}
+                initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border/30"
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${phase.color} flex items-center justify-center`}>
+                  <phase.icon className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground text-center">{phase.label}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ============ SCENE 3: CANDIDATE JOURNEY ============
+function Scene3CandidateJourney() {
+  const [activePhase, setActivePhase] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActivePhase(prev => (prev + 1) % 5);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const phases = [
+    { 
+      icon: ClipboardList, 
+      label: "Quiz Assessment", 
+      color: "from-purple-500 to-pink-500",
+      preview: (
+        <div className="space-y-3">
+          <div className="text-sm font-medium text-foreground">What is your approach to...</div>
+          <div className="space-y-2">
+            {["Option A", "Option B", "Option C"].map((opt, i) => (
+              <div key={opt} className={`p-3 rounded-lg border ${i === 1 ? "border-primary bg-primary/10" : "border-border/30"} text-sm`}>
+                {opt}
+              </div>
+            ))}
+          </div>
+          <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+            <div className="h-full w-3/4 bg-gradient-to-r from-primary to-accent rounded-full" />
+          </div>
+        </div>
+      )
+    },
+    { 
+      icon: Keyboard, 
+      label: "Typing Test", 
+      color: "from-amber-500 to-orange-500",
+      preview: (
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">Type the following text...</div>
+          <div className="p-4 bg-muted/20 rounded-lg border border-border/30 text-sm font-mono">
+            The quick brown fox jumps over...
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-3xl font-bold text-primary">72 WPM</div>
+            <div className="text-sm text-emerald-500">98% Accuracy</div>
+          </div>
+        </div>
+      )
+    },
+    { 
+      icon: Video, 
+      label: "Video Intro", 
+      color: "from-rose-500 to-red-500",
+      preview: (
+        <div className="relative aspect-video bg-gradient-to-br from-muted/40 to-muted/20 rounded-xl border border-border/30 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
+            <Play className="w-10 h-10 text-primary ml-1" />
+          </div>
+          <div className="absolute bottom-3 left-3 text-xs text-muted-foreground">2:34</div>
+        </div>
+      )
+    },
+    { 
+      icon: MessageSquare, 
+      label: "Chat Simulation", 
+      color: "from-green-500 to-emerald-500",
+      preview: (
+        <div className="space-y-3">
+          <div className="flex justify-start">
+            <div className="bg-muted/40 px-4 py-2 rounded-2xl rounded-bl-md text-sm max-w-[80%]">
+              I need help with my order
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-md text-sm max-w-[80%]">
+              I'd be happy to help! Let me look...
+            </div>
+          </div>
+        </div>
+      )
+    },
+    { 
+      icon: Target, 
+      label: "Sales Simulation", 
+      color: "from-blue-500 to-indigo-500",
+      preview: (
+        <div className="space-y-3">
+          <div className="flex justify-start">
+            <div className="bg-muted/40 px-4 py-2 rounded-2xl rounded-bl-md text-sm max-w-[80%]">
+              I'm not sure we have the budget...
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-md text-sm max-w-[80%]">
+              I understand. Let me show you the ROI...
+            </div>
+          </div>
+        </div>
+      )
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-5xl"
+    >
+      <motion.div 
+        className="flex items-center gap-3 justify-center mb-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+          <Users className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-3xl font-bold text-foreground">Automated Candidate Journey</span>
+      </motion.div>
+
+      <div className="flex gap-6">
+        {/* Phase indicators */}
+        <div className="flex flex-col gap-3 w-48">
+          {phases.map((phase, i) => (
+            <motion.div
+              key={phase.label}
+              className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                i === activePhase ? "bg-card border border-primary/50" : "bg-card/30 border border-transparent"
+              }`}
+              animate={{ x: i === activePhase ? 8 : 0 }}
+            >
+              <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${phase.color} flex items-center justify-center`}>
+                <phase.icon className="w-5 h-5 text-white" />
+              </div>
+              <span className={`text-sm font-medium ${i === activePhase ? "text-foreground" : "text-muted-foreground"}`}>
+                {phase.label}
+              </span>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Preview */}
+        <div className="flex-1 bg-card/60 backdrop-blur-xl rounded-2xl border border-border/50 p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activePhase}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {phases[activePhase].preview}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============ SCENE 4: PIPELINE SLIDER ============
+function Scene4Pipeline() {
+  const [sliderPosition, setSliderPosition] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSliderPosition(prev => (prev + 1) % 6);
+    }, 1200);
+    return () => clearInterval(interval);
+  }, []);
+
+  const phases = [
+    { icon: FileCheck, label: "Application" },
+    { icon: ClipboardList, label: "Quiz" },
+    { icon: Video, label: "Video" },
+    { icon: Keyboard, label: "Typing" },
+    { icon: MessageSquare, label: "Chat Sim" },
+    { icon: Mic, label: "Interview" },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-4xl"
+    >
+      <motion.div 
+        className="flex items-center gap-3 justify-center mb-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+          <TrendingUp className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-3xl font-bold text-foreground">Smart Pipeline Slider</span>
+      </motion.div>
+
+      <motion.div 
+        className="bg-card/60 backdrop-blur-xl rounded-3xl border border-border/50 p-8 shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        {/* Candidate info */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 flex items-center justify-center text-xl font-bold text-foreground">
+            SC
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">Sarah Chen</h3>
+            <p className="text-muted-foreground">Senior Product Manager</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="w-14 h-14 rounded-full border-4 border-emerald-500 flex items-center justify-center">
+              <span className="text-xl font-bold text-emerald-500">94</span>
+            </div>
+            <span className="text-sm text-muted-foreground">AI Score</span>
+          </div>
+        </div>
+
+        {/* Slider track */}
+        <div className="relative">
+          {/* Track background */}
+          <div className="h-3 bg-muted/30 rounded-full relative">
+            <motion.div 
+              className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-accent rounded-full"
+              animate={{ width: `${((sliderPosition + 1) / phases.length) * 100}%` }}
+              transition={{ duration: 0.5 }}
+            />
+          </div>
+
+          {/* Phase markers */}
+          <div className="flex justify-between mt-4">
+            {phases.map((phase, i) => (
+              <div key={phase.label} className="flex flex-col items-center">
+                <motion.div
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                    i <= sliderPosition 
+                      ? "bg-gradient-to-br from-primary to-accent text-white" 
+                      : "bg-muted/30 text-muted-foreground"
+                  }`}
+                  animate={i === sliderPosition ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <phase.icon className="w-6 h-6" />
+                </motion.div>
+                <span className={`text-xs mt-2 ${i <= sliderPosition ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                  {phase.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Draggable avatar */}
+          <motion.div
+            className="absolute -top-8"
+            animate={{ left: `${(sliderPosition / (phases.length - 1)) * 100}%` }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            style={{ transform: "translateX(-50%)" }}
+          >
+            <motion.div 
+              className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-xl shadow-primary/30 border-4 border-background cursor-grab"
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            >
+              SC
+            </motion.div>
+          </motion.div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ============ SCENE 5: AVA ANALYSIS ============
+function Scene5Analysis() {
+  const [score, setScore] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
+  
+  useEffect(() => {
+    const scoreTimer = setInterval(() => {
+      setScore(prev => Math.min(prev + 3, 94));
+    }, 50);
+    
+    const detailsTimer = setTimeout(() => setShowDetails(true), 2000);
+    
+    return () => {
+      clearInterval(scoreTimer);
+      clearTimeout(detailsTimer);
+    };
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-4xl"
+    >
+      <motion.div 
+        className="flex items-center gap-3 justify-center mb-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <Brain className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-3xl font-bold text-foreground">AVA Analysis</span>
+      </motion.div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Score card */}
+        <motion.div 
+          className="bg-card/60 backdrop-blur-xl rounded-2xl border border-border/50 p-8 flex flex-col items-center justify-center"
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <motion.div 
+            className="relative w-40 h-40"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", delay: 0.3 }}
+          >
+            <svg className="w-full h-full -rotate-90">
+              <circle
+                cx="80" cy="80" r="70"
+                stroke="hsl(var(--muted))"
+                strokeWidth="12"
+                fill="none"
+                opacity="0.3"
+              />
+              <motion.circle
+                cx="80" cy="80" r="70"
+                stroke="url(#scoreGradient)"
+                strokeWidth="12"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={440}
+                initial={{ strokeDashoffset: 440 }}
+                animate={{ strokeDashoffset: 440 - (440 * score / 100) }}
+                transition={{ duration: 2, ease: "easeOut" }}
+              />
+              <defs>
+                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" />
+                  <stop offset="100%" stopColor="hsl(var(--accent))" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-5xl font-bold text-foreground">{score}</span>
+            </div>
+          </motion.div>
+          <span className="text-lg text-muted-foreground mt-4">AI Match Score</span>
+        </motion.div>
+
+        {/* Analysis details */}
+        <motion.div 
+          className="bg-card/60 backdrop-blur-xl rounded-2xl border border-border/50 p-6 space-y-4"
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          {showDetails && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30"
+              >
+                <div className="flex items-center gap-2 text-emerald-500 font-medium mb-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Key Strengths
+                </div>
+                <p className="text-sm text-muted-foreground">8+ years PM experience, strong technical background, excellent communication</p>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/30"
+              >
+                <div className="flex items-center gap-2 text-orange-500 font-medium mb-2">
+                  <Eye className="w-4 h-4" />
+                  Areas of Concern
+                </div>
+                <p className="text-sm text-muted-foreground">Limited B2B experience, career gap 2019-2020</p>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="p-4 rounded-xl bg-red-500/10 border border-red-500/30"
+              >
+                <div className="flex items-center gap-2 text-red-500 font-medium mb-2">
+                  <Shield className="w-4 h-4" />
+                  Red Flags Detected
+                </div>
+                <p className="text-sm text-muted-foreground">Resume claims 5 years React but quiz score only 45%</p>
+              </motion.div>
+            </>
+          )}
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============ SCENE 6: AUTOPILOT MODE ============
+function Scene6Autopilot() {
+  const [isAutopilot, setIsAutopilot] = useState(false);
+  const [passingScore, setPassingScore] = useState(60);
+  
+  useEffect(() => {
+    const toggleTimer = setTimeout(() => setIsAutopilot(true), 1000);
+    const scoreTimer = setTimeout(() => {
+      const interval = setInterval(() => {
+        setPassingScore(prev => Math.min(prev + 2, 80));
+      }, 50);
+      return () => clearInterval(interval);
+    }, 2000);
+    
+    return () => {
+      clearTimeout(toggleTimer);
+      clearTimeout(scoreTimer);
+    };
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full max-w-3xl"
+    >
+      <motion.div 
+        className="flex items-center gap-3 justify-center mb-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+          <Zap className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-3xl font-bold text-foreground">Autopilot Mode</span>
+      </motion.div>
+
+      <motion.div 
+        className="bg-card/60 backdrop-blur-xl rounded-3xl border border-border/50 p-8 shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        {/* Toggle */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">Processing Mode</h3>
+            <p className="text-muted-foreground">Automatically advance qualified candidates</p>
+          </div>
+          <motion.div 
+            className={`w-20 h-10 rounded-full p-1 cursor-pointer transition-colors ${
+              isAutopilot ? "bg-gradient-to-r from-primary to-accent" : "bg-muted/50"
+            }`}
+            onClick={() => setIsAutopilot(!isAutopilot)}
+          >
+            <motion.div 
+              className="w-8 h-8 rounded-full bg-white shadow-md"
+              animate={{ x: isAutopilot ? 40 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </motion.div>
+        </div>
+
+        {/* Mode labels */}
+        <div className="flex gap-4 mb-8">
+          <motion.div 
+            className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+              !isAutopilot ? "border-primary bg-primary/10" : "border-border/30 bg-card/30"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="w-5 h-5" />
+              <span className="font-medium">Manual</span>
+            </div>
+            <p className="text-sm text-muted-foreground">Review each candidate yourself</p>
+          </motion.div>
+          <motion.div 
+            className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+              isAutopilot ? "border-primary bg-primary/10" : "border-border/30 bg-card/30"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-5 h-5" />
+              <span className="font-medium">Autopilot</span>
+            </div>
+            <p className="text-sm text-muted-foreground">AI advances qualified candidates</p>
+          </motion.div>
+        </div>
+
+        {/* Passing score slider */}
+        {isAutopilot && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-muted-foreground">Passing Score Threshold</span>
+              <span className="text-2xl font-bold text-primary">{passingScore}%</span>
+            </div>
+            <div className="h-3 bg-muted/30 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                animate={{ width: `${passingScore}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ============ SCENE 7: AVA VOICE ============
+function Scene7Voice() {
   const [step, setStep] = useState(0);
   
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStep(1), 1000),  // Show FAB
-      setTimeout(() => setStep(2), 2500),  // Open panel
-      setTimeout(() => setStep(3), 4000),  // User message
-      setTimeout(() => setStep(4), 6000),  // AVA response
-      setTimeout(() => setStep(5), 8500),  // Action executing
-      setTimeout(() => setStep(6), 11000), // Success state
+      setTimeout(() => setStep(1), 500),   // Show FAB
+      setTimeout(() => setStep(2), 1500),  // Listening
+      setTimeout(() => setStep(3), 3000),  // User command
+      setTimeout(() => setStep(4), 4500),  // AVA response
+      setTimeout(() => setStep(5), 5500),  // Success
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -237,308 +1059,147 @@ function Scene2AvaVoice() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative w-full max-w-5xl"
+      className="w-full max-w-4xl"
     >
-      {/* Feature label */}
       <motion.div 
-        className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-3"
+        className="flex items-center gap-3 justify-center mb-10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <Mic className="w-5 h-5 text-primary" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+          <Mic className="w-6 h-6 text-white" />
         </div>
-        <span className="text-2xl font-semibold text-foreground">AVA Voice Assistant</span>
+        <span className="text-3xl font-bold text-foreground">AVA Voice Assistant</span>
       </motion.div>
 
-      {/* Mock dashboard background */}
-      <div className="bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 p-6 h-[500px] relative overflow-hidden">
-        {/* Fake dashboard content */}
-        <div className="grid grid-cols-3 gap-4 opacity-40">
+      <motion.div 
+        className="bg-card/60 backdrop-blur-xl rounded-3xl border border-border/50 p-6 h-[400px] relative overflow-hidden"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        {/* Fake dashboard background */}
+        <div className="grid grid-cols-3 gap-4 opacity-30">
           {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="h-24 bg-muted/30 rounded-lg" />
+            <div key={i} className="h-20 bg-muted/30 rounded-lg" />
           ))}
         </div>
 
-        {/* FAB Button */}
-        <AnimatePresence>
-          {step >= 1 && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="absolute bottom-6 right-6"
+        {/* AVA FAB */}
+        {step >= 1 && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute bottom-6 right-6"
+          >
+            <motion.div 
+              className={`px-6 py-3 rounded-full font-bold text-white shadow-2xl flex items-center gap-3 ${
+                step >= 5 ? "bg-emerald-500" : "bg-gradient-to-r from-emerald-500 to-teal-500"
+              }`}
+              animate={step >= 2 && step < 5 ? {
+                boxShadow: [
+                  "0 0 0 0 rgba(16, 185, 129, 0)",
+                  "0 0 0 20px rgba(16, 185, 129, 0.2)",
+                  "0 0 0 0 rgba(16, 185, 129, 0)"
+                ]
+              } : {}}
+              transition={{ duration: 1.5, repeat: step >= 2 && step < 5 ? Infinity : 0 }}
             >
-              <motion.div 
-                className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-white shadow-lg ${
-                  step >= 2 ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-primary to-accent"
-                }`}
-                animate={step >= 2 && step < 6 ? { 
-                  boxShadow: ["0 0 0 0 rgba(16, 185, 129, 0)", "0 0 0 12px rgba(16, 185, 129, 0.3)", "0 0 0 0 rgba(16, 185, 129, 0)"]
-                } : {}}
-                transition={{ duration: 1.5, repeat: step >= 2 && step < 6 ? Infinity : 0 }}
-              >
-                {step < 6 ? "AVA" : <CheckCircle className="w-6 h-6" />}
-              </motion.div>
+              {step >= 5 ? <CheckCircle className="w-5 h-5" /> : <span className="text-lg">AVA</span>}
+              {step >= 2 && step < 5 && (
+                <motion.div 
+                  className="w-3 h-3 rounded-full bg-white"
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                />
+              )}
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
 
-        {/* Chat Panel */}
-        <AnimatePresence>
-          {step >= 2 && (
-            <motion.div
-              initial={{ opacity: 0, x: 100, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              className="absolute bottom-24 right-6 w-80 bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-4 border-b border-border bg-muted/30">
+        {/* Chat panel */}
+        {step >= 2 && (
+          <motion.div
+            initial={{ opacity: 0, x: 100, scale: 0.9 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            className="absolute bottom-24 right-6 w-80 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+          >
+            <div className="p-4 border-b border-border bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+              <div className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-emerald-500" />
                 <span className="font-semibold text-foreground">AVA Assistant</span>
               </div>
-              <div className="p-4 space-y-4 max-h-64">
-                {/* User message */}
-                {step >= 3 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-end"
-                  >
-                    <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-md max-w-[80%]">
-                      <TypewriterText text="Move Sarah to the interview phase" delay={50} />
-                    </div>
-                  </motion.div>
-                )}
-                
-                {/* AVA response */}
-                {step >= 4 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-muted px-4 py-2 rounded-2xl rounded-bl-md max-w-[80%]">
-                      <TypewriterText 
-                        text={step >= 5 ? "Moving Sarah Chen to Interview phase..." : "I'll move Sarah Chen to the Interview phase now."} 
-                        delay={30} 
-                      />
-                    </div>
-                  </motion.div>
-                )}
+            </div>
+            <div className="p-4 space-y-4 max-h-56">
+              {step >= 3 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-end"
+                >
+                  <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-md text-sm">
+                    Move Sarah to interview
+                  </div>
+                </motion.div>
+              )}
+              {step >= 4 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-muted px-4 py-2 rounded-2xl rounded-bl-md text-sm">
+                    Moving Sarah Chen to Interview phase...
+                  </div>
+                </motion.div>
+              )}
+              {step >= 5 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-2xl rounded-bl-md flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-4 h-4" />
+                    Done! Sarah is now in Interview.
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
 
-                {/* Success message */}
-                {step >= 6 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-2xl rounded-bl-md flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Done! Sarah is now in Interview phase.
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Voice waveform indicator */}
+        {/* Voice waveform */}
         {step >= 2 && step < 4 && (
           <motion.div 
-            className="absolute bottom-6 right-24 flex items-center gap-1"
+            className="absolute bottom-6 right-40 flex items-center gap-1"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            {[1,2,3,4,5].map(i => (
+            {[1,2,3,4,5,6,7].map(i => (
               <motion.div
                 key={i}
-                className="w-1 bg-primary rounded-full"
-                animate={{ height: [8, 24, 8] }}
-                transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
+                className="w-1 bg-emerald-500 rounded-full"
+                animate={{ height: [8, 24 + Math.random() * 16, 8] }}
+                transition={{ duration: 0.4, repeat: Infinity, delay: i * 0.08 }}
               />
             ))}
           </motion.div>
         )}
-      </div>
-
-      {/* Caption */}
-      <motion.p 
-        className="text-center text-muted-foreground mt-6 text-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        Control your hiring pipeline with natural voice commands
-      </motion.p>
-    </motion.div>
-  );
-}
-
-// Scene 3: Smart Pipeline (15s)
-function Scene3Pipeline() {
-  const [step, setStep] = useState(0);
-  
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setStep(1), 500),   // Show cards
-      setTimeout(() => setStep(2), 2000),  // Animate first card
-      setTimeout(() => setStep(3), 4500),  // Show AI scores
-      setTimeout(() => setStep(4), 7000),  // Slider animation
-      setTimeout(() => setStep(5), 10000), // Notification
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  const applicants = [
-    { name: "Sarah Chen", role: "Senior Developer", score: 94, phase: "Interview" },
-    { name: "James Wilson", role: "Product Manager", score: 87, phase: "Review" },
-    { name: "Emily Rodriguez", role: "UX Designer", score: 91, phase: "Quiz" },
-  ];
-
-  const phases = ["Application", "Quiz", "Review", "Interview", "Offer"];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="relative w-full max-w-5xl"
-    >
-      {/* Feature label */}
-      <motion.div 
-        className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-3"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <Users className="w-5 h-5 text-primary" />
-        </div>
-        <span className="text-2xl font-semibold text-foreground">Smart Applicant Pipeline</span>
       </motion.div>
-
-      <div className="bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 p-6">
-        {/* Phase indicators */}
-        <div className="flex justify-between mb-8 px-4">
-          {phases.map((phase, i) => (
-            <motion.div 
-              key={phase}
-              className="flex flex-col items-center"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * i }}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                i <= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}>
-                {i + 1}
-              </div>
-              <span className="text-xs text-muted-foreground mt-2">{phase}</span>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Applicant cards */}
-        <div className="space-y-4">
-          {applicants.map((applicant, i) => (
-            <motion.div
-              key={applicant.name}
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ 
-                opacity: step >= 1 ? 1 : 0, 
-                x: step >= 1 ? 0 : -50,
-                scale: step === 2 && i === 0 ? 1.02 : 1
-              }}
-              transition={{ delay: i * 0.2, duration: 0.5 }}
-              className={`flex items-center justify-between p-4 rounded-xl border ${
-                step === 2 && i === 0 ? "border-primary bg-primary/5" : "border-border/50 bg-card/50"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center font-semibold text-foreground">
-                  {applicant.name.split(" ").map(n => n[0]).join("")}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{applicant.name}</h3>
-                  <p className="text-sm text-muted-foreground">{applicant.role}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6">
-                {/* AI Score */}
-                <motion.div 
-                  className="flex items-center gap-2"
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ 
-                    opacity: step >= 3 ? 1 : 0, 
-                    scale: step >= 3 ? 1 : 0 
-                  }}
-                  transition={{ delay: i * 0.15 }}
-                >
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="font-bold text-primary">{applicant.score}%</span>
-                </motion.div>
-
-                {/* Phase badge */}
-                <motion.span 
-                  className="px-3 py-1 rounded-full text-sm font-medium bg-primary/20 text-primary"
-                  animate={step >= 4 && i === 0 ? { 
-                    backgroundColor: ["hsl(var(--primary)/0.2)", "hsl(var(--accent)/0.2)", "hsl(var(--primary)/0.2)"]
-                  } : {}}
-                  transition={{ duration: 1, repeat: step >= 4 ? 2 : 0 }}
-                >
-                  {applicant.phase}
-                </motion.span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Notification popup */}
-        <AnimatePresence>
-          {step >= 5 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, x: 20 }}
-              animate={{ opacity: 1, y: 0, x: 0 }}
-              exit={{ opacity: 0 }}
-              className="absolute top-4 right-4 bg-card border border-primary/50 rounded-lg p-4 shadow-lg max-w-xs"
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <Star className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground text-sm">New Top Candidate!</p>
-                  <p className="text-xs text-muted-foreground">Sarah Chen scored 94% - ready for interview</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <motion.p 
-        className="text-center text-muted-foreground mt-6 text-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        AI-powered candidate scoring and automated phase progression
-      </motion.p>
     </motion.div>
   );
 }
 
-// Scene 4: Document Workflow (12s)
-function Scene4Documents() {
+// ============ SCENE 8: DOCUMENTS ============
+function Scene8Documents() {
   const [step, setStep] = useState(0);
   
   useEffect(() => {
     const timers = [
       setTimeout(() => setStep(1), 500),   // Show document
-      setTimeout(() => setStep(2), 2500),  // Signature field
-      setTimeout(() => setStep(3), 5000),  // Drawing signature
-      setTimeout(() => setStep(4), 7500),  // Success
-      setTimeout(() => setStep(5), 9500),  // Audit trail
+      setTimeout(() => setStep(2), 1500),  // Signature field
+      setTimeout(() => setStep(3), 2500),  // Drawing signature
+      setTimeout(() => setStep(4), 3500),  // Signed checkmark
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -548,361 +1209,265 @@ function Scene4Documents() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative w-full max-w-5xl"
+      className="w-full max-w-3xl"
     >
-      {/* Feature label */}
       <motion.div 
-        className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-3"
+        className="flex items-center gap-3 justify-center mb-10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <FileText className="w-5 h-5 text-primary" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+          <FileText className="w-6 h-6 text-white" />
         </div>
-        <span className="text-2xl font-semibold text-foreground">E-Signature Documents</span>
+        <span className="text-3xl font-bold text-foreground">E-Signatures & Documents</span>
       </motion.div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <motion.div 
+        className="bg-card/60 backdrop-blur-xl rounded-3xl border border-border/50 p-8 shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         {/* Document preview */}
-        <motion.div 
-          className="bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 p-6 h-[450px] relative overflow-hidden"
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: step >= 1 ? 1 : 0, x: step >= 1 ? 0 : -30 }}
-        >
-          <div className="bg-white rounded-lg p-6 h-full text-gray-800 relative">
-            <h3 className="font-bold text-lg mb-4">OFFER LETTER</h3>
-            <div className="space-y-2 text-sm">
-              <p>Dear Sarah Chen,</p>
-              <p className="text-gray-600">We are pleased to offer you the position of Senior Developer at HireFlow Inc...</p>
-              <div className="h-20 bg-gray-100 rounded my-4" />
-              <p className="text-gray-600">Compensation: $150,000/year + benefits</p>
-            </div>
-
-            {/* Signature field */}
-            {step >= 2 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="absolute bottom-6 left-6 right-6"
-              >
-                <div className="border-2 border-dashed border-primary/50 rounded-lg p-4 bg-primary/5">
-                  <p className="text-xs text-gray-500 mb-2">Candidate Signature</p>
-                  {step >= 3 && (
-                    <motion.svg 
-                      viewBox="0 0 200 50" 
-                      className="w-full h-12"
-                    >
-                      <motion.path
-                        d="M 10 40 Q 30 10 50 35 T 90 30 T 130 35 T 170 25 T 190 30"
-                        fill="none"
-                        stroke="#1e3a5f"
-                        strokeWidth="2"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 2 }}
-                      />
-                    </motion.svg>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Success overlay */}
-            {step >= 4 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center rounded-lg"
-              >
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring" }}
-                  className="bg-emerald-500 text-white rounded-full p-4"
-                >
-                  <CheckCircle className="w-12 h-12" />
-                </motion.div>
-              </motion.div>
-            )}
+        <div className="bg-white rounded-xl p-6 text-black mb-6">
+          <div className="text-center mb-4">
+            <h3 className="text-lg font-bold">OFFER LETTER</h3>
+            <p className="text-sm text-gray-500">HireFlow Inc.</p>
           </div>
-        </motion.div>
-
-        {/* Audit trail */}
-        <motion.div 
-          className="bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 p-6"
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: step >= 5 ? 1 : 0, x: step >= 5 ? 0 : 30 }}
-        >
-          <div className="flex items-center gap-2 mb-6">
-            <Shield className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Audit Trail</h3>
+          <div className="space-y-2 text-sm">
+            <p>Dear Sarah Chen,</p>
+            <p className="text-gray-600">We are pleased to offer you the position of Senior Product Manager...</p>
           </div>
           
-          <div className="space-y-4">
-            {[
-              { action: "Document Created", time: "10:32 AM", ip: "192.168.1.1" },
-              { action: "Viewed by Candidate", time: "11:45 AM", ip: "203.45.67.89" },
-              { action: "Candidate Signed", time: "11:52 AM", ip: "203.45.67.89" },
-              { action: "Employer Countersigned", time: "2:15 PM", ip: "192.168.1.1" },
-            ].map((item, i) => (
+          {/* Signature area */}
+          {step >= 2 && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-6 pt-4 border-t border-gray-200"
+            >
+              <p className="text-xs text-gray-500 mb-2">Candidate Signature</p>
+              <div className={`h-16 border-2 border-dashed rounded-lg flex items-center justify-center ${
+                step >= 4 ? "border-emerald-500 bg-emerald-50" : "border-blue-500 bg-blue-50"
+              }`}>
+                {step >= 3 && step < 4 && (
+                  <motion.div
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                  >
+                    <PenTool className="w-5 h-5 text-blue-500" />
+                  </motion.div>
+                )}
+                {step >= 4 && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="flex items-center gap-2 text-emerald-600"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-script text-lg italic">Sarah Chen</span>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Status badges */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {step >= 4 && (
               <motion.div
-                key={item.action}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.2 }}
-                className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/20 text-emerald-500"
               >
-                <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                <div className="flex-1">
-                  <p className="font-medium text-foreground text-sm">{item.action}</p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {item.time}
-                    </span>
-                    <span>IP: {item.ip}</span>
-                  </div>
-                </div>
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                <CheckCircle className="w-4 h-4" />
+                Signed
               </motion.div>
-            ))}
+            )}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 text-blue-500"
+            >
+              <Shield className="w-4 h-4" />
+              Audit Trail
+            </motion.div>
           </div>
-
-          <motion.div 
-            className="mt-6 p-3 bg-primary/10 rounded-lg border border-primary/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-          >
-            <p className="text-xs text-primary font-medium">SHA-256 Hash Verified</p>
-            <p className="text-xs text-muted-foreground mt-1 font-mono truncate">a3f8c2b1e9d...</p>
-          </motion.div>
-        </motion.div>
-      </div>
-
-      <motion.p 
-        className="text-center text-muted-foreground mt-6 text-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        DocuSign-level compliance with complete audit trails
-      </motion.p>
+          {step >= 4 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="text-sm text-muted-foreground"
+            >
+              Signed Dec 15, 2025 at 3:42 PM
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
 
-// Scene 5: Analytics Dashboard (8s)
-function Scene5Analytics() {
-  const [step, setStep] = useState(0);
+// ============ SCENE 9: PRICING CTA ============
+function Scene9CTA() {
+  const pricing = usePricing();
   
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setStep(1), 500),
-      setTimeout(() => setStep(2), 2000),
-      setTimeout(() => setStep(3), 4000),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
+  const plans = [
+    {
+      name: "Growth",
+      price: pricing.growth.monthly,
+      features: ["3 Active Jobs", "50 Applicants/Job", "AI Analysis"],
+      color: "from-blue-500 to-cyan-500"
+    },
+    {
+      name: "Business",
+      price: pricing.business.monthly,
+      features: ["Unlimited Jobs", "Team Portal", "Documents"],
+      color: "from-primary to-accent",
+      popular: true
+    },
+    {
+      name: "Enterprise",
+      price: pricing.enterprise?.monthly || `${pricing.symbol}99`,
+      features: ["AVA Voice", "500 Voice Mins", "Priority Support"],
+      color: "from-purple-500 to-pink-500"
+    },
+  ];
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative w-full max-w-5xl"
+      className="w-full max-w-5xl text-center"
     >
-      {/* Feature label */}
-      <motion.div 
-        className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-3"
-        initial={{ opacity: 0, y: -20 }}
+      <motion.h2 
+        className="text-5xl font-bold mb-4"
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <BarChart3 className="w-5 h-5 text-primary" />
-        </div>
-        <span className="text-2xl font-semibold text-foreground">Real-Time Analytics</span>
-      </motion.div>
+        <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+          Start Your Free Trial
+        </span>
+      </motion.h2>
+      <motion.p 
+        className="text-xl text-muted-foreground mb-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        7 days free • No credit card required
+      </motion.p>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: "Total Applicants", value: 1247, icon: Users, color: "primary" },
-          { label: "Interviews", value: 89, icon: MessageSquare, color: "accent" },
-          { label: "Hired", value: 34, icon: CheckCircle, color: "emerald" },
-          { label: "Avg. Time to Hire", value: "12d", icon: Clock, color: "orange" },
-        ].map((stat, i) => (
+      <div className="grid grid-cols-3 gap-6">
+        {plans.map((plan, i) => (
           <motion.div
-            key={stat.label}
+            key={plan.name}
             initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: step >= 1 ? 1 : 0, y: step >= 1 ? 0 : 30 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-4"
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + i * 0.15 }}
+            className={`relative bg-card/60 backdrop-blur-xl rounded-2xl border p-6 ${
+              plan.popular ? "border-primary shadow-2xl shadow-primary/20" : "border-border/50"
+            }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <stat.icon className={`w-5 h-5 text-${stat.color === "primary" ? "primary" : stat.color === "accent" ? "accent" : stat.color + "-500"}`} />
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
+            {plan.popular && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-accent rounded-full text-xs font-bold text-primary-foreground">
+                MOST POPULAR
+              </div>
+            )}
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.color} mx-auto mb-4 flex items-center justify-center`}>
+              <Award className="w-6 h-6 text-white" />
             </div>
-            <motion.p 
-              className="text-3xl font-bold text-foreground"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <h3 className="text-xl font-bold text-foreground mb-2">{plan.name}</h3>
+            <div className="text-3xl font-bold text-foreground mb-4">
+              {plan.price}
+              <span className="text-sm font-normal text-muted-foreground">/mo</span>
+            </div>
+            <ul className="space-y-2 text-sm text-muted-foreground mb-6">
+              {plan.features.map((feature) => (
+                <li key={feature} className="flex items-center gap-2 justify-center">
+                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+            <motion.button
+              className={`w-full py-3 rounded-xl font-semibold ${
+                plan.popular 
+                  ? "bg-gradient-to-r from-primary to-accent text-primary-foreground" 
+                  : "bg-muted/50 text-foreground"
+              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              {typeof stat.value === "number" ? (
-                <CountUp end={stat.value} duration={2} />
-              ) : stat.value}
-            </motion.p>
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
+              Get Started
+            </motion.button>
           </motion.div>
         ))}
       </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {/* Chart */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: step >= 2 ? 1 : 0, scale: step >= 2 ? 1 : 0.95 }}
-          className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6"
-        >
-          <h3 className="font-semibold text-foreground mb-4">Applications Over Time</h3>
-          <div className="h-48 flex items-end gap-2">
-            {[40, 65, 45, 80, 55, 90, 75, 95, 60, 85, 70, 100].map((height, i) => (
-              <motion.div
-                key={i}
-                className="flex-1 bg-gradient-to-t from-primary to-primary/50 rounded-t"
-                initial={{ height: 0 }}
-                animate={{ height: `${height}%` }}
-                transition={{ delay: 0.1 * i, duration: 0.5 }}
-              />
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Activity feed */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: step >= 3 ? 1 : 0, scale: step >= 3 ? 1 : 0.95 }}
-          className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-6"
-        >
-          <h3 className="font-semibold text-foreground mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            {[
-              "Sarah Chen advanced to Interview",
-              "New application for Senior Developer",
-              "James Wilson completed quiz (87%)",
-              "Offer letter signed by Emily R.",
-            ].map((activity, i) => (
-              <motion.div
-                key={activity}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.2 }}
-                className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg"
-              >
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-sm text-muted-foreground">{activity}</span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      <motion.p 
-        className="text-center text-muted-foreground mt-6 text-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        Track every metric with real-time insights
-      </motion.p>
     </motion.div>
   );
 }
 
-// Scene 6: CTA Outro (5s)
-function Scene6CTA() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0 }}
-      className="text-center"
-    >
-      <motion.img 
-        src={hireflowLogo} 
-        alt="HireFlow" 
-        className="w-24 h-24 mx-auto mb-8"
-        animate={{ 
-          rotate: [0, 10, -10, 0],
-          scale: [1, 1.1, 1]
-        }}
-        transition={{ duration: 2, repeat: Infinity }}
-      />
-      
-      <motion.h2 
-        className="text-5xl font-bold text-foreground mb-4"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        Start Hiring Smarter
-      </motion.h2>
-      
-      <motion.p 
-        className="text-xl text-muted-foreground mb-8"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-      >
-        7-day free trial • No credit card required
-      </motion.p>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9 }}
-        className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-accent text-white rounded-full font-semibold text-xl shadow-lg"
-      >
-        <Sparkles className="w-6 h-6" />
-        Get Started Free
-      </motion.div>
-
-      <motion.p 
-        className="text-muted-foreground mt-8 text-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2 }}
-      >
-        hireflow.app
-      </motion.p>
-    </motion.div>
-  );
-}
-
-// End Screen
+// ============ END SCREEN ============
 function EndScreen({ onRestart }: { onRestart: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       className="text-center"
     >
-      <CheckCircle className="w-20 h-20 text-emerald-500 mx-auto mb-6" />
-      <h2 className="text-3xl font-bold text-foreground mb-4">Demo Complete!</h2>
-      <p className="text-muted-foreground mb-8">Ready to screen record? Click replay to watch again.</p>
-      <motion.button
-        onClick={onRestart}
-        className="flex items-center gap-3 mx-auto px-8 py-4 bg-primary text-primary-foreground rounded-full font-semibold"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      <motion.div
+        className="relative inline-block mb-8"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring" }}
       >
-        <RotateCcw className="w-5 h-5" />
-        Replay Demo
-      </motion.button>
+        <div className="absolute inset-0 w-32 h-32 rounded-full bg-gradient-to-r from-primary to-accent opacity-40 blur-2xl" />
+        <img src={hireflowLogo} alt="HireFlow" className="relative w-32 h-32" />
+      </motion.div>
+      
+      <motion.h2 
+        className="text-4xl font-bold text-foreground mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        Ready to Transform Your Hiring?
+      </motion.h2>
+      
+      <motion.div 
+        className="flex items-center justify-center gap-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+      >
+        <motion.button
+          onClick={onRestart}
+          className="flex items-center gap-2 px-6 py-3 bg-muted/50 text-foreground rounded-full font-medium"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <RotateCcw className="w-5 h-5" />
+          Replay Demo
+        </motion.button>
+        <motion.button
+          className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full font-semibold shadow-xl shadow-primary/30"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Rocket className="w-5 h-5" />
+          Start Free Trial
+        </motion.button>
+      </motion.div>
     </motion.div>
   );
 }
 
-// Helper Components
+// ============ HELPER COMPONENTS ============
 function TypewriterText({ text, delay = 50 }: { text: string; delay?: number }) {
   const [displayText, setDisplayText] = useState("");
   
@@ -920,26 +1485,4 @@ function TypewriterText({ text, delay = 50 }: { text: string; delay?: number }) 
   }, [text, delay]);
 
   return <span>{displayText}</span>;
-}
-
-function CountUp({ end, duration }: { end: number; duration: number }) {
-  const [count, setCount] = useState(0);
-  
-  useEffect(() => {
-    const steps = 60;
-    const increment = end / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(current));
-      }
-    }, (duration * 1000) / steps);
-    return () => clearInterval(timer);
-  }, [end, duration]);
-
-  return <>{count.toLocaleString()}</>;
 }
