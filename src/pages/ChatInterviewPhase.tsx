@@ -41,6 +41,12 @@ interface ApplicationDetails {
   jobs: {
     title: string;
     description: string;
+    requirements: string | null;
+    responsibilities: string | null;
+    benefits: string[] | null;
+    skills_required: string[] | null;
+    location: string | null;
+    job_type: string | null;
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: any[] | null;
@@ -74,7 +80,7 @@ export default function ChatInterviewPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, description, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, processing_mode, passing_score, workflow_steps)")
         .eq("id", id!)
         .single();
 
@@ -108,10 +114,84 @@ export default function ChatInterviewPhase() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Extract candidate context from application notes
+  const buildCandidateContext = () => {
+    if (!application) return undefined;
+    
+    const notes = application.notes ? JSON.parse(application.notes) : {};
+    const context: any = {
+      completedPhases: [] as string[],
+    };
+
+    // Extract application answers
+    if (notes.applicationAnswers) {
+      context.applicationAnswers = notes.applicationAnswers;
+    }
+
+    // Extract resume analysis
+    if (notes.resumeAnalysis) {
+      context.resumeAnalysis = notes.resumeAnalysis;
+    }
+
+    // Extract quiz results
+    if (notes.quizResult) {
+      context.quizScore = notes.quizResult.score;
+      context.quizSummary = notes.quizResult.correctAnswers 
+        ? `${notes.quizResult.correctAnswers}/${notes.quizResult.totalQuestions} correct`
+        : undefined;
+      context.completedPhases.push('Quiz');
+    }
+
+    // Extract typing test results
+    if (notes.typingTestResult) {
+      context.typingTestResult = {
+        wpm: notes.typingTestResult.wpm,
+        accuracy: notes.typingTestResult.accuracy,
+      };
+      context.completedPhases.push('Typing Test');
+    }
+
+    // Extract chat simulation results
+    if (notes.chatSimulationResult) {
+      context.chatSimulationResult = {
+        score: notes.chatSimulationResult.score,
+        summary: notes.chatSimulationResult.recommendation || 'Completed',
+      };
+      context.completedPhases.push('Chat Simulation');
+    }
+
+    // Extract sales simulation results
+    if (notes.salesSimulationResult) {
+      context.salesSimulationResult = {
+        score: notes.salesSimulationResult.score,
+        summary: notes.salesSimulationResult.recommendation || 'Completed',
+      };
+      context.completedPhases.push('Sales Simulation');
+    }
+
+    // Extract video intro URL
+    if (notes.videoIntroUrl) {
+      context.videoIntroUrl = notes.videoIntroUrl;
+      context.completedPhases.push('Video Introduction');
+    }
+
+    return context;
+  };
+
   const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
     if (!application?.jobs) return;
     
     setIsTyping(true);
+    
+    const candidateContext = buildCandidateContext();
+    const jobDetails = {
+      requirements: application.jobs.requirements || undefined,
+      responsibilities: application.jobs.responsibilities || undefined,
+      benefits: application.jobs.benefits || undefined,
+      skills: application.jobs.skills_required || undefined,
+      location: application.jobs.location || undefined,
+      jobType: application.jobs.job_type || undefined,
+    };
     
     try {
       const response = await fetch(CHAT_URL, {
@@ -124,7 +204,9 @@ export default function ChatInterviewPhase() {
           mode,
           jobTitle: application.jobs.title,
           jobDescription: application.jobs.description || "",
+          jobDetails,
           candidateName: application.profiles?.full_name || "Candidate",
+          candidateContext,
           messages: messages.map(m => ({ role: m.role, content: m.content })),
           userMessage,
         }),
@@ -241,7 +323,8 @@ export default function ChatInterviewPhase() {
     
     setIsSubmitting(true);
     try {
-      // Get AI evaluation
+      // Get AI evaluation with full context
+      const candidateContext = buildCandidateContext();
       const evalResponse = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
@@ -253,6 +336,7 @@ export default function ChatInterviewPhase() {
           jobTitle: application.jobs?.title || "",
           jobDescription: application.jobs?.description || "",
           candidateName: application.profiles?.full_name || "Candidate",
+          candidateContext,
           messages: messages.map(m => ({ role: m.role, content: m.content })),
         }),
       });
@@ -430,11 +514,11 @@ export default function ChatInterviewPhase() {
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
                     <Bot className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>AVA, our AI interviewer, will conduct your interview</span>
+                    <span>AVA has reviewed your application and will conduct a personalized interview</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Users className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>Answer questions about your experience and skills</span>
+                    <span>This is a two-way conversation - feel free to ask questions at any point</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Clock className="h-4 w-4 mt-0.5 text-primary" />
@@ -442,7 +526,7 @@ export default function ChatInterviewPhase() {
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>Your responses will be evaluated by AI after completion</span>
+                    <span>AVA will ask if you have any questions before concluding</span>
                   </li>
                 </ul>
               </div>

@@ -11,11 +11,32 @@ interface ChatMessage {
   content: string;
 }
 
+interface CandidateContext {
+  applicationAnswers?: Array<{ question: string; answer: string }>;
+  resumeAnalysis?: string;
+  quizScore?: number;
+  quizSummary?: string;
+  typingTestResult?: { wpm: number; accuracy: number };
+  chatSimulationResult?: { score: number; summary: string };
+  salesSimulationResult?: { score: number; summary: string };
+  videoIntroUrl?: string;
+  completedPhases?: string[];
+}
+
 interface ChatInterviewRequest {
   mode: "start" | "respond" | "evaluate";
   jobTitle: string;
   jobDescription: string;
+  jobDetails?: {
+    requirements?: string;
+    responsibilities?: string;
+    benefits?: string[];
+    skills?: string[];
+    location?: string;
+    jobType?: string;
+  };
   candidateName?: string;
+  candidateContext?: CandidateContext;
   messages?: ChatMessage[];
   userMessage?: string;
 }
@@ -27,9 +48,9 @@ serve(async (req) => {
 
   try {
     const request: ChatInterviewRequest = await req.json();
-    const { mode, jobTitle, jobDescription, candidateName, messages = [], userMessage } = request;
+    const { mode, jobTitle, jobDescription, jobDetails, candidateName, candidateContext, messages = [], userMessage } = request;
 
-    console.log("Chat interview request:", { mode, jobTitle, candidateName, messageCount: messages.length });
+    console.log("Chat interview request:", { mode, jobTitle, candidateName, messageCount: messages.length, hasContext: !!candidateContext });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -40,35 +61,126 @@ serve(async (req) => {
       );
     }
 
-    const systemPrompt = `You are AVA, an expert AI interviewer conducting a professional job interview. You should be warm, professional, and thorough.
+    // Build candidate context section
+    let candidateContextSection = "";
+    if (candidateContext) {
+      candidateContextSection = `
+=== CANDIDATE PROFILE (Use this to personalize your questions) ===
+`;
+      if (candidateContext.applicationAnswers?.length) {
+        candidateContextSection += `
+Application Responses:
+${candidateContext.applicationAnswers.map(qa => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n')}
+`;
+      }
+      if (candidateContext.resumeAnalysis) {
+        candidateContextSection += `
+Resume Analysis: ${candidateContext.resumeAnalysis}
+`;
+      }
+      if (candidateContext.quizScore !== undefined) {
+        candidateContextSection += `
+Quiz Performance: ${candidateContext.quizScore}%${candidateContext.quizSummary ? ` - ${candidateContext.quizSummary}` : ''}
+`;
+      }
+      if (candidateContext.typingTestResult) {
+        candidateContextSection += `
+Typing Test: ${candidateContext.typingTestResult.wpm} WPM, ${candidateContext.typingTestResult.accuracy}% accuracy
+`;
+      }
+      if (candidateContext.chatSimulationResult) {
+        candidateContextSection += `
+Chat Simulation Score: ${candidateContext.chatSimulationResult.score}% - ${candidateContext.chatSimulationResult.summary}
+`;
+      }
+      if (candidateContext.salesSimulationResult) {
+        candidateContextSection += `
+Sales Simulation Score: ${candidateContext.salesSimulationResult.score}% - ${candidateContext.salesSimulationResult.summary}
+`;
+      }
+      if (candidateContext.completedPhases?.length) {
+        candidateContextSection += `
+Completed Phases: ${candidateContext.completedPhases.join(', ')}
+`;
+      }
+    }
 
+    // Build job details section
+    let jobDetailsSection = "";
+    if (jobDetails) {
+      if (jobDetails.requirements) jobDetailsSection += `\nJob Requirements: ${jobDetails.requirements}`;
+      if (jobDetails.responsibilities) jobDetailsSection += `\nJob Responsibilities: ${jobDetails.responsibilities}`;
+      if (jobDetails.benefits?.length) jobDetailsSection += `\nBenefits: ${jobDetails.benefits.join(', ')}`;
+      if (jobDetails.skills?.length) jobDetailsSection += `\nRequired Skills: ${jobDetails.skills.join(', ')}`;
+      if (jobDetails.location) jobDetailsSection += `\nLocation: ${jobDetails.location}`;
+      if (jobDetails.jobType) jobDetailsSection += `\nJob Type: ${jobDetails.jobType}`;
+    }
+
+    const systemPrompt = `You are AVA, an expert AI interviewer conducting a professional job interview. You are warm, professional, thorough, and engaging.
+
+=== JOB INFORMATION ===
 Job Position: ${jobTitle}
 Job Description: ${jobDescription}
+${jobDetailsSection}
+
 Candidate Name: ${candidateName || "Candidate"}
+${candidateContextSection}
 
-Interview Guidelines:
-- Conduct a professional 5-8 question interview
-- Start with a warm greeting and icebreaker question
-- Ask 2-3 technical/skills questions relevant to the job
-- Ask 1-2 behavioral questions (STAR format scenarios)
-- Ask 1 culture fit question
-- End by asking if the candidate has any questions
+=== INTERVIEW GUIDELINES ===
+1. Conduct a professional 5-8 question interview
+2. Start with a warm greeting and explain you've reviewed their application materials
+3. Ask 2-3 technical/skills questions tailored to the job AND the candidate's background
+4. Ask 1-2 behavioral questions (STAR format scenarios)
+5. Ask 1 culture fit question
+6. Reference specific things from their application, resume, or previous assessments when relevant
 
-Communication Style:
-- Be warm but professional
-- Acknowledge answers before moving to the next question
-- Ask relevant follow-up questions when appropriate
-- Keep responses concise but thoughtful
+=== CONVERSATION STYLE (THIS IS A DIALOGUE, NOT AN INTERROGATION) ===
+- This is a back-and-forth conversation - allow natural dialogue flow
+- If the candidate asks a question at ANY point, answer it naturally before continuing
+- Acknowledge their answers thoughtfully before moving to the next question
+- Ask relevant follow-up questions when their answers warrant deeper exploration
+- If a candidate seems unsure, offer clarification
 - Use the candidate's name occasionally
+- Keep your responses conversational and not too long
+
+=== HANDLING CANDIDATE QUESTIONS ===
+When the candidate asks questions, you CAN answer about:
+- Job responsibilities and day-to-day tasks (from the job description)
+- Required skills and qualifications
+- Team structure and work environment (general terms)
+- Growth opportunities and career path
+- The hiring process they're going through
+- General company culture based on the job posting
+
+For questions you CANNOT answer (politely defer):
+- Specific salary or compensation: "The employer will discuss compensation details with successful candidates."
+- Exact start dates: "The employer will confirm timing during final discussions."
+- Specific benefits details: "HR will provide comprehensive benefits information."
+- Anything not in the job description: "I'd recommend asking that to the hiring manager directly."
+
+After answering their question, smoothly transition back to the interview.
+
+=== MANDATORY CLOSING SEQUENCE ===
+CRITICAL: Before ending the interview, you MUST ask:
+"Before we wrap up, do you have any questions about this position, the team, or anything else I can help clarify?"
+
+Then:
+- If they ask questions, answer each thoughtfully
+- After answering, ask "Is there anything else you'd like to know?"
+- Only conclude when they indicate no more questions
+- Thank them by name and let them know the employer will be in touch
 
 ${mode === 'evaluate' ? `
-EVALUATION MODE: Review all the candidate's responses and provide a comprehensive evaluation. Return JSON with:
+=== EVALUATION MODE ===
+Review ALL the candidate's responses and provide a comprehensive evaluation.
+Consider their application materials, assessment results, and interview responses.
+Return ONLY valid JSON with this structure:
 {
   "score": <number 0-100>,
-  "strengths": ["strength1", "strength2"],
+  "strengths": ["strength1", "strength2", "strength3"],
   "concerns": ["concern1", "concern2"],
   "recommendation": "Strong Hire" | "Hire" | "Maybe" | "No Hire",
-  "summary": "Brief evaluation summary"
+  "summary": "2-3 sentence evaluation summary"
 }
 ` : ''}`;
 
