@@ -561,6 +561,105 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_usage: {
+        Row: {
+          ai_analyses_used: number | null
+          applicants_received: number | null
+          created_at: string
+          documents_sent: number | null
+          id: string
+          jobs_created: number | null
+          period_end: string | null
+          period_start: string | null
+          team_members_added: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_analyses_used?: number | null
+          applicants_received?: number | null
+          created_at?: string
+          documents_sent?: number | null
+          id?: string
+          jobs_created?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          team_members_added?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_analyses_used?: number | null
+          applicants_received?: number | null
+          created_at?: string
+          documents_sent?: number | null
+          id?: string
+          jobs_created?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          team_members_added?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount: number | null
+          cancel_at_period_end: boolean | null
+          created_at: string
+          currency: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          onboarding_completed: boolean | null
+          plan_type: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_end: string | null
+          trial_start: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          currency?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          onboarding_completed?: boolean | null
+          plan_type?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          currency?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          onboarding_completed?: boolean | null
+          plan_type?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       team_invitations: {
         Row: {
           assigned_job_ids: string[] | null
