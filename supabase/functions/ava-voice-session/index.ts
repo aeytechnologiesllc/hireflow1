@@ -124,21 +124,56 @@ serve(async (req) => {
             .eq("user_id", currentApp.candidate_id)
             .single();
 
+          // Fetch the job's workflow steps to provide AVA with valid phase IDs
+          const { data: jobData } = await supabaseClient
+            .from("jobs")
+            .select("workflow_steps")
+            .eq("id", (currentApp.jobs as any)?.id)
+            .single();
+
+          const workflowSteps = (jobData?.workflow_steps as any[]) || [];
+          
+          // Build list of all valid phases with their exact IDs
+          const validPhases = [
+            { id: "application", type: "application", title: "Application" },
+            ...workflowSteps.map((step: any) => ({
+              id: step.id,
+              type: step.type,
+              title: step.title
+            })),
+            { id: "review", type: "review", title: "Review" },
+            { id: "interview", type: "interview", title: "Interview" },
+            { id: "hired", type: "hired", title: "Hired" }
+          ];
+
+          // Find the current phase details
+          const currentPhaseDetails = validPhases.find(p => 
+            p.id === currentApp.phase || 
+            p.type === currentApp.phase ||
+            p.type === currentApp.phase?.toLowerCase().replace(/[\s-]/g, '_')
+          );
+
           currentApplicantContext = `
 CURRENT APPLICANT CONTEXT (the user is viewing this applicant right now):
 - Application ID: ${currentApp.id}
 - Candidate Name: ${candidateProfile?.full_name || 'Unknown'}
 - Candidate Email: ${candidateProfile?.email || 'Unknown'}
 - Job: ${(currentApp.jobs as any)?.title || 'Unknown'}
-- Current Phase: ${currentApp.phase || 'application'}
+- Current Phase: ${currentPhaseDetails?.title || currentApp.phase || 'application'} (ID: ${currentApp.phase || 'application'})
 - Status: ${currentApp.status}
 - AI Score: ${currentApp.ai_score || 'Not scored yet'}
 - Applied: ${new Date(currentApp.created_at).toLocaleDateString()}
 
+WORKFLOW PHASES FOR THIS JOB (use exact step IDs when moving applicants):
+${validPhases.map((p, i) => `${i + 1}. ID: "${p.id}" - ${p.title}`).join('\n')}
+
+CRITICAL: When using move_applicant_to_phase, you MUST use the exact step ID from this list, NOT human-readable names.
+Example: To move to "${workflowSteps[0]?.title || 'next phase'}", use new_phase: "${workflowSteps[0]?.id || 'review'}"
+
 IMPORTANT: When the user asks about "this applicant", "the current applicant", "this candidate", or refers to the person they're viewing, use the context above.
 When asked to move this applicant to a different phase, use application_id: "${currentApp.id}"
 `;
-          console.log("Current applicant context added:", candidateProfile?.full_name, currentApp.phase);
+          console.log("Current applicant context added:", candidateProfile?.full_name, currentApp.phase, "Valid phases:", validPhases.map(p => p.id));
         }
       }
 

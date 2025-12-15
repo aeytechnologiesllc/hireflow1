@@ -101,12 +101,12 @@ serve(async (req) => {
       }
 
       case "move_applicant_to_phase": {
-        const { application_id, new_phase, new_status } = parameters;
+        let { application_id, new_phase, new_status } = parameters;
 
-        // Verify the application belongs to this employer
+        // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, jobs!inner(employer_id)")
+          .select("id, job_id, jobs!inner(employer_id, workflow_steps)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
@@ -115,7 +115,32 @@ serve(async (req) => {
           throw new Error("Application not found or access denied");
         }
 
-        const updates: any = { phase: new_phase, updated_at: new Date().toISOString() };
+        // Normalize the phase name to match actual workflow step IDs
+        const workflowSteps = ((app.jobs as any)?.workflow_steps as any[]) || [];
+        const allPhases = [
+          { id: "application", type: "application", title: "Application" },
+          ...workflowSteps.map((s: any) => ({ id: s.id, type: s.type, title: s.title })),
+          { id: "review", type: "review", title: "Review" },
+          { id: "interview", type: "interview", title: "Interview" },
+          { id: "hired", type: "hired", title: "Hired" }
+        ];
+
+        // Try to find matching phase by id, type, normalized type, or title
+        const normalizedInput = new_phase.toLowerCase().replace(/[\s-]/g, '_');
+        const matchedPhase = allPhases.find(p => 
+          p.id === new_phase || 
+          p.type === new_phase ||
+          p.type === normalizedInput ||
+          p.id.toLowerCase() === normalizedInput ||
+          p.title?.toLowerCase() === new_phase.toLowerCase() ||
+          p.title?.toLowerCase().replace(/[\s-]/g, '_') === normalizedInput
+        );
+
+        // Use the actual step ID if found, otherwise keep the original
+        const normalizedPhase = matchedPhase ? matchedPhase.id : new_phase;
+        console.log(`Phase normalization: "${new_phase}" -> "${normalizedPhase}" (matched: ${matchedPhase?.title || 'none'})`);
+
+        const updates: any = { phase: normalizedPhase, updated_at: new Date().toISOString() };
         if (new_status) {
           updates.status = new_status;
         }
@@ -127,7 +152,7 @@ serve(async (req) => {
 
         if (updateError) throw updateError;
 
-        result = { success: true, application_id, new_phase, new_status };
+        result = { success: true, application_id, new_phase: normalizedPhase, new_status, matched_title: matchedPhase?.title };
         break;
       }
 
