@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
@@ -6,12 +7,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Plus, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2 } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 // Get display status based on document state and user role
 const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
@@ -44,6 +57,11 @@ export default function Documents() {
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithApplication | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<DocumentWithApplication | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const pendingDocs = documents?.filter(d => d.status === "pending") || [];
   const signedDocs = documents?.filter(d => d.status === "signed") || [];
@@ -56,6 +74,44 @@ export default function Documents() {
       setViewerOpen(true);
     } else {
       setSigningDialogOpen(true);
+    }
+  };
+
+  const handleDeleteClick = (doc: DocumentWithApplication, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDocumentToDelete(doc);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", documentToDelete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Document Deleted",
+        description: "The document has been permanently deleted.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    } catch (error: any) {
+      console.error("Error deleting document:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete document.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
     }
   };
 
@@ -95,6 +151,14 @@ export default function Documents() {
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => handleDeleteClick(doc, e)}
+              >
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -166,6 +230,46 @@ export default function Documents() {
       <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
       <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
       <SignedDocumentViewer document={selectedDocument} open={viewerOpen} onOpenChange={setViewerOpen} />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Document
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to delete <strong>"{documentToDelete?.name}"</strong>?
+              </p>
+              <p className="text-destructive font-medium">
+                ⚠️ This action cannot be undone. The document and all associated signatures will be permanently deleted.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Permanently
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
