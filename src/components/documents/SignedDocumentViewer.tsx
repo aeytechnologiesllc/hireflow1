@@ -186,6 +186,109 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     URL.revokeObjectURL(url);
   };
 
+  // Render document content with inline embedded signatures
+  const renderDocumentWithSignatures = () => {
+    if (!documentData?.content) return <span className="text-muted-foreground">Loading document...</span>;
+
+    const content = documentData.content;
+    const lines = content.split('\n');
+    
+    // Patterns for signature lines
+    const candidatePatterns = [
+      /^(Employee Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Candidate Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Recipient Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Employee:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+    ];
+    
+    const employerPatterns = [
+      /^(Company Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Employer Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Authorized Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(Authorized Signatory:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+      /^(For .*?:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
+    ];
+
+    return lines.map((line, index) => {
+      // Check if line matches candidate signature pattern
+      const isCandidateLine = candidatePatterns.some(pattern => pattern.test(line.trim()));
+      const isEmployerLine = employerPatterns.some(pattern => pattern.test(line.trim()));
+
+      if (isCandidateLine && candidateSignature) {
+        const labelMatch = line.match(/^([^:]+:?\s*)/);
+        const label = labelMatch ? labelMatch[1] : "Employee Signature: ";
+        
+        return (
+          <div key={index} className="my-6">
+            <div className="flex items-end gap-8">
+              <div className="flex-1">
+                <span className="text-foreground">{label}</span>
+                <div className="mt-2 border-b-2 border-foreground/30 pb-1">
+                  <img 
+                    src={candidateSignature} 
+                    alt="Candidate signature" 
+                    className="h-12 object-contain"
+                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
+                  />
+                </div>
+              </div>
+              <div className="w-40">
+                <span className="text-foreground">Date: </span>
+                <div className="mt-2 border-b-2 border-foreground/30 pb-1">
+                  <span className="text-primary font-medium">
+                    {document?.candidate_signed_at 
+                      ? format(new Date(document.candidate_signed_at), "MM/dd/yyyy")
+                      : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (isEmployerLine && employerSignature) {
+        const labelMatch = line.match(/^([^:]+:?\s*)/);
+        const label = labelMatch ? labelMatch[1] : "Company Representative: ";
+        
+        return (
+          <div key={index} className="my-6">
+            <div className="flex items-end gap-8">
+              <div className="flex-1">
+                <span className="text-foreground">{label}</span>
+                <div className="mt-2 border-b-2 border-foreground/30 pb-1">
+                  <img 
+                    src={employerSignature} 
+                    alt="Employer signature" 
+                    className="h-12 object-contain"
+                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
+                  />
+                </div>
+              </div>
+              <div className="w-40">
+                <span className="text-foreground">Date: </span>
+                <div className="mt-2 border-b-2 border-foreground/30 pb-1">
+                  <span className="text-primary font-medium">
+                    {document?.employer_signed_at 
+                      ? format(new Date(document.employer_signed_at), "MM/dd/yyyy")
+                      : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Regular line - preserve whitespace
+      return (
+        <div key={index} className="whitespace-pre-wrap">
+          {line || '\u00A0'}
+        </div>
+      );
+    });
+  };
+
   if (!document) return null;
 
   return (
@@ -243,11 +346,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     </div>
                   </div>
 
-                  {/* Document Body */}
+                  {/* Document Body with Embedded Signatures */}
                   <div className="p-8">
-                    <pre className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-foreground">
-                      {documentData?.content || "Loading document..."}
-                    </pre>
+                    <div className="font-serif text-sm leading-relaxed text-foreground">
+                      {renderDocumentWithSignatures()}
+                    </div>
                   </div>
 
                   {/* Signatures Section */}
