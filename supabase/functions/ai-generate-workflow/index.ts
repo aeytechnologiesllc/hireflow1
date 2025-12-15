@@ -124,7 +124,7 @@ Choose appropriate steps based on the job role:
 - portfolio_upload: For creative/technical roles (config: {"portfolio_type": "general"})
 - chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
 - chat_interview: For roles requiring strong communication/interpersonal skills (config: {"focus": "behavioral"})
-- sales_simulation: ONLY for sales roles (config: {})
+- sales_simulation: For sales, business development, and account management roles - tests pitching and objection handling (config: {"product": "enterprise solution"})
 
 Random Seed: ${randomSeed}
 
