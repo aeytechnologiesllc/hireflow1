@@ -183,3 +183,16 @@
     background-position: -200% 0;
   }
 }
+
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0) translateX(-50%);
+  }
+  50% {
+    transform: translateY(-8px) translateX(-50%);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s infinite ease-in-out;
+}
