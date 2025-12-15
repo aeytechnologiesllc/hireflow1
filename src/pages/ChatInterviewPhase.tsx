@@ -17,10 +17,9 @@ import {
   Send,
   CheckCircle,
   Loader2,
-  Bot,
   User,
   Clock,
-  Sparkles
+  MessageSquare
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -71,6 +70,7 @@ export default function ChatInterviewPhase() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
+  const [isBlurred, setIsBlurred] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +105,26 @@ export default function ChatInterviewPhase() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Anti-cheat: Blur content when page loses focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsBlurred(document.hidden);
+    };
+    
+    const handleBlur = () => setIsBlurred(true);
+    const handleFocus = () => setIsBlurred(false);
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   // Calculate interview duration
   const getDuration = () => {
@@ -432,7 +452,7 @@ export default function ChatInterviewPhase() {
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
           status: newStatus as any,
-          phase_ai_analysis: `Chat interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
+          phase_ai_analysis: `Interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
         })
         .eq("id", id!);
 
@@ -450,6 +470,34 @@ export default function ChatInterviewPhase() {
       setState("interviewing");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Anti-cheat handlers
+  const preventCopyPaste = (e: React.ClipboardEvent | React.MouseEvent) => {
+    e.preventDefault();
+    toast.error("Copy/paste is disabled during the interview");
+  };
+
+  const preventContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Block common shortcuts for copying/pasting/printing/screenshots
+    if (e.ctrlKey || e.metaKey) {
+      if (['c', 'v', 'p', 'a', 's'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        toast.error("Keyboard shortcuts are disabled during the interview");
+      }
+    }
+    // Block PrintScreen
+    if (e.key === 'PrintScreen') {
+      e.preventDefault();
+    }
+    // Allow Enter to send message
+    if (e.key === "Enter" && !e.shiftKey && state === "interviewing") {
+      sendMessage();
     }
   };
 
@@ -494,7 +542,7 @@ export default function ChatInterviewPhase() {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="AI Interview"
+        phaseName="Professional Interview"
         score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
@@ -505,7 +553,25 @@ export default function ChatInterviewPhase() {
   const canEndInterview = questionCount >= minQuestions;
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div 
+      className="space-y-6 max-w-3xl mx-auto relative"
+      onCopy={preventCopyPaste}
+      onPaste={preventCopyPaste}
+      onCut={preventCopyPaste}
+      onContextMenu={preventContextMenu}
+      onKeyDown={handleKeyDown}
+    >
+      {/* Blur overlay when page loses focus */}
+      {isBlurred && state === "interviewing" && (
+        <div className="fixed inset-0 z-50 backdrop-blur-xl bg-background/80 flex items-center justify-center">
+          <div className="text-center p-8">
+            <MessageSquare className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Interview Paused</h2>
+            <p className="text-muted-foreground">Click anywhere to continue your interview</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button 
@@ -519,7 +585,7 @@ export default function ChatInterviewPhase() {
         
         <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
           <Users className="h-4 w-4" />
-          AI Interview
+          Professional Interview
         </Badge>
       </div>
 
@@ -527,8 +593,8 @@ export default function ChatInterviewPhase() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI-Conducted Interview
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Professional Interview
           </CardTitle>
           <p className="text-muted-foreground">
             For: {application.jobs?.title}
@@ -539,29 +605,29 @@ export default function ChatInterviewPhase() {
             <div className="space-y-6">
               <div className="bg-muted/30 rounded-lg p-6 space-y-4">
                 <h3 className="font-semibold text-foreground">How This Works</h3>
-                <ul className="space-y-2 text-muted-foreground text-sm">
-                  <li className="flex items-start gap-2">
-                    <Bot className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>AVA has reviewed your application and will conduct a personalized interview</span>
+                <ul className="space-y-3 text-muted-foreground text-sm">
+                  <li className="flex items-start gap-3">
+                    <MessageSquare className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                    <span>Your interviewer has reviewed your application materials and will conduct a personalized interview</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Users className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>This is a two-way conversation - feel free to ask questions at any point</span>
+                  <li className="flex items-start gap-3">
+                    <Users className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                    <span>This is a two-way conversation — feel free to ask questions at any point</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Clock className="h-4 w-4 mt-0.5 text-primary" />
+                  <li className="flex items-start gap-3">
+                    <Clock className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                     <span>The interview typically takes 10-15 minutes</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>AVA will ask if you have any questions before concluding</span>
+                  <li className="flex items-start gap-3">
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                    <span>You'll have a chance to ask questions before concluding</span>
                   </li>
                 </ul>
               </div>
               
               <div className="text-center">
                 <Button onClick={startInterview} size="lg" className="gap-2">
-                  <Sparkles className="h-5 w-5" />
+                  <MessageSquare className="h-5 w-5" />
                   Start Interview
                 </Button>
               </div>
@@ -597,7 +663,11 @@ export default function ChatInterviewPhase() {
               </div>
 
               {/* Chat Area */}
-              <ScrollArea className="h-[400px] rounded-lg border border-border p-4" ref={scrollRef}>
+              <ScrollArea 
+                className="h-[400px] rounded-lg border border-border p-4 select-none" 
+                ref={scrollRef}
+                style={{ userSelect: 'none' }}
+              >
                 <div className="space-y-4">
                   {messages.map((message) => (
                     <div
@@ -608,22 +678,19 @@ export default function ChatInterviewPhase() {
                     >
                       {message.role === "assistant" && (
                         <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/20 text-primary">
-                            <Bot className="h-4 w-4" />
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
+                            HF
                           </AvatarFallback>
                         </Avatar>
                       )}
                       <div
-                        className={`max-w-[70%] rounded-lg p-3 ${
+                        className={`max-w-[75%] rounded-xl px-4 py-3 ${
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted"
                         }`}
                       >
-                        {message.role === "assistant" && (
-                          <p className="text-xs font-medium mb-1 opacity-70">AVA</p>
-                        )}
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                       </div>
                       {message.role === "user" && (
                         <Avatar className="h-8 w-8">
@@ -638,15 +705,15 @@ export default function ChatInterviewPhase() {
                   {isTyping && (
                     <div className="flex gap-3 justify-start">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-primary/20 text-primary">
-                          <Bot className="h-4 w-4" />
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
+                          HF
                         </AvatarFallback>
                       </Avatar>
-                      <div className="bg-muted rounded-lg p-3">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <div className="bg-muted rounded-xl px-4 py-3">
+                        <div className="flex gap-1.5">
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
                       </div>
                     </div>
@@ -661,7 +728,7 @@ export default function ChatInterviewPhase() {
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                    onPaste={preventCopyPaste}
                     placeholder="Type your response..."
                     disabled={isTyping}
                     className="flex-1"
@@ -691,7 +758,7 @@ export default function ChatInterviewPhase() {
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
                   <p className="text-foreground font-medium">Evaluating your interview...</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AVA is reviewing your responses
+                    Reviewing your responses
                   </p>
                 </div>
               )}
