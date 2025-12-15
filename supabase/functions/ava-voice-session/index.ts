@@ -185,7 +185,8 @@ You can:
 - Answer questions about applicants, jobs, and hiring metrics
 - Help move applicants between phases
 - Provide insights on hiring progress
-- Schedule interviews and send documents
+- Navigate to any page: "open messages", "go to analytics", "show me jobs"
+- Navigate to specific applicants or jobs
 
 Be conversational, helpful, and proactive. Keep responses concise for voice interaction. If asked to take an action, confirm before executing.`;
 
@@ -263,6 +264,23 @@ Be conversational, helpful, and proactive. Keep responses concise for voice inte
               limit: { type: "number", description: "Number of applicants to return (default 5)" },
               job_id: { type: "string", description: "Optional job ID filter" }
             }
+          }
+        },
+        {
+          type: "function",
+          name: "navigate_to_page",
+          description: "Navigate the employer to a specific page in the dashboard. Use when user asks to 'open', 'go to', 'show me', or 'take me to' a page.",
+          parameters: {
+            type: "object",
+            properties: {
+              page: { 
+                type: "string", 
+                description: "The page to navigate to",
+                enum: ["dashboard", "jobs", "create_job", "applicants", "applicant", "interviews", "messages", "documents", "team", "analytics", "settings", "notifications", "job"]
+              },
+              entity_id: { type: "string", description: "Optional ID for entity-specific pages like a specific applicant or job" }
+            },
+            required: ["page"]
           }
         }
       ];
