@@ -806,15 +806,6 @@ Resume URL: ${resumeUrl || "Not provided"}
                   />
                 </div>
 
-                <div className="flex items-center gap-2 p-4 rounded-lg bg-primary/10 border border-primary/20">
-                  <Sparkles className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">AI-Powered Analysis</p>
-                    <p className="text-sm text-muted-foreground">
-                      Your application will be analyzed by AI to help match you with this role
-                    </p>
-                  </div>
-                </div>
               </motion.div>
             )}
 
