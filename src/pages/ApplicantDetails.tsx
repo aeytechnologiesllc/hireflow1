@@ -399,6 +399,7 @@ export default function ApplicantDetails() {
           phase: newPhase.id,
           notes: JSON.stringify(updatedNotes),
           phase_ai_analysis: null, // Clear phase analysis when resetting
+          ai_analysis: null, // Clear AI analysis so it can be re-run with remaining data
           ai_score: isResetToApplication ? null : application.ai_score, // Clear AI score if resetting to application
           resume_url: isResetToApplication ? null : application.resume_url, // Clear resume if resetting to application
           cover_letter: isResetToApplication ? null : application.cover_letter, // Clear cover letter if resetting to application
@@ -983,14 +984,18 @@ Resume URL: ${application.resume_url || "Not provided"}
             <>
               <div className="flex items-center gap-2 mb-4 flex-wrap">
                 <span className="text-sm text-muted-foreground">AVA analyzed:</span>
-                <Badge variant="outline" className="text-xs">
-                  <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                  Resume
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                  Application Answers
-                </Badge>
+                {resumeUrl && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Resume
+                  </Badge>
+                )}
+                {(parsedNotes.applicationAnswers?.length > 0 || application.cover_letter) && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Application Answers
+                  </Badge>
+                )}
               </div>
 
               {/* Recommendation */}
