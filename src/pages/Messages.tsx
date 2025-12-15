@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers } from "@/hooks/useMessages";
+import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers, useDeleteConversation } from "@/hooks/useMessages";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Send, Plus, Briefcase } from "lucide-react";
+import { MessageSquare, Search, Send, Plus, Briefcase, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 function formatMessageDate(date: Date) {
   if (isToday(date)) return format(date, "h:mm a");
@@ -36,6 +48,7 @@ export default function Messages() {
   const { data: messages, isLoading: isLoadingMessages } = useMessages(selectedContactId);
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
+  const deleteConversation = useDeleteConversation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConversation = conversations?.find((c) => c.contact_id === selectedContactId);
@@ -47,6 +60,17 @@ export default function Messages() {
     const email = conv.contact_profile?.email?.toLowerCase() || "";
     return name.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
   });
+
+  const handleDeleteConversation = async () => {
+    if (!selectedContactId) return;
+    try {
+      await deleteConversation.mutateAsync(selectedContactId);
+      setSelectedContactId(null);
+      toast.success("Conversation deleted");
+    } catch (error) {
+      toast.error("Failed to delete conversation");
+    }
+  };
 
   // Get employers the candidate can message but hasn't yet
   const newContactOptions = messageableEmployers?.filter(
@@ -254,7 +278,7 @@ export default function Messages() {
                   {getInitials(selectedConversation?.contact_profile || selectedEmployer?.employer_profile)}
                 </AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-foreground">
                   {getContactName()}
                 </p>
@@ -263,11 +287,35 @@ export default function Messages() {
                 </p>
               </div>
               {selectedEmployer && (
-                <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Briefcase className="h-4 w-4" />
                   <span>{selectedEmployer.job_title}</span>
                 </div>
               )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this entire conversation? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleDeleteConversation}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
 
             {/* Messages */}
