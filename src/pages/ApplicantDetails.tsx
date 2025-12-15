@@ -24,7 +24,7 @@ import {
   XCircle, GripHorizontal, Clock, RefreshCw, 
   FileCheck, ClipboardList, Video, Keyboard, 
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
-  Calendar, AlertTriangle
+  Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import type { Tables } from "@/integrations/supabase/types";
@@ -1280,12 +1280,64 @@ Resume URL: ${application.resume_url || "Not provided"}
                                   <p className="text-xs text-muted-foreground">/100</p>
                                 </div>
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-foreground">
-                                    Recommendation: <span className="text-primary">{dialogData.content.evaluation.recommendation || "N/A"}</span>
-                                  </p>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-medium text-foreground">
+                                      Recommendation: <span className={`font-bold ${
+                                        dialogData.content.evaluation.recommendation === "Strong Hire" ? "text-success" :
+                                        dialogData.content.evaluation.recommendation === "Hire" ? "text-success" :
+                                        dialogData.content.evaluation.recommendation === "Maybe" ? "text-warning" : "text-destructive"
+                                      }`}>{dialogData.content.evaluation.recommendation || "N/A"}</span>
+                                    </p>
+                                    {/* Credibility Rating Badge */}
+                                    {dialogData.content.evaluation.credibilityRating && (
+                                      <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        dialogData.content.evaluation.credibilityRating === "High" ? "bg-success/20 text-success" :
+                                        dialogData.content.evaluation.credibilityRating === "Medium" ? "bg-warning/20 text-warning" : "bg-destructive/20 text-destructive"
+                                      }`}>
+                                        {dialogData.content.evaluation.credibilityRating === "High" ? (
+                                          <ShieldCheck className="h-3 w-3" />
+                                        ) : dialogData.content.evaluation.credibilityRating === "Medium" ? (
+                                          <Shield className="h-3 w-3" />
+                                        ) : (
+                                          <ShieldAlert className="h-3 w-3" />
+                                        )}
+                                        {dialogData.content.evaluation.credibilityRating} Credibility
+                                      </div>
+                                    )}
+                                  </div>
                                   <p className="text-sm text-muted-foreground mt-1">{dialogData.content.evaluation.summary}</p>
                                 </div>
                               </div>
+                              
+                              {/* Inconsistencies / Red Flags Section */}
+                              {dialogData.content.evaluation.inconsistencies?.length > 0 && (
+                                <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+                                  <h4 className="text-sm font-semibold text-destructive mb-3 flex items-center gap-2">
+                                    <ShieldAlert className="h-4 w-4" />
+                                    Red Flags Detected ({dialogData.content.evaluation.inconsistencies.length})
+                                  </h4>
+                                  <div className="space-y-3">
+                                    {dialogData.content.evaluation.inconsistencies.map((item: { claim: string; evidence: string; assessment: string }, i: number) => (
+                                      <div key={i} className="p-3 bg-background rounded-lg border border-destructive/10">
+                                        <div className="space-y-2">
+                                          <div>
+                                            <span className="text-xs font-medium text-muted-foreground">Claim:</span>
+                                            <p className="text-sm text-foreground">{item.claim}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-xs font-medium text-muted-foreground">Evidence:</span>
+                                            <p className="text-sm text-foreground">{item.evidence}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-xs font-medium text-destructive">Assessment:</span>
+                                            <p className="text-sm text-destructive">{item.assessment}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                               
                               {dialogData.content.evaluation.strengths?.length > 0 && (
                                 <div>
