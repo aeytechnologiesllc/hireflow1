@@ -42,6 +42,7 @@ interface ApplicationDetails {
   job_id: string;
   phase: string | null;
   notes: string | null;
+  status: string;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -212,8 +213,19 @@ export default function ChatSimulationPhase() {
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
       // Calculate simple metrics
-      const agentMessages = messages.filter(m => m.role === "agent");
-      const avgResponseLength = agentMessages.reduce((acc, m) => acc + m.content.length, 0) / agentMessages.length;
+      const agentMessages = messages.filter((m) => m.role === "agent");
+      const avgResponseLength =
+        agentMessages.length > 0
+          ? agentMessages.reduce((acc, m) => acc + m.content.length, 0) / agentMessages.length
+          : 0;
+      
+      // Derive a simple score from completeness and response richness
+      const minMessages = chatConfig.minMessages;
+      const completenessScore = Math.min(100, (agentMessages.length / minMessages) * 100);
+      const lengthScore = Math.min(100, (avgResponseLength / 150) * 100);
+      const score = Math.round(completenessScore * 0.6 + lengthScore * 0.4);
+      const passingScore = application.jobs?.passing_score || 60;
+      const passed = score >= passingScore;
       
       const updatedNotes = {
         ...existingNotes,
@@ -221,7 +233,7 @@ export default function ChatSimulationPhase() {
           type: "chat_simulation",
           scenario: currentScenario.scenario,
           customerName: currentScenario.customerName,
-          messages: messages.map(m => ({
+          messages: messages.map((m) => ({
             role: m.role,
             content: m.content,
             timestamp: m.timestamp.toISOString(),
@@ -231,27 +243,78 @@ export default function ChatSimulationPhase() {
             agentResponses: agentMessages.length,
             avgResponseLength: Math.round(avgResponseLength),
           },
+          score,
+          passed,
           completedAt: new Date().toISOString(),
         },
         chatSimulationResult: {
           scenario: currentScenario.scenario,
           messageCount: messages.length,
+          score,
+          passed,
           completed: true,
         },
       };
+
+      // Determine next phase based on processing mode
+      const isAutoMode = application.jobs?.processing_mode !== "manual";
+      
+      const workflowSteps = application.jobs?.workflow_steps || [];
+      const allPhases = [
+        { id: "application", type: "application" },
+        ...workflowSteps.map((step) => ({ id: step.id, type: step.type })),
+        { id: "review", type: "review" },
+        { id: "interview", type: "interview" },
+        { id: "hired", type: "hired" },
+      ];
+      
+      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(
+          (p) => p.id === application.phase || p.type === application.phase
+        );
+      }
+      
+      let newPhase = application.phase;
+      let newStatus = application.status;
+
+      if (isAutoMode) {
+        if (passed) {
+          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+            newPhase = allPhases[currentIndex + 1].id;
+          }
+          toast.success("Chat simulation submitted!", {
+            description: `You passed with a score of ${score}%. You have advanced to the next phase.`,
+          });
+        } else {
+          newStatus = "rejected";
+          toast.error("Chat simulation not passed", {
+            description: `You scored ${score}% but needed ${passingScore}% to pass. Your application for this role has been closed.`,
+          });
+        }
+      } else {
+        toast.success("Chat simulation completed!", {
+          description: "Your responses have been recorded. The employer will review your submission.",
+        });
+      }
 
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
+          phase: newPhase,
+          status: newStatus as
+            | "pending"
+            | "reviewing"
+            | "interview"
+            | "offered"
+            | "hired"
+            | "rejected",
+          phase_ai_analysis: `Chat simulation: score ${score}%. ${passed ? "PASSED" : "FAILED"}`,
         })
         .eq("id", id!);
 
       if (error) throw error;
-
-      toast.success("Chat simulation completed!", {
-        description: "Your responses have been recorded for review.",
-      });
 
       navigate(`/applications/${id}`);
     } catch (error) {

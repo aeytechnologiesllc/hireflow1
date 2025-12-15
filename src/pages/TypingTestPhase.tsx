@@ -238,15 +238,20 @@ export default function TypingTestPhase() {
       const workflowSteps = application.jobs?.workflow_steps || [];
       const allPhases = [
         { id: "application", type: "application" },
-        ...workflowSteps.map(step => ({ id: step.id, type: step.type })),
+        ...workflowSteps.map((step) => ({ id: step.id, type: step.type })),
         { id: "review", type: "review" },
         { id: "interview", type: "interview" },
         { id: "hired", type: "hired" },
       ];
       
-      // Find current step index
-      const currentIndex = allPhases.findIndex(p => p.id === stepId);
-      
+      // Find current step index - fall back to current application phase if needed
+      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(
+          (p) => p.id === application.phase || p.type === application.phase
+        );
+      }
+
       let newPhase = application.phase;
       let newStatus = application.status;
       
@@ -459,12 +464,20 @@ export default function TypingTestPhase() {
                     {results.passed ? "Great Job!" : "Test Complete"}
                   </h3>
                   <p className="text-muted-foreground">
-                    {results.passed 
-                      ? "You've passed the typing test!"
-                      : "Your results have been recorded."}
+                    {(() => {
+                      const isAutoMode = application.jobs?.processing_mode !== "manual";
+                      const passingScore = application.jobs?.passing_score || 60;
+                      if (results.passed) {
+                        return isAutoMode
+                          ? `You passed with a score of ${results.score}%. After you submit, the next phase will unlock automatically.`
+                          : `You passed with a score of ${results.score}%. The employer will review your overall application next.`;
+                      }
+                      return isAutoMode
+                        ? `You scored ${results.score}% (required ${passingScore}%). After you submit, your application for this role will be automatically rejected.`
+                        : `You scored ${results.score}% (required ${passingScore}%). Your results have been recorded for the employer to review.`;
+                    })()}
                   </p>
                 </div>
-              </div>
 
               {/* Score Cards */}
               <div className="grid grid-cols-3 gap-4">
