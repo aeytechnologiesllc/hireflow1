@@ -1,0 +1,708 @@
+import { useState, useEffect } from "react";
+import { useCreateInterview } from "@/hooks/useInterviews";
+import { useUpdateApplication } from "@/hooks/useApplications";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { format, addMinutes, setHours, setMinutes } from "date-fns";
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  Video,
+  Users,
+  Sparkles,
+  CheckCircle,
+  Loader2,
+  ChevronRight,
+  ChevronLeft,
+  Link2,
+  Mail,
+  ExternalLink,
+} from "lucide-react";
+
+interface InterviewSchedulingWizardProps {
+  applicationId: string | null;
+  candidateName: string;
+  candidateEmail?: string;
+  jobTitle?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.events";
+
+const timeSlots = [
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+];
+
+export default function InterviewSchedulingWizard({
+  applicationId,
+  candidateName,
+  candidateEmail,
+  jobTitle,
+  open,
+  onOpenChange,
+}: InterviewSchedulingWizardProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedTime, setSelectedTime] = useState("");
+  const [duration, setDuration] = useState("60");
+  const [interviewType, setInterviewType] = useState("video");
+  const [notes, setNotes] = useState("");
+  const [generateMeetLink, setGenerateMeetLink] = useState(true);
+  const [manualMeetingLink, setManualMeetingLink] = useState("");
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null);
+
+  const createInterview = useCreateInterview();
+  const updateApplication = useUpdateApplication();
+
+  const steps = [
+    { id: "calendar", title: "Select Date & Time", icon: CalendarIcon },
+    { id: "details", title: "Interview Details", icon: Users },
+    { id: "meeting", title: "Meeting Setup", icon: Video },
+    { id: "review", title: "Review & Schedule", icon: CheckCircle },
+  ];
+
+  // Check for Google OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const state = params.get("state");
+
+    if (code && state === "google_calendar_connect") {
+      handleGoogleCallback(code);
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Check for stored Google tokens
+  useEffect(() => {
+    const storedToken = localStorage.getItem("google_access_token");
+    const tokenExpiry = localStorage.getItem("google_token_expiry");
+    
+    if (storedToken && tokenExpiry) {
+      const expiry = new Date(tokenExpiry);
+      if (expiry > new Date()) {
+        setGoogleAccessToken(storedToken);
+        setIsGoogleConnected(true);
+      } else {
+        // Try to refresh
+        const refreshToken = localStorage.getItem("google_refresh_token");
+        if (refreshToken) {
+          refreshGoogleToken(refreshToken);
+        }
+      }
+    }
+  }, [open]);
+
+  const handleGoogleCallback = async (code: string) => {
+    setIsConnectingGoogle(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-calendar", {
+        body: {
+          action: "exchange_token",
+          code,
+          redirectUri: window.location.origin + window.location.pathname,
+        },
+      });
+
+      if (error) throw error;
+
+      localStorage.setItem("google_access_token", data.access_token);
+      localStorage.setItem("google_refresh_token", data.refresh_token);
+      localStorage.setItem(
+        "google_token_expiry",
+        new Date(Date.now() + data.expires_in * 1000).toISOString()
+      );
+
+      setGoogleAccessToken(data.access_token);
+      setIsGoogleConnected(true);
+      toast.success("Google Calendar connected!");
+    } catch (error: any) {
+      console.error("Google OAuth error:", error);
+      toast.error("Failed to connect Google Calendar");
+    } finally {
+      setIsConnectingGoogle(false);
+    }
+  };
+
+  const refreshGoogleToken = async (refreshToken: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("google-calendar", {
+        body: {
+          action: "refresh_token",
+          refreshToken,
+        },
+      });
+
+      if (error) throw error;
+
+      localStorage.setItem("google_access_token", data.access_token);
+      localStorage.setItem(
+        "google_token_expiry",
+        new Date(Date.now() + data.expires_in * 1000).toISOString()
+      );
+
+      setGoogleAccessToken(data.access_token);
+      setIsGoogleConnected(true);
+    } catch (error) {
+      console.error("Token refresh failed:", error);
+      localStorage.removeItem("google_access_token");
+      localStorage.removeItem("google_refresh_token");
+      localStorage.removeItem("google_token_expiry");
+    }
+  };
+
+  const connectGoogleCalendar = () => {
+    if (!GOOGLE_CLIENT_ID) {
+      toast.error("Google Calendar integration not configured", {
+        description: "Please add VITE_GOOGLE_CLIENT_ID to your environment.",
+      });
+      return;
+    }
+
+    const redirectUri = window.location.origin + window.location.pathname;
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", GOOGLE_SCOPES);
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("prompt", "consent");
+    authUrl.searchParams.set("state", "google_calendar_connect");
+
+    window.location.href = authUrl.toString();
+  };
+
+  const createCalendarEvent = async () => {
+    if (!googleAccessToken || !selectedDate || !selectedTime) return null;
+
+    const [hours, minutes] = selectedTime.split(":").map(Number);
+    const startTime = setMinutes(setHours(selectedDate, hours), minutes);
+    const endTime = addMinutes(startTime, parseInt(duration));
+
+    try {
+      const { data, error } = await supabase.functions.invoke("google-calendar", {
+        body: {
+          action: "create_event",
+          accessToken: googleAccessToken,
+          summary: `Interview: ${candidateName} - ${jobTitle || "Position"}`,
+          description: `Interview with ${candidateName} for ${jobTitle || "the position"}.\n\n${notes || ""}`,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          attendees: candidateEmail ? [candidateEmail] : [],
+          createMeetLink: generateMeetLink,
+        },
+      });
+
+      if (error) throw error;
+
+      return data;
+    } catch (error: any) {
+      console.error("Calendar event creation failed:", error);
+      throw error;
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!applicationId || !selectedDate || !selectedTime) return;
+
+    setIsCreating(true);
+    try {
+      let meetingLink = manualMeetingLink;
+
+      // Create Google Calendar event with Meet link if connected
+      if (isGoogleConnected && generateMeetLink) {
+        const eventResult = await createCalendarEvent();
+        if (eventResult?.meetLink) {
+          meetingLink = eventResult.meetLink;
+          setCreatedMeetLink(meetingLink);
+        }
+      }
+
+      const [hours, minutes] = selectedTime.split(":").map(Number);
+      const scheduledAt = setMinutes(setHours(selectedDate, hours), minutes);
+
+      await createInterview.mutateAsync({
+        application_id: applicationId,
+        scheduled_at: scheduledAt.toISOString(),
+        duration_minutes: parseInt(duration),
+        interview_type: interviewType,
+        meeting_link: meetingLink || null,
+        notes: notes || null,
+      });
+
+      await updateApplication.mutateAsync({
+        id: applicationId,
+        status: "interview",
+      });
+
+      toast.success("Interview scheduled successfully!", {
+        description: meetingLink ? "Calendar invite and Meet link have been created." : undefined,
+      });
+
+      onOpenChange(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to schedule interview");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetForm = () => {
+    setCurrentStep(0);
+    setSelectedDate(undefined);
+    setSelectedTime("");
+    setDuration("60");
+    setInterviewType("video");
+    setNotes("");
+    setManualMeetingLink("");
+    setCreatedMeetLink(null);
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0:
+        return selectedDate && selectedTime;
+      case 1:
+        return true;
+      case 2:
+        return true;
+      case 3:
+        return true;
+      default:
+        return true;
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+        {/* Progress Header */}
+        <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                {(() => {
+                  const StepIcon = steps[currentStep]?.icon;
+                  return StepIcon ? <StepIcon className="h-5 w-5 text-primary" /> : null;
+                })()}
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">{steps[currentStep]?.title}</h2>
+                <p className="text-sm text-muted-foreground">
+                  Scheduling interview with {candidateName}
+                </p>
+              </div>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              Step {currentStep + 1} of {steps.length}
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="flex gap-2">
+            {steps.map((step, index) => (
+              <div
+                key={step.id}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  index <= currentStep ? "bg-primary" : "bg-muted"
+                )}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          <AnimatePresence mode="wait">
+            {/* Step 1: Calendar */}
+            {currentStep === 0 && (
+              <motion.div
+                key="calendar"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Date Picker */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Select Date</Label>
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      disabled={(date) => date < new Date()}
+                      className={cn("rounded-lg border p-3 pointer-events-auto bg-background")}
+                    />
+                  </div>
+
+                  {/* Time Slots */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Select Time</Label>
+                    <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-2">
+                      {timeSlots.map((time) => (
+                        <Button
+                          key={time}
+                          type="button"
+                          variant={selectedTime === time ? "default" : "outline"}
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setSelectedTime(time)}
+                        >
+                          {time}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedDate && selectedTime && (
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 text-primary">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">
+                        {format(selectedDate, "EEEE, MMMM d, yyyy")} at {selectedTime}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Step 2: Details */}
+            {currentStep === 1 && (
+              <motion.div
+                key="details"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Duration</Label>
+                    <Select value={duration} onValueChange={setDuration}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="45">45 minutes</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                        <SelectItem value="90">1.5 hours</SelectItem>
+                        <SelectItem value="120">2 hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Interview Type</Label>
+                    <Select value={interviewType} onValueChange={setInterviewType}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="video">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-4 w-4" />
+                            Video Call
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="phone">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            Phone Call
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="in-person">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            In Person
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Interview Notes (Optional)</Label>
+                  <Textarea
+                    placeholder="Topics to cover, interview format, preparation instructions..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                    className="resize-none bg-background"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 3: Meeting Setup */}
+            {currentStep === 2 && (
+              <motion.div
+                key="meeting"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                {interviewType === "video" && (
+                  <>
+                    {/* Google Calendar Connection */}
+                    <div className="p-4 rounded-lg border border-border bg-card">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center">
+                          <CalendarIcon className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground">Google Calendar Integration</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Connect to automatically create calendar events and Google Meet links
+                          </p>
+                          
+                          {isGoogleConnected ? (
+                            <div className="mt-3 flex items-center gap-2">
+                              <Badge className="bg-success/20 text-success">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Connected
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  localStorage.removeItem("google_access_token");
+                                  localStorage.removeItem("google_refresh_token");
+                                  localStorage.removeItem("google_token_expiry");
+                                  setIsGoogleConnected(false);
+                                  setGoogleAccessToken(null);
+                                }}
+                              >
+                                Disconnect
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="mt-3 gap-2"
+                              onClick={connectGoogleCalendar}
+                              disabled={isConnectingGoogle}
+                            >
+                              {isConnectingGoogle ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ExternalLink className="h-4 w-4" />
+                              )}
+                              Connect Google Calendar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meet Link Options */}
+                    {isGoogleConnected && (
+                      <div className="space-y-3">
+                        <Label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={generateMeetLink}
+                            onChange={(e) => setGenerateMeetLink(e.target.checked)}
+                            className="rounded"
+                          />
+                          <span>Generate Google Meet link automatically</span>
+                        </Label>
+                      </div>
+                    )}
+
+                    {/* Manual Link */}
+                    {(!isGoogleConnected || !generateMeetLink) && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Meeting Link</Label>
+                        <div className="relative">
+                          <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="https://meet.google.com/... or https://zoom.us/j/..."
+                            value={manualMeetingLink}
+                            onChange={(e) => setManualMeetingLink(e.target.value)}
+                            className="pl-10 bg-background"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {interviewType !== "video" && (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No meeting link required for {interviewType} interviews.</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Step 4: Review */}
+            {currentStep === 3 && (
+              <motion.div
+                key="review"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 border-b border-border">
+                    <h3 className="font-semibold text-foreground flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      Interview Summary
+                    </h3>
+                  </div>
+                  
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Users className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Candidate</p>
+                        <p className="font-medium">{candidateName}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Date & Time</p>
+                        <p className="font-medium">
+                          {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""} at {selectedTime}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Duration</p>
+                        <p className="font-medium">{duration} minutes</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Video className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Type</p>
+                        <p className="font-medium capitalize">{interviewType} Interview</p>
+                      </div>
+                    </div>
+
+                    {interviewType === "video" && (
+                      <div className="flex items-center gap-3">
+                        <Link2 className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Meeting</p>
+                          <p className="font-medium">
+                            {isGoogleConnected && generateMeetLink
+                              ? "Google Meet link will be generated"
+                              : manualMeetingLink || "No link provided"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {notes && (
+                      <div className="flex items-start gap-3 pt-2 border-t border-border">
+                        <Sparkles className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Notes</p>
+                          <p className="text-sm">{notes}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {candidateEmail && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Calendar invite will be sent to {candidateEmail}
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-border p-4 flex justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={currentStep === 0 ? () => onOpenChange(false) : handleBack}
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            {currentStep === 0 ? "Cancel" : "Back"}
+          </Button>
+
+          {currentStep < steps.length - 1 ? (
+            <Button onClick={handleNext} disabled={!canProceed()}>
+              Next
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          ) : (
+            <Button onClick={handleSchedule} disabled={isCreating}>
+              {isCreating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              Schedule Interview
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
