@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Phone, PhoneOff, Loader2, X, MessageSquare, Lock, Clock } from "lucide-react";
+import { Mic, Loader2, X, MessageSquare, Lock, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -85,27 +85,35 @@ export default function AvaVoiceButton() {
     onToolCall: handleToolCall,
   });
 
+  // Toggle button click - immediately starts/stops conversation
   const handleButtonClick = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired') {
       setShowUpgradeDialog(true);
-    } else {
-      setIsOpen(!isOpen);
+      return;
     }
-  };
 
-  const handleToggle = () => {
     if (isConnected) {
+      // Toggle OFF - disconnect and close panel
       disconnect();
+      setIsOpen(false);
     } else {
+      // Toggle ON - connect immediately and open panel
       if (voiceAccessState === 'trial') {
         toast.info(`Voice trial active - ${formatMinutes(voiceMinutesRemaining)} remaining`);
       }
       connect();
+      setIsOpen(true);
     }
   };
 
+  // Close panel and disconnect
+  const handleClose = () => {
+    disconnect();
+    setIsOpen(false);
+  };
+
   const handleSendText = () => {
-    if (textInput.trim()) {
+    if (textInput.trim() && isConnected) {
       sendTextMessage(textInput.trim());
       setTextInput("");
     }
@@ -169,7 +177,7 @@ export default function AvaVoiceButton() {
     if (isConnected) {
       return <Mic className={cn("h-6 w-6 text-white", isListening && "animate-pulse")} />;
     }
-    return <MessageSquare className="h-6 w-6 text-white" />;
+    return <Mic className="h-6 w-6 text-white" />;
   };
 
   const enterprisePrice = pricing.enterprise.monthlyFormatted;
@@ -184,6 +192,7 @@ export default function AvaVoiceButton() {
       >
         <Button
           onClick={handleButtonClick}
+          disabled={isConnecting}
           className={cn(
             "h-14 w-14 rounded-full shadow-lg transition-all duration-300 relative",
             getButtonStyles(),
@@ -244,11 +253,7 @@ export default function AvaVoiceButton() {
                 <div
                   className={cn(
                     "h-10 w-10 rounded-full flex items-center justify-center",
-                    isConnected
-                      ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                      : voiceAccessState === 'trial'
-                      ? "bg-gradient-to-r from-blue-500 to-cyan-500"
-                      : "bg-gradient-to-r from-purple-500 to-pink-500"
+                    "bg-gradient-to-r from-emerald-500 to-teal-400"
                   )}
                 >
                   <span className="text-white font-bold text-sm">AVA</span>
@@ -256,15 +261,13 @@ export default function AvaVoiceButton() {
                 <div>
                   <h3 className="font-semibold text-foreground">AVA Voice Assistant</h3>
                   <p className="text-xs text-muted-foreground">
-                    {isConnected
-                      ? isSpeaking
-                        ? "Speaking..."
-                        : isListening
-                        ? "Listening..."
-                        : "Connected"
+                    {isSpeaking
+                      ? "Speaking..."
+                      : isListening
+                      ? "Listening..."
                       : voiceAccessState === 'trial'
                       ? `Trial: ${formatMinutes(voiceMinutesRemaining)} left`
-                      : "Disconnected"}
+                      : "Connected"}
                   </p>
                 </div>
               </div>
@@ -272,7 +275,7 @@ export default function AvaVoiceButton() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -282,11 +285,9 @@ export default function AvaVoiceButton() {
             <ScrollArea className="h-64 p-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                  <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
+                  <Mic className="h-8 w-8 mb-2 opacity-50" />
                   <p className="text-sm">
-                    {isConnected
-                      ? "Start speaking or type a message"
-                      : "Click the button below to connect"}
+                    {isListening ? "Listening..." : "Start speaking or type a message"}
                   </p>
                 </div>
               ) : (
@@ -334,52 +335,22 @@ export default function AvaVoiceButton() {
             {/* Input */}
             <div className="p-4 border-t border-border">
               {/* Text input */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2">
                 <Input
                   placeholder="Type a message..."
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSendText()}
-                  disabled={!isConnected}
                   className="flex-1"
                 />
                 <Button
                   size="icon"
                   onClick={handleSendText}
-                  disabled={!isConnected || !textInput.trim()}
+                  disabled={!textInput.trim()}
                 >
-                  <MessageSquare className="h-4 w-4" />
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
-
-              {/* Voice controls */}
-              <Button
-                onClick={handleToggle}
-                disabled={isConnecting}
-                className={cn(
-                  "w-full gap-2",
-                  isConnected
-                    ? "bg-destructive hover:bg-destructive/90"
-                    : "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500"
-                )}
-              >
-                {isConnecting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : isConnected ? (
-                  <>
-                    <PhoneOff className="h-4 w-4" />
-                    End Call
-                  </>
-                ) : (
-                  <>
-                    <Phone className="h-4 w-4" />
-                    Start Voice Call
-                  </>
-                )}
-              </Button>
 
               {error && (
                 <p className="text-xs text-destructive mt-2 text-center">{error}</p>
