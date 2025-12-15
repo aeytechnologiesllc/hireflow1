@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUpdateApplication } from "@/hooks/useApplications";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -208,6 +209,13 @@ export default function ApplicantDetails() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const updateApplication = useUpdateApplication();
+  const { data: permissions } = useTeamMemberPermissions();
+  
+  // Permission checks for team members
+  const canManagePipeline = permissions?.isTeamMember ? permissions.canManagePipeline : true;
+  const canScheduleInterviews = permissions?.isTeamMember ? permissions.canScheduleInterviews : true;
+  const canMessageCandidates = permissions?.isTeamMember ? permissions.canMessageCandidates : true;
+  const canSendDocuments = permissions?.isTeamMember ? permissions.canSendDocuments : true;
   const queryClient = useQueryClient();
   
   const [isDragging, setIsDragging] = useState(false);
@@ -732,13 +740,15 @@ Resume URL: ${application.resume_url || "Not provided"}
         </Button>
         
         <div className="flex items-center gap-3">
-          <Button 
-            onClick={() => setShowInterviewWizard(true)}
-            className="gap-2"
-          >
-            <Calendar className="h-4 w-4" />
-            Schedule Interview
-          </Button>
+          {canScheduleInterviews && (
+            <Button 
+              onClick={() => setShowInterviewWizard(true)}
+              className="gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              Schedule Interview
+            </Button>
+          )}
           <Button 
             variant="outline" 
             className="gap-2"
@@ -750,14 +760,16 @@ Resume URL: ${application.resume_url || "Not provided"}
               <span className="h-2 w-2 rounded-full bg-primary" />
             )}
           </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => setShowMessageDialog(true)}
-          >
-            <MessageSquare className="h-4 w-4" />
-            Message
-          </Button>
+          {canMessageCandidates && (
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => setShowMessageDialog(true)}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Message
+            </Button>
+          )}
         </div>
       </div>
 
@@ -771,23 +783,32 @@ Resume URL: ${application.resume_url || "Not provided"}
             </div>
             
             <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleReject}
-                className="gap-2 text-destructive border-destructive/50 hover:bg-destructive/10"
-              >
-                <XCircle className="h-4 w-4" />
-                Reject Candidate
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setShowHelpDialog(true)}
-                className="gap-2 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/15 transition-all"
-              >
-                <Move className="h-4 w-4 text-primary" />
-                <span className="text-foreground">Hold & Drag</span>
-                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
+              {canManagePipeline && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleReject}
+                  className="gap-2 text-destructive border-destructive/50 hover:bg-destructive/10"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Reject Candidate
+                </Button>
+              )}
+              {canManagePipeline && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowHelpDialog(true)}
+                  className="gap-2 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/15 transition-all"
+                >
+                  <Move className="h-4 w-4 text-primary" />
+                  <span className="text-foreground">Hold & Drag</span>
+                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              )}
+              {!canManagePipeline && (
+                <Badge variant="secondary" className="text-xs">
+                  View Only Mode
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -851,12 +872,14 @@ Resume URL: ${application.resume_url || "Not provided"}
 
             {/* Draggable avatar */}
             <div 
-              className={`absolute top-3 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 ${
-                phases[effectivePhaseIndex]?.type === "review" && !isDragging ? "animate-bounce-subtle" : ""
+              className={`absolute top-3 -translate-x-1/2 z-20 ${
+                canManagePipeline ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-70"
+              } ${
+                phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline ? "animate-bounce-subtle" : ""
               }`}
               style={{ left: `${dragPosition}%` }}
-              onMouseDown={handleDragStart}
-              onTouchStart={handleDragStart}
+              onMouseDown={canManagePipeline ? handleDragStart : undefined}
+              onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
               <Avatar className="h-10 w-10 ring-4 ring-primary/30">
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
