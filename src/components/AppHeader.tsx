@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, LogOut, Settings, User } from "lucide-react";
+import TrialCountdownBanner from "@/components/subscription/TrialCountdownBanner";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -57,6 +58,8 @@ export default function AppHeader() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
+        {/* Trial Countdown */}
+        {role === 'employer' && <TrialCountdownBanner />}
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
