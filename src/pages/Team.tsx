@@ -380,12 +380,13 @@ export default function Team() {
                             </>
                           ) : (
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleDeleteInvitation(invitation.id)}
-                              className="text-muted-foreground hover:text-destructive"
+                              className="gap-2 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                             >
                               <Trash2 className="h-4 w-4" />
+                              Delete
                             </Button>
                           )}
                         </div>
