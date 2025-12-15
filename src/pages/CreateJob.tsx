@@ -1034,41 +1034,49 @@ export default function CreateJob() {
                             className={cn(
                               "relative p-4 rounded-xl border-2 transition-all text-left overflow-hidden",
                               processingMode === "auto"
-                                ? "border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-lg shadow-primary/20"
+                                ? "border-primary bg-primary/5 shadow-[0_0_20px_-5px_hsl(var(--primary))]"
                                 : "border-border hover:border-primary/50"
                             )}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                           >
-                            {/* Animated glow effect for Auto-Pilot */}
+                            {/* Subtle pulsing border glow */}
                             {processingMode === "auto" && (
                               <motion.div
-                                className="absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20"
+                                className="absolute inset-0 rounded-xl border-2 border-primary"
                                 animate={{ 
-                                  x: ["-100%", "100%"],
+                                  opacity: [0.5, 1, 0.5],
+                                  boxShadow: [
+                                    "0 0 10px -2px hsl(var(--primary) / 0.3)",
+                                    "0 0 20px -2px hsl(var(--primary) / 0.5)",
+                                    "0 0 10px -2px hsl(var(--primary) / 0.3)"
+                                  ]
                                 }}
                                 transition={{ 
-                                  duration: 3,
+                                  duration: 2,
                                   repeat: Infinity,
-                                  ease: "linear"
+                                  ease: "easeInOut"
                                 }}
                               />
                             )}
                             <div className="relative flex items-center gap-3">
                               <motion.div
                                 animate={processingMode === "auto" ? { 
-                                  rotate: [0, 15, -15, 0],
-                                  scale: [1, 1.1, 1]
+                                  scale: [1, 1.15, 1],
                                 } : {}}
                                 transition={{ 
-                                  duration: 2,
+                                  duration: 1.5,
                                   repeat: Infinity,
                                   ease: "easeInOut"
                                 }}
+                                className={cn(
+                                  "p-2 rounded-lg",
+                                  processingMode === "auto" ? "bg-primary/20" : "bg-muted"
+                                )}
                               >
                                 <Zap className={cn(
-                                  "h-6 w-6",
-                                  processingMode === "auto" ? "text-primary" : "text-blue-500"
+                                  "h-5 w-5",
+                                  processingMode === "auto" ? "text-primary" : "text-muted-foreground"
                                 )} />
                               </motion.div>
                               <div>
@@ -1078,7 +1086,7 @@ export default function CreateJob() {
                                 )}>
                                   Auto-Pilot
                                   {processingMode === "auto" && (
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/20 text-primary">
+                                    <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground animate-pulse">
                                       Recommended
                                     </Badge>
                                   )}
@@ -1170,161 +1178,25 @@ export default function CreateJob() {
                         </AnimatePresence>
                       </div>
 
-                      {/* Premium Generate Button with Aurora Effect */}
-                      <motion.div
-                        className="relative group"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                      {/* Clean Generate Button */}
+                      <Button
+                        onClick={generateWorkflow}
+                        disabled={isGeneratingWorkflow}
+                        className="w-full gap-2"
+                        size="lg"
                       >
-                        {/* Outer glow ring */}
-                        <motion.div
-                          className="absolute -inset-1 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-400 opacity-60 blur-lg"
-                          animate={{
-                            opacity: [0.4, 0.7, 0.4],
-                            scale: [1, 1.05, 1],
-                          }}
-                          transition={{
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                          }}
-                        />
-                        
-                        {/* Rotating border gradient */}
-                        <motion.div
-                          className="absolute -inset-0.5 rounded-xl"
-                          style={{
-                            background: "conic-gradient(from 0deg, #8b5cf6, #d946ef, #06b6d4, #8b5cf6)",
-                          }}
-                          animate={{ rotate: [0, 360] }}
-                          transition={{
-                            duration: 4,
-                            repeat: Infinity,
-                            ease: "linear",
-                          }}
-                        />
-                        
-                        <Button
-                          onClick={generateWorkflow}
-                          disabled={isGeneratingWorkflow}
-                          className={cn(
-                            "relative w-full gap-3 h-14 overflow-hidden",
-                            "bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900",
-                            "hover:from-slate-800 hover:via-purple-900 hover:to-slate-800",
-                            "text-white font-bold text-base",
-                            "border-0 rounded-lg"
-                          )}
-                          size="lg"
-                        >
-                          {/* Aurora background waves */}
-                          <motion.div
-                            className="absolute inset-0 opacity-50"
-                            style={{
-                              background: "radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.3) 0%, transparent 50%)",
-                            }}
-                            animate={{
-                              scale: [1, 1.5, 1],
-                              x: ["-25%", "25%", "-25%"],
-                            }}
-                            transition={{
-                              duration: 5,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                          />
-                          <motion.div
-                            className="absolute inset-0 opacity-40"
-                            style={{
-                              background: "radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.3) 0%, transparent 50%)",
-                            }}
-                            animate={{
-                              scale: [1.5, 1, 1.5],
-                              x: ["25%", "-25%", "25%"],
-                            }}
-                            transition={{
-                              duration: 5,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                          />
-                          
-                          {/* Floating particles */}
-                          {[...Array(6)].map((_, i) => (
-                            <motion.div
-                              key={i}
-                              className="absolute w-1 h-1 rounded-full bg-white"
-                              style={{
-                                left: `${15 + i * 15}%`,
-                              }}
-                              animate={{
-                                y: [20, -20, 20],
-                                opacity: [0, 1, 0],
-                                scale: [0, 1.5, 0],
-                              }}
-                              transition={{
-                                duration: 2 + i * 0.3,
-                                repeat: Infinity,
-                                ease: "easeInOut",
-                                delay: i * 0.2,
-                              }}
-                            />
-                          ))}
-                          
-                          {isGeneratingWorkflow ? (
-                            <>
-                              {/* Pulsing orb during generation */}
-                              <motion.div
-                                className="relative"
-                                animate={{
-                                  scale: [1, 1.2, 1],
-                                }}
-                                transition={{
-                                  duration: 0.8,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                }}
-                              >
-                                <motion.div
-                                  className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400 blur-sm"
-                                  animate={{ rotate: [0, 360] }}
-                                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                />
-                                <Loader2 className="h-6 w-6 animate-spin relative z-10" />
-                              </motion.div>
-                              <span className="relative z-10">Generating Workflow...</span>
-                            </>
-                          ) : (
-                            <>
-                              {/* Icon with orbit effect */}
-                              <div className="relative">
-                                <motion.div
-                                  className="absolute -inset-2"
-                                  animate={{ rotate: [0, 360] }}
-                                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                                >
-                                  <div className="absolute top-0 left-1/2 w-1.5 h-1.5 -translate-x-1/2 rounded-full bg-cyan-400" />
-                                </motion.div>
-                                <motion.div
-                                  animate={{
-                                    scale: [1, 1.15, 1],
-                                    filter: ["brightness(1)", "brightness(1.3)", "brightness(1)"],
-                                  }}
-                                  transition={{
-                                    duration: 2,
-                                    repeat: Infinity,
-                                    ease: "easeInOut",
-                                  }}
-                                >
-                                  <Sparkles className="h-6 w-6 relative z-10 text-violet-300" />
-                                </motion.div>
-                              </div>
-                              <span className="relative z-10 bg-gradient-to-r from-white via-violet-200 to-cyan-200 bg-clip-text text-transparent">
-                                {workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}
-                              </span>
-                            </>
-                          )}
-                        </Button>
-                      </motion.div>
+                        {isGeneratingWorkflow ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Generating Workflow...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-5 w-5" />
+                            <span>{workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}</span>
+                          </>
+                        )}
+                      </Button>
                     </CardContent>
                   </Card>
                 </>
