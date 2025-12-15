@@ -1101,22 +1101,22 @@ export default function CreateJob() {
                             </div>
                           </motion.button>
 
-                          {/* Manual Review Button - Also premium with subtle glow */}
+                          {/* Manual Review Button - Green highlight */}
                           <motion.button
                             onClick={() => setProcessingMode("manual")}
                             className={cn(
                               "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                               processingMode === "manual"
-                                ? "bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80"
-                                : "bg-card/50 border border-border hover:border-slate-500/30"
+                                ? "bg-gradient-to-br from-emerald-950/80 via-green-900/60 to-emerald-950/80"
+                                : "bg-card/50 border border-border hover:border-emerald-500/30"
                             )}
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.99 }}
                             animate={processingMode === "manual" ? {
                               boxShadow: [
-                                "0 0 15px -5px rgba(148, 163, 184, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 25px -5px rgba(148, 163, 184, 0.35), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 15px -5px rgba(148, 163, 184, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                                "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 25px -5px rgba(16, 185, 129, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
                               ]
                             } : {}}
                             transition={processingMode === "manual" ? {
@@ -1128,7 +1128,7 @@ export default function CreateJob() {
                             {/* Pulsing border glow for manual */}
                             {processingMode === "manual" && (
                               <motion.div
-                                className="absolute inset-0 rounded-xl border-2 border-slate-500/60 pointer-events-none"
+                                className="absolute inset-0 rounded-xl border-2 border-emerald-500/60 pointer-events-none"
                                 animate={{ 
                                   opacity: [0.5, 0.8, 0.5],
                                 }}
@@ -1143,7 +1143,7 @@ export default function CreateJob() {
                               <div className={cn(
                                 "p-2.5 rounded-lg",
                                 processingMode === "manual" 
-                                  ? "bg-slate-600" 
+                                  ? "bg-emerald-600" 
                                   : "bg-muted/50"
                               )}>
                                 <Hand className={cn(
@@ -1158,14 +1158,14 @@ export default function CreateJob() {
                                 )}>
                                   Manual Review
                                   {processingMode === "manual" && (
-                                    <Badge className="text-[10px] px-1.5 py-0 bg-slate-500/30 text-slate-200 border border-slate-400/50">
+                                    <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">
                                       ✓
                                     </Badge>
                                   )}
                                 </div>
                                 <div className={cn(
                                   "text-xs",
-                                  processingMode === "manual" ? "text-slate-300/80" : "text-muted-foreground"
+                                  processingMode === "manual" ? "text-emerald-200/80" : "text-muted-foreground"
                                 )}>
                                   You review each phase progression
                                 </div>
