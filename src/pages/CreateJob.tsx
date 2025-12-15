@@ -9,6 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
@@ -119,6 +125,7 @@ const STEP_TYPE_INFO = {
   chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
   sales_simulation: { icon: Bot, label: "Sales Simulation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
+  chat_interview: { icon: MessageSquare, label: "AI Interview with AVA", description: "AI-powered interview" },
 };
 
 export default function CreateJob() {
@@ -419,6 +426,22 @@ export default function CreateJob() {
   // Workflow step management
   const deleteStep = (id: string) => {
     setWorkflowSteps(prev => prev.filter(s => s.id !== id));
+  };
+
+  const addWorkflowStep = (type: string) => {
+    const stepInfo = STEP_TYPE_INFO[type as keyof typeof STEP_TYPE_INFO];
+    if (!stepInfo) return;
+    
+    const newStep: WorkflowStep = {
+      id: `step_${Date.now()}`,
+      type,
+      title: stepInfo.label,
+      description: stepInfo.description,
+      required: true,
+      config: {}
+    };
+    setWorkflowSteps(prev => [...prev, newStep]);
+    toast.success(`${stepInfo.label} added to workflow`);
   };
 
   if (role !== "employer") {
@@ -1404,15 +1427,53 @@ export default function CreateJob() {
                   </Card>
 
                   {/* Workflow Steps */}
-                  {workflowSteps.length > 0 && (
-                    <Card className="bg-card border-border">
-                      <CardHeader>
-                        <CardTitle className="text-lg">Additional Workflow Steps</CardTitle>
-                        <CardDescription>
-                          {workflowSteps.length} additional evaluation steps
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
+                  <Card className="bg-card border-border">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg">Additional Workflow Steps</CardTitle>
+                          <CardDescription>
+                            {workflowSteps.length} additional evaluation steps
+                          </CardDescription>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-1">
+                              <Plus className="h-4 w-4" />
+                              Add Step
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
+                              const Icon = info.icon;
+                              const alreadyAdded = workflowSteps.some(s => s.type === type);
+                              return (
+                                <DropdownMenuItem
+                                  key={type}
+                                  onClick={() => addWorkflowStep(type)}
+                                  disabled={alreadyAdded}
+                                  className="gap-2"
+                                >
+                                  <Icon className="h-4 w-4" />
+                                  <div className="flex flex-col">
+                                    <span>{info.label}</span>
+                                    <span className="text-xs text-muted-foreground">{info.description}</span>
+                                  </div>
+                                  {alreadyAdded && <Badge variant="secondary" className="ml-auto text-xs">Added</Badge>}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {workflowSteps.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p className="text-sm">No additional steps added yet.</p>
+                          <p className="text-xs mt-1">Click "Add Step" to add workflow steps like Chat Simulation, Typing Test, etc.</p>
+                        </div>
+                      ) : (
                         <div className="space-y-3">
                           {workflowSteps.map((step) => {
                             const stepInfo = STEP_TYPE_INFO[step.type as keyof typeof STEP_TYPE_INFO];
@@ -1443,9 +1504,9 @@ export default function CreateJob() {
                             );
                           })}
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                      )}
+                    </CardContent>
+                  </Card>
                 </>
               )}
             </motion.div>
