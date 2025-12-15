@@ -15,8 +15,73 @@ export interface MessageWithProfile extends Message {
 export interface Conversation {
   contact_id: string;
   contact_profile: Tables<"profiles"> | null;
-  last_message: Message;
+  last_message: Message | null;
   unread_count: number;
+  job_title?: string;
+  application_id?: string;
+}
+
+export interface MessageableEmployer {
+  employer_id: string;
+  employer_profile: Tables<"profiles"> | null;
+  job_title: string;
+  application_id: string;
+}
+
+// Hook to get employers the candidate can message (from their applications)
+export function useMessageableEmployers() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["messageable-employers", user?.id],
+    queryFn: async () => {
+      // Get all applications for this candidate with job details
+      const { data: applications, error } = await supabase
+        .from("applications")
+        .select("id, job_id, jobs(title, employer_id)")
+        .eq("candidate_id", user!.id);
+
+      if (error) throw error;
+
+      // Get unique employer IDs
+      const employerIds = [...new Set(
+        applications
+          .map((app: any) => app.jobs?.employer_id)
+          .filter(Boolean)
+      )];
+
+      if (employerIds.length === 0) return [];
+
+      // Fetch employer profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", employerIds);
+
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
+
+      // Create messageable employers list
+      const employers: MessageableEmployer[] = applications
+        .filter((app: any) => app.jobs?.employer_id)
+        .map((app: any) => ({
+          employer_id: app.jobs.employer_id,
+          employer_profile: profileMap.get(app.jobs.employer_id) || null,
+          job_title: app.jobs.title,
+          application_id: app.id,
+        }));
+
+      // Dedupe by employer_id (keep first occurrence with job title)
+      const seen = new Set<string>();
+      return employers.filter((e) => {
+        if (seen.has(e.employer_id)) return false;
+        seen.add(e.employer_id);
+        return true;
+      });
+    },
+    enabled: !!user,
+  });
 }
 
 export function useConversations() {
