@@ -1438,7 +1438,16 @@ export default function CreateJob() {
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-1">
+                            <Button 
+                              size="sm" 
+                              className={cn(
+                                "gap-2 px-4",
+                                "bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500",
+                                "hover:from-violet-400 hover:via-purple-400 hover:to-fuchsia-400",
+                                "text-white font-semibold shadow-lg shadow-purple-500/25",
+                                "border-0"
+                              )}
+                            >
                               <Plus className="h-4 w-4" />
                               Add Step
                             </Button>
