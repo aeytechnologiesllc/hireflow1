@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useJobStats, useEmployerJobs, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
+import { useJobStats, useEmployerJobs, useDeleteJob, useCreateJob, type JobWithApplicationCount } from "@/hooks/useJobs";
 import { useApplicationStats } from "@/hooks/useApplications";
 import { useCandidateApplications } from "@/hooks/useApplications";
 import { useUpcomingInterviews } from "@/hooks/useInterviews";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,34 +119,38 @@ function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, icon
 }
 
 interface JobPostingCardProps {
-  job: Job;
-  onViewDetails: (job: Job) => void;
-  onViewWorkflow: (job: Job) => void;
-  onEdit: (job: Job) => void;
-  onDuplicate: (job: Job) => void;
+  job: JobWithApplicationCount;
+  onViewDetails: (job: JobWithApplicationCount) => void;
+  onViewWorkflow: (job: JobWithApplicationCount) => void;
+  onEdit: (job: JobWithApplicationCount) => void;
+  onDuplicate: (job: JobWithApplicationCount) => void;
   onDelete: (id: string) => void;
+  onNavigateToApplicants: (jobId: string) => void;
   isDeleting: boolean;
 }
 
-function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onDelete, isDeleting }: JobPostingCardProps) {
+function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onDelete, onNavigateToApplicants, isDeleting }: JobPostingCardProps) {
   const getApplyLink = () => {
     const baseUrl = window.location.origin;
     return `${baseUrl}/find-jobs?job=${job.id}`;
   };
 
-  const copyCode = () => {
+  const copyCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (job.job_code) {
       navigator.clipboard.writeText(job.job_code);
       toast.success("Job code copied to clipboard");
     }
   };
 
-  const copyLink = () => {
+  const copyLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(getApplyLink());
     toast.success("Application link copied to clipboard");
   };
 
-  const shareJob = async () => {
+  const shareJob = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const shareData = {
       title: `Apply for ${job.title}`,
       text: `Check out this job opportunity: ${job.title}`,
@@ -156,10 +162,12 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
         await navigator.share(shareData);
       } catch (err) {
         // User cancelled or error - fall back to copy
-        copyLink();
+        navigator.clipboard.writeText(getApplyLink());
+        toast.success("Application link copied to clipboard");
       }
     } else {
-      copyLink();
+      navigator.clipboard.writeText(getApplyLink());
+      toast.success("Application link copied to clipboard");
     }
   };
 
@@ -170,8 +178,15 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
     archived: "bg-muted text-muted-foreground",
   };
 
+  const handleCardClick = () => {
+    onNavigateToApplicants(job.id);
+  };
+
   return (
-    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
+    <Card 
+      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={handleCardClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-3 flex-1">
@@ -261,7 +276,7 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
               <span>•</span>
               <div className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                <span>0 applicants</span>
+                <span>{job.application_count} applicant{job.application_count !== 1 ? 's' : ''}</span>
               </div>
               <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
@@ -310,7 +325,7 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
 }
 
 export default function Dashboard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   
@@ -326,26 +341,57 @@ export default function Dashboard() {
   const { data: upcomingInterviews } = useUpcomingInterviews();
 
   // Job details dialog state
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Real-time subscription for application updates
+  useEffect(() => {
+    if (!user || !isEmployer) return;
+
+    const channel = supabase
+      .channel('dashboard-applications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'applications',
+        },
+        () => {
+          // Refetch jobs to update application counts
+          queryClient.invalidateQueries({ queryKey: ["jobs", "employer", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["applications", "stats", user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, isEmployer, queryClient]);
 
   const isEmployerLoading = isLoadingJobStats || isLoadingAppStats;
   const isCandidateLoading = isLoadingCandidateApps;
 
   // Job action handlers
-  const handleViewDetails = (job: Job) => {
+  const handleViewDetails = (job: JobWithApplicationCount) => {
     setSelectedJob(job);
     setShowDetailsDialog(true);
   };
 
-  const handleViewWorkflow = (job: Job) => {
+  const handleViewWorkflow = (job: JobWithApplicationCount) => {
     setSelectedJob(job);
     setShowWorkflowDialog(true);
   };
 
-  const handleEdit = (job: Job) => {
+  const handleEdit = (job: JobWithApplicationCount) => {
     navigate(`/jobs/edit/${job.id}`);
+  };
+
+  const handleNavigateToApplicants = (jobId: string) => {
+    navigate(`/applicants?job=${jobId}`);
   };
 
   const handleDuplicate = async (job: Job) => {
@@ -512,6 +558,7 @@ export default function Dashboard() {
                   onEdit={handleEdit}
                   onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
+                  onNavigateToApplicants={handleNavigateToApplicants}
                   isDeleting={deleteJob.isPending}
                 />
               ))
