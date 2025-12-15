@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, LogOut, Settings, User, Menu } from "lucide-react";
 import TrialCountdownBanner from "@/components/subscription/TrialCountdownBanner";
 
 const pageTitles: Record<string, string> = {
@@ -28,7 +28,12 @@ const pageTitles: Record<string, string> = {
   "/profile": "Profile",
 };
 
-export default function AppHeader() {
+interface AppHeaderProps {
+  onMenuClick: () => void;
+  isMobile: boolean;
+}
+
+export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,15 +55,25 @@ export default function AppHeader() {
   const pageTitle = pageTitles[location.pathname] || "Dashboard";
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 shrink-0">
-      {/* Page Title */}
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">{pageTitle}</h1>
+    <header className="h-14 md:h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
+      {/* Left side - Menu button (mobile) + Page Title */}
+      <div className="flex items-center gap-3">
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            className="h-9 w-9 text-muted-foreground hover:text-primary"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <h1 className="text-lg md:text-xl font-semibold text-foreground">{pageTitle}</h1>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
-        {/* Trial Countdown */}
+      <div className="flex items-center gap-2 md:gap-4">
+        {/* Trial Countdown - hide on very small screens */}
         {role === 'employer' && <TrialCountdownBanner />}
         {/* User Menu */}
         <DropdownMenu>
@@ -73,7 +88,7 @@ export default function AppHeader() {
                 <span className="text-sm font-medium text-foreground">{userName}</span>
                 <span className="text-xs text-muted-foreground capitalize">{role}</span>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 bg-popover border-border">
