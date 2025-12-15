@@ -46,28 +46,49 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
       to={to}
       onClick={onNavigate}
       className={cn(
-        "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+        "group relative flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-300",
         isActive
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+          ? "bg-primary/15 text-primary nav-item-active-glow"
+          : "text-muted-foreground hover:text-foreground hover:bg-primary/5",
         highlight && !isActive && "animate-pulse",
         collapsed && "justify-center px-2"
       )}
     >
-      <div className={cn("flex items-center", collapsed ? "gap-0" : "gap-3")}>
-        <Icon className={cn("h-5 w-5 shrink-0", highlight && !isActive && "text-primary")} />
-        {!collapsed && <span>{label}</span>}
+      {/* Hover glow effect */}
+      <div className={cn(
+        "absolute inset-0 rounded-lg bg-primary/0 transition-all duration-300",
+        "group-hover:bg-primary/5 group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.15)]",
+        isActive && "bg-primary/10 shadow-[0_0_25px_hsl(var(--primary)/0.2)]"
+      )} />
+      
+      <div className={cn("relative flex items-center z-10", collapsed ? "gap-0" : "gap-3")}>
+        <Icon className={cn(
+          "h-5 w-5 shrink-0 transition-all duration-300",
+          isActive && "text-primary animate-icon-glow",
+          !isActive && "group-hover:text-primary/80 group-hover:scale-110",
+          highlight && !isActive && "text-primary"
+        )} />
+        {!collapsed && (
+          <span className={cn(
+            "transition-all duration-300",
+            isActive && "text-primary font-semibold"
+          )}>
+            {label}
+          </span>
+        )}
       </div>
       {badge !== undefined && badge > 0 && !collapsed && (
         <span className={cn(
-          "px-2 py-0.5 text-xs rounded-full",
-          highlight ? "bg-primary text-primary-foreground animate-bounce" : "bg-primary text-primary-foreground"
+          "relative z-10 px-2 py-0.5 text-xs rounded-full shadow-[0_0_10px_hsl(var(--primary)/0.4)]",
+          highlight 
+            ? "bg-primary text-primary-foreground animate-bounce" 
+            : "bg-primary text-primary-foreground"
         )}>
           {badge}
         </span>
       )}
       {badge !== undefined && badge > 0 && collapsed && (
-        <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full" />
+        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
       )}
     </Link>
   );
@@ -78,7 +99,7 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
         <TooltipTrigger asChild>
           <div className="relative">{content}</div>
         </TooltipTrigger>
-        <TooltipContent side="right" className="flex items-center gap-2">
+        <TooltipContent side="right" className="flex items-center gap-2 bg-card/95 backdrop-blur-sm border-primary/20">
           {label}
           {badge !== undefined && badge > 0 && (
             <span className="px-1.5 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
@@ -151,34 +172,47 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
 
   return (
     <aside className={cn(
-      "min-h-screen bg-card border-r border-border flex flex-col shrink-0 transition-all duration-300",
+      "relative min-h-screen flex flex-col shrink-0 transition-all duration-300 sidebar-gradient-border",
+      "bg-gradient-to-b from-card via-card to-card/95",
       collapsed ? "w-16" : "w-64"
     )}>
+      {/* Animated gradient background overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
+      
+      {/* Subtle glow orbs */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 rounded-full blur-3xl animate-glow-pulse pointer-events-none" />
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent/15 rounded-full blur-3xl animate-glow-pulse pointer-events-none" style={{ animationDelay: '2s' }} />
+
       {/* Logo */}
       <div className={cn(
-        "h-16 flex items-center border-b border-border",
+        "relative z-10 h-16 flex items-center",
         collapsed ? "justify-center px-2" : "gap-3 px-6"
       )}>
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
-          <Sparkles className="h-4 w-4 text-white" />
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shrink-0 animate-logo-breathe">
+          <Sparkles className="h-4 w-4 text-primary-foreground" />
         </div>
-        {!collapsed && <span className="text-xl font-bold text-gradient">HireFlow</span>}
+        {!collapsed && (
+          <span className="text-xl font-bold text-gradient">HireFlow</span>
+        )}
       </div>
 
+      {/* Gradient divider */}
+      <div className="relative z-10 mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+
       {/* Collapse Toggle */}
-      <div className={cn("px-2 py-2 flex", collapsed ? "justify-center" : "justify-end")}>
+      <div className={cn("relative z-10 px-2 py-2 flex", collapsed ? "justify-center" : "justify-end")}>
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-300"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+      <nav className="relative z-10 flex-1 p-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <NavItem
             key={item.to}
@@ -193,23 +227,26 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
         ))}
       </nav>
 
-      {/* Bottom section */}
-      <div className="p-2 border-t border-border space-y-1">
-        <NavItem 
-          icon={Bell} 
-          label="Notifications" 
-          to="/notifications" 
-          badge={unreadNotifications || 0} 
-          collapsed={collapsed}
-          onNavigate={onNavigate}
-        />
-        <NavItem 
-          icon={Settings} 
-          label="Settings" 
-          to="/settings" 
-          collapsed={collapsed}
-          onNavigate={onNavigate}
-        />
+      {/* Bottom section with gradient divider */}
+      <div className="relative z-10">
+        <div className="mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className="p-2 space-y-1">
+          <NavItem 
+            icon={Bell} 
+            label="Notifications" 
+            to="/notifications" 
+            badge={unreadNotifications || 0} 
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+          <NavItem 
+            icon={Settings} 
+            label="Settings" 
+            to="/settings" 
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+        </div>
       </div>
     </aside>
   );

@@ -219,3 +219,118 @@
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Sidebar Premium Animations */
+@keyframes sidebar-gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    filter: blur(20px);
+  }
+  50% {
+    opacity: 0.7;
+    filter: blur(25px);
+  }
+}
+
+@keyframes border-shimmer {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 0% 200%;
+  }
+}
+
+@keyframes icon-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px hsl(160 84% 39% / 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px hsl(160 84% 39% / 0.6));
+  }
+}
+
+@keyframes logo-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px hsl(160 84% 39% / 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px hsl(160 84% 39% / 0.5);
+  }
+}
+
+.animate-sidebar-gradient {
+  animation: sidebar-gradient-shift 8s ease infinite;
+  background-size: 200% 200%;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+.animate-border-shimmer {
+  animation: border-shimmer 3s linear infinite;
+  background-size: 100% 200%;
+}
+
+.animate-icon-glow {
+  animation: icon-glow 2s ease-in-out infinite;
+}
+
+.animate-logo-breathe {
+  animation: logo-breathe 3s ease-in-out infinite;
+}
+
+/* Sidebar gradient border */
+.sidebar-gradient-border {
+  position: relative;
+}
+
+.sidebar-gradient-border::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    hsl(160 84% 39% / 0.3) 20%,
+    hsl(280 85% 65% / 0.3) 50%,
+    hsl(160 84% 39% / 0.3) 80%,
+    transparent 100%
+  );
+  animation: border-shimmer 3s linear infinite;
+  background-size: 100% 200%;
+}
+
+/* Active nav item glow effect */
+.nav-item-active-glow {
+  position: relative;
+  overflow: visible;
+}
+
+.nav-item-active-glow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: linear-gradient(180deg, hsl(160 84% 39%) 0%, hsl(280 85% 65%) 100%);
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 12px hsl(160 84% 39% / 0.6);
+}

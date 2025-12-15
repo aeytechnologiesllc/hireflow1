@@ -103,6 +103,10 @@ export default {
           from: { opacity: "0", transform: "scale(0.95)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
+        "nav-hover-glow": {
+          "0%": { boxShadow: "0 0 0 hsl(var(--primary) / 0)" },
+          "100%": { boxShadow: "0 0 20px hsl(var(--primary) / 0.3)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
