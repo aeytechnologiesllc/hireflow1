@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from "react";
-import { useConversations, useMessages, useSendMessage, useMarkAsRead } from "@/hooks/useMessages";
+import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers } from "@/hooks/useMessages";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Send } from "lucide-react";
+import { MessageSquare, Search, Send, Plus, Briefcase } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 function formatMessageDate(date: Date) {
   if (isToday(date)) return format(date, "h:mm a");
@@ -18,23 +25,33 @@ function formatMessageDate(date: Date) {
 }
 
 export default function Messages() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isCandidate = role === "candidate";
   const { data: conversations, isLoading: isLoadingConversations } = useConversations();
+  const { data: messageableEmployers } = useMessageableEmployers();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
+  const [showNewConversation, setShowNewConversation] = useState(false);
   const { data: messages, isLoading: isLoadingMessages } = useMessages(selectedContactId);
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConversation = conversations?.find((c) => c.contact_id === selectedContactId);
+  // For new conversations, find employer info
+  const selectedEmployer = messageableEmployers?.find((e) => e.employer_id === selectedContactId);
 
   const filteredConversations = conversations?.filter((conv) => {
     const name = conv.contact_profile?.full_name?.toLowerCase() || "";
     const email = conv.contact_profile?.email?.toLowerCase() || "";
     return name.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
   });
+
+  // Get employers the candidate can message but hasn't yet
+  const newContactOptions = messageableEmployers?.filter(
+    (emp) => !conversations?.some((c) => c.contact_id === emp.employer_id)
+  ) || [];
 
   // Mark messages as read when conversation is selected
   useEffect(() => {
@@ -61,11 +78,18 @@ export default function Messages() {
       await sendMessage.mutateAsync({
         receiver_id: selectedContactId,
         content: newMessage.trim(),
+        application_id: selectedEmployer?.application_id,
       });
       setNewMessage("");
+      setShowNewConversation(false);
     } catch (error) {
       console.error("Failed to send message:", error);
     }
+  };
+
+  const handleStartNewConversation = (employerId: string) => {
+    setSelectedContactId(employerId);
+    setShowNewConversation(false);
   };
 
   const getInitials = (profile: any) => {
@@ -75,12 +99,69 @@ export default function Messages() {
     return profile?.email?.[0]?.toUpperCase() || "?";
   };
 
+  const getContactName = () => {
+    if (selectedConversation?.contact_profile) {
+      return selectedConversation.contact_profile.full_name || selectedConversation.contact_profile.email || "Unknown";
+    }
+    if (selectedEmployer?.employer_profile) {
+      return selectedEmployer.employer_profile.company_name || selectedEmployer.employer_profile.full_name || selectedEmployer.employer_profile.email || "Employer";
+    }
+    return "Unknown";
+  };
+
+  const getContactEmail = () => {
+    return selectedConversation?.contact_profile?.email || selectedEmployer?.employer_profile?.email || "";
+  };
+
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-4">
       {/* Conversations List */}
       <Card className="w-80 flex-shrink-0 bg-card border-border flex flex-col">
         <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground mb-3">Messages</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-foreground">Messages</h2>
+            {isCandidate && newContactOptions.length > 0 && (
+              <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Start New Conversation</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 mt-4">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Select an employer to message about your application:
+                    </p>
+                    {newContactOptions.map((emp) => (
+                      <button
+                        key={emp.employer_id}
+                        onClick={() => handleStartNewConversation(emp.employer_id)}
+                        className="w-full p-3 rounded-lg flex items-center gap-3 hover:bg-secondary/50 transition-colors text-left border border-border"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+                            {getInitials(emp.employer_profile)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">
+                            {emp.employer_profile?.company_name || emp.employer_profile?.full_name || emp.employer_profile?.email || "Employer"}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" />
+                            {emp.job_title}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -120,13 +201,17 @@ export default function Messages() {
                       <p className="font-medium text-foreground truncate">
                         {conv.contact_profile?.full_name || conv.contact_profile?.email || "Unknown"}
                       </p>
-                      <span className="text-xs text-muted-foreground">
-                        {formatMessageDate(new Date(conv.last_message.created_at))}
-                      </span>
+                      {conv.last_message && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatMessageDate(new Date(conv.last_message.created_at))}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {conv.last_message.content}
-                    </p>
+                    {conv.last_message && (
+                      <p className="text-sm text-muted-foreground truncate">
+                        {conv.last_message.content}
+                      </p>
+                    )}
                   </div>
                   {conv.unread_count > 0 && (
                     <span className="bg-primary text-primary-foreground text-xs rounded-full px-2 py-0.5">
@@ -135,6 +220,20 @@ export default function Messages() {
                   )}
                 </button>
               ))}
+            </div>
+          ) : isCandidate && newContactOptions.length > 0 ? (
+            <div className="p-8 text-center">
+              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground mb-4">No conversations yet</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNewConversation(true)}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Start a Conversation
+              </Button>
             </div>
           ) : (
             <div className="p-8 text-center text-muted-foreground">
@@ -152,19 +251,23 @@ export default function Messages() {
             <div className="p-4 border-b border-border flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                  {getInitials(selectedConversation?.contact_profile)}
+                  {getInitials(selectedConversation?.contact_profile || selectedEmployer?.employer_profile)}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <p className="font-medium text-foreground">
-                  {selectedConversation?.contact_profile?.full_name || 
-                   selectedConversation?.contact_profile?.email || 
-                   "Unknown"}
+                  {getContactName()}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedConversation?.contact_profile?.email}
+                  {getContactEmail()}
                 </p>
               </div>
+              {selectedEmployer && (
+                <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
+                  <Briefcase className="h-4 w-4" />
+                  <span>{selectedEmployer.job_title}</span>
+                </div>
+              )}
             </div>
 
             {/* Messages */}
