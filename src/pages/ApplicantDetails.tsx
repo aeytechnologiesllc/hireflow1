@@ -24,7 +24,8 @@ import {
   XCircle, GripHorizontal, Clock, RefreshCw, 
   FileCheck, ClipboardList, Video, Keyboard, 
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
-  Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield
+  Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
+  HelpCircle, Move, Zap
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import type { Tables } from "@/integrations/supabase/types";
@@ -214,6 +215,7 @@ export default function ApplicantDetails() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
   const [showInterviewWizard, setShowInterviewWizard] = useState(false);
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [pendingPhaseChange, setPendingPhaseChange] = useState<{
     newIndex: number;
@@ -709,9 +711,14 @@ Resume URL: ${application.resume_url || "Not provided"}
                 <XCircle className="h-4 w-4" />
                 Reject Candidate
               </Button>
-              <Button variant="outline" className="gap-2">
-                <GripHorizontal className="h-4 w-4" />
-                Hold & Drag
+              <Button 
+                variant="outline" 
+                onClick={() => setShowHelpDialog(true)}
+                className="gap-2 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/15 transition-all"
+              >
+                <Move className="h-4 w-4 text-primary" />
+                <span className="text-foreground">Hold & Drag</span>
+                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
             </div>
           </div>
@@ -1588,6 +1595,99 @@ Resume URL: ${application.resume_url || "Not provided"}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hold & Drag Help Dialog */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Move className="h-5 w-5 text-primary" />
+              How to Use the Candidate Journey Slider
+            </DialogTitle>
+            <DialogDescription>
+              Easily manage candidate progress through the hiring pipeline
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* How it works */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <GripHorizontal className="h-4 w-4 text-primary" />
+                How It Works
+              </h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <strong className="text-foreground">Click and hold</strong> the candidate's avatar on the journey slider, 
+                  then <strong className="text-foreground">drag left or right</strong> to move them through the hiring phases.
+                </p>
+                <p>
+                  Release to drop them at the desired phase. The candidate will be notified of their progress update.
+                </p>
+              </div>
+            </div>
+
+            {/* Moving Forward */}
+            <div className="p-4 bg-success/5 border border-success/20 rounded-lg space-y-2">
+              <h4 className="font-semibold text-success flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4 rotate-180" />
+                Moving Forward (Right)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Advancing a candidate skips them ahead in the pipeline. Any phases they skip will be tracked 
+                so they're not penalized for assessments they didn't complete.
+              </p>
+            </div>
+
+            {/* Moving Backward */}
+            <div className="p-4 bg-warning/5 border border-warning/20 rounded-lg space-y-2">
+              <h4 className="font-semibold text-warning flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Moving Backward (Left)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Moving a candidate backward will <strong className="text-foreground">reset</strong> all phase data 
+                from the phases they're being moved back through. This allows them to redo assessments fresh.
+              </p>
+            </div>
+
+            {/* Processing Modes */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-foreground">Processing Modes</h4>
+              
+              <div className="grid gap-3">
+                <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-primary">Auto-Pilot Mode</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    AVA automatically evaluates and advances candidates based on their passing score. 
+                    You can still manually override by dragging candidates if needed.
+                  </p>
+                </div>
+                
+                <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Eye className="h-4 w-4 text-orange-500" />
+                    <span className="font-medium text-orange-500">Manual Mode</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Candidates wait at each phase for your review. Drag them forward to advance, 
+                    or backward to let them retry assessments.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setShowHelpDialog(false)}>
+              Got it!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
