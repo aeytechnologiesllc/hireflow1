@@ -30,6 +30,8 @@ export type Database = {
           resume_url: string | null
           status: Database["public"]["Enums"]["application_status"]
           updated_at: string
+          voice_interview_language: string | null
+          voice_interview_result: Json | null
         }
         Insert: {
           ai_analysis?: string | null
@@ -46,6 +48,8 @@ export type Database = {
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
+          voice_interview_language?: string | null
+          voice_interview_result?: Json | null
         }
         Update: {
           ai_analysis?: string | null
@@ -62,6 +66,8 @@ export type Database = {
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
+          voice_interview_language?: string | null
+          voice_interview_result?: Json | null
         }
         Relationships: [
           {
@@ -574,6 +580,7 @@ export type Database = {
           team_members_added: number | null
           updated_at: string
           user_id: string
+          voice_minutes_used: number | null
         }
         Insert: {
           ai_analyses_used?: number | null
@@ -587,6 +594,7 @@ export type Database = {
           team_members_added?: number | null
           updated_at?: string
           user_id: string
+          voice_minutes_used?: number | null
         }
         Update: {
           ai_analyses_used?: number | null
@@ -600,6 +608,7 @@ export type Database = {
           team_members_added?: number | null
           updated_at?: string
           user_id?: string
+          voice_minutes_used?: number | null
         }
         Relationships: []
       }
