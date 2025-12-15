@@ -157,14 +157,31 @@ export default function CandidateApplicationDetail() {
   );
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
 
+  // Parse notes to check for phase data and employer-skipped phases
+  const notes = (() => {
+    try {
+      return application?.notes ? JSON.parse(application.notes) : {};
+    } catch {
+      return {};
+    }
+  })();
+  
+  // Check if a phase was employer-skipped (candidate shouldn't be penalized)
+  const isEmployerSkipped = (phaseId: string) => {
+    return notes.employerSkippedPhases?.includes(phaseId) || false;
+  };
+  
   // Determine phase status for each step
   const getPhaseStatus = (phaseIndex: number) => {
+    const phase = phases[phaseIndex];
+    
+    // If this phase was skipped by employer, mark as completed
+    if (isEmployerSkipped(phase.id) && phaseIndex < effectivePhaseIndex) {
+      return "completed";
+    }
+    
     if (phaseIndex < effectivePhaseIndex) return "completed";
     if (phaseIndex === effectivePhaseIndex) {
-      // Check if this phase has been submitted (data exists in notes)
-      const phase = phases[phaseIndex];
-      const notes = application?.notes ? JSON.parse(application.notes) : {};
-      
       // For manual mode, show pending review if phase is current but employer hasn't advanced yet
       const isManualMode = application?.jobs?.processing_mode === "manual";
       
@@ -173,8 +190,19 @@ export default function CandidateApplicationDetail() {
         return phaseIndex === effectivePhaseIndex ? "awaiting_action" : "completed";
       }
       
-      // Check if phase data exists
-      const hasPhaseData = notes[phase.id] || notes[`${phase.type}Result`];
+      // Check if phase data exists (use type-specific keys)
+      let hasPhaseData = false;
+      if (phase.type === "typing_test") {
+        hasPhaseData = !!notes.typingTestResult;
+      } else if (phase.type === "chat_simulation") {
+        hasPhaseData = !!notes.chatSimulationResult;
+      } else if (phase.type === "quiz") {
+        hasPhaseData = !!(notes.quizAnswers?.[phase.id] || notes.quizAnswers);
+      } else if (phase.type === "video_intro") {
+        hasPhaseData = !!notes.videoIntroUrl;
+      } else {
+        hasPhaseData = !!notes[phase.id];
+      }
       
       if (hasPhaseData && isManualMode) {
         return "pending"; // Submitted, waiting for employer review
