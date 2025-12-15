@@ -488,6 +488,17 @@ export default function ChatSimulationPhase() {
     }
   };
 
+  // Check if already submitted
+  const existingResult = (() => {
+    if (!application?.notes) return null;
+    try {
+      const notes = JSON.parse(application.notes);
+      return notes.chatSimulationResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
@@ -509,6 +520,19 @@ export default function ChatSimulationPhase() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // Show already submitted view if phase was completed
+  if (existingResult) {
+    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName="Chat Simulation"
+        score={existingResult.score}
+        isManualMode={application.jobs?.processing_mode === "manual"}
+      />
     );
   }
 

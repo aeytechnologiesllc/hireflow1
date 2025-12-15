@@ -449,6 +449,17 @@ export default function ChatInterviewPhase() {
     }
   };
 
+  // Check if already submitted
+  const existingResult = (() => {
+    if (!application?.notes) return null;
+    try {
+      const notes = JSON.parse(application.notes);
+      return notes.chatInterviewResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
@@ -470,6 +481,19 @@ export default function ChatInterviewPhase() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // Show already submitted view if phase was completed
+  if (existingResult) {
+    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName="AI Interview"
+        score={existingResult.score}
+        isManualMode={application.jobs?.processing_mode === "manual"}
+      />
     );
   }
 

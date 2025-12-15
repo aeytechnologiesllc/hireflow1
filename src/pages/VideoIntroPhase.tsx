@@ -302,6 +302,17 @@ export default function VideoIntroPhase() {
     }
   };
 
+  // Check if already submitted
+  const existingResult = (() => {
+    if (!application?.notes) return null;
+    try {
+      const notes = JSON.parse(application.notes);
+      return notes.videoIntroResult || notes.videoIntroUrl ? { videoUrl: notes.videoIntroUrl } : null;
+    } catch {
+      return null;
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
@@ -323,6 +334,18 @@ export default function VideoIntroPhase() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // Show already submitted view if phase was completed
+  if (existingResult) {
+    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName="Video Introduction"
+        isManualMode={application.jobs?.processing_mode === "manual"}
+      />
     );
   }
 
