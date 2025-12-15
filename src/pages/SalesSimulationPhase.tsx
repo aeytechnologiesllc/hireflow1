@@ -29,6 +29,12 @@ interface Message {
   timestamp: Date;
 }
 
+interface AntiCheatViolation {
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'screenshot_attempt' | 'right_click';
+  timestamp: string;
+  details: string;
+}
+
 interface SalesScenario {
   id: string;
   prospectName: string;
@@ -96,6 +102,8 @@ export default function SalesSimulationPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentScenario, setCurrentScenario] = useState<SalesScenario | null>(null);
+  const [isBlurred, setIsBlurred] = useState(false);
+  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +139,87 @@ export default function SalesSimulationPhase() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Log anti-cheat violation
+  const logViolation = (type: AntiCheatViolation['type'], details: string) => {
+    if (state === "selling") {
+      setViolations(prev => [...prev, {
+        type,
+        timestamp: new Date().toISOString(),
+        details,
+      }]);
+    }
+  };
+
+  // Anti-cheat: Blur content when page loses focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && state === "selling") {
+        logViolation('tab_switch', 'User switched to another tab or window');
+      }
+      setIsBlurred(document.hidden);
+    };
+    
+    const handleBlur = () => {
+      if (state === "selling") {
+        logViolation('tab_switch', 'Window lost focus');
+      }
+      setIsBlurred(true);
+    };
+    const handleFocus = () => setIsBlurred(false);
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [state]);
+
+  // Anti-cheat handlers
+  const preventCopy = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    logViolation('copy_attempt', 'User attempted to copy content');
+    toast.error("Copy is disabled during this assessment");
+  };
+
+  const preventPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    logViolation('paste_attempt', 'User attempted to paste content');
+    toast.error("Paste is disabled during this assessment");
+  };
+
+  const preventContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    logViolation('right_click', 'User attempted right-click context menu');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
+        toast.error("Copy is disabled during this assessment");
+      } else if (e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
+        toast.error("Paste is disabled during this assessment");
+      } else if (['p', 'a', 's'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        toast.error("Keyboard shortcuts are disabled during this assessment");
+      }
+    }
+    if (e.key === 'PrintScreen') {
+      e.preventDefault();
+      logViolation('screenshot_attempt', 'User pressed PrintScreen');
+    }
+    if (e.key === "Enter" && !e.shiftKey && state === "selling") {
+      sendMessage();
+    }
+  };
 
   const streamProspectResponse = async (mode: "start" | "respond", salesRepMessage?: string) => {
     if (!currentScenario) return;
@@ -405,6 +494,16 @@ export default function SalesSimulationPhase() {
       const passingScore = application.jobs?.passing_score || 60;
       const passed = evaluation.score >= passingScore;
       
+      const antiCheatLog = {
+        violations,
+        totalViolations: violations.length,
+        tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
+        copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
+        pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
+        screenshotAttempts: violations.filter(v => v.type === 'screenshot_attempt').length,
+        rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
+      };
+
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -424,6 +523,7 @@ export default function SalesSimulationPhase() {
           },
           score: evaluation.score,
           passed,
+          antiCheatLog,
           completedAt: new Date().toISOString(),
         },
         salesSimulationResult: {
@@ -440,6 +540,12 @@ export default function SalesSimulationPhase() {
           improvements: evaluation.improvements,
           passed,
           completed: true,
+          antiCheatSummary: {
+            hasViolations: violations.length > 0,
+            violationCount: violations.length,
+            tabSwitches: antiCheatLog.tabSwitches,
+            copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts,
+          },
         },
       };
 
