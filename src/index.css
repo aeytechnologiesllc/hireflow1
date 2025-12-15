@@ -206,3 +206,16 @@
 .animate-bounce-subtle {
   animation: bounce-subtle 2s infinite ease-in-out;
 }
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px hsl(160 84% 39% / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px hsl(160 84% 39% / 0.5);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
