@@ -27,9 +27,11 @@ interface ApplicationDetails {
   job_id: string;
   phase: string | null;
   notes: string | null;
+  status: string;
   jobs: {
     title: string;
     processing_mode: string | null;
+    passing_score: number | null;
     workflow_steps: any[] | null;
   } | null;
 }
@@ -58,12 +60,12 @@ export default function VideoIntroPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, workflow_steps)")
+        .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
         .eq("id", id!)
         .single();
 
       if (error) throw error;
-      return data as ApplicationDetails;
+      return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user,
   });
@@ -200,6 +202,10 @@ export default function VideoIntroPhase() {
       // In production, you'd upload the blob to Supabase Storage
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
+      // Video intro is considered "passed" if completed (no scoring needed)
+      const passed = true;
+      const score = 100; // Full marks for completing video
+      
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -207,26 +213,65 @@ export default function VideoIntroPhase() {
           duration: recordingTime,
           recordedAt: new Date().toISOString(),
           completed: true,
+          passed,
+          score,
           // videoUrl would be set after upload
         },
         videoIntroResult: {
           duration: recordingTime,
           completed: true,
+          passed,
+          score,
         },
       };
+
+      // Determine next phase based on processing mode
+      const isAutoMode = application.jobs?.processing_mode !== "manual";
+      
+      const workflowSteps = application.jobs?.workflow_steps || [];
+      const allPhases = [
+        { id: "application", type: "application" },
+        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
+        { id: "review", type: "review" },
+        { id: "interview", type: "interview" },
+        { id: "hired", type: "hired" },
+      ];
+      
+      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(
+          (p) => p.id === application.phase || p.type === application.phase
+        );
+      }
+      
+      let newPhase = application.phase;
+      const newStatus = application.status;
+
+      if (isAutoMode) {
+        // Video intro always passes if completed, advance to next phase
+        if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+          newPhase = allPhases[currentIndex + 1].id;
+        }
+        toast.success("Video introduction submitted!", {
+          description: "Great job! You have advanced to the next phase.",
+        });
+      } else {
+        toast.success("Video introduction submitted!", {
+          description: "Your video has been recorded. The employer will review your submission.",
+        });
+      }
 
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
+          phase: newPhase,
+          status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
+          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED`,
         })
         .eq("id", id!);
 
       if (error) throw error;
-
-      toast.success("Video introduction submitted!", {
-        description: "Your video has been recorded successfully.",
-      });
 
       navigate(`/applications/${id}`);
     } catch (error) {
