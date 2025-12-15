@@ -9,9 +9,10 @@ const corsHeaders = {
 };
 
 interface AnalyzeRequest {
-  type: "application" | "job-bias" | "interview" | "phase";
+  type: "application" | "job-bias" | "interview" | "phase" | "resume";
   content: string;
   context?: Record<string, unknown>;
+  resumeUrl?: string;
 }
 
 const systemPrompts: Record<string, string> = {
@@ -30,6 +31,28 @@ Provide a structured analysis with:
 - Brief Summary (2-3 sentences)
 
 Be objective, fair, and focus on qualifications rather than personal characteristics.`,
+
+  "resume": `You are an expert HR analyst specializing in resume evaluation.
+Analyze the provided resume content against the job requirements.
+
+Evaluate:
+1. Relevant work experience and years of experience
+2. Technical skills and proficiencies
+3. Education and certifications
+4. Career progression and growth
+5. Achievements and quantifiable results
+6. Potential red flags (gaps, job hopping, etc.)
+
+Provide a structured analysis with:
+- Overall Score (0-100) - based on match with job requirements
+- Experience Summary (brief overview of relevant experience)
+- Key Strengths (3-5 bullet points)
+- Areas of Concern (bullet points, if any)
+- Skills Match (list of matching skills vs required skills)
+- Recommendation (Highly Recommended, Recommended, Consider, Not Recommended)
+- Brief Summary (2-3 sentences)
+
+Be objective and fair, focusing only on professional qualifications.`,
 
   "job-bias": `You are an expert in inclusive hiring practices and bias detection.
 Analyze the provided job posting for potential bias or exclusionary language.
