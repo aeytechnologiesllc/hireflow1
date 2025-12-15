@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.ava-voice-tools]
 verify_jwt = true
+
+[functions.elevenlabs-tts]
+verify_jwt = false
