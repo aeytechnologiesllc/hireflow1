@@ -474,24 +474,33 @@ export default function ApplicantDetails() {
 Job Title: ${application.jobs?.title || "Unknown"}
 Job Description: ${application.jobs?.description || "Not provided"}
 Requirements: ${application.jobs?.requirements || "Not specified"}
+Skills Required: ${application.jobs?.skills_required?.join(", ") || "Not specified"}
+Experience Level: ${application.jobs?.experience_level || "Not specified"}
 
 Candidate Information:
 Name: ${application.profiles?.full_name || "Unknown"}
 Email: ${application.profiles?.email || "Not provided"}
 Skills: ${application.profiles?.skills?.join(", ") || "Not specified"}
+Experience Years: ${application.profiles?.experience_years || "Not specified"}
 Bio: ${application.profiles?.bio || "Not provided"}
+Location: ${application.profiles?.location || "Not specified"}
 
 Cover Letter:
 ${application.cover_letter || "Not provided"}
+
+Resume URL: ${application.resume_url || "Not provided"}
       `;
 
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
-          type: "application",
+          type: "resume",
           content,
+          resumeUrl: application.resume_url || null,
           context: {
             skills_required: application.jobs?.skills_required,
             experience_level: application.jobs?.experience_level,
+            job_title: application.jobs?.title,
+            job_type: application.jobs?.job_type,
           },
         },
       });

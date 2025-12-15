@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import * as pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 
 const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
 
@@ -32,27 +33,83 @@ Provide a structured analysis with:
 
 Be objective, fair, and focus on qualifications rather than personal characteristics.`,
 
-  "resume": `You are an expert HR analyst specializing in resume evaluation.
-Analyze the provided resume content against the job requirements.
+  "resume": `You are an expert HR analyst specializing in comprehensive resume evaluation and document verification.
 
-Evaluate:
-1. Relevant work experience and years of experience
-2. Technical skills and proficiencies
-3. Education and certifications
-4. Career progression and growth
-5. Achievements and quantifiable results
-6. Potential red flags (gaps, job hopping, etc.)
+CRITICAL: You must perform ALL of the following analyses:
 
-Provide a structured analysis with:
-- Overall Score (0-100) - based on match with job requirements
-- Experience Summary (brief overview of relevant experience)
-- Key Strengths (3-5 bullet points)
-- Areas of Concern (bullet points, if any)
-- Skills Match (list of matching skills vs required skills)
-- Recommendation (Highly Recommended, Recommended, Consider, Not Recommended)
-- Brief Summary (2-3 sentences)
+## 1. DOCUMENT VALIDATION
+First, determine if this is actually a resume/CV:
+- Is this a legitimate resume document or something else (random text, unrelated document, spam)?
+- Does it contain expected resume sections (contact info, experience, education, skills)?
+- Rate document validity: VALID_RESUME, SUSPICIOUS, or INVALID_DOCUMENT
 
-Be objective and fair, focusing only on professional qualifications.`,
+## 2. AUTHENTICITY ASSESSMENT
+Check for signs of fake or fabricated content:
+- Unrealistic career progression (e.g., CEO at age 22 with 10 years experience)
+- Impossible timelines or overlapping dates
+- Vague descriptions without specifics
+- Buzzword stuffing without substance
+- Generic templates with no personalization
+- Inconsistencies in writing style or formatting
+- Claims that seem exaggerated or unverifiable
+Rate authenticity: AUTHENTIC, QUESTIONABLE, or LIKELY_FABRICATED
+
+## 3. SKILLS & EXPERIENCE ANALYSIS
+- Relevant work experience and years of experience
+- Technical skills and proficiencies
+- Education and certifications
+- Career progression and growth
+- Achievements and quantifiable results
+- Red flags (employment gaps, job hopping, demotions)
+
+## 4. PERSONALITY INDICATORS
+Based on writing style, word choices, and presentation:
+- Communication style (formal/casual, concise/verbose)
+- Attention to detail (formatting, spelling, grammar)
+- Self-presentation (confident, humble, boastful)
+- Inferred traits (analytical, creative, leadership-oriented, team player)
+- Work style preferences (independent vs collaborative)
+
+## 5. JOB FIT ASSESSMENT
+Evaluate match with job requirements provided in context.
+
+REQUIRED OUTPUT FORMAT:
+---
+**DOCUMENT VALIDATION**
+Status: [VALID_RESUME/SUSPICIOUS/INVALID_DOCUMENT]
+Confidence: [0-100]%
+Notes: [explanation]
+
+**AUTHENTICITY ASSESSMENT**
+Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED]
+Confidence: [0-100]%
+Red Flags: [list any concerns]
+
+**PERSONALITY PROFILE**
+Communication Style: [description]
+Key Traits: [list 3-5 inferred personality traits]
+Work Style: [description]
+Leadership Potential: [Low/Medium/High]
+
+**SKILLS MATCH**
+Matching Skills: [list]
+Missing Skills: [list]
+Match Rate: [0-100]%
+
+**EXPERIENCE SUMMARY**
+Years Relevant Experience: [number]
+Key Achievements: [bullet points]
+Career Trajectory: [Ascending/Stable/Declining/Unclear]
+
+**OVERALL ASSESSMENT**
+Overall Score: [0-100]
+Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
+Key Strengths: [bullet points]
+Areas of Concern: [bullet points]
+Summary: [2-3 sentences]
+---
+
+Be thorough, objective, and fair. Focus on verifiable qualifications.`,
 
   "job-bias": `You are an expert in inclusive hiring practices and bias detection.
 Analyze the provided job posting for potential bias or exclusionary language.
@@ -106,6 +163,50 @@ Provide:
 Be thorough but concise in your analysis.`,
 };
 
+/**
+ * Attempts to extract text from a PDF URL
+ */
+async function extractPdfText(url: string): Promise<string | null> {
+  try {
+    console.log("Fetching PDF from URL:", url);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error("Failed to fetch PDF:", response.status, response.statusText);
+      return null;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
+    
+    console.log("PDF fetched, size:", buffer.length, "bytes");
+    
+    // Try to parse PDF
+    try {
+      const data = await pdfParse.default(buffer);
+      console.log("PDF parsed successfully, text length:", data.text?.length);
+      return data.text || null;
+    } catch (parseError) {
+      console.error("PDF parse error:", parseError);
+      // If PDF parsing fails, try to extract any readable text
+      const textDecoder = new TextDecoder('utf-8', { fatal: false });
+      const rawText = textDecoder.decode(buffer);
+      
+      // Look for text content between stream markers or extract readable portions
+      const textMatches = rawText.match(/[\x20-\x7E\n\r\t]{50,}/g);
+      if (textMatches && textMatches.length > 0) {
+        const extractedText = textMatches.join('\n').trim();
+        console.log("Extracted raw text, length:", extractedText.length);
+        return extractedText.length > 100 ? extractedText : null;
+      }
+      return null;
+    }
+  } catch (error) {
+    console.error("Error extracting PDF text:", error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -121,7 +222,7 @@ serve(async (req) => {
       );
     }
 
-    const { type, content, context } = (await req.json()) as AnalyzeRequest;
+    const { type, content, context, resumeUrl } = (await req.json()) as AnalyzeRequest;
 
     if (!type || !content) {
       return new Response(
@@ -140,9 +241,25 @@ serve(async (req) => {
 
     console.log(`Processing ${type} analysis request`);
 
-    const userContent = context 
-      ? `${content}\n\nAdditional Context:\n${JSON.stringify(context, null, 2)}`
-      : content;
+    // For resume analysis, try to extract PDF content
+    let resumeContent = "";
+    if (type === "resume" && resumeUrl) {
+      console.log("Attempting to extract resume PDF content...");
+      const pdfText = await extractPdfText(resumeUrl);
+      if (pdfText) {
+        resumeContent = `\n\n--- RESUME DOCUMENT CONTENT ---\n${pdfText}\n--- END RESUME CONTENT ---`;
+        console.log("Successfully extracted resume content");
+      } else {
+        resumeContent = "\n\n[NOTE: Could not extract text from resume PDF. Analysis based on provided metadata only. Document should be manually reviewed.]";
+        console.log("Could not extract resume content");
+      }
+    }
+
+    let userContent = content + resumeContent;
+    
+    if (context) {
+      userContent += `\n\nAdditional Context:\n${JSON.stringify(context, null, 2)}`;
+    }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -156,7 +273,7 @@ serve(async (req) => {
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
         ],
-        max_tokens: 2000,
+        max_tokens: 3000,
         temperature: 0.7,
       }),
     });
@@ -188,6 +305,7 @@ serve(async (req) => {
         analysis,
         type,
         timestamp: new Date().toISOString(),
+        resumeExtracted: !!resumeContent && !resumeContent.includes("[NOTE: Could not extract"),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
