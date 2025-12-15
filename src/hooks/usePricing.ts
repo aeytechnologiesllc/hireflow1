@@ -12,8 +12,8 @@ export const STRIPE_PRICES = {
     yearly: "price_1SeWL9JoMc2msNl4NNQVohgY",
   },
   enterprise: {
-    monthly: "price_enterprise_monthly", // TODO: Create in Stripe
-    yearly: "price_enterprise_yearly",   // TODO: Create in Stripe
+    monthly: "price_1Seep4JoMc2msNl4dFDhzixB",
+    yearly: "price_1Seep5JoMc2msNl4pS3Pm2hQ",
   },
 };
 

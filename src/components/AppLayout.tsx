@@ -3,9 +3,11 @@ import { useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useProfile } from "@/hooks/useProfile";
 import { Loader2 } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+import AvaVoiceButton from "./AvaVoiceButton";
 import OnboardingWizard from "./subscription/OnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +16,8 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { subscription, isLoading: subLoading, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
+  const profileQuery = useProfile();
+  const isEmployer = profileQuery.data?.company_name;
   const isMobile = useIsMobile();
   
   // Mobile sidebar is hidden by default, desktop is expanded
@@ -100,6 +104,11 @@ export default function AppLayout() {
           <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
             <Outlet />
           </main>
+          
+          {/* AVA Voice Button - Only for Enterprise employers */}
+          {isEmployer && subscription?.plan_type === 'enterprise' && (
+            <AvaVoiceButton />
+          )}
         </div>
       </div>
     </TooltipProvider>

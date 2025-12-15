@@ -7,7 +7,7 @@ export interface SubscriptionData {
   user_id: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
-  plan_type: 'trial' | 'growth' | 'business';
+  plan_type: 'trial' | 'growth' | 'business' | 'enterprise';
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
   trial_start: string | null;
   trial_end: string | null;
@@ -25,6 +25,7 @@ export interface UsageData {
   documents_sent: number;
   team_members_added: number;
   ai_analyses_used: number;
+  voice_minutes_used: number;
 }
 
 export interface PlanLimits {
@@ -33,10 +34,13 @@ export interface PlanLimits {
   documents: number;
   teamMembers: number;
   aiAnalyses: number;
+  voiceMinutes: number;
   hasAdvancedAnalytics: boolean;
   hasTeamPortal: boolean;
   hasDocuments: boolean;
   hasPrioritySupport: boolean;
+  hasVoiceAssistant: boolean;
+  hasVoiceInterviews: boolean;
 }
 
 export interface SubscriptionState {
@@ -61,7 +65,7 @@ export function useSubscription() {
   });
 
   const createCheckoutSession = useMutation({
-    mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
+    mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business' | 'enterprise'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: {
           planType,
@@ -136,8 +140,8 @@ export function useSubscription() {
 
   return {
     subscription: data?.subscription ?? null,
-    usage: data?.usage ?? { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0 },
-    limits: data?.limits ?? { jobs: 1, applicants: 10, documents: 5, teamMembers: 0, aiAnalyses: 20, hasAdvancedAnalytics: false, hasTeamPortal: false, hasDocuments: true, hasPrioritySupport: false },
+    usage: data?.usage ?? { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
+    limits: data?.limits ?? { jobs: 1, applicants: 10, documents: 5, teamMembers: 0, aiAnalyses: 20, voiceMinutes: 0, hasAdvancedAnalytics: false, hasTeamPortal: false, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: false },
     isLoading,
     error,
     refetch,
