@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { usePendingDocumentsCount } from "@/hooks/usePendingDocumentsCount";
 import { useEmployerPendingDocumentsCount } from "@/hooks/useEmployerPendingDocumentsCount";
+import { usePendingActionsCount } from "@/hooks/usePendingActionsCount";
 import {
   LayoutDashboard,
   Briefcase,
@@ -17,6 +18,7 @@ import {
   UserPlus,
   Sparkles,
   User,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +67,7 @@ export default function AppSidebar() {
   const { data: unreadNotifications } = useUnreadNotificationCount();
   const { data: pendingDocuments } = usePendingDocumentsCount();
   const { data: employerPendingDocuments } = useEmployerPendingDocumentsCount();
+  const { data: pendingActions } = usePendingActionsCount();
 
   const employerNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
@@ -80,7 +83,7 @@ export default function AppSidebar() {
   const candidateNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Apply Now", to: "/apply" },
-    { icon: FileText, label: "Applications", to: "/applications" },
+    { icon: ClipboardCheck, label: "Applications", to: "/applications", badge: pendingActions || 0, highlight: (pendingActions || 0) > 0 },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
     { icon: MessageSquare, label: "Messages", to: "/messages" },
     { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },

@@ -4,7 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, Play, Clock, Sparkles, Hand } from "lucide-react";
+import { 
+  Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
+  Play, Clock, Sparkles, Hand, Keyboard, Video, MessageSquare, ClipboardList,
+  Users, Mic
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
@@ -30,15 +34,42 @@ const statusLabels: Record<string, string> = {
   rejected: "Not Selected",
 };
 
+// Map phase types to icons and action labels
+const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string }> = {
+  quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment" },
+  typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test" },
+  video_intro: { icon: Video, label: "Record Video Intro", description: "Record your video introduction" },
+  chat_simulation: { icon: MessageSquare, label: "Start Chat Simulation", description: "Begin customer support simulation" },
+  chat_interview: { icon: Users, label: "Start AI Interview", description: "Ready for your AI interview" },
+  sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation" },
+};
+
 interface ApplicationCardProps {
   application: ApplicationWithJob;
+}
+
+function getPhaseType(phase: string): string {
+  // Normalize phase names to types
+  if (phase.includes("quiz") || phase.startsWith("step")) return "quiz";
+  if (phase === "typing_test") return "typing_test";
+  if (phase === "video_intro") return "video_intro";
+  if (phase === "chat_simulation") return "chat_simulation";
+  if (phase === "chat_interview") return "chat_interview";
+  if (phase === "sales_simulation") return "sales_simulation";
+  return phase;
 }
 
 function ApplicationCard({ application }: ApplicationCardProps) {
   const navigate = useNavigate();
   const job = application.jobs;
   const isManualMode = job?.processing_mode === "manual";
-  const hasActionRequired = application.phase && application.phase !== "application" && application.status === "pending";
+  const phase = application.phase || "application";
+  const phaseType = getPhaseType(phase);
+  
+  // Determine if action is required (not in waiting phases)
+  const isWaitingPhase = ["application", "review", "interview", "hired"].includes(phase);
+  const actionConfig = phaseActionConfig[phaseType];
+  const hasActionRequired = !isWaitingPhase && actionConfig;
 
   return (
     <Card 
@@ -119,14 +150,20 @@ function ApplicationCard({ application }: ApplicationCardProps) {
 
               {/* Action Indicator */}
               <div className="flex items-center gap-2">
-                {hasActionRequired && (
-                  <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-                    <Play className="h-3 w-3" />
-                    Action Required
+                {hasActionRequired && actionConfig && (
+                  <Badge className="bg-primary text-primary-foreground gap-1.5 px-3 py-1 animate-pulse">
+                    <actionConfig.icon className="h-3.5 w-3.5" />
+                    {actionConfig.label}
+                  </Badge>
+                )}
+                {!hasActionRequired && application.status === "pending" && (
+                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1">
+                    <Clock className="h-3 w-3" />
+                    Awaiting Review
                   </Badge>
                 )}
                 {application.status === "reviewing" && (
-                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1">
+                  <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 gap-1">
                     <Clock className="h-3 w-3" />
                     Under Review
                   </Badge>
