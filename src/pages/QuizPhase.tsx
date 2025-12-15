@@ -245,6 +245,20 @@ export default function QuizPhase() {
     }
   };
 
+  // Check if already submitted
+  const existingResult = (() => {
+    if (!application?.notes) return null;
+    try {
+      const notes = JSON.parse(application.notes);
+      // Check for step-specific quiz answers or general quiz result
+      const stepData = notes.quizAnswers?.[stepId!] || notes[stepId!];
+      if (stepData?.completedAt) return stepData;
+      return notes.quizResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
@@ -266,6 +280,19 @@ export default function QuizPhase() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // Show already submitted view if phase was completed
+  if (existingResult) {
+    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName="Quiz"
+        score={existingResult.score}
+        isManualMode={application.jobs?.processing_mode === "manual"}
+      />
     );
   }
 

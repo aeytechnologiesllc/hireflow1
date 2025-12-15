@@ -309,6 +309,17 @@ export default function TypingTestPhase() {
     setTargetText(typingTexts[randomIndex]);
   };
 
+  // Check if already submitted
+  const existingResult = (() => {
+    if (!application?.notes) return null;
+    try {
+      const notes = JSON.parse(application.notes);
+      return notes.typingTestResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
   if (isLoading) {
     return (
       <div className="space-y-6 max-w-4xl mx-auto p-6">
@@ -330,6 +341,19 @@ export default function TypingTestPhase() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  // Show already submitted view if phase was completed
+  if (existingResult) {
+    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName="Typing Test"
+        score={existingResult.score}
+        isManualMode={application.jobs?.processing_mode === "manual"}
+      />
     );
   }
 
