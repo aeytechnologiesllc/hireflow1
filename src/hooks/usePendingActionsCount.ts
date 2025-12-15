@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -8,8 +9,9 @@ import { useAuth } from "@/hooks/useAuth";
  */
 export function usePendingActionsCount() {
   const { user, role } = useAuth();
+  const queryClient = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["pending-actions-count", user?.id],
     queryFn: async () => {
       // Get all applications for this candidate
@@ -23,10 +25,6 @@ export function usePendingActionsCount() {
       if (error) throw error;
 
       // Count applications where action is needed
-      // Action is needed when:
-      // 1. Phase is not "application" (they've been advanced)
-      // 2. Phase is not "review" or "interview" or "hired" (waiting phases)
-      // 3. The phase data hasn't been submitted yet
       let count = 0;
       
       for (const app of data || []) {
@@ -76,6 +74,35 @@ export function usePendingActionsCount() {
       return count;
     },
     enabled: !!user && role === "candidate",
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
+
+  // Real-time subscription for application changes
+  useEffect(() => {
+    if (!user || role !== "candidate") return;
+
+    const channel = supabase
+      .channel("pending-actions-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "applications",
+          filter: `candidate_id=eq.${user.id}`,
+        },
+        () => {
+          // Invalidate the count query when any application changes
+          queryClient.invalidateQueries({ queryKey: ["pending-actions-count"] });
+          queryClient.invalidateQueries({ queryKey: ["candidate-applications"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, role, queryClient]);
+
+  return query;
 }
