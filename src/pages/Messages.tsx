@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers, useDeleteConversation } from "@/hooks/useMessages";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Send, Plus, Briefcase, Trash2 } from "lucide-react";
+import { MessageSquare, Search, Send, Plus, Briefcase, Trash2, EyeOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,8 +39,10 @@ function formatMessageDate(date: Date) {
 }
 
 export default function Messages() {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
   const isCandidate = role === "candidate";
+  const canMessageCandidates = !isTeamMember || permissions?.canMessageCandidates;
   const { data: conversations, isLoading: isLoadingConversations } = useConversations();
   const { data: messageableEmployers } = useMessageableEmployers();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -143,6 +147,12 @@ export default function Messages() {
       <Card className="w-80 flex-shrink-0 bg-card border-border flex flex-col">
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
+            {isTeamMember && !canMessageCandidates && (
+              <Badge variant="outline" className="gap-1 text-muted-foreground text-xs">
+                <EyeOff className="h-3 w-3" />
+                Read Only
+              </Badge>
+            )}
             <h2 className="text-lg font-semibold text-foreground">Messages</h2>
             {isCandidate && newContactOptions.length > 0 && (
               <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
@@ -365,21 +375,27 @@ export default function Messages() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-border">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Type a message..."
-                  className="bg-background border-border"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                />
-                <Button 
-                  onClick={handleSend} 
-                  disabled={!newMessage.trim() || sendMessage.isPending}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+              {isTeamMember && !canMessageCandidates ? (
+                <div className="text-center py-2 text-muted-foreground text-sm">
+                  You don't have permission to send messages
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Type a message..."
+                    className="bg-background border-border"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                  />
+                  <Button 
+                    onClick={handleSend} 
+                    disabled={!newMessage.trim() || sendMessage.isPending}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         ) : (

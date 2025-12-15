@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview } from "@/hooks/useInterviews";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Plus, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles } from "lucide-react";
+import { Calendar, Plus, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles, EyeOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -28,11 +29,12 @@ const statusColors: Record<string, string> = {
 interface InterviewCardProps {
   interview: InterviewWithDetails;
   isEmployer: boolean;
+  canScheduleInterviews: boolean;
   onStatusChange: (id: string, status: string) => void;
   onGenerateQuestions: (interview: InterviewWithDetails) => void;
 }
 
-function InterviewCard({ interview, isEmployer, onStatusChange, onGenerateQuestions }: InterviewCardProps) {
+function InterviewCard({ interview, isEmployer, canScheduleInterviews, onStatusChange, onGenerateQuestions }: InterviewCardProps) {
   const application = interview.applications;
   const job = application?.jobs;
   const profile = application?.profiles as any;
@@ -67,7 +69,7 @@ function InterviewCard({ interview, isEmployer, onStatusChange, onGenerateQuesti
                 <Badge className={statusColors[interview.status]}>
                   {interview.status}
                 </Badge>
-                {isEmployer && (
+                {isEmployer && canScheduleInterviews && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="text-muted-foreground">
@@ -142,8 +144,10 @@ function InterviewCard({ interview, isEmployer, onStatusChange, onGenerateQuesti
 }
 
 export default function Interviews() {
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
+  const canScheduleInterviews = !isTeamMember || permissions?.canScheduleInterviews;
   const { data: interviews, isLoading, refetch } = useInterviews();
   const updateInterview = useUpdateInterview();
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
@@ -195,6 +199,12 @@ export default function Interviews() {
               : "View your upcoming interviews"}
           </p>
         </div>
+        {isTeamMember && !canScheduleInterviews && (
+          <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <EyeOff className="h-3 w-3" />
+            View Only
+          </Badge>
+        )}
       </div>
 
       {isLoading ? (
@@ -213,6 +223,7 @@ export default function Interviews() {
                   key={interview.id}
                   interview={interview}
                   isEmployer={isEmployer}
+                  canScheduleInterviews={!!canScheduleInterviews}
                   onStatusChange={handleStatusChange}
                   onGenerateQuestions={handleGenerateQuestions}
                 />
@@ -229,6 +240,7 @@ export default function Interviews() {
                   key={interview.id}
                   interview={interview}
                   isEmployer={isEmployer}
+                  canScheduleInterviews={!!canScheduleInterviews}
                   onStatusChange={handleStatusChange}
                   onGenerateQuestions={handleGenerateQuestions}
                 />
