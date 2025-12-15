@@ -325,9 +325,16 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
 }
 
 export default function Dashboard() {
-  const { role, user } = useAuth();
+  const { role, user, isTeamMember } = useAuth();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
+
+  // Redirect team members to team portal
+  useEffect(() => {
+    if (isTeamMember) {
+      navigate("/team-portal", { replace: true });
+    }
+  }, [isTeamMember, navigate]);
   
   // Employer data
   const { data: jobStats, isLoading: isLoadingJobStats } = useJobStats();

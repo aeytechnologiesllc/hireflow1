@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "employer" | "candidate";
+type AppRole = "employer" | "candidate" | "team_member";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
+  isTeamMember: boolean;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,9 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           setTimeout(() => {
             fetchUserRole(session.user.id);
+            checkTeamMembership(session.user.id);
           }, 0);
         } else {
           setRole(null);
+          setIsTeamMember(false);
         }
       }
     );
@@ -46,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchUserRole(session.user.id);
+        checkTeamMembership(session.user.id);
       }
       setLoading(false);
     });
@@ -69,6 +74,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(data?.role as AppRole);
     } catch (error) {
       console.error("Error fetching user role:", error);
+    }
+  };
+
+  const checkTeamMembership = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking team membership:", error);
+        return;
+      }
+
+      setIsTeamMember(!!data);
+    } catch (error) {
+      console.error("Error checking team membership:", error);
     }
   };
 
@@ -104,10 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setRole(null);
+    setIsTeamMember(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, isTeamMember, loading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
