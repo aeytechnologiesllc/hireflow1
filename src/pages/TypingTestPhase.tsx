@@ -333,6 +333,9 @@ export default function TypingTestPhase() {
     );
   }
 
+  const isAutoMode = application.jobs?.processing_mode !== "manual";
+  const passingScore = application.jobs?.passing_score || 60;
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -464,20 +467,17 @@ export default function TypingTestPhase() {
                     {results.passed ? "Great Job!" : "Test Complete"}
                   </h3>
                   <p className="text-muted-foreground">
-                    {(() => {
-                      const isAutoMode = application.jobs?.processing_mode !== "manual";
-                      const passingScore = application.jobs?.passing_score || 60;
-                      if (results.passed) {
-                        return isAutoMode
-                          ? `You passed with a score of ${results.score}%. After you submit, the next phase will unlock automatically.`
-                          : `You passed with a score of ${results.score}%. The employer will review your overall application next.`;
-                      }
-                      return isAutoMode
+                    {results.passed
+                      ? isAutoMode
+                        ? `You passed with a score of ${results.score}%. After you submit, the next phase will unlock automatically.`
+                        : `You passed with a score of ${results.score}%. The employer will review your overall application next.`
+                      : isAutoMode
                         ? `You scored ${results.score}% (required ${passingScore}%). After you submit, your application for this role will be automatically rejected.`
-                        : `You scored ${results.score}% (required ${passingScore}%). Your results have been recorded for the employer to review.`;
-                    })()}
+                        : `You scored ${results.score}% (required ${passingScore}%). Your results have been recorded for the employer to review.`
+                    }
                   </p>
                 </div>
+              </div>
 
               {/* Score Cards */}
               <div className="grid grid-cols-3 gap-4">
