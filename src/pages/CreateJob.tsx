@@ -107,10 +107,10 @@ const WIZARD_STEPS = [
 ];
 
 const DIFFICULTY_OPTIONS = [
-  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Zap, color: "text-green-500" },
-  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-blue-500" },
-  { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-orange-500" },
-  { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-red-500" },
+  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Zap, color: "text-green-500", borderColor: "border-green-500", bgColor: "bg-green-500/10", shadowColor: "shadow-green-500/20" },
+  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-emerald-400", borderColor: "border-emerald-400", bgColor: "bg-emerald-400/10", shadowColor: "shadow-emerald-400/20" },
+  { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-orange-500", borderColor: "border-orange-500", bgColor: "bg-orange-500/10", shadowColor: "shadow-orange-500/20" },
+  { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-red-500", borderColor: "border-red-500", bgColor: "bg-red-500/10", shadowColor: "shadow-red-500/20" },
 ];
 
 const STEP_TYPE_INFO = {
@@ -995,6 +995,7 @@ export default function CreateJob() {
                         <div className="grid grid-cols-2 gap-3">
                           {DIFFICULTY_OPTIONS.map((option) => {
                             const Icon = option.icon;
+                            const isSelected = workflowDifficulty === option.value;
                             return (
                               <button
                                 key={option.value}
@@ -1004,9 +1005,9 @@ export default function CreateJob() {
                                 }}
                                 className={cn(
                                   "p-4 rounded-xl border-2 transition-all text-left",
-                                  workflowDifficulty === option.value
-                                    ? "border-primary bg-primary/5"
-                                    : "border-border hover:border-primary/50"
+                                  isSelected
+                                    ? `${option.borderColor} ${option.bgColor} shadow-lg ${option.shadowColor}`
+                                    : "border-border bg-card hover:border-muted-foreground/30"
                                 )}
                               >
                                 <div className="flex items-center gap-3">
@@ -1102,27 +1103,41 @@ export default function CreateJob() {
                           <motion.button
                             onClick={() => setProcessingMode("manual")}
                             className={cn(
-                              "relative p-4 rounded-xl transition-all text-left",
+                              "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                               processingMode === "manual"
-                                ? "bg-card border-2 border-muted-foreground/30"
+                                ? "bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80 shadow-lg shadow-slate-500/20"
                                 : "bg-card/50 border border-border hover:border-muted-foreground/30"
                             )}
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.99 }}
+                            style={processingMode === "manual" ? {
+                              boxShadow: "0 0 20px -5px rgba(148, 163, 184, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            } : {}}
                           >
-                            <div className="flex items-center gap-3">
+                            {processingMode === "manual" && (
+                              <div className="absolute inset-0 rounded-xl border-2 border-slate-500/60" />
+                            )}
+                            <div className="relative flex items-center gap-3">
                               <div className={cn(
                                 "p-2.5 rounded-lg",
-                                processingMode === "manual" ? "bg-muted" : "bg-muted/50"
+                                processingMode === "manual" 
+                                  ? "bg-slate-600" 
+                                  : "bg-muted/50"
                               )}>
                                 <Hand className={cn(
                                   "h-5 w-5",
-                                  processingMode === "manual" ? "text-foreground" : "text-muted-foreground"
+                                  processingMode === "manual" ? "text-white" : "text-muted-foreground"
                                 )} />
                               </div>
                               <div>
-                                <div className="font-semibold">Manual Review</div>
-                                <div className="text-xs text-muted-foreground">
+                                <div className={cn(
+                                  "font-semibold",
+                                  processingMode === "manual" && "text-white"
+                                )}>Manual Review</div>
+                                <div className={cn(
+                                  "text-xs",
+                                  processingMode === "manual" ? "text-slate-300/80" : "text-muted-foreground"
+                                )}>
                                   You review each application
                                 </div>
                               </div>
