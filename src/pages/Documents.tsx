@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2 } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
@@ -49,8 +50,10 @@ const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => 
 };
 
 export default function Documents() {
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
+  const canSendDocuments = !isTeamMember || permissions?.canSendDocuments;
   const { data: documents, isLoading } = useDocuments();
   const { data: applications = [] } = useApplicationsForDocuments();
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -176,11 +179,17 @@ export default function Documents() {
             {isEmployer ? "Create AI-powered contracts, offer letters, and NDAs" : "Review and sign documents"}
           </p>
         </div>
-        {isEmployer && (
+        {isEmployer && canSendDocuments && (
           <Button className="gap-2" onClick={() => setWizardOpen(true)}>
             <Wand2 className="h-4 w-4" />
             Create Document
           </Button>
+        )}
+        {isTeamMember && !canSendDocuments && (
+          <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <EyeOff className="h-3 w-3" />
+            View Only
+          </Badge>
         )}
       </div>
 
@@ -215,9 +224,11 @@ export default function Documents() {
             <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
             <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              {isEmployer ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here."}
+            {isEmployer 
+              ? (canSendDocuments ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here when created.")
+              : "Documents will appear here."}
             </p>
-            {isEmployer && (
+            {isEmployer && canSendDocuments && (
               <Button onClick={() => setWizardOpen(true)}>
                 <Wand2 className="h-4 w-4 mr-2" />
                 Create Your First Document
