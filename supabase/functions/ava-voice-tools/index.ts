@@ -171,9 +171,8 @@ serve(async (req) => {
         const { data: app, error } = await supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, notes, created_at,
-            jobs!inner(title, employer_id),
-            profiles:candidate_id(full_name, email, skills, experience_years)
+            id, status, phase, ai_score, notes, created_at, candidate_id,
+            jobs!inner(title, employer_id)
           `)
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
@@ -183,16 +182,23 @@ serve(async (req) => {
           throw new Error("Application not found or access denied");
         }
 
+        // Fetch profile separately using candidate_id -> profiles.user_id
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("full_name, email, skills, experience_years")
+          .eq("user_id", app.candidate_id)
+          .single();
+
         const appData = app as any;
         result = {
           application_id: app.id,
-          candidate_name: appData.profiles?.full_name || 'Unknown',
+          candidate_name: profile?.full_name || 'Unknown',
           job_title: appData.jobs?.title || 'Unknown',
           status: app.status,
           phase: app.phase,
           ai_score: app.ai_score,
-          skills: appData.profiles?.skills,
-          experience: appData.profiles?.experience_years,
+          skills: profile?.skills,
+          experience: profile?.experience_years,
           applied_at: app.created_at
         };
         break;
@@ -204,9 +210,8 @@ serve(async (req) => {
         let query = supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, created_at,
-            jobs!inner(title, employer_id),
-            profiles:candidate_id(full_name)
+            id, status, phase, ai_score, created_at, candidate_id,
+            jobs!inner(title, employer_id)
           `)
           .eq("jobs.employer_id", user.id)
           .order("created_at", { ascending: false })
@@ -219,12 +224,23 @@ serve(async (req) => {
         const { data: apps, error } = await query;
         if (error) throw error;
 
+        // Fetch profiles for all candidate_ids
+        const candidateIds = (apps || []).map(a => a.candidate_id).filter(Boolean);
+        const { data: profiles } = candidateIds.length > 0 
+          ? await supabaseClient
+              .from("profiles")
+              .select("user_id, full_name")
+              .in("user_id", candidateIds)
+          : { data: [] };
+
+        const profileMap = new Map((profiles || []).map(p => [p.user_id, p.full_name]));
+
         result = {
           applicants: (apps || []).map(app => {
             const appData = app as any;
             return {
               application_id: app.id,
-              name: appData.profiles?.full_name || 'Unknown',
+              name: profileMap.get(app.candidate_id) || 'Unknown',
               job: appData.jobs?.title || 'Unknown',
               status: app.status,
               phase: app.phase,
