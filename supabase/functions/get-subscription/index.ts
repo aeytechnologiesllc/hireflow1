@@ -110,17 +110,35 @@ serve(async (req) => {
 
 function getPlanLimits(planType: string) {
   switch (planType) {
-    case 'business':
+    case 'enterprise':
       return {
-        jobs: -1, // Unlimited
+        jobs: -1,
         applicants: -1,
         documents: -1,
         teamMembers: -1,
         aiAnalyses: -1,
+        voiceMinutes: 500,
         hasAdvancedAnalytics: true,
         hasTeamPortal: true,
         hasDocuments: true,
         hasPrioritySupport: true,
+        hasVoiceAssistant: true,
+        hasVoiceInterviews: true,
+      };
+    case 'business':
+      return {
+        jobs: -1,
+        applicants: -1,
+        documents: -1,
+        teamMembers: -1,
+        aiAnalyses: -1,
+        voiceMinutes: 0,
+        hasAdvancedAnalytics: true,
+        hasTeamPortal: true,
+        hasDocuments: true,
+        hasPrioritySupport: true,
+        hasVoiceAssistant: false,
+        hasVoiceInterviews: false,
       };
     case 'growth':
       return {
@@ -129,10 +147,13 @@ function getPlanLimits(planType: string) {
         documents: 20,
         teamMembers: 0,
         aiAnalyses: 100,
+        voiceMinutes: 0,
         hasAdvancedAnalytics: false,
         hasTeamPortal: false,
         hasDocuments: true,
         hasPrioritySupport: false,
+        hasVoiceAssistant: false,
+        hasVoiceInterviews: false,
       };
     default: // trial
       return {
@@ -141,10 +162,13 @@ function getPlanLimits(planType: string) {
         documents: 5,
         teamMembers: 0,
         aiAnalyses: 20,
+        voiceMinutes: 0,
         hasAdvancedAnalytics: false,
         hasTeamPortal: false,
         hasDocuments: true,
         hasPrioritySupport: false,
+        hasVoiceAssistant: false,
+        hasVoiceInterviews: false,
       };
   }
 }

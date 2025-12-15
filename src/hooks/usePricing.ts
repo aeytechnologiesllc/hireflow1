@@ -11,6 +11,10 @@ export const STRIPE_PRICES = {
     monthly: "price_1SeWL7JoMc2msNl4380r2cSi",
     yearly: "price_1SeWL9JoMc2msNl4NNQVohgY",
   },
+  enterprise: {
+    monthly: "price_enterprise_monthly", // TODO: Create in Stripe
+    yearly: "price_enterprise_yearly",   // TODO: Create in Stripe
+  },
 };
 
 // Regional pricing configuration with local currencies
@@ -23,61 +27,62 @@ export const REGIONAL_PRICING: Record<string, {
   symbol: string;
   growth: { monthly: number; yearly: number };
   business: { monthly: number; yearly: number };
+  enterprise: { monthly: number; yearly: number };
   tier: number;
 }> = {
   // Tier 1 - Premium Markets
-  US: { currency: "USD", symbol: "$", growth: { monthly: 29, yearly: 290 }, business: { monthly: 49, yearly: 490 }, tier: 1 },
-  CA: { currency: "CAD", symbol: "C$", growth: { monthly: 39, yearly: 390 }, business: { monthly: 65, yearly: 650 }, tier: 1 },
-  GB: { currency: "GBP", symbol: "£", growth: { monthly: 23, yearly: 230 }, business: { monthly: 39, yearly: 390 }, tier: 1 },
-  AU: { currency: "AUD", symbol: "A$", growth: { monthly: 45, yearly: 450 }, business: { monthly: 75, yearly: 750 }, tier: 1 },
-  NZ: { currency: "NZD", symbol: "NZ$", growth: { monthly: 49, yearly: 490 }, business: { monthly: 79, yearly: 790 }, tier: 1 },
-  CH: { currency: "CHF", symbol: "CHF", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 1 },
+  US: { currency: "USD", symbol: "$", growth: { monthly: 29, yearly: 290 }, business: { monthly: 49, yearly: 490 }, enterprise: { monthly: 99, yearly: 990 }, tier: 1 },
+  CA: { currency: "CAD", symbol: "C$", growth: { monthly: 39, yearly: 390 }, business: { monthly: 65, yearly: 650 }, enterprise: { monthly: 129, yearly: 1290 }, tier: 1 },
+  GB: { currency: "GBP", symbol: "£", growth: { monthly: 23, yearly: 230 }, business: { monthly: 39, yearly: 390 }, enterprise: { monthly: 79, yearly: 790 }, tier: 1 },
+  AU: { currency: "AUD", symbol: "A$", growth: { monthly: 45, yearly: 450 }, business: { monthly: 75, yearly: 750 }, enterprise: { monthly: 149, yearly: 1490 }, tier: 1 },
+  NZ: { currency: "NZD", symbol: "NZ$", growth: { monthly: 49, yearly: 490 }, business: { monthly: 79, yearly: 790 }, enterprise: { monthly: 159, yearly: 1590 }, tier: 1 },
+  CH: { currency: "CHF", symbol: "CHF", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 1 },
   
   // Tier 2 - Europe
-  DE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  FR: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  IT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  ES: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  NL: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  BE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  AT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  IE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  PT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  FI: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, tier: 2 },
-  SE: { currency: "SEK", symbol: "kr", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, tier: 2 },
-  NO: { currency: "NOK", symbol: "kr", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, tier: 2 },
-  DK: { currency: "DKK", symbol: "kr", growth: { monthly: 199, yearly: 1990 }, business: { monthly: 329, yearly: 3290 }, tier: 2 },
-  PL: { currency: "PLN", symbol: "zł", growth: { monthly: 99, yearly: 990 }, business: { monthly: 169, yearly: 1690 }, tier: 2 },
+  DE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  FR: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  IT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  ES: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  NL: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  BE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  AT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  IE: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  PT: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  FI: { currency: "EUR", symbol: "€", growth: { monthly: 27, yearly: 270 }, business: { monthly: 45, yearly: 450 }, enterprise: { monthly: 89, yearly: 890 }, tier: 2 },
+  SE: { currency: "SEK", symbol: "kr", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, enterprise: { monthly: 999, yearly: 9990 }, tier: 2 },
+  NO: { currency: "NOK", symbol: "kr", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, enterprise: { monthly: 999, yearly: 9990 }, tier: 2 },
+  DK: { currency: "DKK", symbol: "kr", growth: { monthly: 199, yearly: 1990 }, business: { monthly: 329, yearly: 3290 }, enterprise: { monthly: 659, yearly: 6590 }, tier: 2 },
+  PL: { currency: "PLN", symbol: "zł", growth: { monthly: 99, yearly: 990 }, business: { monthly: 169, yearly: 1690 }, enterprise: { monthly: 339, yearly: 3390 }, tier: 2 },
   
   // Tier 3 - Emerging Markets (~40% discount)
-  IN: { currency: "INR", symbol: "₹", growth: { monthly: 999, yearly: 9990 }, business: { monthly: 1999, yearly: 19990 }, tier: 3 },
-  BR: { currency: "BRL", symbol: "R$", growth: { monthly: 59, yearly: 590 }, business: { monthly: 99, yearly: 990 }, tier: 3 },
-  MX: { currency: "MXN", symbol: "$", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, tier: 3 },
-  TR: { currency: "TRY", symbol: "₺", growth: { monthly: 399, yearly: 3990 }, business: { monthly: 699, yearly: 6990 }, tier: 3 },
-  ZA: { currency: "ZAR", symbol: "R", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, tier: 3 },
-  AE: { currency: "AED", symbol: "د.إ", growth: { monthly: 69, yearly: 690 }, business: { monthly: 109, yearly: 1090 }, tier: 3 },
-  SG: { currency: "SGD", symbol: "S$", growth: { monthly: 39, yearly: 390 }, business: { monthly: 65, yearly: 650 }, tier: 3 },
-  MY: { currency: "MYR", symbol: "RM", growth: { monthly: 79, yearly: 790 }, business: { monthly: 139, yearly: 1390 }, tier: 3 },
-  TH: { currency: "THB", symbol: "฿", growth: { monthly: 599, yearly: 5990 }, business: { monthly: 999, yearly: 9990 }, tier: 3 },
-  AR: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, tier: 3 },
-  CL: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, tier: 3 },
-  CO: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, tier: 3 },
-  JP: { currency: "JPY", symbol: "¥", growth: { monthly: 2900, yearly: 29000 }, business: { monthly: 4900, yearly: 49000 }, tier: 3 },
-  KR: { currency: "KRW", symbol: "₩", growth: { monthly: 29000, yearly: 290000 }, business: { monthly: 49000, yearly: 490000 }, tier: 3 },
+  IN: { currency: "INR", symbol: "₹", growth: { monthly: 999, yearly: 9990 }, business: { monthly: 1999, yearly: 19990 }, enterprise: { monthly: 3999, yearly: 39990 }, tier: 3 },
+  BR: { currency: "BRL", symbol: "R$", growth: { monthly: 59, yearly: 590 }, business: { monthly: 99, yearly: 990 }, enterprise: { monthly: 199, yearly: 1990 }, tier: 3 },
+  MX: { currency: "MXN", symbol: "$", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, enterprise: { monthly: 999, yearly: 9990 }, tier: 3 },
+  TR: { currency: "TRY", symbol: "₺", growth: { monthly: 399, yearly: 3990 }, business: { monthly: 699, yearly: 6990 }, enterprise: { monthly: 1399, yearly: 13990 }, tier: 3 },
+  ZA: { currency: "ZAR", symbol: "R", growth: { monthly: 299, yearly: 2990 }, business: { monthly: 499, yearly: 4990 }, enterprise: { monthly: 999, yearly: 9990 }, tier: 3 },
+  AE: { currency: "AED", symbol: "د.إ", growth: { monthly: 69, yearly: 690 }, business: { monthly: 109, yearly: 1090 }, enterprise: { monthly: 219, yearly: 2190 }, tier: 3 },
+  SG: { currency: "SGD", symbol: "S$", growth: { monthly: 39, yearly: 390 }, business: { monthly: 65, yearly: 650 }, enterprise: { monthly: 129, yearly: 1290 }, tier: 3 },
+  MY: { currency: "MYR", symbol: "RM", growth: { monthly: 79, yearly: 790 }, business: { monthly: 139, yearly: 1390 }, enterprise: { monthly: 279, yearly: 2790 }, tier: 3 },
+  TH: { currency: "THB", symbol: "฿", growth: { monthly: 599, yearly: 5990 }, business: { monthly: 999, yearly: 9990 }, enterprise: { monthly: 1999, yearly: 19990 }, tier: 3 },
+  AR: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, enterprise: { monthly: 59, yearly: 590 }, tier: 3 },
+  CL: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, enterprise: { monthly: 59, yearly: 590 }, tier: 3 },
+  CO: { currency: "USD", symbol: "$", growth: { monthly: 17, yearly: 170 }, business: { monthly: 29, yearly: 290 }, enterprise: { monthly: 59, yearly: 590 }, tier: 3 },
+  JP: { currency: "JPY", symbol: "¥", growth: { monthly: 2900, yearly: 29000 }, business: { monthly: 4900, yearly: 49000 }, enterprise: { monthly: 9900, yearly: 99000 }, tier: 3 },
+  KR: { currency: "KRW", symbol: "₩", growth: { monthly: 29000, yearly: 290000 }, business: { monthly: 49000, yearly: 490000 }, enterprise: { monthly: 99000, yearly: 990000 }, tier: 3 },
   
   // Tier 4 - SEA/Africa (~60% discount)
-  PH: { currency: "PHP", symbol: "₱", growth: { monthly: 599, yearly: 5990 }, business: { monthly: 999, yearly: 9990 }, tier: 4 },
-  NG: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, tier: 4 },
-  KE: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, tier: 4 },
-  ID: { currency: "IDR", symbol: "Rp", growth: { monthly: 149000, yearly: 1490000 }, business: { monthly: 249000, yearly: 2490000 }, tier: 4 },
-  VN: { currency: "VND", symbol: "₫", growth: { monthly: 299000, yearly: 2990000 }, business: { monthly: 499000, yearly: 4990000 }, tier: 4 },
-  PK: { currency: "PKR", symbol: "Rs", growth: { monthly: 2999, yearly: 29990 }, business: { monthly: 4999, yearly: 49990 }, tier: 4 },
-  BD: { currency: "BDT", symbol: "৳", growth: { monthly: 1499, yearly: 14990 }, business: { monthly: 2499, yearly: 24990 }, tier: 4 },
-  GH: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, tier: 4 },
-  EG: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, tier: 4 },
+  PH: { currency: "PHP", symbol: "₱", growth: { monthly: 599, yearly: 5990 }, business: { monthly: 999, yearly: 9990 }, enterprise: { monthly: 1999, yearly: 19990 }, tier: 4 },
+  NG: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, enterprise: { monthly: 39, yearly: 390 }, tier: 4 },
+  KE: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, enterprise: { monthly: 39, yearly: 390 }, tier: 4 },
+  ID: { currency: "IDR", symbol: "Rp", growth: { monthly: 149000, yearly: 1490000 }, business: { monthly: 249000, yearly: 2490000 }, enterprise: { monthly: 499000, yearly: 4990000 }, tier: 4 },
+  VN: { currency: "VND", symbol: "₫", growth: { monthly: 299000, yearly: 2990000 }, business: { monthly: 499000, yearly: 4990000 }, enterprise: { monthly: 999000, yearly: 9990000 }, tier: 4 },
+  PK: { currency: "PKR", symbol: "Rs", growth: { monthly: 2999, yearly: 29990 }, business: { monthly: 4999, yearly: 49990 }, enterprise: { monthly: 9999, yearly: 99990 }, tier: 4 },
+  BD: { currency: "BDT", symbol: "৳", growth: { monthly: 1499, yearly: 14990 }, business: { monthly: 2499, yearly: 24990 }, enterprise: { monthly: 4999, yearly: 49990 }, tier: 4 },
+  GH: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, enterprise: { monthly: 39, yearly: 390 }, tier: 4 },
+  EG: { currency: "USD", symbol: "$", growth: { monthly: 12, yearly: 120 }, business: { monthly: 19, yearly: 190 }, enterprise: { monthly: 39, yearly: 390 }, tier: 4 },
   
   // Default fallback
-  DEFAULT: { currency: "USD", symbol: "$", growth: { monthly: 29, yearly: 290 }, business: { monthly: 49, yearly: 490 }, tier: 1 },
+  DEFAULT: { currency: "USD", symbol: "$", growth: { monthly: 29, yearly: 290 }, business: { monthly: 49, yearly: 490 }, enterprise: { monthly: 99, yearly: 990 }, tier: 1 },
 };
 
 export interface PricingData {
@@ -89,9 +94,16 @@ export interface PricingData {
     yearly: number;
     monthlyFormatted: string;
     yearlyFormatted: string;
-    yearlyMonthly: string; // yearly price per month
+    yearlyMonthly: string;
   };
   business: {
+    monthly: number;
+    yearly: number;
+    monthlyFormatted: string;
+    yearlyFormatted: string;
+    yearlyMonthly: string;
+  };
+  enterprise: {
     monthly: number;
     yearly: number;
     monthlyFormatted: string;
@@ -213,6 +225,13 @@ export function usePricing(): PricingData {
       monthlyFormatted: formatPrice(pricing.business.monthly, pricing.symbol, pricing.currency),
       yearlyFormatted: formatPrice(pricing.business.yearly, pricing.symbol, pricing.currency),
       yearlyMonthly: formatPrice(Math.round(pricing.business.yearly / 12), pricing.symbol, pricing.currency),
+    },
+    enterprise: {
+      monthly: pricing.enterprise.monthly,
+      yearly: pricing.enterprise.yearly,
+      monthlyFormatted: formatPrice(pricing.enterprise.monthly, pricing.symbol, pricing.currency),
+      yearlyFormatted: formatPrice(pricing.enterprise.yearly, pricing.symbol, pricing.currency),
+      yearlyMonthly: formatPrice(Math.round(pricing.enterprise.yearly / 12), pricing.symbol, pricing.currency),
     },
     tier: pricing.tier,
     isLoading,
