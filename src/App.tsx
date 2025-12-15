@@ -28,6 +28,7 @@ import VideoIntroPhase from "./pages/VideoIntroPhase";
 import ChatSimulationPhase from "./pages/ChatSimulationPhase";
 import ChatInterviewPhase from "./pages/ChatInterviewPhase";
 import SalesSimulationPhase from "./pages/SalesSimulationPhase";
+import VoiceInterviewPhase from "./pages/VoiceInterviewPhase";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/applications/:id/chat-simulation/:stepId" element={<ChatSimulationPhase />} />
               <Route path="/applications/:id/chat-interview/:stepId" element={<ChatInterviewPhase />} />
               <Route path="/applications/:id/sales-simulation/:stepId" element={<SalesSimulationPhase />} />
+              <Route path="/applications/:id/voice-interview/:stepId" element={<VoiceInterviewPhase />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
