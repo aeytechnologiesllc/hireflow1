@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTeamInvitations, useUpdateInvitation } from "@/hooks/useTeam";
+import { useTeamInvitations, useUpdateInvitation, useDeleteInvitation } from "@/hooks/useTeam";
 import { useTeamMembers, useRevokeTeamMember } from "@/hooks/useTeamMembers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,8 @@ import {
   UserX,
   Copy,
   Check,
-  Link
+  Link,
+  Trash2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -69,6 +70,7 @@ export default function Team() {
   const { data: invitations, isLoading: invitationsLoading, refetch: refetchInvitations } = useTeamInvitations();
   const { data: teamMembers, isLoading: membersLoading } = useTeamMembers();
   const updateInvitation = useUpdateInvitation();
+  const deleteInvitation = useDeleteInvitation();
   const revokeTeamMember = useRevokeTeamMember();
 
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -82,6 +84,15 @@ export default function Team() {
       toast.success("Invitation cancelled");
     } catch (error) {
       toast.error("Failed to cancel invitation");
+    }
+  };
+
+  const handleDeleteInvitation = async (id: string) => {
+    try {
+      await deleteInvitation.mutateAsync(id);
+      toast.success("Invitation deleted");
+    } catch (error) {
+      toast.error("Failed to delete invitation");
     }
   };
 
@@ -335,7 +346,7 @@ export default function Team() {
                           <Badge className={statusColors[displayStatus]}>
                             {displayStatus}
                           </Badge>
-                          {invitation.status === "pending" && !isExpired && invitation.invite_code && (
+                          {invitation.status === "pending" && !isExpired && invitation.invite_code ? (
                             <>
                               <Button
                                 variant="outline"
@@ -367,6 +378,15 @@ export default function Team() {
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteInvitation(invitation.id)}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </div>
