@@ -389,6 +389,11 @@ export default function ApplicantDetails() {
         // Determine if we're resetting to application phase (clear ai_score and resume)
         const isResetToApplication = newPhase.type === "application" || newPhase.id === "application";
         
+        // If resetting to application, also clear the application answers so candidate can re-submit
+        if (isResetToApplication) {
+          delete updatedNotes.applicationAnswers;
+        }
+        
         await updateApplication.mutateAsync({
           id: application.id,
           phase: newPhase.id,
@@ -396,6 +401,7 @@ export default function ApplicantDetails() {
           phase_ai_analysis: null, // Clear phase analysis when resetting
           ai_score: isResetToApplication ? null : application.ai_score, // Clear AI score if resetting to application
           resume_url: isResetToApplication ? null : application.resume_url, // Clear resume if resetting to application
+          cover_letter: isResetToApplication ? null : application.cover_letter, // Clear cover letter if resetting to application
           status: newPhase.type === "interview" ? "interview" : 
                   newPhase.type === "hired" ? "hired" : 
                   "reviewing",
