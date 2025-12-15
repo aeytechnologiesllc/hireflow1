@@ -10,8 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog";
+import { 
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -20,7 +24,7 @@ import {
   XCircle, GripHorizontal, Clock, RefreshCw, 
   FileCheck, ClipboardList, Video, Keyboard, 
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
-  Calendar
+  Calendar, AlertTriangle
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import type { Tables } from "@/integrations/supabase/types";
@@ -79,6 +83,12 @@ export default function ApplicantDetails() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
   const [showInterviewWizard, setShowInterviewWizard] = useState(false);
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const [pendingPhaseChange, setPendingPhaseChange] = useState<{
+    newIndex: number;
+    newPhase: { id: string; title: string; type: string };
+    phasesToReset: { id: string; title: string; type: string }[];
+  } | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -163,25 +173,151 @@ export default function ApplicantDetails() {
     const newPhase = phases[nearestIndex];
     
     if (newPhase && newPhase.id !== application.phase) {
-      try {
-        await updateApplication.mutateAsync({ 
-          id: application.id, 
-          phase: newPhase.id,
-          status: newPhase.type === "interview" ? "interview" : 
-                  newPhase.type === "hired" ? "hired" : 
-                  application.status
+      const currentIndex = effectivePhaseIndex;
+      
+      // Check if moving backward (resetting phases)
+      if (nearestIndex < currentIndex) {
+        // Get phases that will be reset
+        const phasesToReset = phases.slice(nearestIndex + 1, currentIndex + 1);
+        setPendingPhaseChange({
+          newIndex: nearestIndex,
+          newPhase,
+          phasesToReset,
         });
-        queryClient.invalidateQueries({ queryKey: ["application", id] });
-        toast.success(`Moved to ${newPhase.title} phase`);
-      } catch (error) {
-        toast.error("Failed to update phase");
+        setShowResetConfirmation(true);
+        // Don't snap yet - wait for confirmation
+        return;
       }
+      
+      // Moving forward - execute immediately
+      await executePhaseChange(nearestIndex, newPhase, false);
     }
     
     // Snap to position
     const snapPercentage = (nearestIndex / (phases.length - 1)) * 100;
     setDragPosition(snapPercentage);
   };
+
+  const executePhaseChange = async (
+    newIndex: number,
+    newPhase: { id: string; title: string; type: string },
+    isBackward: boolean
+  ) => {
+    if (!application) return;
+    
+    try {
+      const currentIndex = effectivePhaseIndex;
+      let updatedNotes = { ...parsedNotes };
+      
+      if (isBackward) {
+        // Moving backward - clear data for reset phases
+        const phasesToReset = phases.slice(newIndex + 1, currentIndex + 1);
+        
+        phasesToReset.forEach((phase) => {
+          // Clear specific phase data based on type
+          if (phase.type === "typing_test") {
+            delete updatedNotes.typingTestResult;
+          }
+          if (phase.type === "chat_simulation") {
+            delete updatedNotes.chatSimulationResult;
+          }
+          if (phase.type === "quiz") {
+            if (updatedNotes.quizAnswers) {
+              delete updatedNotes.quizAnswers[phase.id];
+              // Clean up empty quizAnswers object
+              if (Object.keys(updatedNotes.quizAnswers).length === 0) {
+                delete updatedNotes.quizAnswers;
+              }
+            }
+          }
+          if (phase.type === "video_intro") {
+            delete updatedNotes.videoIntroUrl;
+          }
+          // Remove from employer-skipped list if it was there
+          if (updatedNotes.employerSkippedPhases) {
+            updatedNotes.employerSkippedPhases = updatedNotes.employerSkippedPhases.filter(
+              (id: string) => id !== phase.id
+            );
+            if (updatedNotes.employerSkippedPhases.length === 0) {
+              delete updatedNotes.employerSkippedPhases;
+            }
+          }
+        });
+        
+        await updateApplication.mutateAsync({
+          id: application.id,
+          phase: newPhase.id,
+          notes: JSON.stringify(updatedNotes),
+          phase_ai_analysis: null, // Clear phase analysis when resetting
+          status: newPhase.type === "interview" ? "interview" : 
+                  newPhase.type === "hired" ? "hired" : 
+                  "reviewing",
+        });
+        
+        toast.success(`Reset to ${newPhase.title} phase. Candidate can redo cleared phases.`);
+      } else {
+        // Moving forward - track skipped phases
+        const skippedPhases = phases.slice(currentIndex + 1, newIndex + 1).map((p) => p.id);
+        
+        if (skippedPhases.length > 0) {
+          updatedNotes.employerSkippedPhases = [
+            ...(updatedNotes.employerSkippedPhases || []),
+            ...skippedPhases,
+          ];
+        }
+        
+        await updateApplication.mutateAsync({
+          id: application.id,
+          phase: newPhase.id,
+          notes: JSON.stringify(updatedNotes),
+          status: newPhase.type === "interview" ? "interview" : 
+                  newPhase.type === "hired" ? "hired" : 
+                  application.status,
+        });
+        
+        toast.success(`Advanced to ${newPhase.title} phase`);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+    } catch (error) {
+      toast.error("Failed to update phase");
+    }
+    
+    // Snap to position
+    const snapPercentage = (newIndex / (phases.length - 1)) * 100;
+    setDragPosition(snapPercentage);
+  };
+
+  const handleConfirmReset = async () => {
+    if (!pendingPhaseChange) return;
+    
+    await executePhaseChange(
+      pendingPhaseChange.newIndex,
+      pendingPhaseChange.newPhase,
+      true
+    );
+    
+    setShowResetConfirmation(false);
+    setPendingPhaseChange(null);
+  };
+
+  const handleCancelReset = () => {
+    setShowResetConfirmation(false);
+    setPendingPhaseChange(null);
+    
+    // Snap back to current position
+    const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
+    setDragPosition(snapPercentage);
+  };
+
+  // Parse submitted data from notes (moved earlier for use in executePhaseChange)
+  const parsedNotes = (() => {
+    try {
+      return application?.notes ? JSON.parse(application.notes) : {};
+    } catch {
+      return {};
+    }
+  })();
 
   const handleReject = async () => {
     if (!application) return;
@@ -282,15 +418,6 @@ ${application.cover_letter || "Not provided"}
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
     : profile?.email?.[0]?.toUpperCase() || "?";
-
-  // Parse submitted data from notes
-  const parsedNotes = (() => {
-    try {
-      return application.notes ? JSON.parse(application.notes) : {};
-    } catch {
-      return {};
-    }
-  })();
 
   // Check which workflow steps have data submitted
   const getStepSubmissionData = (stepId: string, stepType: string) => {
@@ -963,6 +1090,37 @@ ${application.cover_letter || "Not provided"}
         open={showInterviewWizard}
         onOpenChange={setShowInterviewWizard}
       />
+
+      {/* Phase Reset Confirmation Dialog */}
+      <AlertDialog open={showResetConfirmation} onOpenChange={setShowResetConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Reset Candidate Progress?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Moving back to <strong>{pendingPhaseChange?.newPhase.title}</strong> will reset the following phases:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                {pendingPhaseChange?.phasesToReset.map((phase) => (
+                  <li key={phase.id}>{phase.title}</li>
+                ))}
+              </ul>
+              <p className="text-warning">
+                All submission data for these phases will be cleared, and the candidate will need to redo them.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelReset}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmReset} className="bg-warning text-warning-foreground hover:bg-warning/90">
+              Reset & Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
