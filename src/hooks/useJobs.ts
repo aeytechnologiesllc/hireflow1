@@ -11,16 +11,34 @@ export interface JobWithApplicationCount extends Job {
 }
 
 export function useEmployerJobs() {
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
 
   return useQuery({
-    queryKey: ["jobs", "employer", user?.id],
+    queryKey: ["jobs", "employer", user?.id, isTeamMember],
     queryFn: async () => {
-      // Get jobs
+      let employerId = user!.id;
+
+      // If team member, get the employer_id from team_members table
+      if (isTeamMember) {
+        const { data: teamMember, error: tmError } = await supabase
+          .from("team_members")
+          .select("employer_id")
+          .eq("user_id", user!.id)
+          .eq("status", "active")
+          .single();
+
+        if (tmError || !teamMember) {
+          console.error("Failed to get team member employer_id:", tmError);
+          return [] as JobWithApplicationCount[];
+        }
+        employerId = teamMember.employer_id;
+      }
+
+      // Get jobs - RLS will filter to assigned jobs for team members
       const { data: jobs, error } = await supabase
         .from("jobs")
         .select("*")
-        .eq("employer_id", user!.id)
+        .eq("employer_id", employerId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -87,15 +105,33 @@ export function usePublishedJobs() {
 }
 
 export function useJobStats() {
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
 
   return useQuery({
-    queryKey: ["jobs", "stats", user?.id],
+    queryKey: ["jobs", "stats", user?.id, isTeamMember],
     queryFn: async () => {
+      let employerId = user!.id;
+
+      // If team member, get the employer_id from team_members table
+      if (isTeamMember) {
+        const { data: teamMember, error: tmError } = await supabase
+          .from("team_members")
+          .select("employer_id")
+          .eq("user_id", user!.id)
+          .eq("status", "active")
+          .single();
+
+        if (tmError || !teamMember) {
+          console.error("Failed to get team member employer_id:", tmError);
+          return { total: 0, published: 0, draft: 0, closed: 0 };
+        }
+        employerId = teamMember.employer_id;
+      }
+
       const { data, error } = await supabase
         .from("jobs")
         .select("status")
-        .eq("employer_id", user!.id);
+        .eq("employer_id", employerId);
 
       if (error) throw error;
 
