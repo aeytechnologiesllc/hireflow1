@@ -1040,20 +1040,25 @@ export default function CreateJob() {
                             )}
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.99 }}
-                            style={processingMode === "auto" ? {
-                              boxShadow: "0 0 30px -5px rgba(168, 85, 247, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            animate={processingMode === "auto" ? {
+                              boxShadow: [
+                                "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 35px -5px rgba(168, 85, 247, 0.5), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                              ]
+                            } : {}}
+                            transition={processingMode === "auto" ? {
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: "easeInOut"
                             } : {}}
                           >
-                            {/* Single animated border glow */}
+                            {/* Pulsing border glow */}
                             {processingMode === "auto" && (
                               <motion.div
-                                className="absolute inset-0 rounded-xl pointer-events-none"
-                                style={{
-                                  border: "2px solid",
-                                  borderImage: "linear-gradient(135deg, rgba(168, 85, 247, 0.8), rgba(236, 72, 153, 0.6), rgba(168, 85, 247, 0.8)) 1"
-                                }}
+                                className="absolute inset-0 rounded-xl border-2 border-purple-500/70 pointer-events-none"
                                 animate={{ 
-                                  opacity: [0.7, 1, 0.7],
+                                  opacity: [0.6, 1, 0.6],
                                 }}
                                 transition={{ 
                                   duration: 2,
@@ -1061,9 +1066,6 @@ export default function CreateJob() {
                                   ease: "easeInOut"
                                 }}
                               />
-                            )}
-                            {processingMode === "auto" && (
-                              <div className="absolute inset-0 rounded-xl border-2 border-purple-500/60" />
                             )}
                             <div className="relative flex items-center gap-3">
                               <div className={cn(
@@ -1099,23 +1101,43 @@ export default function CreateJob() {
                             </div>
                           </motion.button>
 
-                          {/* Manual Review Button */}
+                          {/* Manual Review Button - Also premium with subtle glow */}
                           <motion.button
                             onClick={() => setProcessingMode("manual")}
                             className={cn(
                               "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                               processingMode === "manual"
-                                ? "bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80 shadow-lg shadow-slate-500/20"
-                                : "bg-card/50 border border-border hover:border-muted-foreground/30"
+                                ? "bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80"
+                                : "bg-card/50 border border-border hover:border-slate-500/30"
                             )}
                             whileHover={{ scale: 1.01 }}
                             whileTap={{ scale: 0.99 }}
-                            style={processingMode === "manual" ? {
-                              boxShadow: "0 0 20px -5px rgba(148, 163, 184, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            animate={processingMode === "manual" ? {
+                              boxShadow: [
+                                "0 0 15px -5px rgba(148, 163, 184, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 25px -5px rgba(148, 163, 184, 0.35), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                                "0 0 15px -5px rgba(148, 163, 184, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                              ]
+                            } : {}}
+                            transition={processingMode === "manual" ? {
+                              duration: 2.5,
+                              repeat: Infinity,
+                              ease: "easeInOut"
                             } : {}}
                           >
+                            {/* Pulsing border glow for manual */}
                             {processingMode === "manual" && (
-                              <div className="absolute inset-0 rounded-xl border-2 border-slate-500/60" />
+                              <motion.div
+                                className="absolute inset-0 rounded-xl border-2 border-slate-500/60 pointer-events-none"
+                                animate={{ 
+                                  opacity: [0.5, 0.8, 0.5],
+                                }}
+                                transition={{ 
+                                  duration: 2.5,
+                                  repeat: Infinity,
+                                  ease: "easeInOut"
+                                }}
+                              />
                             )}
                             <div className="relative flex items-center gap-3">
                               <div className={cn(
@@ -1131,9 +1153,16 @@ export default function CreateJob() {
                               </div>
                               <div>
                                 <div className={cn(
-                                  "font-semibold",
+                                  "font-semibold flex items-center gap-2",
                                   processingMode === "manual" && "text-white"
-                                )}>Manual Review</div>
+                                )}>
+                                  Manual Review
+                                  {processingMode === "manual" && (
+                                    <Badge className="text-[10px] px-1.5 py-0 bg-slate-500/30 text-slate-200 border border-slate-400/50">
+                                      ✓
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className={cn(
                                   "text-xs",
                                   processingMode === "manual" ? "text-slate-300/80" : "text-muted-foreground"
