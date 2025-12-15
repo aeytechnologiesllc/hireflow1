@@ -584,6 +584,30 @@ Resume URL: ${application.resume_url || "Not provided"}
     return parsedNotes[stepId];
   };
 
+  // Helper to get resume URL from either resume_url field or application answers
+  const getResumeUrl = (): string | null => {
+    // First check the direct resume_url field
+    if (application.resume_url) {
+      return application.resume_url;
+    }
+    
+    // Check application answers for uploaded resume
+    if (parsedNotes.applicationAnswers && Array.isArray(parsedNotes.applicationAnswers)) {
+      const resumeAnswer = parsedNotes.applicationAnswers.find(
+        (item: { question: string; answer: string }) => 
+          item.question?.toLowerCase().includes('resume') && 
+          item.answer?.startsWith('http')
+      );
+      if (resumeAnswer?.answer) {
+        return resumeAnswer.answer;
+      }
+    }
+    
+    return null;
+  };
+
+  const resumeUrl = getResumeUrl();
+
   // Build badge data from workflow steps
   const workflowBadges = (() => {
     const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
@@ -599,13 +623,13 @@ Resume URL: ${application.resume_url || "Not provided"}
       icon: FileCheck,
     });
     
-    // Resume badge (if resume uploaded)
-    if (job?.require_resume !== false || application.resume_url) {
+    // Resume badge (if resume uploaded or required)
+    if (job?.require_resume !== false || resumeUrl) {
       badges.push({
         id: "resume",
         title: "Resume",
         type: "resume",
-        hasData: !!application.resume_url,
+        hasData: !!resumeUrl,
         score: application.ai_score || undefined,
         icon: FileText,
       });
@@ -641,7 +665,7 @@ Resume URL: ${application.resume_url || "Not provided"}
     if (badgeId === "resume") {
       return {
         title: "Resume",
-        content: application.resume_url,
+        content: resumeUrl,
         type: "resume",
       };
     }
@@ -1076,7 +1100,7 @@ Resume URL: ${application.resume_url || "Not provided"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {application.resume_url ? (
+            {resumeUrl ? (
               <div className="space-y-4">
                 <div className="p-4 bg-muted/50 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1088,7 +1112,7 @@ Resume URL: ${application.resume_url || "Not provided"}
                   </div>
                   <Button asChild>
                     <a 
-                      href={application.resume_url} 
+                      href={resumeUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="gap-2"
@@ -1102,7 +1126,7 @@ Resume URL: ${application.resume_url || "Not provided"}
                 {/* Resume Preview iframe */}
                 <div className="rounded-lg overflow-hidden border border-border bg-muted h-96">
                   <iframe 
-                    src={application.resume_url}
+                    src={resumeUrl}
                     className="w-full h-full"
                     title="Resume Preview"
                   />
