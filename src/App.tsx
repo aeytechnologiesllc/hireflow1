@@ -34,6 +34,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import CreateJob from "./pages/CreateJob";
 import NotFound from "./pages/NotFound";
+import MarketingDemo from "./pages/MarketingDemo";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,9 @@ const App = () => (
             
             {/* Join Team (outside AppLayout) */}
             <Route path="/join-team/:code" element={<JoinTeam />} />
+            
+            {/* Marketing Demo (full-screen, no layout) */}
+            <Route path="/marketing-demo" element={<MarketingDemo />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
