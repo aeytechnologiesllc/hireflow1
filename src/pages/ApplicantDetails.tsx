@@ -347,12 +347,21 @@ export default function ApplicantDetails() {
         const phasesToReset = phases.slice(newIndex + 1, currentIndex + 1);
         
         phasesToReset.forEach((phase) => {
+          // ALWAYS delete step ID data (e.g., notes.step1, notes.step_xxx)
+          delete updatedNotes[phase.id];
+          
           // Clear specific phase data based on type
           if (phase.type === "typing_test") {
             delete updatedNotes.typingTestResult;
           }
           if (phase.type === "chat_simulation") {
             delete updatedNotes.chatSimulationResult;
+          }
+          if (phase.type === "chat_interview") {
+            delete updatedNotes.chatInterviewResult;
+          }
+          if (phase.type === "sales_simulation") {
+            delete updatedNotes.salesSimulationResult;
           }
           if (phase.type === "quiz") {
             if (updatedNotes.quizAnswers) {
@@ -377,11 +386,16 @@ export default function ApplicantDetails() {
           }
         });
         
+        // Determine if we're resetting to application phase (clear ai_score and resume)
+        const isResetToApplication = newPhase.type === "application" || newPhase.id === "application";
+        
         await updateApplication.mutateAsync({
           id: application.id,
           phase: newPhase.id,
           notes: JSON.stringify(updatedNotes),
           phase_ai_analysis: null, // Clear phase analysis when resetting
+          ai_score: isResetToApplication ? null : application.ai_score, // Clear AI score if resetting to application
+          resume_url: isResetToApplication ? null : application.resume_url, // Clear resume if resetting to application
           status: newPhase.type === "interview" ? "interview" : 
                   newPhase.type === "hired" ? "hired" : 
                   "reviewing",
