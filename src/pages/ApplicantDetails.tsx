@@ -259,6 +259,32 @@ export default function ApplicantDetails() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for this application - syncs when AVA or external sources update it
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`application-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'applications',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Application updated in real-time:', payload);
+          queryClient.invalidateQueries({ queryKey: ["application", id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, queryClient]);
+
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
