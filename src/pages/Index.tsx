@@ -2,12 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, type Easing } from "framer-motion";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import FeatureDetailDialog from "@/components/landing/FeatureDetailDialog";
 import { 
   ArrowRight,
   CheckCircle,
@@ -19,8 +14,7 @@ import {
   Target,
   Users,
   ChartBar,
-  Rocket,
-  X
+  Rocket
 } from "lucide-react";
 
 const stats = [
@@ -550,73 +544,10 @@ export default function Index() {
         </div>
       </motion.footer>
       {/* Feature Detail Dialog */}
-      <Dialog open={!!selectedFeature} onOpenChange={() => setSelectedFeature(null)}>
-        <DialogContent className="bg-[hsl(220,15%,10%)] border-[hsl(220,15%,17%)] text-white max-w-lg p-0 overflow-hidden">
-          {selectedFeature && (
-            <>
-              {/* Header with gradient */}
-              <div className={`p-6 pb-4 relative ${
-                selectedFeature.iconBg === "bg-fuchsia-500" 
-                  ? "bg-gradient-to-br from-fuchsia-500/20 to-purple-500/10" 
-                  : "bg-gradient-to-br from-purple-500/20 to-fuchsia-500/10"
-              }`}>
-                <motion.div 
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className={`w-16 h-16 rounded-xl ${selectedFeature.iconBg} flex items-center justify-center mb-4`}
-                >
-                  <selectedFeature.icon className="h-8 w-8 text-white" />
-                </motion.div>
-                <DialogHeader>
-                  <DialogTitle className={`text-2xl font-bold ${selectedFeature.titleColor}`}>
-                    {selectedFeature.title}
-                  </DialogTitle>
-                </DialogHeader>
-              </div>
-              
-              {/* Content */}
-              <div className="p-6 pt-2 space-y-6">
-                <p className="text-gray-300 leading-relaxed">
-                  {selectedFeature.detailedDescription}
-                </p>
-                
-                {/* Highlights */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
-                    Key Features
-                  </h4>
-                  <ul className="space-y-2">
-                    {selectedFeature.highlights.map((highlight, index) => (
-                      <motion.li 
-                        key={index}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex items-center gap-3 text-gray-300"
-                      >
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                          <CheckCircle className="h-3 w-3 text-emerald-400" />
-                        </div>
-                        {highlight}
-                      </motion.li>
-                    ))}
-                  </ul>
-                </div>
-                
-                {/* CTA */}
-                <Link to="/auth" onClick={() => setSelectedFeature(null)}>
-                  <Button className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white">
-                    <Rocket className="mr-2 h-4 w-4" />
-                    Get Started Free
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <FeatureDetailDialog 
+        feature={selectedFeature} 
+        onClose={() => setSelectedFeature(null)} 
+      />
     </div>
   );
 }
