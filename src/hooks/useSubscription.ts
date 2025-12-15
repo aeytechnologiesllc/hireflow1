@@ -61,11 +61,12 @@ export function useSubscription() {
   });
 
   const createCheckoutSession = useMutation({
-    mutationFn: async ({ planType, countryCode }: { planType: 'growth' | 'business'; countryCode: string }) => {
+    mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: {
           planType,
           countryCode,
+          interval,
           successUrl: `${window.location.origin}/settings?subscription=success`,
           cancelUrl: `${window.location.origin}/settings?subscription=canceled`,
         },

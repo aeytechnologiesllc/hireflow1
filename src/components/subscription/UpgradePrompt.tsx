@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
+import { usePricing } from "@/hooks/usePricing";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +18,12 @@ interface UpgradePromptProps {
 }
 
 export default function UpgradePrompt({ feature, requiredPlan = "growth", children }: UpgradePromptProps) {
-  const { subscription, createCheckoutSession, isPaid, limits } = useSubscription();
+  const { subscription, createCheckoutSession, isPaid } = useSubscription();
+  const pricing = usePricing();
   const [showDialog, setShowDialog] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
-  // Check if user has access
   const hasAccess = isPaid && (requiredPlan === "growth" || subscription?.plan_type === "business");
 
   if (hasAccess) {
@@ -31,10 +33,13 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      const countryCode = "US";
-      const { url } = await createCheckoutSession.mutateAsync({ planType, countryCode });
+      const { url } = await createCheckoutSession.mutateAsync({ 
+        planType, 
+        countryCode: pricing.countryCode,
+        interval: billingInterval,
+      });
       if (url) {
-        window.location.href = url;
+        window.open(url, "_blank");
       }
     } catch (error) {
       console.error("Checkout error:", error);
@@ -45,46 +50,83 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
 
   return (
     <>
-      <Card
-        className="p-6 border-dashed border-2 border-muted-foreground/20 bg-muted/5 cursor-pointer hover:border-primary/30 transition-colors"
+      <motion.div
+        whileHover={{ scale: 1.02 }}
+        className="p-6 rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/20 cursor-pointer hover:border-emerald-500/30 transition-all"
         onClick={() => setShowDialog(true)}
       >
         <div className="flex flex-col items-center text-center gap-4">
-          <div className="p-3 rounded-full bg-primary/10">
-            <Lock className="h-6 w-6 text-primary" />
+          <div className="p-3 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30">
+            <Lock className="h-6 w-6 text-emerald-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{feature}</h3>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h3 className="font-semibold text-white">{feature}</h3>
+            <p className="text-sm text-gray-400 mt-1">
               Upgrade to {requiredPlan === "business" ? "Business" : "Growth"} to unlock
             </p>
           </div>
-          <Button size="sm" variant="outline" className="gap-2">
+          <Button size="sm" className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white">
             <Sparkles className="h-4 w-4" />
             Upgrade Now
           </Button>
         </div>
-      </Card>
+      </motion.div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-gray-900 border-gray-800">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Crown className="h-5 w-5 text-emerald-400" />
               Upgrade to Unlock {feature}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 pt-4">
-            <Card className={`p-4 ${requiredPlan === "growth" ? "border-primary" : ""}`}>
+          {/* Billing Toggle */}
+          <div className="flex items-center justify-center gap-3 p-1 rounded-full bg-gray-800/50 border border-gray-700 w-fit mx-auto">
+            <button
+              onClick={() => setBillingInterval("monthly")}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                billingInterval === "monthly"
+                  ? "bg-emerald-500 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingInterval("yearly")}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                billingInterval === "yearly"
+                  ? "bg-emerald-500 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Yearly (2 free)
+            </button>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className={`p-4 rounded-xl border transition-all ${
+                requiredPlan === "growth" 
+                  ? "border-emerald-500/50 bg-emerald-500/5" 
+                  : "border-gray-700 bg-gray-800/30"
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold">Growth Plan</h4>
-                  <p className="text-sm text-muted-foreground">$49/month</p>
+                  <h4 className="font-semibold text-white">Growth Plan</h4>
+                  <p className="text-sm text-gray-400">
+                    {billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly}/month
+                  </p>
                 </div>
                 <Button
                   size="sm"
-                  variant={requiredPlan === "growth" ? "default" : "outline"}
+                  className={requiredPlan === "growth" 
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white"
+                    : "bg-gray-700 hover:bg-gray-600 text-white"
+                  }
                   onClick={() => handleUpgrade("growth")}
                   disabled={loading !== null}
                 >
@@ -96,34 +138,38 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
                 </Button>
               </div>
               <ul className="mt-3 space-y-1 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">3 Active Jobs</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">50 Applicants/month</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">Document Workflows</span>
-                </li>
+                {["3 Active Jobs", "50 Applicants/month", "Document Workflows"].map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <Check className="h-3 w-3 text-emerald-400" />
+                    <span className="text-gray-400">{f}</span>
+                  </li>
+                ))}
               </ul>
-            </Card>
+            </motion.div>
 
-            <Card className={`p-4 ${requiredPlan === "business" ? "border-primary" : ""}`}>
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className={`p-4 rounded-xl border transition-all ${
+                requiredPlan === "business" 
+                  ? "border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 to-transparent" 
+                  : "border-gray-700 bg-gray-800/30"
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold flex items-center gap-2">
+                  <h4 className="font-semibold text-white flex items-center gap-2">
                     Business Plan
-                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
                       Best Value
                     </span>
                   </h4>
-                  <p className="text-sm text-muted-foreground">$99/month</p>
+                  <p className="text-sm text-gray-400">
+                    {billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly}/month
+                  </p>
                 </div>
                 <Button
                   size="sm"
+                  className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white"
                   onClick={() => handleUpgrade("business")}
                   disabled={loading !== null}
                 >
@@ -135,24 +181,14 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
                 </Button>
               </div>
               <ul className="mt-3 space-y-1 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">Unlimited Jobs</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">Unlimited Applicants</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">Team Portal</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">Advanced Analytics</span>
-                </li>
+                {["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics"].map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <Check className="h-3 w-3 text-emerald-400" />
+                    <span className="text-gray-400">{f}</span>
+                  </li>
+                ))}
               </ul>
-            </Card>
+            </motion.div>
           </div>
         </DialogContent>
       </Dialog>
