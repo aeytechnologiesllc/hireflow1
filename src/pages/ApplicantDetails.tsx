@@ -495,6 +495,11 @@ export default function ApplicantDetails() {
     setIsAnalyzing(true);
     
     try {
+      // Include application answers from notes if they exist
+      const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
+        ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
+        : "Not provided";
+
       const content = `
 Job Title: ${application.jobs?.title || "Unknown"}
 Job Description: ${application.jobs?.description || "Not provided"}
@@ -509,6 +514,9 @@ Skills: ${application.profiles?.skills?.join(", ") || "Not specified"}
 Experience Years: ${application.profiles?.experience_years || "Not specified"}
 Bio: ${application.profiles?.bio || "Not provided"}
 Location: ${application.profiles?.location || "Not specified"}
+
+Application Answers:
+${applicationAnswersText}
 
 Cover Letter:
 ${application.cover_letter || "Not provided"}
