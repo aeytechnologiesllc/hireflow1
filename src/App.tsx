@@ -24,6 +24,7 @@ import TypingTestPhase from "./pages/TypingTestPhase";
 import QuizPhase from "./pages/QuizPhase";
 import VideoIntroPhase from "./pages/VideoIntroPhase";
 import ChatSimulationPhase from "./pages/ChatSimulationPhase";
+import ChatInterviewPhase from "./pages/ChatInterviewPhase";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="/applications/:id/quiz/:stepId" element={<QuizPhase />} />
               <Route path="/applications/:id/video-intro/:stepId" element={<VideoIntroPhase />} />
               <Route path="/applications/:id/chat-simulation/:stepId" element={<ChatSimulationPhase />} />
+              <Route path="/applications/:id/chat-interview/:stepId" element={<ChatInterviewPhase />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />

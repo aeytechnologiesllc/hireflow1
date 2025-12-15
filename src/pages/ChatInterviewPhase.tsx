@@ -1,0 +1,603 @@
+import { useState, useRef, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { 
+  ArrowLeft, 
+  Users, 
+  Send,
+  CheckCircle,
+  Loader2,
+  Bot,
+  User,
+  Clock,
+  Sparkles
+} from "lucide-react";
+import { toast } from "sonner";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+interface ApplicationDetails {
+  id: string;
+  candidate_id: string;
+  job_id: string;
+  phase: string | null;
+  notes: string | null;
+  status: string;
+  jobs: {
+    title: string;
+    description: string;
+    processing_mode: string | null;
+    passing_score: number | null;
+    workflow_steps: any[] | null;
+  } | null;
+  profiles?: {
+    full_name: string | null;
+  };
+}
+
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-interview`;
+
+export default function ChatInterviewPhase() {
+  const { id, stepId } = useParams<{ id: string; stepId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed">("intro");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch application details
+  const { data: application, isLoading } = useQuery({
+    queryKey: ["chat-interview-application", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applications")
+        .select("*, jobs(title, description, processing_mode, passing_score, workflow_steps)")
+        .eq("id", id!)
+        .single();
+
+      if (error) throw error;
+      
+      // Also fetch the candidate's profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", data.candidate_id)
+        .single();
+      
+      return { ...data, profiles: profile } as ApplicationDetails;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Calculate interview duration
+  const getDuration = () => {
+    if (!startTime) return "0:00";
+    const diff = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
+    if (!application?.jobs) return;
+    
+    setIsTyping(true);
+    
+    try {
+      const response = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          mode,
+          jobTitle: application.jobs.title,
+          jobDescription: application.jobs.description || "",
+          candidateName: application.profiles?.full_name || "Candidate",
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          userMessage,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get interview response");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+      let textBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        textBuffer += decoder.decode(value, { stream: true });
+        
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+          
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === "assistant" && last.id.startsWith("assistant-streaming")) {
+                  return prev.map((m, i) => 
+                    i === prev.length - 1 ? { ...m, content: assistantContent } : m
+                  );
+                }
+                return [...prev, {
+                  id: `assistant-streaming-${Date.now()}`,
+                  role: "assistant",
+                  content: assistantContent,
+                  timestamp: new Date(),
+                }];
+              });
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Finalize the message with a proper ID
+      setMessages(prev => prev.map(m => 
+        m.id.startsWith("assistant-streaming") 
+          ? { ...m, id: `assistant-${Date.now()}` } 
+          : m
+      ));
+
+      // Count questions (rough heuristic: messages ending with ?)
+      if (assistantContent.includes("?")) {
+        setQuestionCount(prev => prev + 1);
+      }
+
+    } catch (error) {
+      console.error("Chat interview error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to get interview response");
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const startInterview = async () => {
+    setState("interviewing");
+    setStartTime(new Date());
+    await streamChat("start");
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const sendMessage = async () => {
+    if (!inputValue.trim() || isTyping) return;
+    
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: inputValue.trim(),
+      timestamp: new Date(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    const messageToSend = inputValue.trim();
+    setInputValue("");
+    
+    await streamChat("respond", messageToSend);
+  };
+
+  const endInterview = () => {
+    setState("evaluating");
+    handleSubmit();
+  };
+
+  const handleSubmit = async () => {
+    if (!application) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Get AI evaluation
+      const evalResponse = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          mode: "evaluate",
+          jobTitle: application.jobs?.title || "",
+          jobDescription: application.jobs?.description || "",
+          candidateName: application.profiles?.full_name || "Candidate",
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      let evaluation = {
+        score: 70,
+        strengths: ["Completed interview"],
+        concerns: [],
+        recommendation: "Maybe",
+        summary: "Interview completed successfully.",
+      };
+
+      if (evalResponse.ok) {
+        evaluation = await evalResponse.json();
+      }
+
+      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
+      const passingScore = application.jobs?.passing_score || 60;
+      const passed = evaluation.score >= passingScore;
+      
+      const updatedNotes = {
+        ...existingNotes,
+        [stepId!]: {
+          type: "chat_interview",
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            timestamp: m.timestamp.toISOString(),
+          })),
+          evaluation,
+          duration,
+          questionCount,
+          score: evaluation.score,
+          passed,
+          completedAt: new Date().toISOString(),
+        },
+        chatInterviewResult: {
+          messageCount: messages.length,
+          duration,
+          score: evaluation.score,
+          strengths: evaluation.strengths,
+          concerns: evaluation.concerns,
+          recommendation: evaluation.recommendation,
+          passed,
+          completed: true,
+        },
+      };
+
+      // Determine next phase
+      const isAutoMode = application.jobs?.processing_mode !== "manual";
+      const workflowSteps = application.jobs?.workflow_steps || [];
+      const allPhases = [
+        { id: "application", type: "application" },
+        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
+        { id: "review", type: "review" },
+        { id: "interview", type: "interview" },
+        { id: "hired", type: "hired" },
+      ];
+      
+      let currentIndex = allPhases.findIndex(p => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(p => p.id === application.phase || p.type === application.phase);
+      }
+      
+      let newPhase = application.phase;
+      let newStatus = application.status;
+
+      if (isAutoMode) {
+        if (passed) {
+          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+            newPhase = allPhases[currentIndex + 1].id;
+          }
+          toast.success("Interview completed!", {
+            description: `You scored ${evaluation.score}%. You've advanced to the next phase.`,
+          });
+        } else {
+          newStatus = "rejected";
+          toast.error("Interview not passed", {
+            description: `You scored ${evaluation.score}% but needed ${passingScore}% to pass.`,
+          });
+        }
+      } else {
+        toast.success("Interview completed!", {
+          description: "Your responses have been recorded. The employer will review your interview.",
+        });
+      }
+
+      const { error } = await supabase
+        .from("applications")
+        .update({
+          notes: JSON.stringify(updatedNotes),
+          phase: newPhase,
+          status: newStatus as any,
+          phase_ai_analysis: `Chat interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
+        })
+        .eq("id", id!);
+
+      if (error) throw error;
+
+      setState("completed");
+      setTimeout(() => navigate(`/applications/${id}`), 2000);
+      
+    } catch (error) {
+      console.error("Error submitting interview:", error);
+      toast.error("Failed to submit interview results");
+      setState("interviewing");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (!application) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Card className="bg-card border-border max-w-md">
+          <CardContent className="p-8 text-center">
+            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
+            <Button onClick={() => navigate("/applications")} className="mt-4">
+              Back to Applications
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const minQuestions = 5;
+  const canEndInterview = questionCount >= minQuestions;
+
+  return (
+    <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="outline" 
+          onClick={() => navigate(`/applications/${id}`)} 
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Application
+        </Button>
+        
+        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
+          <Users className="h-4 w-4" />
+          AI Interview
+        </Badge>
+      </div>
+
+      {/* Main Card */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            AI-Conducted Interview
+          </CardTitle>
+          <p className="text-muted-foreground">
+            For: {application.jobs?.title}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {state === "intro" && (
+            <div className="space-y-6">
+              <div className="bg-muted/30 rounded-lg p-6 space-y-4">
+                <h3 className="font-semibold text-foreground">How This Works</h3>
+                <ul className="space-y-2 text-muted-foreground text-sm">
+                  <li className="flex items-start gap-2">
+                    <Bot className="h-4 w-4 mt-0.5 text-primary" />
+                    <span>AVA, our AI interviewer, will conduct your interview</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Users className="h-4 w-4 mt-0.5 text-primary" />
+                    <span>Answer questions about your experience and skills</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Clock className="h-4 w-4 mt-0.5 text-primary" />
+                    <span>The interview typically takes 10-15 minutes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-primary" />
+                    <span>Your responses will be evaluated by AI after completion</span>
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="text-center">
+                <Button onClick={startInterview} size="lg" className="gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  Start Interview
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {(state === "interviewing" || state === "evaluating" || state === "completed") && (
+            <>
+              {/* Interview Info */}
+              <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Duration</p>
+                    <p className="text-sm font-medium text-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {getDuration()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Questions</p>
+                    <p className="text-sm font-medium text-foreground">{questionCount}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Progress 
+                    value={Math.min((questionCount / minQuestions) * 100, 100)} 
+                    className="w-20 h-2" 
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {questionCount}/{minQuestions} min
+                  </span>
+                </div>
+              </div>
+
+              {/* Chat Area */}
+              <ScrollArea className="h-[400px] rounded-lg border border-border p-4" ref={scrollRef}>
+                <div className="space-y-4">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 ${
+                        message.role === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      {message.role === "assistant" && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary/20 text-primary">
+                            <Bot className="h-4 w-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div
+                        className={`max-w-[70%] rounded-lg p-3 ${
+                          message.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        }`}
+                      >
+                        {message.role === "assistant" && (
+                          <p className="text-xs font-medium mb-1 opacity-70">AVA</p>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                      {message.role === "user" && (
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary text-primary-foreground">
+                            <User className="h-4 w-4" />
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {isTyping && (
+                    <div className="flex gap-3 justify-start">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary/20 text-primary">
+                          <Bot className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="bg-muted rounded-lg p-3">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Input Area */}
+              {state === "interviewing" && (
+                <div className="flex gap-2">
+                  <Input
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                    placeholder="Type your response..."
+                    disabled={isTyping}
+                    className="flex-1"
+                  />
+                  <Button onClick={sendMessage} disabled={isTyping || !inputValue.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* End Interview Button */}
+              {state === "interviewing" && canEndInterview && (
+                <div className="text-center pt-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={endInterview}
+                    disabled={isTyping}
+                  >
+                    End Interview & Submit
+                  </Button>
+                </div>
+              )}
+
+              {/* Evaluating State */}
+              {state === "evaluating" && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+                  <p className="text-foreground font-medium">Evaluating your interview...</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    AVA is reviewing your responses
+                  </p>
+                </div>
+              )}
+
+              {/* Completed State */}
+              {state === "completed" && (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 mx-auto text-success mb-4" />
+                  <p className="text-foreground font-medium">Interview Complete!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Redirecting to your application...
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -123,6 +123,7 @@ Choose appropriate steps based on the job role:
 - video_message: For communication-focused roles (config: {"min_duration_seconds": 30, "max_duration_seconds": 60})
 - portfolio_upload: For creative/technical roles (config: {"portfolio_type": "general"})
 - chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
+- chat_interview: For roles requiring strong communication/interpersonal skills (config: {"focus": "behavioral"})
 - sales_simulation: ONLY for sales roles (config: {})
 
 Random Seed: ${randomSeed}
