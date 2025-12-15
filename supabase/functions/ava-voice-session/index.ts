@@ -102,10 +102,50 @@ serve(async (req) => {
         .eq("user_id", user.id)
         .single();
 
+      // If viewing a specific applicant, fetch their context
+      let currentApplicantContext = "";
+      if (applicationId) {
+        console.log("Fetching current applicant context for:", applicationId);
+        const { data: currentApp } = await supabaseClient
+          .from("applications")
+          .select(`
+            id, status, phase, ai_score, notes, created_at, candidate_id,
+            jobs!inner(id, title, employer_id)
+          `)
+          .eq("id", applicationId)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (currentApp) {
+          // Fetch candidate profile separately
+          const { data: candidateProfile } = await supabaseClient
+            .from("profiles")
+            .select("full_name, email")
+            .eq("user_id", currentApp.candidate_id)
+            .single();
+
+          currentApplicantContext = `
+CURRENT APPLICANT CONTEXT (the user is viewing this applicant right now):
+- Application ID: ${currentApp.id}
+- Candidate Name: ${candidateProfile?.full_name || 'Unknown'}
+- Candidate Email: ${candidateProfile?.email || 'Unknown'}
+- Job: ${(currentApp.jobs as any)?.title || 'Unknown'}
+- Current Phase: ${currentApp.phase || 'application'}
+- Status: ${currentApp.status}
+- AI Score: ${currentApp.ai_score || 'Not scored yet'}
+- Applied: ${new Date(currentApp.created_at).toLocaleDateString()}
+
+IMPORTANT: When the user asks about "this applicant", "the current applicant", "this candidate", or refers to the person they're viewing, use the context above.
+When asked to move this applicant to a different phase, use application_id: "${currentApp.id}"
+`;
+          console.log("Current applicant context added:", candidateProfile?.full_name, currentApp.phase);
+        }
+      }
+
       instructions = `You are AVA, an AI hiring assistant for ${profile?.company_name || 'the employer'}. You help ${profile?.full_name || 'the employer'} manage their hiring process through voice commands.
 
 Current active jobs: ${jobs?.filter(j => j.status === 'published').map(j => j.title).join(', ') || 'None'}
-
+${currentApplicantContext}
 You can:
 - Answer questions about applicants, jobs, and hiring metrics
 - Help move applicants between phases

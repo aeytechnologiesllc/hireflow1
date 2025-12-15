@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Loader2, X, MessageSquare, Lock, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ interface ToolAction {
 export default function AvaVoiceButton() {
   const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -37,6 +39,12 @@ export default function AvaVoiceButton() {
 
   const voiceAccessState = getVoiceAccessState();
   const voiceMinutesRemaining = getVoiceMinutesRemaining();
+
+  // Extract applicationId from URL if viewing an applicant
+  const currentApplicationId = useMemo(() => {
+    const match = location.pathname.match(/\/applicants\/([a-f0-9-]+)/);
+    return match ? match[1] : undefined;
+  }, [location.pathname]);
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     setMessages((prev) => {
@@ -81,6 +89,7 @@ export default function AvaVoiceButton() {
     sendTextMessage,
   } = useAvaVoice({
     mode: "assistant",
+    applicationId: currentApplicationId,
     onTranscript: handleTranscript,
     onToolCall: handleToolCall,
   });
@@ -187,6 +196,46 @@ export default function AvaVoiceButton() {
         animate={{ scale: 1, opacity: 1 }}
         className="fixed bottom-6 right-6 z-50"
       >
+        {/* Listening ring animation */}
+        {isConnected && isListening && (
+          <motion.div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            initial={{ scale: 1, opacity: 0.8 }}
+            animate={{ 
+              scale: [1, 1.4, 1],
+              opacity: [0.8, 0, 0.8]
+            }}
+            transition={{ 
+              duration: 1.5, 
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            style={{
+              border: "3px solid hsl(var(--primary))",
+            }}
+          />
+        )}
+
+        {/* Speaking ring animation */}
+        {isConnected && isSpeaking && (
+          <motion.div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            initial={{ scale: 1, opacity: 0.8 }}
+            animate={{ 
+              scale: [1, 1.3, 1],
+              opacity: [0.8, 0.3, 0.8]
+            }}
+            transition={{ 
+              duration: 0.6, 
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            style={{
+              border: "3px solid hsl(142.1 76.2% 36.3%)",
+            }}
+          />
+        )}
+
         <Button
           onClick={handleButtonClick}
           disabled={isConnecting}
@@ -219,19 +268,6 @@ export default function AvaVoiceButton() {
           >
             0:00
           </motion.div>
-        )}
-
-        {/* Voice activity indicator */}
-        {isConnected && (isSpeaking || isListening) && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className={cn(
-              "absolute -top-1 -right-1 h-4 w-4 rounded-full",
-              isSpeaking ? "bg-emerald-400" : "bg-blue-400",
-              "animate-pulse"
-            )}
-          />
         )}
       </motion.div>
 
@@ -282,10 +318,35 @@ export default function AvaVoiceButton() {
             <ScrollArea className="h-64 p-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                  <Mic className="h-8 w-8 mb-2 opacity-50" />
-                  <p className="text-sm">
-                    {isListening ? "Listening..." : "Start speaking or type a message"}
-                  </p>
+                  {isListening ? (
+                    <>
+                      <motion.div
+                        className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center mb-3"
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      >
+                        <Mic className="h-7 w-7 text-primary" />
+                      </motion.div>
+                      <p className="text-sm font-medium text-primary">Listening...</p>
+                      <p className="text-xs text-muted-foreground mt-1">Speak now</p>
+                    </>
+                  ) : isSpeaking ? (
+                    <>
+                      <motion.div
+                        className="h-14 w-14 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3"
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 0.5, repeat: Infinity }}
+                      >
+                        <MessageSquare className="h-7 w-7 text-emerald-400" />
+                      </motion.div>
+                      <p className="text-sm font-medium text-emerald-400">AVA is speaking...</p>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-8 w-8 mb-2 opacity-50" />
+                      <p className="text-sm">Start speaking or type a message</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
