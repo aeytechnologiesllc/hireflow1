@@ -1,44 +1,30 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
+import { usePricing } from "@/hooks/usePricing";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { AlertTriangle, Crown, LogOut, Loader2, Check } from "lucide-react";
-
-const PLANS = [
-  {
-    id: "growth",
-    name: "Growth",
-    price: "$49",
-    period: "/month",
-    features: ["3 Active Jobs", "50 Applicants/month", "AI Screening", "Document Workflows"],
-  },
-  {
-    id: "business",
-    name: "Business",
-    price: "$99",
-    period: "/month",
-    features: ["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "Priority Support"],
-    popular: true,
-  },
-];
+import { AlertTriangle, Crown, LogOut, Loader2, Check, Sparkles } from "lucide-react";
 
 export default function TrialExpiredOverlay() {
   const { isExpired, createCheckoutSession } = useSubscription();
   const { signOut } = useAuth();
+  const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
   if (!isExpired) return null;
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      // Get user's country (simplified - in production use geolocate-ip)
-      const countryCode = "US";
-      const { url } = await createCheckoutSession.mutateAsync({ planType, countryCode });
+      const { url } = await createCheckoutSession.mutateAsync({ 
+        planType, 
+        countryCode: pricing.countryCode,
+        interval: billingInterval,
+      });
       if (url) {
-        window.location.href = url;
+        window.open(url, "_blank");
       }
     } catch (error) {
       console.error("Checkout error:", error);
@@ -47,63 +33,127 @@ export default function TrialExpiredOverlay() {
     }
   };
 
+  const PLANS = [
+    {
+      id: "growth" as const,
+      name: "Growth",
+      price: billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly,
+      period: billingInterval === "monthly" ? "/month" : "/mo",
+      yearlyTotal: pricing.growth.yearlyFormatted,
+      features: ["3 Active Jobs", "50 Applicants/month", "AI Screening", "Document Workflows"],
+    },
+    {
+      id: "business" as const,
+      name: "Business",
+      price: billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly,
+      period: billingInterval === "monthly" ? "/month" : "/mo",
+      yearlyTotal: pricing.business.yearlyFormatted,
+      features: ["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "Priority Support"],
+      popular: true,
+    },
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsl(220, 18%, 7%)" }}>
+      {/* Background gradient orbs */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/12 rounded-full blur-[150px] pointer-events-none" />
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-3xl"
       >
-        <Card className="p-8 bg-card border-border text-center">
+        <div className="p-8 rounded-2xl border border-gray-800 bg-gray-900/50 backdrop-blur-sm text-center">
           <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full bg-destructive/20">
-              <AlertTriangle className="h-12 w-12 text-destructive" />
-            </div>
+            <motion.div 
+              className="p-4 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <AlertTriangle className="h-12 w-12 text-orange-400" />
+            </motion.div>
           </div>
 
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-3xl font-bold text-white mb-2">
             Your Trial Has Ended
           </h1>
-          <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
+          <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
             Subscribe to continue using HireFlow and access all your data
           </p>
 
+          {/* Billing Toggle */}
+          <div className="flex items-center justify-center gap-3 p-1 rounded-full bg-gray-800/50 border border-gray-700 w-fit mx-auto mb-8">
+            <button
+              onClick={() => setBillingInterval("monthly")}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                billingInterval === "monthly"
+                  ? "bg-emerald-500 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingInterval("yearly")}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
+                billingInterval === "yearly"
+                  ? "bg-emerald-500 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Yearly
+              <span className="text-xs bg-emerald-400/20 text-emerald-300 px-2 py-0.5 rounded-full">
+                Save 2 months
+              </span>
+            </button>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {PLANS.map((plan) => (
-              <Card
+              <motion.div
                 key={plan.id}
-                className={`p-6 relative ${
-                  plan.popular ? "border-primary bg-primary/5" : ""
+                whileHover={{ scale: 1.02, y: -4 }}
+                className={`relative p-6 rounded-xl border transition-all ${
+                  plan.popular
+                    ? "bg-gradient-to-b from-emerald-500/10 to-transparent border-emerald-500/50"
+                    : "bg-gray-800/30 border-gray-700 hover:border-gray-600"
                 }`}
               >
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full flex items-center gap-1">
+                    <span className="bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
                       <Crown className="h-3 w-3" /> Recommended
                     </span>
                   </div>
                 )}
 
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-foreground">{plan.name}</h3>
+                  <h3 className="text-xl font-semibold text-white">{plan.name}</h3>
                   <div className="flex items-baseline justify-center">
-                    <span className="text-4xl font-bold text-foreground">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
+                    <span className="text-4xl font-bold text-white">{plan.price}</span>
+                    <span className="text-gray-400 ml-1">{plan.period}</span>
                   </div>
+                  {billingInterval === "yearly" && (
+                    <p className="text-sm text-gray-500">Billed {plan.yearlyTotal}/year</p>
+                  )}
 
                   <ul className="space-y-2 text-left">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary shrink-0" />
-                        <span className="text-muted-foreground">{feature}</span>
+                        <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span className="text-gray-400">{feature}</span>
                       </li>
                     ))}
                   </ul>
 
                   <Button
-                    className="w-full"
-                    variant={plan.popular ? "default" : "outline"}
-                    onClick={() => handleUpgrade(plan.id as "growth" | "business")}
+                    className={`w-full ${
+                      plan.popular
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25"
+                        : "bg-gray-700 hover:bg-gray-600 text-white"
+                    }`}
+                    onClick={() => handleUpgrade(plan.id)}
                     disabled={loading !== null}
                   >
                     {loading === plan.id ? (
@@ -112,23 +162,26 @@ export default function TrialExpiredOverlay() {
                         Processing...
                       </>
                     ) : (
-                      `Subscribe to ${plan.name}`
+                      <>
+                        {plan.popular && <Sparkles className="h-4 w-4 mr-2" />}
+                        Subscribe to {plan.name}
+                      </>
                     )}
                   </Button>
                 </div>
-              </Card>
+              </motion.div>
             ))}
           </div>
 
           <Button
             variant="ghost"
-            className="text-muted-foreground"
+            className="text-gray-500 hover:text-gray-300 hover:bg-gray-800"
             onClick={() => signOut()}
           >
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
-        </Card>
+        </div>
       </motion.div>
     </div>
   );
