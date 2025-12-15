@@ -98,9 +98,6 @@ export default function AvaVoiceButton() {
       setIsOpen(false);
     } else {
       // Toggle ON - connect immediately and open panel
-      if (voiceAccessState === 'trial') {
-        toast.info(`Voice trial active - ${formatMinutes(voiceMinutesRemaining)} remaining`);
-      }
       connect();
       setIsOpen(true);
     }
