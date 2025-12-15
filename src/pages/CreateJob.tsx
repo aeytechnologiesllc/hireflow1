@@ -1028,36 +1028,93 @@ export default function CreateJob() {
                       <div className="space-y-4">
                         <Label>Processing Mode</Label>
                         <div className="grid grid-cols-2 gap-3">
-                          <button
+                          {/* Auto-Pilot Button - Featured/Highlighted */}
+                          <motion.button
                             onClick={() => setProcessingMode("auto")}
                             className={cn(
-                              "p-4 rounded-xl border-2 transition-all text-left",
+                              "relative p-4 rounded-xl border-2 transition-all text-left overflow-hidden",
                               processingMode === "auto"
-                                ? "border-primary bg-primary/5"
+                                ? "border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-lg shadow-primary/20"
                                 : "border-border hover:border-primary/50"
                             )}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                           >
-                            <div className="flex items-center gap-3">
-                              <Zap className="h-5 w-5 text-blue-500" />
+                            {/* Animated glow effect for Auto-Pilot */}
+                            {processingMode === "auto" && (
+                              <motion.div
+                                className="absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20"
+                                animate={{ 
+                                  x: ["-100%", "100%"],
+                                }}
+                                transition={{ 
+                                  duration: 3,
+                                  repeat: Infinity,
+                                  ease: "linear"
+                                }}
+                              />
+                            )}
+                            <div className="relative flex items-center gap-3">
+                              <motion.div
+                                animate={processingMode === "auto" ? { 
+                                  rotate: [0, 15, -15, 0],
+                                  scale: [1, 1.1, 1]
+                                } : {}}
+                                transition={{ 
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  ease: "easeInOut"
+                                }}
+                              >
+                                <Zap className={cn(
+                                  "h-6 w-6",
+                                  processingMode === "auto" ? "text-primary" : "text-blue-500"
+                                )} />
+                              </motion.div>
                               <div>
-                                <div className="font-semibold">Auto-Pilot</div>
+                                <div className={cn(
+                                  "font-semibold flex items-center gap-2",
+                                  processingMode === "auto" && "text-primary"
+                                )}>
+                                  Auto-Pilot
+                                  {processingMode === "auto" && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/20 text-primary">
+                                      Recommended
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="text-xs text-muted-foreground">
                                   AVA automatically evaluates and progresses candidates
                                 </div>
                               </div>
                             </div>
-                          </button>
-                          <button
+                          </motion.button>
+
+                          {/* Manual Review Button */}
+                          <motion.button
                             onClick={() => setProcessingMode("manual")}
                             className={cn(
-                              "p-4 rounded-xl border-2 transition-all text-left",
+                              "relative p-4 rounded-xl border-2 transition-all text-left",
                               processingMode === "manual"
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/50"
+                                ? "border-orange-500/50 bg-orange-500/5"
+                                : "border-border hover:border-orange-500/30 opacity-70 hover:opacity-100"
                             )}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            animate={processingMode === "auto" ? { 
+                              opacity: [0.6, 0.8, 0.6],
+                            } : { opacity: 1 }}
+                            transition={processingMode === "auto" ? { 
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            } : {}}
                           >
                             <div className="flex items-center gap-3">
-                              <Hand className="h-5 w-5 text-orange-500" />
+                              <Hand className={cn(
+                                "h-5 w-5",
+                                processingMode === "manual" ? "text-orange-500" : "text-orange-400"
+                              )} />
                               <div>
                                 <div className="font-semibold">Manual Review</div>
                                 <div className="text-xs text-muted-foreground">
@@ -1065,55 +1122,102 @@ export default function CreateJob() {
                                 </div>
                               </div>
                             </div>
-                          </button>
+                          </motion.button>
                         </div>
 
                         {/* Passing Score - Only visible in Auto mode */}
-                        {processingMode === "auto" && (
-                          <div className="p-4 rounded-lg bg-muted/30 border border-border space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <Label>Passing Score</Label>
-                                <p className="text-xs text-muted-foreground">
-                                  Minimum AI score to auto-advance candidates
-                                </p>
+                        <AnimatePresence>
+                          {processingMode === "auto" && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="p-4 rounded-lg bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <Label>Passing Score</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      Minimum AI score to auto-advance candidates
+                                    </p>
+                                  </div>
+                                  <motion.div 
+                                    key={passingScore}
+                                    initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                                    animate={{ scale: 1 }}
+                                    className="text-2xl font-bold text-primary"
+                                  >
+                                    {passingScore}%
+                                  </motion.div>
+                                </div>
+                                <Slider
+                                  value={[passingScore]}
+                                  onValueChange={([value]) => setPassingScore(value)}
+                                  min={30}
+                                  max={95}
+                                  step={5}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>Lenient (30%)</span>
+                                  <span>Strict (95%)</span>
+                                </div>
                               </div>
-                              <div className="text-2xl font-bold text-primary">{passingScore}%</div>
-                            </div>
-                            <Slider
-                              value={[passingScore]}
-                              onValueChange={([value]) => setPassingScore(value)}
-                              min={30}
-                              max={95}
-                              step={5}
-                              className="w-full"
-                            />
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Lenient (30%)</span>
-                              <span>Strict (95%)</span>
-                            </div>
-                          </div>
-                        )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
 
-                      <Button
-                        onClick={generateWorkflow}
-                        disabled={isGeneratingWorkflow}
-                        className="w-full gap-2"
-                        size="lg"
+                      {/* Premium Generate Button */}
+                      <motion.div
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
                       >
-                        {isGeneratingWorkflow ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Generating Workflow...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-5 w-5" />
-                            {workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}
-                          </>
-                        )}
-                      </Button>
+                        <Button
+                          onClick={generateWorkflow}
+                          disabled={isGeneratingWorkflow}
+                          className={cn(
+                            "w-full gap-2 relative overflow-hidden",
+                            "bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600",
+                            "hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500",
+                            "text-white font-semibold shadow-lg shadow-purple-500/25",
+                            "border-0"
+                          )}
+                          size="lg"
+                        >
+                          {/* Shimmer effect */}
+                          <motion.div
+                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                            animate={{ x: ["-100%", "100%"] }}
+                            transition={{ 
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: "linear",
+                              repeatDelay: 1
+                            }}
+                          />
+                          {isGeneratingWorkflow ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin relative z-10" />
+                              <span className="relative z-10">Generating Workflow...</span>
+                            </>
+                          ) : (
+                            <>
+                              <motion.div
+                                animate={{ rotate: [0, 360] }}
+                                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                              >
+                                <Sparkles className="h-5 w-5 relative z-10" />
+                              </motion.div>
+                              <span className="relative z-10">
+                                {workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}
+                              </span>
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
                     </CardContent>
                   </Card>
                 </>
