@@ -138,6 +138,31 @@ export function useSubscription() {
     return usage < limit;
   };
 
+  // Voice access helpers
+  const hasVoiceAccess = () => {
+    if (!data?.subscription) return false;
+    const isEnterprise = data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active';
+    const isTrial = data.subscription.status === 'trialing';
+    const voiceMinutesRemaining = (data.limits?.voiceMinutes || 0) - (data.usage?.voice_minutes_used || 0);
+    return isEnterprise || (isTrial && voiceMinutesRemaining > 0);
+  };
+
+  const getVoiceMinutesRemaining = () => {
+    if (!data?.limits) return 0;
+    return Math.max(0, (data.limits.voiceMinutes || 0) - (data.usage?.voice_minutes_used || 0));
+  };
+
+  const getVoiceAccessState = (): 'full' | 'trial' | 'exhausted' | 'locked' | 'expired' => {
+    if (!data?.subscription) return 'locked';
+    if (data.subscription.status === 'expired') return 'expired';
+    if (data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active') return 'full';
+    if (data.subscription.status === 'trialing') {
+      const remaining = getVoiceMinutesRemaining();
+      return remaining > 0 ? 'trial' : 'exhausted';
+    }
+    return 'locked'; // Growth/Business
+  };
+
   return {
     subscription: data?.subscription ?? null,
     usage: data?.usage ?? { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
@@ -155,5 +180,9 @@ export function useSubscription() {
     isTrialing: data?.subscription?.status === 'trialing',
     isExpired: data?.subscription?.status === 'expired',
     needsOnboarding: data?.subscription && !data.subscription.onboarding_completed,
+    // Voice helpers
+    hasVoiceAccess,
+    getVoiceMinutesRemaining,
+    getVoiceAccessState,
   };
 }

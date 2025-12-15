@@ -1,12 +1,15 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Phone, PhoneOff, Loader2, X, MessageSquare } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Loader2, X, MessageSquare, Lock, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
 import { useSubscription } from "@/hooks/useSubscription";
+import { usePricing } from "@/hooks/usePricing";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -23,24 +26,26 @@ interface ToolAction {
 }
 
 export default function AvaVoiceButton() {
-  const { subscription, limits } = useSubscription();
+  const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
+  const pricing = usePricing();
   const [isOpen, setIsOpen] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [actions, setActions] = useState<ToolAction[]>([]);
   const [textInput, setTextInput] = useState("");
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
-  // Check if user has voice features (enterprise plan)
-  const hasVoiceAccess = (subscription?.plan_type as string) === "enterprise" && subscription?.status === "active";
+  const voiceAccessState = getVoiceAccessState();
+  const voiceMinutesRemaining = getVoiceMinutesRemaining();
+
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     setMessages((prev) => {
       const lastMsg = prev[prev.length - 1];
-      // If same role, append to existing message
       if (lastMsg && lastMsg.role === role) {
         return prev.map((m, i) =>
           i === prev.length - 1 ? { ...m, content: m.content + text } : m
         );
       }
-      // New message
       return [
         ...prev,
         {
@@ -80,10 +85,21 @@ export default function AvaVoiceButton() {
     onToolCall: handleToolCall,
   });
 
+  const handleButtonClick = () => {
+    if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired') {
+      setShowUpgradeDialog(true);
+    } else {
+      setIsOpen(!isOpen);
+    }
+  };
+
   const handleToggle = () => {
     if (isConnected) {
       disconnect();
     } else {
+      if (voiceAccessState === 'trial') {
+        toast.info(`Voice trial active - ${formatMinutes(voiceMinutesRemaining)} remaining`);
+      }
       connect();
     }
   };
@@ -95,10 +111,68 @@ export default function AvaVoiceButton() {
     }
   };
 
-  // Don't render if no voice access
-  if (!hasVoiceAccess) {
-    return null;
-  }
+  const handleUpgrade = async () => {
+    setIsUpgrading(true);
+    try {
+      const result = await createCheckoutSession.mutateAsync({
+        planType: 'enterprise',
+        countryCode: pricing.countryCode,
+        interval: 'monthly',
+      });
+      if (result?.url) {
+        window.open(result.url, '_blank');
+      }
+    } catch (err) {
+      toast.error('Failed to start checkout');
+    } finally {
+      setIsUpgrading(false);
+      setShowUpgradeDialog(false);
+    }
+  };
+
+  const formatMinutes = (minutes: number) => {
+    const mins = Math.floor(minutes);
+    const secs = Math.round((minutes - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get button styling based on access state
+  const getButtonStyles = () => {
+    switch (voiceAccessState) {
+      case 'full':
+        return isConnected
+          ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-emerald-500/30"
+          : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/30";
+      case 'trial':
+        return isConnected
+          ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-emerald-500/30"
+          : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30";
+      case 'exhausted':
+        return "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/30";
+      case 'locked':
+      case 'expired':
+      default:
+        return "bg-muted/80 hover:bg-muted text-muted-foreground shadow-none";
+    }
+  };
+
+  const getButtonIcon = () => {
+    if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
+      return <Lock className="h-6 w-6" />;
+    }
+    if (voiceAccessState === 'exhausted') {
+      return <Clock className="h-6 w-6" />;
+    }
+    if (isConnecting) {
+      return <Loader2 className="h-6 w-6 animate-spin text-white" />;
+    }
+    if (isConnected) {
+      return <Mic className={cn("h-6 w-6 text-white", isListening && "animate-pulse")} />;
+    }
+    return <MessageSquare className="h-6 w-6 text-white" />;
+  };
+
+  const enterprisePrice = pricing.enterprise.monthlyFormatted;
 
   return (
     <>
@@ -109,23 +183,37 @@ export default function AvaVoiceButton() {
         className="fixed bottom-6 right-6 z-50"
       >
         <Button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={handleButtonClick}
           className={cn(
-            "h-14 w-14 rounded-full shadow-lg transition-all duration-300",
-            isConnected
-              ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-emerald-500/30"
-              : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/30",
-            isSpeaking && "animate-pulse"
+            "h-14 w-14 rounded-full shadow-lg transition-all duration-300 relative",
+            getButtonStyles(),
+            isSpeaking && voiceAccessState !== 'locked' && "animate-pulse"
           )}
         >
-          {isConnecting ? (
-            <Loader2 className="h-6 w-6 animate-spin text-white" />
-          ) : isConnected ? (
-            <Mic className={cn("h-6 w-6 text-white", isListening && "animate-pulse")} />
-          ) : (
-            <MessageSquare className="h-6 w-6 text-white" />
-          )}
+          {getButtonIcon()}
         </Button>
+
+        {/* Trial minutes remaining badge */}
+        {voiceAccessState === 'trial' && !isConnected && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg"
+          >
+            {formatMinutes(voiceMinutesRemaining)}
+          </motion.div>
+        )}
+
+        {/* Exhausted badge */}
+        {voiceAccessState === 'exhausted' && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg"
+          >
+            0:00
+          </motion.div>
+        )}
 
         {/* Voice activity indicator */}
         {isConnected && (isSpeaking || isListening) && (
@@ -141,9 +229,9 @@ export default function AvaVoiceButton() {
         )}
       </motion.div>
 
-      {/* Expanded Panel */}
+      {/* Expanded Panel - Only show for users with access */}
       <AnimatePresence>
-        {isOpen && (
+        {isOpen && (voiceAccessState === 'full' || voiceAccessState === 'trial') && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -158,6 +246,8 @@ export default function AvaVoiceButton() {
                     "h-10 w-10 rounded-full flex items-center justify-center",
                     isConnected
                       ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                      : voiceAccessState === 'trial'
+                      ? "bg-gradient-to-r from-blue-500 to-cyan-500"
                       : "bg-gradient-to-r from-purple-500 to-pink-500"
                   )}
                 >
@@ -172,6 +262,8 @@ export default function AvaVoiceButton() {
                         : isListening
                         ? "Listening..."
                         : "Connected"
+                      : voiceAccessState === 'trial'
+                      ? `Trial: ${formatMinutes(voiceMinutesRemaining)} left`
                       : "Disconnected"}
                   </p>
                 </div>
@@ -296,6 +388,75 @@ export default function AvaVoiceButton() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Upgrade Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {voiceAccessState === 'exhausted' ? (
+                <>
+                  <Clock className="h-5 w-5 text-amber-500" />
+                  Voice Trial Minutes Exhausted
+                </>
+              ) : (
+                <>
+                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  Unlock AVA Voice Assistant
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {voiceAccessState === 'exhausted'
+                ? "Your 5-minute voice trial has ended. Upgrade to Enterprise for 500 voice minutes per month."
+                : "Get access to AVA Voice Assistant with the Enterprise plan."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <h4 className="font-semibold text-lg mb-2">Enterprise Plan</h4>
+              <p className="text-2xl font-bold text-primary mb-3">
+                {enterprisePrice}
+                <span className="text-sm font-normal text-muted-foreground">/month</span>
+              </p>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  500 Voice Minutes/month
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  AVA Voice Assistant for hiring queries
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  Voice Interviews with candidates
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  All Business features included
+                </li>
+              </ul>
+            </div>
+
+            <Button
+              onClick={handleUpgrade}
+              disabled={isUpgrading}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            >
+              {isUpgrading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                "Upgrade to Enterprise"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

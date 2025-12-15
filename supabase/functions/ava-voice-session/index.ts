@@ -52,7 +52,36 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!subscription || subscription.plan_type !== 'enterprise' || subscription.status !== 'active') {
+    // Get usage data
+    const { data: usage } = await supabaseClient
+      .from("subscription_usage")
+      .select("voice_minutes_used")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const voiceMinutesUsed = usage?.voice_minutes_used || 0;
+    
+    // Determine voice limits based on plan
+    const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
+    const isTrial = subscription?.status === 'trialing';
+    const voiceMinutesLimit = isEnterprise ? 500 : (isTrial ? 5 : 0);
+    
+    // Check access
+    if (!subscription) {
+      throw new Error("No subscription found");
+    }
+    
+    if (isEnterprise) {
+      // Enterprise has full access (500 min)
+      console.log("Enterprise user, full voice access");
+    } else if (isTrial) {
+      // Trial users get 5 minutes
+      if (voiceMinutesUsed >= voiceMinutesLimit) {
+        throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 500 minutes/month.");
+      }
+      console.log(`Trial user, ${voiceMinutesLimit - voiceMinutesUsed} minutes remaining`);
+    } else {
+      // Growth/Business users don't have voice access
       throw new Error("Voice features require Enterprise plan");
     }
 
