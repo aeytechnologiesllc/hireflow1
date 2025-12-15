@@ -190,7 +190,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden p-0">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden p-0">
         <AnimatePresence mode="wait">
           {!showAuditTrail ? (
             <motion.div
@@ -199,10 +199,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col h-full"
+              className="flex flex-col h-full overflow-hidden"
             >
               {/* Header */}
-              <DialogHeader className="p-6 pb-4 border-b border-border">
+              <DialogHeader className="p-6 pb-4 border-b border-border shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center">
@@ -223,7 +223,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               </DialogHeader>
 
               {/* Document Content */}
-              <ScrollArea className="flex-1 p-6">
+              <ScrollArea className="flex-1 min-h-0 p-6">
                 {/* PDF-like Document View */}
                 <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border shadow-lg overflow-hidden">
                   {/* Document Header */}
@@ -340,7 +340,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               </ScrollArea>
 
               {/* Footer Actions */}
-              <div className="p-4 border-t border-border flex items-center justify-between bg-card">
+              <div className="p-4 border-t border-border flex items-center justify-between bg-card shrink-0">
                 <Button variant="outline" onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-2" />
                   Download
@@ -358,10 +358,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col h-full"
+              className="flex flex-col h-full overflow-hidden"
             >
               {/* Audit Trail Header */}
-              <DialogHeader className="p-6 pb-4 border-b border-border">
+              <DialogHeader className="p-6 pb-4 border-b border-border shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -381,7 +381,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               </DialogHeader>
 
               {/* Audit Trail Content - DocuSign Style */}
-              <ScrollArea className="flex-1 p-6">
+              <ScrollArea className="flex-1 min-h-0 p-6">
                 <div className="space-y-1">
                   {auditLogs.map((log, index) => (
                     <motion.div
