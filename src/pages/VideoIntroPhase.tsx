@@ -192,14 +192,31 @@ export default function VideoIntroPhase() {
   };
 
   const handleSubmit = async () => {
-    if (!recordedBlob || !application) return;
+    if (!recordedBlob || !application || !user) return;
     
     setIsSubmitting(true);
     setState("submitting");
     
     try {
-      // For now, we'll store a placeholder URL since we don't have storage configured
-      // In production, you'd upload the blob to Supabase Storage
+      // Upload video to Supabase Storage
+      const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("videos")
+        .upload(fileName, recordedBlob, {
+          contentType: "video/webm",
+          cacheControl: "3600",
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from("videos")
+        .getPublicUrl(fileName);
+
+      const videoUrl = urlData.publicUrl;
+
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
       // Video intro is considered "passed" if completed (no scoring needed)
@@ -215,14 +232,16 @@ export default function VideoIntroPhase() {
           completed: true,
           passed,
           score,
-          // videoUrl would be set after upload
+          videoUrl,
         },
         videoIntroResult: {
           duration: recordingTime,
           completed: true,
           passed,
           score,
+          videoUrl,
         },
+        videoIntroUrl: videoUrl,
       };
 
       // Determine next phase based on processing mode
@@ -257,7 +276,7 @@ export default function VideoIntroPhase() {
         });
       } else {
         toast.success("Video introduction submitted!", {
-          description: "Your video has been recorded. The employer will review your submission.",
+          description: "Your video has been uploaded. The employer will review your submission.",
         });
       }
 
@@ -267,7 +286,7 @@ export default function VideoIntroPhase() {
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
           status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED`,
+          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
         })
         .eq("id", id!);
 
@@ -276,7 +295,7 @@ export default function VideoIntroPhase() {
       navigate(`/applications/${id}`);
     } catch (error) {
       console.error("Error submitting video:", error);
-      toast.error("Failed to submit video");
+      toast.error("Failed to upload video");
       setState("preview");
     } finally {
       setIsSubmitting(false);
