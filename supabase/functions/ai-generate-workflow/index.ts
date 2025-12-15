@@ -123,8 +123,12 @@ Choose appropriate steps based on the job role:
 - video_message: For communication-focused roles (config: {"min_duration_seconds": 30, "max_duration_seconds": 60})
 - portfolio_upload: For creative/technical roles (config: {"portfolio_type": "general"})
 - chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
-- chat_interview: For roles requiring strong communication/interpersonal skills (config: {"focus": "behavioral"})
 - sales_simulation: For sales, business development, and account management roles - tests pitching and objection handling (config: {"product": "enterprise solution"})
+
+⚠️ CRITICAL: ALWAYS include "chat_interview" as the FINAL step ⚠️
+- chat_interview: MUST be the LAST step in every workflow (config: {"focus": "behavioral"})
+- The AI Interview with AVA is the culminating assessment where AVA has access to all candidate data from previous phases
+- Place chat_interview AFTER all other workflow steps
 
 Random Seed: ${randomSeed}
 
@@ -137,9 +141,12 @@ Return ONLY valid JSON:
     {"id": "quiz1", "type": "multiple_choice", "question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "A", "time_limit_seconds": 20, "category": "technical"}
   ],
   "workflow_steps": [
-    {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}}
+    {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}},
+    {"id": "stepFinal", "type": "chat_interview", "title": "AI Interview with AVA", "description": "Final interview with our AI", "required": true, "config": {"focus": "behavioral"}}
   ]
-}`;
+}
+
+IMPORTANT: The workflow_steps array MUST end with a chat_interview step. This is mandatory.`;
 
     console.log("Generating workflow for:", title, "with difficulty:", difficulty);
 

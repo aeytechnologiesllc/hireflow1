@@ -457,7 +457,23 @@ export default function CreateJob() {
       required: true,
       config: {}
     };
-    setWorkflowSteps(prev => [...prev, newStep]);
+    
+    // Ensure chat_interview is always at the end
+    setWorkflowSteps(prev => {
+      const withoutChatInterview = prev.filter(s => s.type !== 'chat_interview');
+      const chatInterviewStep = prev.find(s => s.type === 'chat_interview');
+      
+      if (type === 'chat_interview') {
+        // Adding chat_interview - just append it at the end
+        return [...withoutChatInterview, newStep];
+      } else if (chatInterviewStep) {
+        // Adding another step while chat_interview exists - keep chat_interview at end
+        return [...withoutChatInterview, newStep, chatInterviewStep];
+      } else {
+        // No chat_interview exists - just append normally
+        return [...prev, newStep];
+      }
+    });
     toast.success(`${stepInfo.label} added to workflow`);
   };
 
