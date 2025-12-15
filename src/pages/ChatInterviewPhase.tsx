@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +62,7 @@ export default function ChatInterviewPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -436,6 +437,9 @@ export default function ChatInterviewPhase() {
         .eq("id", id!);
 
       if (error) throw error;
+
+      // Invalidate candidate applications to update the tile status
+      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
       setState("completed");
       setTimeout(() => navigate(`/applications/${id}`), 2000);

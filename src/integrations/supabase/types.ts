@@ -77,7 +77,7 @@ export type Database = {
           created_at: string
           details: Json | null
           document_hash: string | null
-          document_id: string
+          document_id: string | null
           document_version: number | null
           id: string
           ip_address: string | null
@@ -98,7 +98,7 @@ export type Database = {
           created_at?: string
           details?: Json | null
           document_hash?: string | null
-          document_id: string
+          document_id?: string | null
           document_version?: number | null
           id?: string
           ip_address?: string | null
@@ -119,7 +119,7 @@ export type Database = {
           created_at?: string
           details?: Json | null
           document_hash?: string | null
-          document_id?: string
+          document_id?: string | null
           document_version?: number | null
           id?: string
           ip_address?: string | null
