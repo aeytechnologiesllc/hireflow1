@@ -43,10 +43,11 @@ interface JobCardProps {
   onViewWorkflow: (job: JobWithApplicationCount) => void;
   onEdit: (job: JobWithApplicationCount) => void;
   onDuplicate: (job: JobWithApplicationCount) => void;
+  onCardClick: (job: JobWithApplicationCount) => void;
   isDeleting: boolean;
 }
 
-function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, isDeleting }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -55,14 +56,17 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
   };
 
   return (
-    <Card className="bg-card border-border hover:border-primary/50 transition-colors">
+    <Card 
+      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={() => onCardClick(job)}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
               <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="text-muted-foreground">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
@@ -133,7 +137,8 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 <Link2 className="h-4 w-4 text-primary" />
                 <span className="text-muted-foreground">Code:</span>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     navigator.clipboard.writeText(job.job_code!);
                     toast.success("Job code copied to clipboard");
                   }}
@@ -210,6 +215,10 @@ export default function Jobs() {
     } catch (error) {
       toast.error("Failed to duplicate job");
     }
+  };
+
+  const handleCardClick = (job: JobWithApplicationCount) => {
+    navigate(`/applicants?job=${job.id}`);
   };
 
   const filteredJobs = jobs?.filter((job) =>
@@ -310,6 +319,7 @@ export default function Jobs() {
               onViewWorkflow={handleViewWorkflow}
               onEdit={handleEdit}
               onDuplicate={handleDuplicate}
+              onCardClick={handleCardClick}
               isDeleting={deleteJob.isPending}
             />
           ))
