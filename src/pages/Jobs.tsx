@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
@@ -45,9 +46,11 @@ interface JobCardProps {
   onDuplicate: (job: JobWithApplicationCount) => void;
   onCardClick: (job: JobWithApplicationCount) => void;
   isDeleting: boolean;
+  canDelete: boolean;
+  canEdit: boolean;
 }
 
-function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting, canDelete, canEdit }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -80,28 +83,36 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                     <Sparkles className="h-4 w-4 mr-2" />
                     View Workflow
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onEdit(job)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Job
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDuplicate(job)}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-destructive"
-                    onClick={() => onDelete(job.id)}
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 mr-2" />
-                    )}
-                    Delete
-                  </DropdownMenuItem>
+                  {canEdit && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onEdit(job)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Job
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onDuplicate(job)}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {canDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => onDelete(job.id)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -168,9 +179,10 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
 }
 
 export default function Jobs() {
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
   const navigate = useNavigate();
-  const isEmployer = role === "employer";
+  const isEmployer = role === "employer" || isTeamMember;
   const { data: jobs, isLoading } = useEmployerJobs();
   const { data: stats } = useJobStats();
   const deleteJob = useDeleteJob();
@@ -179,6 +191,11 @@ export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+
+  // Permission checks
+  const canCreateJobs = !isTeamMember || permissions?.canCreateJobs;
+  const canDeleteJobs = !isTeamMember || permissions?.canDeleteJobs;
+  const canEditJobs = !isTeamMember || permissions?.canCreateJobs; // Create permission implies edit
 
   const handleDelete = async (id: string) => {
     try {
@@ -221,9 +238,24 @@ export default function Jobs() {
     navigate(`/applicants?job=${job.id}`);
   };
 
-  const filteredJobs = jobs?.filter((job) =>
-    job.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter jobs for team members by assigned job IDs
+  const filteredJobs = useMemo(() => {
+    let result = jobs || [];
+    
+    // Filter by assigned job IDs for team members
+    if (isTeamMember && permissions?.assignedJobIds?.length) {
+      result = result.filter((job) => permissions.assignedJobIds.includes(job.id));
+    }
+    
+    // Filter by search query
+    if (searchQuery) {
+      result = result.filter((job) =>
+        job.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return result;
+  }, [jobs, isTeamMember, permissions?.assignedJobIds, searchQuery]);
 
   if (!isEmployer) {
     return (
@@ -249,12 +281,14 @@ export default function Jobs() {
           <h2 className="text-2xl font-bold text-foreground">Job Postings</h2>
           <p className="text-muted-foreground mt-1">Manage your job listings and track applications</p>
         </div>
-        <Button className="gap-2" asChild>
-          <Link to="/jobs/create">
-            <Plus className="h-4 w-4" />
-            Create New Job
-          </Link>
-        </Button>
+        {canCreateJobs && (
+          <Button className="gap-2" asChild>
+            <Link to="/jobs/create">
+              <Plus className="h-4 w-4" />
+              Create New Job
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -321,6 +355,8 @@ export default function Jobs() {
               onDuplicate={handleDuplicate}
               onCardClick={handleCardClick}
               isDeleting={deleteJob.isPending}
+              canDelete={!!canDeleteJobs}
+              canEdit={!!canEditJobs}
             />
           ))
         ) : (
@@ -331,12 +367,14 @@ export default function Jobs() {
               <p className="text-muted-foreground max-w-md mx-auto mb-6">
                 Create your first job posting to start receiving applications.
               </p>
-              <Button className="gap-2" asChild>
-                <Link to="/jobs/create">
-                  <Plus className="h-4 w-4" />
-                  Create New Job
-                </Link>
-              </Button>
+              {canCreateJobs && (
+                <Button className="gap-2" asChild>
+                  <Link to="/jobs/create">
+                    <Plus className="h-4 w-4" />
+                    Create New Job
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

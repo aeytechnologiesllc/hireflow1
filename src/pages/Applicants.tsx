@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { useJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -190,8 +191,9 @@ export default function Applicants() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const jobIdFilter = searchParams.get("job");
-  const { role } = useAuth();
-  const isEmployer = role === "employer";
+  const { role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
+  const isEmployer = role === "employer" || isTeamMember;
   const { data: applications, isLoading } = useEmployerApplications();
   const { data: filteredJob } = useJob(jobIdFilter || undefined);
   const { data: stats } = useApplicationStats();
@@ -199,6 +201,11 @@ export default function Applicants() {
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
+
+  // Permission checks
+  const canManagePipeline = !isTeamMember || permissions?.canManagePipeline;
+  const canScheduleInterviews = !isTeamMember || permissions?.canScheduleInterviews;
+  const canMessageCandidates = !isTeamMember || permissions?.canMessageCandidates;
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -221,6 +228,11 @@ export default function Applicants() {
   const filteredApplications = useMemo(() => {
     let result = applications || [];
     
+    // Filter by assigned job IDs for team members
+    if (isTeamMember && permissions?.assignedJobIds?.length) {
+      result = result.filter((app) => permissions.assignedJobIds.includes(app.job_id));
+    }
+    
     // Filter by job if jobIdFilter is present
     if (jobIdFilter) {
       result = result.filter((app) => app.job_id === jobIdFilter);
@@ -237,7 +249,7 @@ export default function Applicants() {
     }
     
     return result;
-  }, [applications, jobIdFilter, searchQuery]);
+  }, [applications, isTeamMember, permissions?.assignedJobIds, jobIdFilter, searchQuery]);
 
   if (!isEmployer) {
     return (

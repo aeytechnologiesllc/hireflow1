@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { usePendingDocumentsCount } from "@/hooks/usePendingDocumentsCount";
 import { useEmployerPendingDocumentsCount } from "@/hooks/useEmployerPendingDocumentsCount";
@@ -14,11 +15,11 @@ import {
   BarChart3,
   Settings,
   Bell,
-  Search,
   UserPlus,
   Sparkles,
   User,
   ClipboardCheck,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +63,8 @@ function NavItem({ icon: Icon, label, to, badge, highlight }: NavItemProps) {
 }
 
 export default function AppSidebar() {
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
   const { data: unreadNotifications } = useUnreadNotificationCount();
   const { data: pendingDocuments } = usePendingDocumentsCount();
@@ -80,6 +82,16 @@ export default function AppSidebar() {
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
   ];
 
+  // Team member navigation - filtered based on permissions
+  const teamMemberNavItems: NavItemProps[] = [
+    { icon: Building2, label: "Team Portal", to: "/team-portal" },
+    { icon: Briefcase, label: "Jobs", to: "/jobs" },
+    { icon: Users, label: "Applicants", to: "/applicants" },
+    ...(permissions?.canScheduleInterviews ? [{ icon: Calendar, label: "Interviews", to: "/interviews" }] : []),
+    ...(permissions?.canMessageCandidates ? [{ icon: MessageSquare, label: "Messages", to: "/messages" }] : []),
+    ...(permissions?.canSendDocuments ? [{ icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 }] : []),
+  ];
+
   const candidateNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Apply Now", to: "/apply" },
@@ -90,7 +102,15 @@ export default function AppSidebar() {
     { icon: User, label: "Profile", to: "/profile" },
   ];
 
-  const navItems = isEmployer ? employerNavItems : candidateNavItems;
+  // Determine which nav items to show
+  let navItems: NavItemProps[];
+  if (isTeamMember) {
+    navItems = teamMemberNavItems;
+  } else if (isEmployer) {
+    navItems = employerNavItems;
+  } else {
+    navItems = candidateNavItems;
+  }
 
   return (
     <aside className="w-64 min-h-screen bg-card border-r border-border flex flex-col shrink-0">
