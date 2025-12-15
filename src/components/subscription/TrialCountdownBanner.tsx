@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
-import { Clock, Sparkles } from "lucide-react";
+import { Timer, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function TrialCountdownBanner() {
@@ -49,7 +49,7 @@ export default function TrialCountdownBanner() {
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl border backdrop-blur-sm transition-all duration-300 flex-shrink-0 whitespace-nowrap ${
+      className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl border backdrop-blur-sm transition-all duration-300 flex-shrink-0 whitespace-nowrap ${
         isCritical
           ? "bg-gradient-to-r from-red-500/20 to-orange-500/20 border-red-500/30"
           : isUrgent
@@ -57,8 +57,8 @@ export default function TrialCountdownBanner() {
           : "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/20"
       }`}
     >
-      <Clock
-        className={`h-3 w-3 md:h-4 md:w-4 flex-shrink-0 ${
+      <Timer
+        className={`h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0 ${
           isCritical
             ? "text-red-400"
             : isUrgent
@@ -67,7 +67,7 @@ export default function TrialCountdownBanner() {
         }`}
       />
       <span
-        className={`text-xs md:text-sm font-medium flex-shrink-0 ${
+        className={`text-[11px] md:text-sm font-medium flex-shrink-0 ${
           isCritical
             ? "text-red-400"
             : isUrgent
@@ -76,19 +76,19 @@ export default function TrialCountdownBanner() {
         }`}
       >
         <span className="hidden md:inline">{formatTime()}</span>
-        <span className="md:hidden">{formatTimeCompact()}</span>
+        <span className="md:hidden">Trial {formatTimeCompact()}</span>
       </span>
       <Button
         size="sm"
-        className={`h-6 md:h-7 gap-1 text-xs px-2 md:px-3 flex-shrink-0 ${
+        className={`h-6 md:h-7 gap-1 text-[10px] md:text-xs px-2 md:px-3 flex-shrink-0 ${
           isCritical
             ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
             : "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500"
         } text-white shadow-lg`}
         onClick={() => navigate("/settings?tab=subscription")}
       >
-        <Sparkles className="h-3 w-3" />
-        <span className="hidden sm:inline">Upgrade</span>
+        <span>Upgrade</span>
+        <ArrowRight className="h-3 w-3" />
       </Button>
     </motion.div>
   );
