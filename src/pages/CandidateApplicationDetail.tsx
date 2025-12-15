@@ -64,7 +64,17 @@ const phaseStatusLabels: Record<string, { label: string; color: string; icon: an
   pending: { label: "Pending Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
   in_progress: { label: "In Progress", color: "bg-blue-500/20 text-blue-500 border-blue-500/30", icon: Play },
   completed: { label: "Completed", color: "bg-success/20 text-success border-success/30", icon: CheckCircle },
-  awaiting_action: { label: "Action Required", color: "bg-primary/20 text-primary border-primary/30", icon: AlertCircle },
+  awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30", icon: Play },
+};
+
+// Friendly action messages for each phase type
+const phaseActionMessages: Record<string, { buttonText: string; description: string }> = {
+  quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
+  typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
+  video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
+  chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
+  chat_interview: { buttonText: "Begin Interview", description: "Start your AI-powered interview session" },
+  sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
 };
 
 export default function CandidateApplicationDetail() {
@@ -476,7 +486,7 @@ export default function CandidateApplicationDetail() {
                     
                     {isCurrent && status === "awaiting_action" && phase.type !== "application" && phase.type !== "review" && phase.type !== "interview" && phase.type !== "hired" && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        Complete this phase to continue your application journey.
+                        {phaseActionMessages[phase.type]?.description || "Complete this phase to continue your application journey."}
                       </p>
                     )}
                     
@@ -498,14 +508,15 @@ export default function CandidateApplicationDetail() {
                       <Button
                         onClick={() => handleStartPhase(phase.id, phase.type)}
                         disabled={activePhaseAction === phase.id}
-                        className="gap-2"
+                        className="gap-2 animate-pulse"
+                        size="lg"
                       >
                         {activePhaseAction === phase.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Play className="h-4 w-4" />
                         )}
-                        Start
+                        {phaseActionMessages[phase.type]?.buttonText || "Start"}
                       </Button>
                     )}
 
