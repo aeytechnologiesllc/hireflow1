@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.ai-chat-simulation]
 verify_jwt = false
 
+[functions.ai-sales-simulation]
+verify_jwt = false
+
 [functions.ai-generate-document]
 verify_jwt = true
 
