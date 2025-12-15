@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -27,7 +28,10 @@ import {
   PenTool,
   Check,
   Loader2,
-  Wand2
+  Wand2,
+  MapPin,
+  Phone,
+  Mail
 } from "lucide-react";
 import type { ApplicationForDocument } from "@/hooks/useApplicationsForDocuments";
 
@@ -103,8 +107,38 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     { id: "employer", label: "Employer Signature", required: true },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New optional fields
+  const [hiringManagerName, setHiringManagerName] = useState("");
+  const [hiringManagerTitle, setHiringManagerTitle] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: profile } = useProfile();
+  
+  // Auto-populate from profile when wizard opens
+  useEffect(() => {
+    if (open && profile) {
+      if (profile.company_name && !companyName) {
+        setCompanyName(profile.company_name);
+      }
+      if (profile.full_name && !hiringManagerName) {
+        setHiringManagerName(profile.full_name);
+      }
+      if (profile.email && !companyEmail) {
+        setCompanyEmail(profile.email);
+      }
+      if (profile.phone && !companyPhone) {
+        setCompanyPhone(profile.phone);
+      }
+      if (profile.location && !companyAddress) {
+        setCompanyAddress(profile.location);
+      }
+    }
+  }, [open, profile]);
 
   const resetWizard = () => {
     setCurrentStep(0);
@@ -120,6 +154,11 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     setAdditionalTerms("");
     setGeneratedContent("");
     setIsGenerating(false);
+    setHiringManagerName("");
+    setHiringManagerTitle("");
+    setCompanyAddress("");
+    setCompanyPhone("");
+    setCompanyEmail("");
     setSignatureFields([
       { id: "recipient", label: "Recipient Signature", required: true },
       { id: "employer", label: "Employer Signature", required: true },
@@ -182,7 +221,6 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     setIsGenerating(true);
     
     const recipient = getSelectedRecipient();
-    const docTypeLabel = DOCUMENT_TYPES.find(t => t.value === documentType)?.label || documentType;
 
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-document", {
@@ -194,6 +232,11 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           salary,
           startDate: startDate ? format(startDate, "PPP") : "",
           additionalTerms,
+          hiringManagerName,
+          hiringManagerTitle,
+          companyAddress,
+          companyEmail,
+          companyPhone,
         },
       });
 
@@ -488,6 +531,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
+                {/* Required Fields */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
@@ -557,6 +601,79 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                     </div>
                   </div>
                 )}
+
+                {/* Optional Fields Section */}
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-medium text-muted-foreground">Optional Details</span>
+                    <span className="text-xs text-muted-foreground">(Adds more detail to your document)</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <User className="h-4 w-4" />
+                        Authorized Representative Name
+                      </Label>
+                      <Input
+                        value={hiringManagerName}
+                        onChange={(e) => setHiringManagerName(e.target.value)}
+                        placeholder="Jane Smith"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                        Representative Title
+                      </Label>
+                      <Input
+                        value={hiringManagerTitle}
+                        onChange={(e) => setHiringManagerTitle(e.target.value)}
+                        placeholder="HR Director"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 mt-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        Company Address
+                      </Label>
+                      <Input
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        placeholder="123 Business Ave, Suite 100, City, State ZIP"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <Mail className="h-4 w-4" />
+                        Company Email
+                      </Label>
+                      <Input
+                        type="email"
+                        value={companyEmail}
+                        onChange={(e) => setCompanyEmail(e.target.value)}
+                        placeholder="hr@company.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        Company Phone
+                      </Label>
+                      <Input
+                        value={companyPhone}
+                        onChange={(e) => setCompanyPhone(e.target.value)}
+                        placeholder="(555) 123-4567"
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 <div className="space-y-2">
                   <Label>Additional Terms or Notes (Optional)</Label>

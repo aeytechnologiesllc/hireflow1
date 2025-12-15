@@ -13,76 +13,71 @@ interface DocumentRequest {
   salary?: string;
   startDate?: string;
   additionalTerms?: string;
+  hiringManagerName?: string;
+  hiringManagerTitle?: string;
+  companyAddress?: string;
+  companyEmail?: string;
+  companyPhone?: string;
 }
 
 const DOCUMENT_PROMPTS: Record<string, string> = {
   offer_letter: `Generate a professional job offer letter with the following structure:
-- Company letterhead section
-- Date and recipient address
-- Subject line
-- Opening paragraph welcoming the candidate
-- Position details (title, department, reporting structure)
-- Compensation package (base salary, bonuses if applicable)
-- Benefits overview
-- Start date and onboarding information
-- Contingencies (background check, references)
-- Acceptance deadline
-- Closing with signature blocks for both parties`,
+- Company header (use company name provided)
+- Current date
+- Recipient greeting
+- Opening paragraph welcoming the candidate to join
+- Position details including title and department
+- Compensation package with the salary provided
+- Brief benefits mention (use general terms like "comprehensive benefits package" if specifics not provided)
+- Start date information (if provided)
+- Acceptance instructions
+- Warm closing
+- Signature section with simple lines for:
+  Employee Signature: _______________  Date: _______________
+  Company Representative: _______________  Date: _______________`,
 
-  nda: `Generate a comprehensive Non-Disclosure Agreement with:
-- Party identification (Company and Individual)
-- Definition of Confidential Information (broad but specific)
+  nda: `Generate a Non-Disclosure Agreement with:
+- Party identification using the provided names
+- Clear definition of Confidential Information
 - Obligations of the receiving party
-- Exclusions from confidential information
-- Term of the agreement (2-3 years typical)
+- Standard exclusions
+- 2-year term
 - Return of materials clause
-- Remedies for breach
-- Governing law placeholder
-- Signature blocks with date lines`,
+- Governing law (state to be determined by company)
+- Signature section with simple lines for both parties`,
 
-  employment_contract: `Generate a formal Employment Contract including:
+  employment_contract: `Generate an Employment Contract including:
 - Party identification
-- Position and duties
-- Compensation and benefits
-- Work schedule and location
-- At-will employment clause (or fixed term if specified)
+- Position and general duties
+- Compensation as provided
+- At-will employment statement
 - Confidentiality obligations
-- Intellectual property assignment
-- Non-compete and non-solicitation clauses
+- Standard intellectual property provisions
 - Termination provisions
-- Dispute resolution
-- Entire agreement clause
-- Signature blocks`,
+- Signature section with simple lines for both parties`,
 
   background_check: `Generate a Background Check Authorization form with:
-- Authorization statement
-- Scope of investigation (criminal, credit, employment, education)
+- Clear authorization statement
+- Scope of investigation (criminal, employment verification, education)
 - Release of liability
-- FCRA disclosure
-- Consumer rights summary
-- Signature and date fields
-- Witness signature if required`,
+- Consumer rights acknowledgment
+- Signature section with lines for candidate signature and date`,
 
   non_compete: `Generate a Non-Compete Agreement including:
-- Recitals explaining the business need
-- Definition of competing business
-- Geographic scope
-- Time period (reasonable duration)
-- Consideration provided
-- Exceptions and carve-outs
+- Recitals explaining the business relationship
+- Definition of competing activities relevant to the role
+- Reasonable geographic and time restrictions
+- Consideration acknowledgment
 - Severability clause
-- Injunctive relief clause
-- Signature blocks`,
+- Signature section with simple lines for both parties`,
 
   ip_assignment: `Generate an Intellectual Property Assignment Agreement with:
-- Definition of intellectual property
-- Assignment of rights (past, present, future works)
-- Moral rights waiver
-- Cooperation with filings
+- Definition of work product
+- Assignment of all rights to the company
 - Work for hire acknowledgment
-- Representations and warranties
+- Cooperation with filings
 - Compensation acknowledgment
-- Signature blocks`,
+- Signature section with simple lines for both parties`,
 };
 
 serve(async (req) => {
@@ -92,7 +87,20 @@ serve(async (req) => {
 
   try {
     const body: DocumentRequest = await req.json();
-    const { documentType, recipientName, companyName, jobTitle, salary, startDate, additionalTerms } = body;
+    const { 
+      documentType, 
+      recipientName, 
+      companyName, 
+      jobTitle, 
+      salary, 
+      startDate, 
+      additionalTerms,
+      hiringManagerName,
+      hiringManagerTitle,
+      companyAddress,
+      companyEmail,
+      companyPhone
+    } = body;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -101,23 +109,48 @@ serve(async (req) => {
 
     const documentPrompt = DOCUMENT_PROMPTS[documentType] || DOCUMENT_PROMPTS.nda;
     
-    const systemPrompt = `You are a professional legal document generator. Generate formal, legally-sound documents that are ready for signature. 
-Use proper legal language but keep it readable. Include all necessary clauses and provisions.
-Format the document with clear sections, proper spacing, and professional structure.
-Include signature blocks with lines for signatures and dates.
-Do not include any markdown formatting - output plain text with proper line breaks and spacing.`;
+    const systemPrompt = `You are a professional legal document generator. Your task is to create formal, legally-sound documents that are COMPLETE and READY FOR IMMEDIATE SIGNATURE.
+
+CRITICAL RULES - YOU MUST FOLLOW THESE:
+1. NEVER use placeholder brackets like [HIRING MANAGER NAME], [ADDRESS], [FILL IN], etc.
+2. NEVER include fields that require the user to fill in information later
+3. If specific information is not provided, simply OMIT that section or use general language
+4. Use ONLY the information provided to you - make the document work with what you have
+5. The document must be ready to send immediately without any edits required
+6. For signature sections: Use clean, simple format with just underscores for signature lines
+7. If no address is provided, do not include an address section
+8. If no specific benefits are listed, say "comprehensive benefits package"
+9. Write in formal legal language but keep it readable
+10. Format with clear sections, proper spacing, and professional structure
+11. Do NOT use markdown formatting - output clean plain text with line breaks`;
+
+    // Build a detailed context based on what information was actually provided
+    let providedDetails = [];
+    if (recipientName) providedDetails.push(`Recipient/Employee Name: ${recipientName}`);
+    if (companyName) providedDetails.push(`Company Name: ${companyName}`);
+    if (jobTitle) providedDetails.push(`Position/Job Title: ${jobTitle}`);
+    if (salary) providedDetails.push(`Salary/Compensation: ${salary}`);
+    if (startDate) providedDetails.push(`Start Date: ${startDate}`);
+    if (hiringManagerName) providedDetails.push(`Hiring Manager/Authorized Representative: ${hiringManagerName}`);
+    if (hiringManagerTitle) providedDetails.push(`Hiring Manager Title: ${hiringManagerTitle}`);
+    if (companyAddress) providedDetails.push(`Company Address: ${companyAddress}`);
+    if (companyEmail) providedDetails.push(`Company Email: ${companyEmail}`);
+    if (companyPhone) providedDetails.push(`Company Phone: ${companyPhone}`);
 
     const userPrompt = `${documentPrompt}
 
-Document Details:
-- Recipient Name: ${recipientName || "[RECIPIENT NAME]"}
-- Company Name: ${companyName || "[COMPANY NAME]"}
-- Position/Job Title: ${jobTitle || "[JOB TITLE]"}
-${salary ? `- Salary: ${salary}` : ""}
-${startDate ? `- Start Date: ${startDate}` : ""}
-${additionalTerms ? `\nAdditional Terms/Notes to incorporate:\n${additionalTerms}` : ""}
+AVAILABLE INFORMATION (use only what's provided, omit sections for missing info):
+${providedDetails.length > 0 ? providedDetails.join('\n') : 'Minimal information provided - create a general template'}
 
-Generate the complete document now. Use placeholder brackets [LIKE THIS] for any information not provided.`;
+${additionalTerms ? `ADDITIONAL TERMS TO INCORPORATE:\n${additionalTerms}` : ''}
+
+IMPORTANT REMINDERS:
+- Do NOT add placeholder text like "[Insert X here]" - if info is missing, skip that part
+- The document should be 100% complete and ready for signature as-is
+- Use today's date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+- Signature lines should be simple underscores, not placeholders
+
+Generate the complete, ready-to-sign document now:`;
 
     console.log("Generating document:", documentType);
 
