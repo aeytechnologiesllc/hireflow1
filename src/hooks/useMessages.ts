@@ -250,3 +250,26 @@ export function useMarkAsRead() {
     },
   });
 }
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (contactId: string) => {
+      // Delete all messages between user and contact
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .or(
+          `and(sender_id.eq.${user!.id},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${user!.id})`
+        );
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
