@@ -563,30 +563,140 @@ export type Database = {
       }
       team_invitations: {
         Row: {
+          assigned_job_ids: string[] | null
+          can_create_jobs: boolean | null
+          can_delete_jobs: boolean | null
+          can_manage_pipeline: boolean | null
+          can_message_candidates: boolean | null
+          can_schedule_interviews: boolean | null
+          can_send_documents: boolean | null
           created_at: string
+          department: string | null
           expires_at: string
           id: string
+          invite_code: string | null
           invitee_email: string
+          invitee_name: string | null
           inviter_id: string
+          permission_level: string | null
           status: Database["public"]["Enums"]["invitation_status"]
         }
         Insert: {
+          assigned_job_ids?: string[] | null
+          can_create_jobs?: boolean | null
+          can_delete_jobs?: boolean | null
+          can_manage_pipeline?: boolean | null
+          can_message_candidates?: boolean | null
+          can_schedule_interviews?: boolean | null
+          can_send_documents?: boolean | null
           created_at?: string
+          department?: string | null
           expires_at: string
           id?: string
+          invite_code?: string | null
           invitee_email: string
+          invitee_name?: string | null
           inviter_id: string
+          permission_level?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Update: {
+          assigned_job_ids?: string[] | null
+          can_create_jobs?: boolean | null
+          can_delete_jobs?: boolean | null
+          can_manage_pipeline?: boolean | null
+          can_message_candidates?: boolean | null
+          can_schedule_interviews?: boolean | null
+          can_send_documents?: boolean | null
           created_at?: string
+          department?: string | null
           expires_at?: string
           id?: string
+          invite_code?: string | null
           invitee_email?: string
+          invitee_name?: string | null
           inviter_id?: string
+          permission_level?: string | null
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          assigned_job_ids: string[] | null
+          can_create_jobs: boolean | null
+          can_delete_jobs: boolean | null
+          can_manage_pipeline: boolean | null
+          can_message_candidates: boolean | null
+          can_schedule_interviews: boolean | null
+          can_send_documents: boolean | null
+          created_at: string | null
+          department: string | null
+          email: string
+          employer_id: string
+          id: string
+          invitation_id: string | null
+          joined_at: string | null
+          name: string | null
+          permission_level: string | null
+          revoked_at: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          assigned_job_ids?: string[] | null
+          can_create_jobs?: boolean | null
+          can_delete_jobs?: boolean | null
+          can_manage_pipeline?: boolean | null
+          can_message_candidates?: boolean | null
+          can_schedule_interviews?: boolean | null
+          can_send_documents?: boolean | null
+          created_at?: string | null
+          department?: string | null
+          email: string
+          employer_id: string
+          id?: string
+          invitation_id?: string | null
+          joined_at?: string | null
+          name?: string | null
+          permission_level?: string | null
+          revoked_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          assigned_job_ids?: string[] | null
+          can_create_jobs?: boolean | null
+          can_delete_jobs?: boolean | null
+          can_manage_pipeline?: boolean | null
+          can_message_candidates?: boolean | null
+          can_schedule_interviews?: boolean | null
+          can_send_documents?: boolean | null
+          created_at?: string | null
+          department?: string | null
+          email?: string
+          employer_id?: string
+          id?: string
+          invitation_id?: string | null
+          joined_at?: string | null
+          name?: string | null
+          permission_level?: string | null
+          revoked_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "team_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -614,6 +724,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_team_member_permissions: {
+        Args: { _employer_id: string; _user_id: string }
+        Returns: {
+          assigned_job_ids: string[]
+          can_create_jobs: boolean
+          can_delete_jobs: boolean
+          can_manage_pipeline: boolean
+          can_message_candidates: boolean
+          can_schedule_interviews: boolean
+          can_send_documents: boolean
+          permission_level: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -625,9 +748,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_team_member: {
+        Args: { _employer_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "employer" | "candidate"
+      app_role: "employer" | "candidate" | "team_member"
       application_status:
         | "pending"
         | "reviewing"
@@ -773,7 +900,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["employer", "candidate"],
+      app_role: ["employer", "candidate", "team_member"],
       application_status: [
         "pending",
         "reviewing",
