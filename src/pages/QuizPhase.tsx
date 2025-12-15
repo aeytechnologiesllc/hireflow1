@@ -33,6 +33,7 @@ interface ApplicationDetails {
   job_id: string;
   phase: string | null;
   notes: string | null;
+  status: string;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -177,24 +178,63 @@ export default function QuizPhase() {
       };
 
       const isAutoMode = application.jobs?.processing_mode !== "manual";
+      const passingScore = application.jobs?.passing_score || 60;
+      
+      // Build the full phases list to find the next phase
+      const workflowSteps = application.jobs?.workflow_steps || [];
+      const allPhases = [
+        { id: "application", type: "application" },
+        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
+        { id: "review", type: "review" },
+        { id: "interview", type: "interview" },
+        { id: "hired", type: "hired" },
+      ];
+      
+      // Find current step index - fall back to current application phase if needed
+      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(
+          (p) => p.id === application.phase || p.type === application.phase
+        );
+      }
+
+      let newPhase = application.phase;
+      let newStatus = application.status;
+      
+      if (isAutoMode) {
+        if (results.passed) {
+          // Advance to next phase
+          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+            newPhase = allPhases[currentIndex + 1].id;
+          }
+          toast.success("Quiz submitted successfully!", {
+            description: "Great job! You passed and advanced to the next phase.",
+          });
+        } else {
+          // Failed - reject the application
+          newStatus = "rejected";
+          toast.error("Quiz not passed", {
+            description: `You scored ${results.score}% but needed ${passingScore}% to pass.`,
+          });
+        }
+      } else {
+        // Manual mode - just save results, employer will review
+        toast.success("Quiz submitted successfully!", {
+          description: "Your answers have been recorded. The employer will review your submission.",
+        });
+      }
 
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase_ai_analysis: isAutoMode 
-            ? `Quiz: ${results.correct}/${results.total} correct (${results.score}%). ${results.passed ? "PASSED" : "FAILED"}`
-            : null,
+          phase: newPhase,
+          status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
+          phase_ai_analysis: `Quiz: ${results.correct}/${results.total} correct (${results.score}%). ${results.passed ? "PASSED" : "FAILED"}`,
         })
         .eq("id", id!);
 
       if (error) throw error;
-
-      toast.success("Quiz submitted successfully!", {
-        description: results.passed 
-          ? "Great job! You passed the quiz."
-          : "Your answers have been recorded.",
-      });
 
       navigate(`/applications/${id}`);
     } catch (error) {
