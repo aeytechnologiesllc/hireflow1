@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
+import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -219,6 +220,7 @@ export default function ApplicantDetails() {
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [pendingPhaseChange, setPendingPhaseChange] = useState<{
     newIndex: number;
     newPhase: { id: string; title: string; type: string };
@@ -748,7 +750,11 @@ Resume URL: ${application.resume_url || "Not provided"}
               <span className="h-2 w-2 rounded-full bg-primary" />
             )}
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setShowMessageDialog(true)}
+          >
             <MessageSquare className="h-4 w-4" />
             Message
           </Button>
@@ -1762,6 +1768,16 @@ Resume URL: ${application.resume_url || "Not provided"}
         applicationId={application?.id || ""}
         currentNotes={(application as any)?.employer_notes || null}
         candidateName={application?.profiles?.full_name || "this candidate"}
+      />
+
+      {/* Applicant Message Dialog */}
+      <ApplicantMessageDialog
+        open={showMessageDialog}
+        onOpenChange={setShowMessageDialog}
+        candidateId={application?.candidate_id || ""}
+        candidateName={application?.profiles?.full_name || "Candidate"}
+        applicationId={application?.id || ""}
+        jobTitle={application?.jobs?.title || "Position"}
       />
     </div>
   );
