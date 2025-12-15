@@ -57,6 +57,8 @@ const stepTypeIcons: Record<string, any> = {
   video_intro: Video,
   typing_test: Keyboard,
   chat_simulation: MessageSquare,
+  chat_interview: MessageSquare,
+  sales_simulation: MessageSquare,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
@@ -1185,23 +1187,293 @@ Resume URL: ${application.resume_url || "Not provided"}
                       
                       {dialogData.type === "chat_simulation" && (
                         <div className="space-y-4">
-                          {dialogData.content.messages?.map((msg: any, index: number) => (
-                            <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                              <div className={`p-3 rounded-lg max-w-[80%] ${
-                                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                              }`}>
-                                {msg.content}
+                          {/* Evaluation Summary */}
+                          {dialogData.content.evaluation && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-xl font-bold text-primary">{dialogData.content.evaluation.score || dialogData.content.score || "N/A"}</p>
+                                  <p className="text-xs text-muted-foreground">Overall</p>
+                                </div>
+                                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.empathy || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Empathy</p>
+                                </div>
+                                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.problemSolving || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Problem Solving</p>
+                                </div>
                               </div>
+                              
+                              {dialogData.content.evaluation.strengths?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-success mb-2">Strengths</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.strengths.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-success mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {dialogData.content.evaluation.improvements?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Areas for Improvement</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.improvements.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-orange-500 mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
-                          )) || (
-                            <div className="p-4 bg-muted/50 rounded-lg">
-                              <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(dialogData.content, null, 2)}</pre>
+                          )}
+                          
+                          {/* Chat Messages */}
+                          <div className="border-t border-border pt-4">
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-3">Conversation</h4>
+                            <div className="space-y-3 max-h-60 overflow-y-auto">
+                              {dialogData.content.messages?.map((msg: any, index: number) => (
+                                <div key={index} className={`flex ${msg.role === "agent" || msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                                  <div className={`p-3 rounded-lg max-w-[80%] ${
+                                    msg.role === "agent" || msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                                  }`}>
+                                    <p className="text-sm">{msg.content}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Anti-cheat Summary */}
+                          {dialogData.content.antiCheatLog && dialogData.content.antiCheatLog.totalViolations > 0 && (
+                            <div className="border-t border-border pt-4">
+                              <h4 className="text-sm font-semibold text-destructive mb-2 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                Anti-Cheat Violations ({dialogData.content.antiCheatLog.totalViolations})
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Tab Switches: {dialogData.content.antiCheatLog.tabSwitches}
+                                </div>
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Copy/Paste: {dialogData.content.antiCheatLog.copyAttempts + dialogData.content.antiCheatLog.pasteAttempts}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
                       )}
                       
-                      {!["quiz", "typing_test", "video_intro", "chat_simulation"].includes(dialogData.type) && (
+                      {dialogData.type === "chat_interview" && (
+                        <div className="space-y-4">
+                          {/* Evaluation Summary */}
+                          {dialogData.content.evaluation && (
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-4 mb-4">
+                                <div className="text-center">
+                                  <p className="text-3xl font-bold text-primary">{dialogData.content.evaluation.score || dialogData.content.score || "N/A"}</p>
+                                  <p className="text-xs text-muted-foreground">/100</p>
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-foreground">
+                                    Recommendation: <span className="text-primary">{dialogData.content.evaluation.recommendation || "N/A"}</span>
+                                  </p>
+                                  <p className="text-sm text-muted-foreground mt-1">{dialogData.content.evaluation.summary}</p>
+                                </div>
+                              </div>
+                              
+                              {dialogData.content.evaluation.strengths?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-success mb-2">Key Strengths</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.strengths.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-success mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {dialogData.content.evaluation.concerns?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Concerns</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.concerns.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-orange-500 mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Interview Stats */}
+                          {dialogData.content.duration && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="p-3 bg-muted/50 rounded-lg text-center">
+                                <p className="text-lg font-bold text-foreground">
+                                  {Math.floor(dialogData.content.duration / 60)}:{String(dialogData.content.duration % 60).padStart(2, '0')}
+                                </p>
+                                <p className="text-xs text-muted-foreground">Duration</p>
+                              </div>
+                              <div className="p-3 bg-muted/50 rounded-lg text-center">
+                                <p className="text-lg font-bold text-foreground">{dialogData.content.questionCount || dialogData.content.messages?.length || 0}</p>
+                                <p className="text-xs text-muted-foreground">Questions</p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Chat Messages */}
+                          <div className="border-t border-border pt-4">
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-3">Interview Transcript</h4>
+                            <div className="space-y-3 max-h-60 overflow-y-auto">
+                              {dialogData.content.messages?.map((msg: any, index: number) => (
+                                <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                                  <div className={`p-3 rounded-lg max-w-[80%] ${
+                                    msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                                  }`}>
+                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Anti-cheat Summary */}
+                          {dialogData.content.antiCheatLog && dialogData.content.antiCheatLog.totalViolations > 0 && (
+                            <div className="border-t border-border pt-4">
+                              <h4 className="text-sm font-semibold text-destructive mb-2 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                Anti-Cheat Violations ({dialogData.content.antiCheatLog.totalViolations})
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Tab Switches: {dialogData.content.antiCheatLog.tabSwitches}
+                                </div>
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Copy/Paste: {(dialogData.content.antiCheatLog.copyAttempts || 0) + (dialogData.content.antiCheatLog.pasteAttempts || 0)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {dialogData.type === "sales_simulation" && (
+                        <div className="space-y-4">
+                          {/* Evaluation Summary */}
+                          {dialogData.content.evaluation && (
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-4 mb-4">
+                                <div className="text-center">
+                                  <p className="text-3xl font-bold text-primary">{dialogData.content.evaluation.score || dialogData.content.score || "N/A"}</p>
+                                  <p className="text-xs text-muted-foreground">/100</p>
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-foreground">
+                                    Would Buy: <span className={`${
+                                      dialogData.content.evaluation.wouldBuy === "yes" ? "text-success" :
+                                      dialogData.content.evaluation.wouldBuy === "maybe" ? "text-warning" : "text-destructive"
+                                    }`}>
+                                      {dialogData.content.evaluation.wouldBuy === "yes" ? "Yes" :
+                                       dialogData.content.evaluation.wouldBuy === "maybe" ? "Maybe" : "No"}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-4 gap-2">
+                                <div className="p-2 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.discovery || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Discovery</p>
+                                </div>
+                                <div className="p-2 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.objectionHandling || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Objections</p>
+                                </div>
+                                <div className="p-2 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.valueProposition || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Value Prop</p>
+                                </div>
+                                <div className="p-2 bg-muted/50 rounded-lg text-center">
+                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.closingSkills || "N/A"}%</p>
+                                  <p className="text-xs text-muted-foreground">Closing</p>
+                                </div>
+                              </div>
+                              
+                              {dialogData.content.evaluation.strengths?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-success mb-2">Strengths</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.strengths.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-success mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {dialogData.content.evaluation.improvements?.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Areas for Improvement</h4>
+                                  <ul className="space-y-1">
+                                    {dialogData.content.evaluation.improvements.map((s: string, i: number) => (
+                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-orange-500 mt-0.5">•</span> {s}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Chat Messages */}
+                          <div className="border-t border-border pt-4">
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-3">Sales Conversation</h4>
+                            <div className="space-y-3 max-h-60 overflow-y-auto">
+                              {dialogData.content.messages?.map((msg: any, index: number) => (
+                                <div key={index} className={`flex ${msg.role === "salesRep" || msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                                  <div className={`p-3 rounded-lg max-w-[80%] ${
+                                    msg.role === "salesRep" || msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                                  }`}>
+                                    <p className="text-sm">{msg.content}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Anti-cheat Summary */}
+                          {dialogData.content.antiCheatLog && dialogData.content.antiCheatLog.totalViolations > 0 && (
+                            <div className="border-t border-border pt-4">
+                              <h4 className="text-sm font-semibold text-destructive mb-2 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                Anti-Cheat Violations ({dialogData.content.antiCheatLog.totalViolations})
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Tab Switches: {dialogData.content.antiCheatLog.tabSwitches}
+                                </div>
+                                <div className="p-2 bg-destructive/10 rounded">
+                                  Copy/Paste: {(dialogData.content.antiCheatLog.copyAttempts || 0) + (dialogData.content.antiCheatLog.pasteAttempts || 0)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!["quiz", "typing_test", "video_intro", "chat_simulation", "chat_interview", "sales_simulation"].includes(dialogData.type) && (
                         <div className="p-4 bg-muted/50 rounded-lg">
                           <pre className="text-sm whitespace-pre-wrap">
                             {typeof dialogData.content === "object" 
