@@ -1498,26 +1498,42 @@ export default function CreateJob() {
                               Add Step
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56">
-                            {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
-                              const Icon = info.icon;
-                              const alreadyAdded = workflowSteps.some(s => s.type === type);
-                              return (
-                                <DropdownMenuItem
-                                  key={type}
-                                  onClick={() => addWorkflowStep(type)}
-                                  disabled={alreadyAdded}
-                                  className="gap-2"
-                                >
-                                  <Icon className="h-4 w-4" />
-                                  <div className="flex flex-col">
-                                    <span>{info.label}</span>
-                                    <span className="text-xs text-muted-foreground">{info.description}</span>
-                                  </div>
-                                  {alreadyAdded && <Badge variant="secondary" className="ml-auto text-xs">Added</Badge>}
-                                </DropdownMenuItem>
+                          <DropdownMenuContent align="end" className="w-72 p-2 bg-card/95 backdrop-blur-md border-border/50">
+                            <div className="space-y-1">
+                              {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
+                                const Icon = info.icon;
+                                const alreadyAdded = workflowSteps.some(s => s.type === type);
+                                return (
+                                  <DropdownMenuItem
+                                    key={type}
+                                    onClick={() => addWorkflowStep(type)}
+                                    disabled={alreadyAdded}
+                                    className={cn(
+                                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
+                                      alreadyAdded 
+                                        ? "opacity-50" 
+                                        : "hover:bg-primary/10"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
+                                      alreadyAdded ? "bg-secondary" : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
+                                    )}>
+                                      <Icon className={cn("h-5 w-5", alreadyAdded ? "text-muted-foreground" : "text-primary")} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm">{info.label}</div>
+                                      <div className="text-xs text-muted-foreground truncate">{info.description}</div>
+                                    </div>
+                                    {alreadyAdded && (
+                                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] px-2">
+                                        Added
+                                      </Badge>
+                                    )}
+                                  </DropdownMenuItem>
                               );
                             })}
+                            </div>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
