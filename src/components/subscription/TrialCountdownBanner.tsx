@@ -35,11 +35,21 @@ export default function TrialCountdownBanner() {
     return `${timeRemaining.minutes}m`;
   };
 
+  const formatTimeCompact = () => {
+    if (timeRemaining.days > 0) {
+      return `${timeRemaining.days}d`;
+    }
+    if (timeRemaining.hours > 0) {
+      return `${timeRemaining.hours}h`;
+    }
+    return `${timeRemaining.minutes}m`;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-2 md:gap-3 px-2 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl border backdrop-blur-sm transition-all duration-300 ${
+      className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl border backdrop-blur-sm transition-all duration-300 flex-shrink-0 whitespace-nowrap ${
         isCritical
           ? "bg-gradient-to-r from-red-500/20 to-orange-500/20 border-red-500/30"
           : isUrgent
@@ -47,22 +57,17 @@ export default function TrialCountdownBanner() {
           : "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/20"
       }`}
     >
-      <motion.div
-        animate={isCritical ? { scale: [1, 1.1, 1] } : {}}
-        transition={{ duration: 1, repeat: isCritical ? Infinity : 0 }}
-      >
-        <Clock
-          className={`h-3.5 w-3.5 md:h-4 md:w-4 ${
-            isCritical
-              ? "text-red-400"
-              : isUrgent
-              ? "text-orange-400"
-              : "text-emerald-400"
-          }`}
-        />
-      </motion.div>
+      <Clock
+        className={`h-3 w-3 md:h-4 md:w-4 flex-shrink-0 ${
+          isCritical
+            ? "text-red-400"
+            : isUrgent
+            ? "text-orange-400"
+            : "text-emerald-400"
+        }`}
+      />
       <span
-        className={`text-xs md:text-sm font-medium ${
+        className={`text-xs md:text-sm font-medium flex-shrink-0 ${
           isCritical
             ? "text-red-400"
             : isUrgent
@@ -70,11 +75,12 @@ export default function TrialCountdownBanner() {
             : "text-emerald-400"
         }`}
       >
-        <span className="hidden sm:inline">Trial: </span>{formatTime()}
+        <span className="hidden md:inline">{formatTime()}</span>
+        <span className="md:hidden">{formatTimeCompact()}</span>
       </span>
       <Button
         size="sm"
-        className={`h-6 md:h-7 gap-1 text-xs px-2 md:px-3 ${
+        className={`h-6 md:h-7 gap-1 text-xs px-2 md:px-3 flex-shrink-0 ${
           isCritical
             ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
             : "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500"

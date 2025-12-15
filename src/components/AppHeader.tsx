@@ -55,25 +55,25 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
   const pageTitle = pageTitles[location.pathname] || "Dashboard";
 
   return (
-    <header className="h-14 md:h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
+    <header className="h-14 md:h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
       {/* Left side - Menu button (mobile) + Page Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-shrink">
         {isMobile && (
           <Button
             variant="ghost"
             size="icon"
             onClick={onMenuClick}
-            className="h-9 w-9 text-muted-foreground hover:text-primary"
+            className="h-9 w-9 text-muted-foreground hover:text-primary flex-shrink-0"
           >
             <Menu className="h-5 w-5" />
           </Button>
         )}
-        <h1 className="text-lg md:text-xl font-semibold text-foreground">{pageTitle}</h1>
+        <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">{pageTitle}</h1>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2 md:gap-4">
-        {/* Trial Countdown - hide on very small screens */}
+      <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+        {/* Trial Countdown */}
         {role === 'employer' && <TrialCountdownBanner />}
         {/* User Menu */}
         <DropdownMenu>
