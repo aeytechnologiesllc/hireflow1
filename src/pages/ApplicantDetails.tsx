@@ -276,6 +276,11 @@ export default function ApplicantDetails() {
         });
         
         toast.success(`Advanced to ${newPhase.title} phase`);
+        
+        // Auto-open interview scheduler when moving to interview phase
+        if (newPhase.type === "interview") {
+          setShowInterviewWizard(true);
+        }
       }
       
       queryClient.invalidateQueries({ queryKey: ["application", id] });
@@ -631,7 +636,9 @@ ${application.cover_letter || "Not provided"}
 
             {/* Draggable avatar */}
             <div 
-              className="absolute top-3 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20"
+              className={`absolute top-3 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 ${
+                phases[effectivePhaseIndex]?.type === "review" && !isDragging ? "animate-bounce-subtle" : ""
+              }`}
               style={{ left: `${dragPosition}%` }}
               onMouseDown={handleDragStart}
               onTouchStart={handleDragStart}
