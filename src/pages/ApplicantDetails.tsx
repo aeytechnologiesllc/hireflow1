@@ -308,8 +308,21 @@ export default function ApplicantDetails() {
     return defaultPhases;
   })();
 
-  // Find current phase index
-  const currentPhaseIndex = phases.findIndex(p => p.id === application?.phase || p.type === application?.phase);
+  // Find current phase index with fuzzy matching to handle spaces/underscores
+  const normalizePhase = (str: string | null | undefined) => str?.toLowerCase().replace(/[\s-]/g, '_') || '';
+  
+  const currentPhaseIndex = phases.findIndex(p => {
+    const appPhase = application?.phase;
+    if (!appPhase) return false;
+    
+    const normalizedAppPhase = normalizePhase(appPhase);
+    return (
+      p.id === appPhase ||
+      p.type === appPhase ||
+      normalizePhase(p.type) === normalizedAppPhase ||
+      normalizePhase(p.id) === normalizedAppPhase
+    );
+  });
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
 
   // Calculate avatar position based on phase
