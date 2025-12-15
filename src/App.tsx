@@ -15,6 +15,8 @@ import Interviews from "./pages/Interviews";
 import Messages from "./pages/Messages";
 import Documents from "./pages/Documents";
 import Team from "./pages/Team";
+import TeamPortal from "./pages/TeamPortal";
+import JoinTeam from "./pages/JoinTeam";
 import Analytics from "./pages/Analytics";
 import ApplyWithCode from "./pages/ApplyWithCode";
 import JobDetails from "./pages/JobDetails";
@@ -57,6 +59,7 @@ const App = () => (
               <Route path="/messages" element={<Messages />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/team" element={<Team />} />
+              <Route path="/team-portal" element={<TeamPortal />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/apply" element={<ApplyWithCode />} />
               <Route path="/job/:id" element={<JobDetails />} />
@@ -72,6 +75,9 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
+            
+            {/* Join Team (outside AppLayout) */}
+            <Route path="/join-team/:code" element={<JoinTeam />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
