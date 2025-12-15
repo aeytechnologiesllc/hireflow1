@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic
+  Users, Mic, Trash2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -15,7 +15,19 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
-
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useQueryClient } from "@tanstack/react-query";
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-500",
   reviewing: "bg-blue-500/20 text-blue-500",
@@ -59,8 +71,9 @@ function getPhaseType(phase: string): string {
   return phase;
 }
 
-function ApplicationCard({ application }: ApplicationCardProps) {
+function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onDelete: (id: string) => void }) {
   const navigate = useNavigate();
+  const [isDeleting, setIsDeleting] = useState(false);
   const job = application.jobs;
   const phase = application.phase || "application";
   const phaseType = getPhaseType(phase);
@@ -89,6 +102,25 @@ function ApplicationCard({ application }: ApplicationCardProps) {
   const actionConfig = phaseActionConfig[phaseType];
   const hasActionRequired = !isWaitingPhase && actionConfig && !hasPhaseData;
   const isPendingReview = !isWaitingPhase && hasPhaseData && application.status !== "rejected" && application.status !== "hired";
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("applications")
+        .delete()
+        .eq("id", application.id);
+      
+      if (error) throw error;
+      toast.success("Application withdrawn successfully");
+      onDelete(application.id);
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to withdraw application");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <Card 
@@ -180,6 +212,40 @@ function ApplicationCard({ application }: ApplicationCardProps) {
                     Interview Stage
                   </Badge>
                 )}
+                
+                {/* Delete button */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Withdraw Application?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete your application for "{job?.title}". 
+                        This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {isDeleting ? "Withdrawing..." : "Withdraw Application"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                
                 <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
             </div>
@@ -193,9 +259,14 @@ function ApplicationCard({ application }: ApplicationCardProps) {
 export default function Applications() {
   const { role, user } = useAuth();
   const isEmployer = role === "employer";
+  const queryClient = useQueryClient();
   const { data: applications, isLoading, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  const handleDeleteApplication = (id: string) => {
+    queryClient.invalidateQueries({ queryKey: ["candidate-applications"] });
+  };
 
   // Subscribe to real-time updates for all candidate applications
   useEffect(() => {
@@ -318,7 +389,7 @@ export default function Applications() {
           </>
         ) : filteredApplications && filteredApplications.length > 0 ? (
           filteredApplications.map((application) => (
-            <ApplicationCard key={application.id} application={application} />
+            <ApplicationCard key={application.id} application={application} onDelete={handleDeleteApplication} />
           ))
         ) : (
           <Card className="bg-card border-border">
