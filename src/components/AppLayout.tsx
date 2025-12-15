@@ -17,7 +17,10 @@ export default function AppLayout() {
   const isMobile = useIsMobile();
   
   // Mobile sidebar is hidden by default, desktop is expanded
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return !isMobile;
+    return window.innerWidth >= 768;
+  });
 
   // Update sidebar state when screen size changes
   useEffect(() => {
@@ -89,12 +92,12 @@ export default function AppLayout() {
           onToggle={handleToggleSidebar}
           onNavigate={handleNavigate}
         />
-        <div className="flex-1 flex flex-col min-w-0 w-full relative z-10">
+        <div className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10">
           <AppHeader 
             onMenuClick={handleToggleSidebar}
             isMobile={isMobile}
           />
-          <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden">
+          <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
             <Outlet />
           </main>
         </div>

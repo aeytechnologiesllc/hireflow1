@@ -175,20 +175,21 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
   // Mobile: show as slide-out drawer
   const collapsed = !isMobile && !isOpen;
 
+  // Critical: on mobile when closed, remove entirely so it can't affect layout
+  if (isMobile && !isOpen) {
+    return null;
+  }
+
   return (
     <aside className={cn(
-      "flex flex-col shrink-0 transition-all duration-300 sidebar-gradient-border z-50",
+      "flex flex-col transition-all duration-300 sidebar-gradient-border z-50",
       "bg-gradient-to-b from-card via-card to-card/95",
-      // Mobile: fixed positioning with slide in/out
-      isMobile && "fixed left-0 top-0 h-full",
-      isMobile && !isOpen && "-translate-x-full",
-      isMobile && isOpen && "translate-x-0",
-      // Desktop: relative positioning
-      !isMobile && "relative min-h-screen",
+      // Desktop: keep in normal layout flow
+      !isMobile && "relative min-h-screen shrink-0",
       // Desktop: collapsed or expanded width
       !isMobile && (collapsed ? "w-16" : "w-64"),
-      // Mobile: fixed width
-      isMobile && "w-[280px] max-w-[85vw]"
+      // Mobile: fixed overlay drawer (only rendered when open)
+      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]"
     )}>
       {/* Animated gradient background overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
