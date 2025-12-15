@@ -1,13 +1,22 @@
 import { useEffect } from "react";
 import { useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2 } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+import OnboardingWizard from "./subscription/OnboardingWizard";
+import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 
 export default function AppLayout() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { subscription, isLoading: subLoading, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
+
+  const isExpired = subscription?.status === 'expired' ||
+                    (subscription?.status === 'trialing' && 
+                     subscription?.trial_end && 
+                     new Date(subscription.trial_end) < new Date());
 
   useEffect(() => {
     if (!loading && !user) {
@@ -15,7 +24,7 @@ export default function AppLayout() {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  if (loading || subLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -25,6 +34,16 @@ export default function AppLayout() {
 
   if (!user) {
     return null;
+  }
+
+  // Show onboarding wizard for new trial users
+  if (hookNeedsOnboarding) {
+    return <OnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
+  }
+
+  // Show expired overlay for expired trials
+  if (isExpired) {
+    return <TrialExpiredOverlay />;
   }
 
   return (
