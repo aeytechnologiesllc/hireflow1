@@ -106,6 +106,17 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   const handleCreateInvite = async () => {
     if (!user) return;
 
+    // Validate required email
+    if (!inviteData.email.trim()) {
+      toast({
+        title: "Email Required",
+        description: "Please enter an email address for the team member.",
+        variant: "destructive",
+      });
+      setStep(1);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const expiresAt = new Date();
@@ -115,7 +126,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
         .from("team_invitations")
         .insert({
           inviter_id: user.id,
-          invitee_email: inviteData.email || null,
+          invitee_email: inviteData.email.trim(),
           invitee_name: inviteData.name || null,
           department: inviteData.department || null,
           permission_level: inviteData.permissionLevel,
@@ -213,16 +224,17 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email (Optional)</Label>
+                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="john@company.com"
                   value={inviteData.email}
                   onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
+                  required
                 />
                 <p className="text-xs text-muted-foreground">
-                  If provided, only this email can use the invite link
+                  Only this email can use the invite link
                 </p>
               </div>
 
