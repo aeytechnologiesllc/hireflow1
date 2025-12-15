@@ -115,6 +115,26 @@ function formatPrice(amount: number, symbol: string, currency: string): string {
   return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Client-side fallback geolocation using free API
+async function fallbackGeolocation(): Promise<string | null> {
+  try {
+    // Try ipapi.co (free, no key needed, 1000 requests/day)
+    const response = await fetch('https://ipapi.co/country/', {
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    if (response.ok) {
+      const countryCode = await response.text();
+      if (countryCode && countryCode.length === 2) {
+        console.log('Fallback geolocation detected:', countryCode);
+        return countryCode.trim().toUpperCase();
+      }
+    }
+  } catch (err) {
+    console.log('Fallback geolocation failed:', err);
+  }
+  return null;
+}
+
 export function usePricing(): PricingData {
   const [countryCode, setCountryCode] = useState<string>("US");
   const [isLoading, setIsLoading] = useState(true);
@@ -124,21 +144,48 @@ export function usePricing(): PricingData {
       try {
         // Try to get from localStorage first for faster load
         const cached = localStorage.getItem("user_country");
-        if (cached) {
+        if (cached && cached !== 'XX' && cached !== 'unknown') {
           setCountryCode(cached);
           setIsLoading(false);
+          console.log('Using cached country:', cached);
+          // Still try to update in background
         }
 
         // Call geolocate-ip edge function
         const { data, error } = await supabase.functions.invoke("geolocate-ip");
         
-        if (!error && data?.countryCode) {
+        console.log('Edge function response:', { data, error });
+
+        if (!error && data?.countryCode && data.countryCode !== 'XX') {
           const code = data.countryCode;
           setCountryCode(code);
           localStorage.setItem("user_country", code);
+          console.log('Country detected via edge function:', code);
+          setIsLoading(false);
+          return;
+        }
+
+        // Edge function failed or returned XX - try client-side fallback
+        console.log('Edge function returned XX or failed, trying fallback...');
+        const fallbackCode = await fallbackGeolocation();
+        
+        if (fallbackCode) {
+          setCountryCode(fallbackCode);
+          localStorage.setItem("user_country", fallbackCode);
+          console.log('Country detected via fallback:', fallbackCode);
+        } else {
+          // Last resort - default to US
+          console.log('All geolocation methods failed, defaulting to US');
+          setCountryCode("US");
         }
       } catch (err) {
         console.log("Geolocation failed, using default:", err);
+        // Try fallback even on error
+        const fallbackCode = await fallbackGeolocation();
+        if (fallbackCode) {
+          setCountryCode(fallbackCode);
+          localStorage.setItem("user_country", fallbackCode);
+        }
       } finally {
         setIsLoading(false);
       }

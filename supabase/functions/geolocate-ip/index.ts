@@ -12,51 +12,66 @@ serve(async (req) => {
   }
 
   try {
-    const { ip } = await req.json();
-    
-    if (!ip) {
-      // Try to get IP from request headers
-      const forwardedFor = req.headers.get('x-forwarded-for');
-      const realIp = req.headers.get('x-real-ip');
-      const clientIp = forwardedFor?.split(',')[0] || realIp || 'unknown';
-      
-      // Use ip-api.com (free, no API key required, 45 requests/minute limit)
-      const response = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,message,city,regionName,country,countryCode`);
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        return new Response(JSON.stringify({
-          success: true,
-          ip: clientIp,
-          city: data.city || 'Unknown',
-          region: data.regionName || 'Unknown',
-          country: data.country || 'Unknown',
-          countryCode: data.countryCode || 'XX'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else {
-        return new Response(JSON.stringify({
-          success: true,
-          ip: clientIp,
-          city: 'Unknown',
-          region: 'Unknown',
-          country: 'Unknown',
-          countryCode: 'XX'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+    // Safely parse JSON body - handle empty body gracefully
+    let requestedIp: string | null = null;
+    try {
+      const body = await req.text();
+      if (body && body.trim()) {
+        const parsed = JSON.parse(body);
+        requestedIp = parsed?.ip || null;
       }
+    } catch {
+      // Body was empty or invalid JSON - proceed with header detection
+      requestedIp = null;
     }
 
-    // If IP is provided, look it up
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,city,regionName,country,countryCode`);
+    // Get client IP from various headers (Cloudflare, proxies, etc.)
+    const cfConnectingIp = req.headers.get('cf-connecting-ip');
+    const xRealIp = req.headers.get('x-real-ip');
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const trueClientIp = req.headers.get('true-client-ip');
+    
+    // Priority: explicit request > Cloudflare > true-client-ip > x-real-ip > x-forwarded-for
+    const clientIp = requestedIp || 
+                     cfConnectingIp || 
+                     trueClientIp || 
+                     xRealIp || 
+                     forwardedFor?.split(',')[0]?.trim() || 
+                     null;
+
+    console.log('IP detection:', { 
+      requestedIp, 
+      cfConnectingIp, 
+      trueClientIp,
+      xRealIp, 
+      forwardedFor,
+      resolvedIp: clientIp 
+    });
+
+    if (!clientIp) {
+      console.log('No IP detected from any source');
+      return new Response(JSON.stringify({
+        success: true,
+        ip: 'unknown',
+        city: 'Unknown',
+        region: 'Unknown',
+        country: 'Unknown',
+        countryCode: 'XX'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Use ip-api.com (free, no API key required, 45 requests/minute limit)
+    const response = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,message,city,regionName,country,countryCode`);
     const data = await response.json();
     
+    console.log('ip-api.com response:', data);
+
     if (data.status === 'success') {
       return new Response(JSON.stringify({
         success: true,
-        ip: ip,
+        ip: clientIp,
         city: data.city || 'Unknown',
         region: data.regionName || 'Unknown',
         country: data.country || 'Unknown',
@@ -65,9 +80,10 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } else {
+      console.log('ip-api.com failed:', data.message);
       return new Response(JSON.stringify({
         success: true,
-        ip: ip,
+        ip: clientIp,
         city: 'Unknown',
         region: 'Unknown',
         country: 'Unknown',
