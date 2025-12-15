@@ -1028,29 +1028,31 @@ export default function CreateJob() {
                       <div className="space-y-4">
                         <Label>Processing Mode</Label>
                         <div className="grid grid-cols-2 gap-3">
-                          {/* Auto-Pilot Button - Featured/Highlighted */}
+                          {/* Auto-Pilot Button - Featured with purple gradient */}
                           <motion.button
                             onClick={() => setProcessingMode("auto")}
                             className={cn(
-                              "relative p-4 rounded-xl border-2 transition-all text-left overflow-hidden",
+                              "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                               processingMode === "auto"
-                                ? "border-primary bg-primary/5 shadow-[0_0_20px_-5px_hsl(var(--primary))]"
-                                : "border-border hover:border-primary/50"
+                                ? "bg-gradient-to-br from-fuchsia-950/80 via-purple-900/60 to-fuchsia-950/80"
+                                : "bg-card border border-border hover:border-purple-500/30"
                             )}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.99 }}
+                            style={processingMode === "auto" ? {
+                              boxShadow: "0 0 30px -5px rgba(168, 85, 247, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            } : {}}
                           >
-                            {/* Subtle pulsing border glow */}
+                            {/* Single animated border glow */}
                             {processingMode === "auto" && (
                               <motion.div
-                                className="absolute inset-0 rounded-xl border-2 border-primary"
+                                className="absolute inset-0 rounded-xl pointer-events-none"
+                                style={{
+                                  border: "2px solid",
+                                  borderImage: "linear-gradient(135deg, rgba(168, 85, 247, 0.8), rgba(236, 72, 153, 0.6), rgba(168, 85, 247, 0.8)) 1"
+                                }}
                                 animate={{ 
-                                  opacity: [0.5, 1, 0.5],
-                                  boxShadow: [
-                                    "0 0 10px -2px hsl(var(--primary) / 0.3)",
-                                    "0 0 20px -2px hsl(var(--primary) / 0.5)",
-                                    "0 0 10px -2px hsl(var(--primary) / 0.3)"
-                                  ]
+                                  opacity: [0.7, 1, 0.7],
                                 }}
                                 transition={{ 
                                   duration: 2,
@@ -1059,40 +1061,38 @@ export default function CreateJob() {
                                 }}
                               />
                             )}
+                            {processingMode === "auto" && (
+                              <div className="absolute inset-0 rounded-xl border-2 border-purple-500/60" />
+                            )}
                             <div className="relative flex items-center gap-3">
-                              <motion.div
-                                animate={processingMode === "auto" ? { 
-                                  scale: [1, 1.15, 1],
-                                } : {}}
-                                transition={{ 
-                                  duration: 1.5,
-                                  repeat: Infinity,
-                                  ease: "easeInOut"
-                                }}
-                                className={cn(
-                                  "p-2 rounded-lg",
-                                  processingMode === "auto" ? "bg-primary/20" : "bg-muted"
-                                )}
-                              >
+                              <div className={cn(
+                                "p-2.5 rounded-lg",
+                                processingMode === "auto" 
+                                  ? "bg-gradient-to-br from-fuchsia-500 to-purple-600" 
+                                  : "bg-muted"
+                              )}>
                                 <Zap className={cn(
                                   "h-5 w-5",
-                                  processingMode === "auto" ? "text-primary" : "text-muted-foreground"
+                                  processingMode === "auto" ? "text-white" : "text-muted-foreground"
                                 )} />
-                              </motion.div>
+                              </div>
                               <div>
                                 <div className={cn(
                                   "font-semibold flex items-center gap-2",
-                                  processingMode === "auto" && "text-primary"
+                                  processingMode === "auto" && "text-white"
                                 )}>
                                   Auto-Pilot
                                   {processingMode === "auto" && (
-                                    <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground animate-pulse">
-                                      Recommended
+                                    <Badge className="text-[10px] px-1.5 py-0 bg-primary/30 text-primary-foreground border border-primary/50">
+                                      ✓
                                     </Badge>
                                   )}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  AVA automatically evaluates and progresses candidates
+                                <div className={cn(
+                                  "text-xs",
+                                  processingMode === "auto" ? "text-purple-200/80" : "text-muted-foreground"
+                                )}>
+                                  AVA auto-screens candidates
                                 </div>
                               </div>
                             </div>
@@ -1102,31 +1102,28 @@ export default function CreateJob() {
                           <motion.button
                             onClick={() => setProcessingMode("manual")}
                             className={cn(
-                              "relative p-4 rounded-xl border-2 transition-all text-left",
+                              "relative p-4 rounded-xl transition-all text-left",
                               processingMode === "manual"
-                                ? "border-orange-500/50 bg-orange-500/5"
-                                : "border-border hover:border-orange-500/30 opacity-70 hover:opacity-100"
+                                ? "bg-card border-2 border-muted-foreground/30"
+                                : "bg-card/50 border border-border hover:border-muted-foreground/30"
                             )}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            animate={processingMode === "auto" ? { 
-                              opacity: [0.6, 0.8, 0.6],
-                            } : { opacity: 1 }}
-                            transition={processingMode === "auto" ? { 
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                            } : {}}
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.99 }}
                           >
                             <div className="flex items-center gap-3">
-                              <Hand className={cn(
-                                "h-5 w-5",
-                                processingMode === "manual" ? "text-orange-500" : "text-orange-400"
-                              )} />
+                              <div className={cn(
+                                "p-2.5 rounded-lg",
+                                processingMode === "manual" ? "bg-muted" : "bg-muted/50"
+                              )}>
+                                <Hand className={cn(
+                                  "h-5 w-5",
+                                  processingMode === "manual" ? "text-foreground" : "text-muted-foreground"
+                                )} />
+                              </div>
                               <div>
                                 <div className="font-semibold">Manual Review</div>
                                 <div className="text-xs text-muted-foreground">
-                                  You review and approve each phase progression
+                                  You review each application
                                 </div>
                               </div>
                             </div>
@@ -1178,25 +1175,33 @@ export default function CreateJob() {
                         </AnimatePresence>
                       </div>
 
-                      {/* Clean Generate Button */}
-                      <Button
-                        onClick={generateWorkflow}
-                        disabled={isGeneratingWorkflow}
-                        className="w-full gap-2"
-                        size="lg"
-                      >
-                        {isGeneratingWorkflow ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            <span>Generating Workflow...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-5 w-5" />
-                            <span>{workflowGenerated ? "Regenerate Workflow" : "Generate Hiring Workflow"}</span>
-                          </>
-                        )}
-                      </Button>
+                      {/* Generate with AVA Button - Pink/Purple gradient */}
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={generateWorkflow}
+                          disabled={isGeneratingWorkflow}
+                          className={cn(
+                            "gap-2 px-6",
+                            "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
+                            "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
+                            "text-white font-semibold shadow-lg shadow-fuchsia-500/25",
+                            "border-0"
+                          )}
+                          size="lg"
+                        >
+                          {isGeneratingWorkflow ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span>Generating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-5 w-5" />
+                              <span>Generate with AVA</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </>
