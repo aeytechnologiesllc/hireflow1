@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { usePendingDocumentsCount } from "@/hooks/usePendingDocumentsCount";
+import { useEmployerPendingDocumentsCount } from "@/hooks/useEmployerPendingDocumentsCount";
 import {
   LayoutDashboard,
   Briefcase,
@@ -63,6 +64,7 @@ export default function AppSidebar() {
   const isEmployer = role === "employer";
   const { data: unreadNotifications } = useUnreadNotificationCount();
   const { data: pendingDocuments } = usePendingDocumentsCount();
+  const { data: employerPendingDocuments } = useEmployerPendingDocumentsCount();
 
   const employerNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
@@ -70,7 +72,7 @@ export default function AppSidebar() {
     { icon: Users, label: "Applicants", to: "/applicants" },
     { icon: Calendar, label: "Interviews", to: "/interviews" },
     { icon: MessageSquare, label: "Messages", to: "/messages" },
-    { icon: FileText, label: "Documents", to: "/documents" },
+    { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
     { icon: UserPlus, label: "Team", to: "/team" },
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
   ];

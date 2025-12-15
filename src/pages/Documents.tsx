@@ -12,10 +12,26 @@ import { format } from "date-fns";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
 
-const statusConfig = {
-  pending: { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending" },
-  signed: { color: "bg-success/20 text-success", icon: CheckCircle, label: "Signed" },
-  declined: { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" },
+// Get display status based on document state and user role
+const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
+  if (doc.status === "signed") {
+    return { color: "bg-success/20 text-success", icon: CheckCircle, label: "Signed" };
+  }
+  if (doc.status === "declined") {
+    return { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" };
+  }
+  // Pending status - check signing state
+  const candidateSigned = !!doc.candidate_signed_at;
+  const employerSigned = !!doc.employer_signed_at;
+  
+  if (candidateSigned && !employerSigned) {
+    if (isEmployer) {
+      return { color: "bg-primary/20 text-primary", icon: PenTool, label: "Awaiting Your Signature" };
+    }
+    return { color: "bg-blue-500/20 text-blue-500", icon: Clock, label: "Awaiting Countersignature" };
+  }
+  
+  return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending" };
 };
 
 export default function Documents() {
@@ -37,8 +53,8 @@ export default function Documents() {
   };
 
   const renderDocumentCard = (doc: DocumentWithApplication) => {
-    const status = statusConfig[doc.status as keyof typeof statusConfig];
-    const StatusIcon = status?.icon || Clock;
+    const status = getDisplayStatus(doc, isEmployer);
+    const StatusIcon = status.icon;
 
     return (
       <Card key={doc.id} className="bg-card border-border hover:border-primary/50 transition-colors">
@@ -58,12 +74,16 @@ export default function Documents() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge className={status?.color}>
+              <Badge className={status.color}>
                 <StatusIcon className="h-3 w-3 mr-1" />
-                {status?.label}
+                {status.label}
               </Badge>
               <Button variant="ghost" size="icon" onClick={() => handleViewDocument(doc)}>
-                {doc.status === "pending" && !isEmployer ? (
+                {/* Show pen icon only if user can sign: pending status, and (candidate hasn't signed yet OR employer's turn) */}
+                {doc.status === "pending" && (
+                  (!isEmployer && !doc.candidate_signed_at) || 
+                  (isEmployer && doc.candidate_signed_at && !doc.employer_signed_at)
+                ) ? (
                   <PenTool className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />
