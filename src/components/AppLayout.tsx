@@ -70,10 +70,10 @@ export default function AppLayout() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background relative overflow-hidden flex">
-        {/* Premium gradient orbs */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/15 rounded-full blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-accent/12 rounded-full blur-[150px] pointer-events-none" />
+      <div className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full">
+        {/* Premium gradient orbs - smaller on mobile */}
+        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
         
         {/* Mobile overlay backdrop */}
         {isMobile && sidebarOpen && (
@@ -89,12 +89,12 @@ export default function AppLayout() {
           onToggle={handleToggleSidebar}
           onNavigate={handleNavigate}
         />
-        <div className="flex-1 flex flex-col min-w-0 relative z-10">
+        <div className="flex-1 flex flex-col min-w-0 w-full relative z-10">
           <AppHeader 
             onMenuClick={handleToggleSidebar}
             isMobile={isMobile}
           />
-          <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden">
             <Outlet />
           </main>
         </div>
