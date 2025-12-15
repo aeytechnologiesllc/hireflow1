@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, LogOut, Settings, User } from "lucide-react";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -57,19 +57,6 @@ export default function AppHeader() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        {/* Notifications */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="relative"
-          onClick={() => navigate("/notifications")}
-        >
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-[10px] font-medium text-primary-foreground rounded-full flex items-center justify-center">
-            3
-          </span>
-        </Button>
-
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
