@@ -30,6 +30,12 @@ interface Message {
   timestamp: Date;
 }
 
+interface AntiCheatViolation {
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'screenshot_attempt' | 'right_click';
+  timestamp: string;
+  details: string;
+}
+
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -71,6 +77,7 @@ export default function ChatInterviewPhase() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
   const [isBlurred, setIsBlurred] = useState(false);
+  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -106,13 +113,32 @@ export default function ChatInterviewPhase() {
     }
   }, [messages]);
 
+  // Log anti-cheat violation
+  const logViolation = (type: AntiCheatViolation['type'], details: string) => {
+    if (state === "interviewing") {
+      setViolations(prev => [...prev, {
+        type,
+        timestamp: new Date().toISOString(),
+        details,
+      }]);
+    }
+  };
+
   // Anti-cheat: Blur content when page loses focus
   useEffect(() => {
     const handleVisibilityChange = () => {
+      if (document.hidden && state === "interviewing") {
+        logViolation('tab_switch', 'User switched to another tab or window');
+      }
       setIsBlurred(document.hidden);
     };
     
-    const handleBlur = () => setIsBlurred(true);
+    const handleBlur = () => {
+      if (state === "interviewing") {
+        logViolation('tab_switch', 'Window lost focus');
+      }
+      setIsBlurred(true);
+    };
     const handleFocus = () => setIsBlurred(false);
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -124,7 +150,7 @@ export default function ChatInterviewPhase() {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [state]);
 
   // Calculate interview duration
   const getDuration = () => {
@@ -379,6 +405,16 @@ export default function ChatInterviewPhase() {
       const passingScore = application.jobs?.passing_score || 60;
       const passed = evaluation.score >= passingScore;
       
+      const antiCheatLog = {
+        violations,
+        totalViolations: violations.length,
+        tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
+        copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
+        pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
+        screenshotAttempts: violations.filter(v => v.type === 'screenshot_attempt').length,
+        rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
+      };
+
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -393,6 +429,7 @@ export default function ChatInterviewPhase() {
           questionCount,
           score: evaluation.score,
           passed,
+          antiCheatLog,
           completedAt: new Date().toISOString(),
         },
         chatInterviewResult: {
@@ -404,6 +441,12 @@ export default function ChatInterviewPhase() {
           recommendation: evaluation.recommendation,
           passed,
           completed: true,
+          antiCheatSummary: {
+            hasViolations: violations.length > 0,
+            violationCount: violations.length,
+            tabSwitches: antiCheatLog.tabSwitches,
+            copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts,
+          },
         },
       };
 
@@ -474,19 +517,35 @@ export default function ChatInterviewPhase() {
   };
 
   // Anti-cheat handlers
-  const preventCopyPaste = (e: React.ClipboardEvent | React.MouseEvent) => {
+  const preventCopy = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    toast.error("Copy/paste is disabled during the interview");
+    logViolation('copy_attempt', 'User attempted to copy content');
+    toast.error("Copy is disabled during the interview");
+  };
+
+  const preventPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    logViolation('paste_attempt', 'User attempted to paste content');
+    toast.error("Paste is disabled during the interview");
   };
 
   const preventContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    logViolation('right_click', 'User attempted right-click context menu');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Block common shortcuts for copying/pasting/printing/screenshots
     if (e.ctrlKey || e.metaKey) {
-      if (['c', 'v', 'p', 'a', 's'].includes(e.key.toLowerCase())) {
+      if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
+        toast.error("Copy is disabled during the interview");
+      } else if (e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
+        toast.error("Paste is disabled during the interview");
+      } else if (['p', 'a', 's'].includes(e.key.toLowerCase())) {
         e.preventDefault();
         toast.error("Keyboard shortcuts are disabled during the interview");
       }
@@ -494,6 +553,7 @@ export default function ChatInterviewPhase() {
     // Block PrintScreen
     if (e.key === 'PrintScreen') {
       e.preventDefault();
+      logViolation('screenshot_attempt', 'User pressed PrintScreen');
     }
     // Allow Enter to send message
     if (e.key === "Enter" && !e.shiftKey && state === "interviewing") {
@@ -555,9 +615,9 @@ export default function ChatInterviewPhase() {
   return (
     <div 
       className="space-y-6 max-w-3xl mx-auto relative"
-      onCopy={preventCopyPaste}
-      onPaste={preventCopyPaste}
-      onCut={preventCopyPaste}
+      onCopy={preventCopy}
+      onPaste={preventPaste}
+      onCut={preventCopy}
       onContextMenu={preventContextMenu}
       onKeyDown={handleKeyDown}
     >
@@ -728,7 +788,7 @@ export default function ChatInterviewPhase() {
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onPaste={preventCopyPaste}
+                    onPaste={preventPaste}
                     placeholder="Type your response..."
                     disabled={isTyping}
                     className="flex-1"
