@@ -97,19 +97,19 @@ interface StatCardProps {
 function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, iconBgColor, iconColor, isLoading }: StatCardProps) {
   return (
     <Card className={`relative overflow-hidden bg-card border-l-4 ${borderColor}`}>
-      <CardContent className="pt-4 pb-16">
+      <CardContent className="pt-3 md:pt-4 pb-12 md:pb-16 px-3 md:px-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-xs md:text-sm text-muted-foreground">{title}</p>
             {isLoading ? (
-              <Skeleton className="h-10 w-16 mt-2" />
+              <Skeleton className="h-8 md:h-10 w-14 md:w-16 mt-2" />
             ) : (
-              <p className="text-4xl font-bold text-foreground mt-2">{value}</p>
+              <p className="text-2xl md:text-4xl font-bold text-foreground mt-1 md:mt-2">{value}</p>
             )}
-            <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">{subtitle}</p>
           </div>
-          <div className={`w-10 h-10 rounded-lg ${iconBgColor} flex items-center justify-center`}>
-            <Icon className={`h-5 w-5 ${iconColor}`} />
+          <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${iconBgColor} flex items-center justify-center`}>
+            <Icon className={`h-4 w-4 md:h-5 md:w-5 ${iconColor}`} />
           </div>
         </div>
       </CardContent>
@@ -187,15 +187,15 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
       className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
       onClick={handleCardClick}
     >
-      <CardContent className="p-6">
+      <CardContent className="p-3 md:p-6">
         <div className="flex items-start justify-between">
-          <div className="space-y-3 flex-1">
-            <div className="flex items-start justify-between">
-              <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
+          <div className="space-y-2 md:space-y-3 flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-base md:text-lg font-semibold text-foreground truncate">{job.title}</h3>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground">
-                    <MoreVertical className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0 h-8 w-8">
+                    <MoreVertical className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border-border">
@@ -233,52 +233,52 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
               </DropdownMenu>
             </div>
             
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusStyles[job.status]}`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs font-medium ${statusStyles[job.status]}`}>
                 {job.status}
               </span>
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
+                <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
-                  AI Optimized
+                  <span className="hidden sm:inline">AI Optimized</span>
                 </span>
               )}
             </div>
 
             {job.job_code && (
-              <div className="p-3 rounded-lg bg-muted/30 border border-border flex items-center justify-between">
+              <div className="p-2 md:p-3 rounded-lg bg-muted/30 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm text-muted-foreground">Code:</span>
-                  <span className="text-sm font-bold text-primary">{job.job_code}</span>
+                  <Link2 className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-xs md:text-sm text-muted-foreground">Code:</span>
+                  <span className="text-xs md:text-sm font-bold text-primary">{job.job_code}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={copyCode}>
-                    <Copy className="h-4 w-4" />
-                    Code
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyCode}>
+                    <Copy className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Code</span>
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={copyLink}>
-                    <Link2 className="h-4 w-4" />
-                    Link
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyLink}>
+                    <Link2 className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Link</span>
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-8" onClick={shareJob}>
-                    <Share2 className="h-4 w-4" />
-                    Share
+                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={shareJob}>
+                    <Share2 className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Share</span>
                   </Button>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap">
               <span>{job.location || "Remote"}</span>
-              <span>•</span>
-              <span>{job.job_type || "Full-Time"}</span>
+              <span className="hidden sm:inline">•</span>
+              <span className="hidden sm:inline">{job.job_type || "Full-Time"}</span>
               <span>•</span>
               <div className="flex items-center gap-1">
-                <Users className="h-4 w-4" />
+                <Users className="h-3 w-3 md:h-4 md:w-4" />
                 <span>{job.application_count} applicant{job.application_count !== 1 ? 's' : ''}</span>
               </div>
-              <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
+              <span className="text-xs hidden md:inline">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
           </div>
         </div>
@@ -301,11 +301,11 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
 
   return (
     <Card className="bg-card border-border">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="font-medium text-foreground">{job?.title || "Unknown Position"}</h4>
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+      <CardContent className="p-3 md:p-4">
+        <div className="flex items-start sm:items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h4 className="font-medium text-foreground text-sm md:text-base truncate">{job?.title || "Unknown Position"}</h4>
+            <div className="flex items-center gap-2 md:gap-3 mt-1 text-xs md:text-sm text-muted-foreground flex-wrap">
               {job?.location && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
@@ -315,7 +315,7 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
               <span>{format(new Date(application.created_at), "MMM d, yyyy")}</span>
             </div>
           </div>
-          <Badge className={statusColors[application.status]}>
+          <Badge className={`${statusColors[application.status]} text-xs shrink-0`}>
             {application.status}
           </Badge>
         </div>
@@ -437,9 +437,9 @@ export default function Dashboard() {
   ) || { total: 0, interviews: 0, inReview: 0, offers: 0 };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
         {isEmployer ? (
           <>
             <StatCard
@@ -540,20 +540,20 @@ export default function Dashboard() {
       {/* Recent Job Postings - Employer */}
       {isEmployer && (
         <Card className="bg-card border-border">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-6 py-3 md:py-4">
             <div>
-              <CardTitle className="text-lg">Recent Job Postings</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Your latest jobs with application codes</p>
+              <CardTitle className="text-base md:text-lg">Recent Job Postings</CardTitle>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">Your latest jobs with application codes</p>
             </div>
-            <Button variant="ghost" className="text-muted-foreground" asChild>
+            <Button variant="ghost" className="text-muted-foreground text-xs md:text-sm h-8 md:h-9" asChild>
               <Link to="/jobs">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 md:space-y-4 px-3 md:px-6 pb-3 md:pb-6">
             {isLoadingJobs ? (
               <>
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-32 md:h-40 w-full" />
+                <Skeleton className="h-32 md:h-40 w-full" />
               </>
             ) : jobs && jobs.length > 0 ? (
               jobs.slice(0, 3).map((job) => (
@@ -570,11 +570,11 @@ export default function Dashboard() {
                 />
               ))
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No jobs posted yet</p>
-                <p className="text-sm mt-1">Create your first job posting to get started</p>
-                <Button className="mt-4" asChild>
+              <div className="text-center py-6 md:py-8 text-muted-foreground">
+                <Briefcase className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
+                <p className="text-sm md:text-base">No jobs posted yet</p>
+                <p className="text-xs md:text-sm mt-1">Create your first job posting to get started</p>
+                <Button className="mt-3 md:mt-4 h-9 md:h-10" asChild>
                   <Link to="/jobs">Create Job</Link>
                 </Button>
               </div>
@@ -586,16 +586,16 @@ export default function Dashboard() {
       {/* Apply Now CTA - Candidate */}
       {!isEmployer && (
         <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30">
-          <CardContent className="p-8 flex items-center justify-between">
-            <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-foreground">Ready to Apply?</h3>
-              <p className="text-muted-foreground max-w-md">
+          <CardContent className="p-4 md:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 md:space-y-2">
+              <h3 className="text-xl md:text-2xl font-bold text-foreground">Ready to Apply?</h3>
+              <p className="text-sm md:text-base text-muted-foreground max-w-md">
                 Have an application code from an employer? Enter it to view and apply for the position.
               </p>
             </div>
-            <Button size="lg" className="h-14 px-8 text-lg" asChild>
+            <Button size="lg" className="h-11 md:h-14 px-6 md:px-8 text-base md:text-lg w-full sm:w-auto" asChild>
               <Link to="/apply">
-                <Send className="h-5 w-5 mr-2" />
+                <Send className="h-4 w-4 md:h-5 md:w-5 mr-2" />
                 Apply Now
               </Link>
             </Button>
@@ -606,31 +606,31 @@ export default function Dashboard() {
       {/* Recent Applications - Candidate */}
       {!isEmployer && (
         <Card className="bg-card border-border">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 md:px-6 py-3 md:py-4">
             <div>
-              <CardTitle className="text-lg">Recent Applications</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Track your job applications</p>
+              <CardTitle className="text-base md:text-lg">Recent Applications</CardTitle>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">Track your job applications</p>
             </div>
-            <Button variant="ghost" className="text-muted-foreground" asChild>
+            <Button variant="ghost" className="text-muted-foreground text-xs md:text-sm h-8 md:h-9" asChild>
               <Link to="/applications">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2 md:space-y-3 px-3 md:px-6 pb-3 md:pb-6">
             {isLoadingCandidateApps ? (
               <>
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-16 md:h-20 w-full" />
+                <Skeleton className="h-16 md:h-20 w-full" />
               </>
             ) : candidateApps && candidateApps.length > 0 ? (
               candidateApps.slice(0, 5).map((app) => (
                 <ApplicationCard key={app.id} application={app} />
               ))
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No applications yet</p>
-                <p className="text-sm mt-1">Enter an application code to apply for your first job</p>
-                <Button className="mt-4" asChild>
+              <div className="text-center py-6 md:py-8 text-muted-foreground">
+                <Briefcase className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
+                <p className="text-sm md:text-base">No applications yet</p>
+                <p className="text-xs md:text-sm mt-1">Enter an application code to apply for your first job</p>
+                <Button className="mt-3 md:mt-4 h-9 md:h-10" asChild>
                   <Link to="/apply">Apply Now</Link>
                 </Button>
               </div>
