@@ -132,7 +132,15 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               <div className="flex items-center gap-2 text-sm">
                 <Link2 className="h-4 w-4 text-primary" />
                 <span className="text-muted-foreground">Code:</span>
-                <span className="font-bold text-primary">{job.job_code}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(job.job_code!);
+                    toast.success("Job code copied to clipboard");
+                  }}
+                  className="font-bold text-primary hover:text-primary/80 hover:underline cursor-pointer transition-colors"
+                >
+                  {job.job_code}
+                </button>
               </div>
             )}
 
