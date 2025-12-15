@@ -19,8 +19,10 @@ import {
   ArrowLeft, FileText, MessageSquare, Sparkles, 
   XCircle, GripHorizontal, Clock, RefreshCw, 
   FileCheck, ClipboardList, Video, Keyboard, 
-  Eye, Users, CheckCircle, Loader2, Mail, ExternalLink
+  Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
+  Calendar
 } from "lucide-react";
+import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -76,6 +78,7 @@ export default function ApplicantDetails() {
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
+  const [showInterviewWizard, setShowInterviewWizard] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -398,6 +401,13 @@ ${application.cover_letter || "Not provided"}
         </Button>
         
         <div className="flex items-center gap-3">
+          <Button 
+            onClick={() => setShowInterviewWizard(true)}
+            className="gap-2"
+          >
+            <Calendar className="h-4 w-4" />
+            Schedule Interview
+          </Button>
           <Button variant="outline" className="gap-2">
             <FileText className="h-4 w-4" />
             Notes
@@ -943,6 +953,16 @@ ${application.cover_letter || "Not provided"}
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Interview Scheduling Wizard */}
+      <InterviewSchedulingWizard
+        applicationId={application?.id || null}
+        candidateName={profile?.full_name || "Candidate"}
+        candidateEmail={profile?.email}
+        jobTitle={job?.title}
+        open={showInterviewWizard}
+        onOpenChange={setShowInterviewWizard}
+      />
     </div>
   );
 }

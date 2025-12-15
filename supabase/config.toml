@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.ai-generate-workflow]
 verify_jwt = true
+
+[functions.google-calendar]
+verify_jwt = true
