@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
+import { useJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -152,9 +153,12 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
 export default function Applicants() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const jobIdFilter = searchParams.get("job");
   const { role } = useAuth();
   const isEmployer = role === "employer";
   const { data: applications, isLoading } = useEmployerApplications();
+  const { data: filteredJob } = useJob(jobIdFilter || undefined);
   const { data: stats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
   const [searchQuery, setSearchQuery] = useState("");
@@ -179,12 +183,26 @@ export default function Applicants() {
     navigate(`/applicants/${id}`);
   };
 
-  const filteredApplications = applications?.filter((app) => {
-    const name = app.profiles?.full_name?.toLowerCase() || "";
-    const email = app.profiles?.email?.toLowerCase() || "";
-    const query = searchQuery.toLowerCase();
-    return name.includes(query) || email.includes(query);
-  });
+  const filteredApplications = useMemo(() => {
+    let result = applications || [];
+    
+    // Filter by job if jobIdFilter is present
+    if (jobIdFilter) {
+      result = result.filter((app) => app.job_id === jobIdFilter);
+    }
+    
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((app) => {
+        const name = app.profiles?.full_name?.toLowerCase() || "";
+        const email = app.profiles?.email?.toLowerCase() || "";
+        return name.includes(query) || email.includes(query);
+      });
+    }
+    
+    return result;
+  }, [applications, jobIdFilter, searchQuery]);
 
   if (!isEmployer) {
     return (
@@ -207,8 +225,25 @@ export default function Applicants() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Applicants</h2>
-          <p className="text-muted-foreground mt-1">Review and manage job applications</p>
+          {jobIdFilter && filteredJob ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Button variant="ghost" size="sm" asChild className="p-0 h-auto text-muted-foreground hover:text-foreground">
+                  <Link to="/jobs">
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    Back to Jobs
+                  </Link>
+                </Button>
+              </div>
+              <h2 className="text-2xl font-bold text-foreground">Applicants for {filteredJob.title}</h2>
+              <p className="text-muted-foreground mt-1">Review applications for this position</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-foreground">Applicants</h2>
+              <p className="text-muted-foreground mt-1">Review and manage job applications</p>
+            </>
+          )}
         </div>
       </div>
 
