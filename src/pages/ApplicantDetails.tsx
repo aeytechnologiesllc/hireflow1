@@ -28,6 +28,7 @@ import {
   HelpCircle, Move, Zap
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
+import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -217,6 +218,7 @@ export default function ApplicantDetails() {
   const [showInterviewWizard, setShowInterviewWizard] = useState(false);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [pendingPhaseChange, setPendingPhaseChange] = useState<{
     newIndex: number;
     newPhase: { id: string; title: string; type: string };
@@ -735,9 +737,16 @@ Resume URL: ${application.resume_url || "Not provided"}
             <Calendar className="h-4 w-4" />
             Schedule Interview
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setShowNotesDialog(true)}
+          >
             <FileText className="h-4 w-4" />
             Notes
+            {application?.employer_notes && (
+              <span className="h-2 w-2 rounded-full bg-primary" />
+            )}
           </Button>
           <Button variant="outline" className="gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -1745,6 +1754,15 @@ Resume URL: ${application.resume_url || "Not provided"}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Applicant Notes Dialog */}
+      <ApplicantNotesDialog
+        open={showNotesDialog}
+        onOpenChange={setShowNotesDialog}
+        applicationId={application?.id || ""}
+        currentNotes={(application as any)?.employer_notes || null}
+        candidateName={application?.profiles?.full_name || "this candidate"}
+      />
     </div>
   );
 }

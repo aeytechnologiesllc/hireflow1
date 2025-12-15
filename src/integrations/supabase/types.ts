@@ -21,6 +21,7 @@ export type Database = {
           candidate_id: string
           cover_letter: string | null
           created_at: string
+          employer_notes: string | null
           id: string
           job_id: string
           notes: string | null
@@ -36,6 +37,7 @@ export type Database = {
           candidate_id: string
           cover_letter?: string | null
           created_at?: string
+          employer_notes?: string | null
           id?: string
           job_id: string
           notes?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           candidate_id?: string
           cover_letter?: string | null
           created_at?: string
+          employer_notes?: string | null
           id?: string
           job_id?: string
           notes?: string | null
