@@ -6,6 +6,9 @@ verify_jwt = true
 [functions.ai-chat-interview]
 verify_jwt = false
 
+[functions.ai-chat-simulation]
+verify_jwt = false
+
 [functions.ai-generate-document]
 verify_jwt = true
 

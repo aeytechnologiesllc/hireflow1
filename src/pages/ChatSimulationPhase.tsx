@@ -32,8 +32,6 @@ interface ChatScenario {
   id: string;
   customerName: string;
   scenario: string;
-  initialMessage: string;
-  evaluationCriteria?: string[];
 }
 
 interface ApplicationDetails {
@@ -56,54 +54,28 @@ const defaultScenarios: ChatScenario[] = [
   {
     id: "scenario1",
     customerName: "Alex Thompson",
-    scenario: "Billing dispute - customer charged twice",
-    initialMessage: "Hi, I noticed I was charged twice for my subscription this month. This is really frustrating as it's happened before. I need this fixed immediately!",
-    evaluationCriteria: ["Empathy", "Problem resolution", "Clear communication"],
+    scenario: "Billing dispute - the customer was charged twice for their monthly subscription. They noticed it on their bank statement and are frustrated because this has happened before. They want an immediate refund and assurance it won't happen again.",
   },
   {
     id: "scenario2",
     customerName: "Jordan Miller",
-    scenario: "Product not working as expected",
-    initialMessage: "Hello, I purchased your software last week but it keeps crashing whenever I try to export files. I've tried reinstalling but nothing works. Can you help?",
-    evaluationCriteria: ["Technical troubleshooting", "Patience", "Solution-oriented"],
+    scenario: "Product not working - the customer purchased software last week but it keeps crashing whenever they try to export files. They've already tried reinstalling and clearing cache. They're worried about losing their work and have an important deadline coming up.",
+  },
+  {
+    id: "scenario3",
+    customerName: "Sam Chen",
+    scenario: "Delivery issue - the customer ordered an item 2 weeks ago with express shipping but it still hasn't arrived. The tracking shows it's stuck in transit. They needed it for a gift and are very upset about the delay and lack of updates.",
   },
 ];
 
-// Simulated customer responses based on keywords
-const getSimulatedResponse = (agentMessage: string, scenario: ChatScenario): string => {
-  const msg = agentMessage.toLowerCase();
-  
-  if (msg.includes("sorry") || msg.includes("apologize")) {
-    return "I appreciate the apology, but I really need this issue resolved. What are you going to do about it?";
-  }
-  if (msg.includes("refund") || msg.includes("credit")) {
-    return "That sounds fair. How long will it take to process?";
-  }
-  if (msg.includes("understand") || msg.includes("frustrating")) {
-    return "Thank you for understanding. So what's the next step?";
-  }
-  if (msg.includes("help") && msg.includes("can")) {
-    return "Yes, please help me. I've been dealing with this for too long.";
-  }
-  if (msg.includes("resolve") || msg.includes("fix")) {
-    return "Great, I'd like that resolved as soon as possible. What do you need from me?";
-  }
-  if (msg.includes("account") || msg.includes("check")) {
-    return "Sure, my account email is alex@example.com. Please take a look.";
-  }
-  if (msg.includes("thank") || msg.includes("welcome")) {
-    return "Thank you for your help today. I appreciate the quick response!";
-  }
-  
-  return "I see. Is there anything else you can do to help me with this issue?";
-};
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-simulation`;
 
 export default function ChatSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [state, setState] = useState<"intro" | "chatting" | "completed">("intro");
+  const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -146,22 +118,209 @@ export default function ChatSimulationPhase() {
     }
   }, [messages]);
 
-  const startChat = () => {
+  const streamCustomerResponse = async (mode: "start" | "respond", agentMessage?: string) => {
+    if (!currentScenario) return;
+    
+    setIsTyping(true);
+    
+    try {
+      const response = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          mode,
+          scenario: currentScenario.scenario,
+          customerName: currentScenario.customerName,
+          jobTitle: application?.jobs?.title || "",
+          messages: messages.map(m => ({ 
+            role: m.role === "agent" ? "user" : "assistant", 
+            content: m.content 
+          })),
+          agentMessage,
+          messageCount: messages.length,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get customer response");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let customerContent = "";
+      let textBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        textBuffer += decoder.decode(value, { stream: true });
+        
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+          
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              customerContent += content;
+              setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === "customer" && last.id.startsWith("customer-streaming")) {
+                  return prev.map((m, i) => 
+                    i === prev.length - 1 ? { ...m, content: customerContent } : m
+                  );
+                }
+                return [...prev, {
+                  id: `customer-streaming-${Date.now()}`,
+                  role: "customer",
+                  content: customerContent,
+                  timestamp: new Date(),
+                }];
+              });
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Finalize the message with a proper ID
+      setMessages(prev => prev.map(m => 
+        m.id.startsWith("customer-streaming") 
+          ? { ...m, id: `customer-${Date.now()}` } 
+          : m
+      ));
+
+    } catch (error) {
+      console.error("Chat simulation error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to get customer response");
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const startChat = async () => {
     // Select random scenario
     const scenarios = chatConfig.scenarios;
     const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
     setCurrentScenario(randomScenario);
-    
-    // Add initial customer message
-    setMessages([{
-      id: "initial",
-      role: "customer",
-      content: randomScenario.initialMessage,
-      timestamp: new Date(),
-    }]);
-    
     setState("chatting");
-    setTimeout(() => inputRef.current?.focus(), 100);
+    
+    // Small delay to ensure state is set before streaming
+    setTimeout(async () => {
+      await streamCustomerResponseWithScenario("start", randomScenario);
+      inputRef.current?.focus();
+    }, 100);
+  };
+
+  // Separate function to handle initial message with scenario
+  const streamCustomerResponseWithScenario = async (mode: "start", scenario: ChatScenario) => {
+    setIsTyping(true);
+    
+    try {
+      const response = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          mode,
+          scenario: scenario.scenario,
+          customerName: scenario.customerName,
+          jobTitle: application?.jobs?.title || "",
+          messages: [],
+          messageCount: 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start simulation");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let customerContent = "";
+      let textBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        textBuffer += decoder.decode(value, { stream: true });
+        
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+          
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              customerContent += content;
+              setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === "customer" && last.id.startsWith("customer-streaming")) {
+                  return prev.map((m, i) => 
+                    i === prev.length - 1 ? { ...m, content: customerContent } : m
+                  );
+                }
+                return [...prev, {
+                  id: `customer-streaming-${Date.now()}`,
+                  role: "customer",
+                  content: customerContent,
+                  timestamp: new Date(),
+                }];
+              });
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Finalize the message
+      setMessages(prev => prev.map(m => 
+        m.id.startsWith("customer-streaming") 
+          ? { ...m, id: `customer-initial` } 
+          : m
+      ));
+
+    } catch (error) {
+      console.error("Chat simulation error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to start simulation");
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -175,34 +334,15 @@ export default function ChatSimulationPhase() {
     };
     
     setMessages(prev => [...prev, agentMessage]);
+    const messageToSend = inputValue.trim();
     setInputValue("");
     
-    // Simulate customer typing
-    setIsTyping(true);
-    
-    setTimeout(() => {
-      const response = getSimulatedResponse(agentMessage.content, currentScenario);
-      const customerMessage: Message = {
-        id: `customer-${Date.now()}`,
-        role: "customer",
-        content: response,
-        timestamp: new Date(),
-      };
-      
-      setMessages(prev => [...prev, customerMessage]);
-      setIsTyping(false);
-      
-      // Check if we should end the chat
-      const agentMessages = messages.filter(m => m.role === "agent").length + 1;
-      if (agentMessages >= chatConfig.minMessages && 
-          (response.includes("Thank you") || response.includes("appreciate"))) {
-        setTimeout(() => setState("completed"), 1500);
-      }
-    }, 1000 + Math.random() * 1500);
+    await streamCustomerResponse("respond", messageToSend);
   };
 
   const endChat = () => {
-    setState("completed");
+    setState("evaluating");
+    handleSubmit();
   };
 
   const handleSubmit = async () => {
@@ -210,22 +350,44 @@ export default function ChatSimulationPhase() {
     
     setIsSubmitting(true);
     try {
+      // Get AI evaluation
+      const evalResponse = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          mode: "evaluate",
+          scenario: currentScenario.scenario,
+          customerName: currentScenario.customerName,
+          jobTitle: application.jobs?.title || "",
+          messages: messages.map(m => ({ 
+            role: m.role === "agent" ? "user" : "assistant", 
+            content: m.content 
+          })),
+        }),
+      });
+
+      let evaluation = {
+        score: 70,
+        empathy: 70,
+        problemSolving: 70,
+        communication: 70,
+        professionalism: 70,
+        strengths: ["Completed simulation"],
+        improvements: [],
+        overallFeedback: "Simulation completed successfully.",
+      };
+
+      if (evalResponse.ok) {
+        evaluation = await evalResponse.json();
+      }
+
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
-      
-      // Calculate simple metrics
       const agentMessages = messages.filter((m) => m.role === "agent");
-      const avgResponseLength =
-        agentMessages.length > 0
-          ? agentMessages.reduce((acc, m) => acc + m.content.length, 0) / agentMessages.length
-          : 0;
-      
-      // Derive a simple score from completeness and response richness
-      const minMessages = chatConfig.minMessages;
-      const completenessScore = Math.min(100, (agentMessages.length / minMessages) * 100);
-      const lengthScore = Math.min(100, (avgResponseLength / 150) * 100);
-      const score = Math.round(completenessScore * 0.6 + lengthScore * 0.4);
       const passingScore = application.jobs?.passing_score || 60;
-      const passed = score >= passingScore;
+      const passed = evaluation.score >= passingScore;
       
       const updatedNotes = {
         ...existingNotes,
@@ -238,19 +400,23 @@ export default function ChatSimulationPhase() {
             content: m.content,
             timestamp: m.timestamp.toISOString(),
           })),
+          evaluation,
           metrics: {
             totalMessages: messages.length,
             agentResponses: agentMessages.length,
-            avgResponseLength: Math.round(avgResponseLength),
           },
-          score,
+          score: evaluation.score,
           passed,
           completedAt: new Date().toISOString(),
         },
         chatSimulationResult: {
           scenario: currentScenario.scenario,
           messageCount: messages.length,
-          score,
+          score: evaluation.score,
+          empathy: evaluation.empathy,
+          problemSolving: evaluation.problemSolving,
+          strengths: evaluation.strengths,
+          improvements: evaluation.improvements,
           passed,
           completed: true,
         },
@@ -262,7 +428,7 @@ export default function ChatSimulationPhase() {
       const workflowSteps = application.jobs?.workflow_steps || [];
       const allPhases = [
         { id: "application", type: "application" },
-        ...workflowSteps.map((step) => ({ id: step.id, type: step.type })),
+        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
         { id: "review", type: "review" },
         { id: "interview", type: "interview" },
         { id: "hired", type: "hired" },
@@ -283,18 +449,18 @@ export default function ChatSimulationPhase() {
           if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
             newPhase = allPhases[currentIndex + 1].id;
           }
-          toast.success("Chat simulation submitted!", {
-            description: `You passed with a score of ${score}%. You have advanced to the next phase.`,
+          toast.success("Chat simulation completed!", {
+            description: `You scored ${evaluation.score}%. You've advanced to the next phase.`,
           });
         } else {
           newStatus = "rejected";
           toast.error("Chat simulation not passed", {
-            description: `You scored ${score}% but needed ${passingScore}% to pass. Your application for this role has been closed.`,
+            description: `You scored ${evaluation.score}% but needed ${passingScore}% to pass.`,
           });
         }
       } else {
         toast.success("Chat simulation completed!", {
-          description: "Your responses have been recorded. The employer will review your submission.",
+          description: "Your responses have been recorded. The employer will review your performance.",
         });
       }
 
@@ -303,23 +469,20 @@ export default function ChatSimulationPhase() {
         .update({
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
-          status: newStatus as
-            | "pending"
-            | "reviewing"
-            | "interview"
-            | "offered"
-            | "hired"
-            | "rejected",
-          phase_ai_analysis: `Chat simulation: score ${score}%. ${passed ? "PASSED" : "FAILED"}`,
+          status: newStatus as any,
+          phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%. ${passed ? "PASSED" : "FAILED"}`,
         })
         .eq("id", id!);
 
       if (error) throw error;
 
-      navigate(`/applications/${id}`);
+      setState("completed");
+      setTimeout(() => navigate(`/applications/${id}`), 2000);
+
     } catch (error) {
       console.error("Error submitting chat:", error);
       toast.error("Failed to submit chat simulation");
+      setState("chatting");
     } finally {
       setIsSubmitting(false);
     }
@@ -348,6 +511,8 @@ export default function ChatSimulationPhase() {
       </div>
     );
   }
+
+  const canEndChat = messages.filter(m => m.role === "agent").length >= chatConfig.minMessages;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -391,15 +556,15 @@ export default function ChatSimulationPhase() {
                   </li>
                   <li className="flex items-start gap-2">
                     <User className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>Respond to the customer as if you were a support agent</span>
+                    <span>Respond to the AI customer as if you were a support agent</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Bot className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>The customer will respond based on your replies</span>
+                    <span>The customer will respond realistically based on your replies</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>Complete at least {chatConfig.minMessages} responses to finish</span>
+                    <span>Complete at least {chatConfig.minMessages} responses to end the simulation</span>
                   </li>
                 </ul>
               </div>
@@ -413,13 +578,13 @@ export default function ChatSimulationPhase() {
             </div>
           )}
 
-          {(state === "chatting" || state === "completed") && currentScenario && (
+          {(state === "chatting" || state === "evaluating" || state === "completed") && currentScenario && (
             <>
               {/* Scenario Info */}
               <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Scenario</p>
-                  <p className="text-sm font-medium text-foreground">{currentScenario.scenario}</p>
+                  <p className="text-xs text-muted-foreground">Customer</p>
+                  <p className="text-sm font-medium text-foreground">{currentScenario.customerName}</p>
                 </div>
                 <Badge variant="outline">
                   {messages.filter(m => m.role === "agent").length} / {chatConfig.minMessages} responses
@@ -455,7 +620,7 @@ export default function ChatSimulationPhase() {
                             {currentScenario.customerName}
                           </p>
                         )}
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       </div>
                       {message.role === "agent" && (
                         <Avatar className="h-8 w-8">
@@ -476,9 +641,9 @@ export default function ChatSimulationPhase() {
                       </Avatar>
                       <div className="bg-muted rounded-lg p-3">
                         <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.1s]" />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce [animation-delay:0.2s]" />
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
                       </div>
                     </div>
@@ -494,7 +659,7 @@ export default function ChatSimulationPhase() {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Type your response..."
-                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
                     disabled={isTyping}
                   />
                   <Button onClick={sendMessage} disabled={!inputValue.trim() || isTyping}>
@@ -503,25 +668,40 @@ export default function ChatSimulationPhase() {
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="flex justify-center gap-4">
-                {state === "chatting" && messages.filter(m => m.role === "agent").length >= chatConfig.minMessages && (
-                  <Button onClick={endChat} variant="outline" className="gap-2">
-                    End Conversation
+              {/* End Chat Button */}
+              {state === "chatting" && canEndChat && (
+                <div className="text-center pt-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={endChat}
+                    disabled={isTyping}
+                  >
+                    End Simulation & Submit
                   </Button>
-                )}
-                
-                {state === "completed" && (
-                  <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4" />
-                    )}
-                    Submit Results
-                  </Button>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Evaluating State */}
+              {state === "evaluating" && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+                  <p className="text-foreground font-medium">Evaluating your performance...</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    AI is reviewing your customer service skills
+                  </p>
+                </div>
+              )}
+
+              {/* Completed State */}
+              {state === "completed" && (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 mx-auto text-success mb-4" />
+                  <p className="text-foreground font-medium">Simulation Complete!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Redirecting to your application...
+                  </p>
+                </div>
+              )}
             </>
           )}
         </CardContent>
