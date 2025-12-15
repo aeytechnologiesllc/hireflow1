@@ -3,7 +3,7 @@ import { useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useProfile } from "@/hooks/useProfile";
+
 import { Loader2 } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
@@ -14,10 +14,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function AppLayout() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   const { subscription, isLoading: subLoading, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
-  const profileQuery = useProfile();
-  const isEmployer = profileQuery.data?.company_name;
+  const isEmployer = role === "employer";
   const isMobile = useIsMobile();
   
   // Mobile sidebar is hidden by default, desktop is expanded
