@@ -46,6 +46,41 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
     : profile?.email?.[0]?.toUpperCase() || "?";
 
+  // Get human-readable phase name from workflow steps
+  const getPhaseName = (phase: string | null) => {
+    if (!phase) return null;
+    
+    // Check for standard phase names
+    const standardPhases: Record<string, string> = {
+      application: "Application",
+      review: "Review",
+      interview: "Interview",
+      hired: "Hired",
+      rejected: "Rejected",
+    };
+    
+    if (standardPhases[phase.toLowerCase()]) {
+      return standardPhases[phase.toLowerCase()];
+    }
+    
+    // Look up in job workflow_steps
+    if (job?.workflow_steps && Array.isArray(job.workflow_steps)) {
+      const step = (job.workflow_steps as any[]).find((s) => s.id === phase);
+      if (step?.name) {
+        return step.name;
+      }
+    }
+    
+    // Fallback: try to extract a readable name from the phase
+    if (phase.startsWith("step_")) {
+      return "In Progress";
+    }
+    
+    return phase;
+  };
+
+  const phaseName = getPhaseName(application.phase);
+
   return (
     <Card 
       className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
@@ -111,9 +146,9 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
               <Badge className={statusColors[application.status]}>
                 {application.status}
               </Badge>
-              {application.phase && (
+              {phaseName && (
                 <Badge variant="outline" className="text-xs">
-                  Phase: {application.phase}
+                  Phase: {phaseName}
                 </Badge>
               )}
               <span className="text-sm text-muted-foreground">
