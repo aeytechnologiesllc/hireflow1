@@ -1167,7 +1167,7 @@ export default function CreateJob() {
                                   "text-xs",
                                   processingMode === "manual" ? "text-slate-300/80" : "text-muted-foreground"
                                 )}>
-                                  You review each application
+                                  You review each phase progression
                                 </div>
                               </div>
                             </div>
