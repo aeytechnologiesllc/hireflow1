@@ -66,8 +66,8 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
     // Look up in job workflow_steps
     if (job?.workflow_steps && Array.isArray(job.workflow_steps)) {
       const step = (job.workflow_steps as any[]).find((s) => s.id === phase);
-      if (step?.name) {
-        return step.name;
+      if (step?.title) {
+        return step.title;
       }
     }
     
