@@ -60,23 +60,31 @@ interface ApplicationCardProps {
   application: ApplicationWithJob;
 }
 
-function getPhaseType(phase: string): string {
-  // Normalize phase names to types
-  if (phase.includes("quiz") || phase.startsWith("step")) return "quiz";
+function getPhaseType(phase: string, workflowSteps?: any[]): string {
+  // Prefer explicit type from job workflow configuration when available
+  if (workflowSteps && Array.isArray(workflowSteps)) {
+    const step = workflowSteps.find((s: any) => s?.id === phase || s?.key === phase || s?.slug === phase);
+    if (step && typeof step.type === "string") {
+      return step.type;
+    }
+  }
+
+  // Fallback normalization for legacy/non-configured phases
   if (phase === "typing_test") return "typing_test";
   if (phase === "video_intro") return "video_intro";
   if (phase === "chat_simulation") return "chat_simulation";
   if (phase === "chat_interview") return "chat_interview";
   if (phase === "sales_simulation") return "sales_simulation";
+  if (phase.includes("quiz") || phase.startsWith("step")) return "quiz";
   return phase;
 }
-
+ 
 function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const job = application.jobs;
   const phase = application.phase || "application";
-  const phaseType = getPhaseType(phase);
+  const phaseType = getPhaseType(phase, (job as any)?.workflow_steps as any[]);
   
   // Parse notes to check if phase has been submitted
   let notes: Record<string, any> = {};
@@ -265,7 +273,7 @@ export default function Applications() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const handleDeleteApplication = (id: string) => {
-    queryClient.invalidateQueries({ queryKey: ["candidate-applications"] });
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
   };
 
   // Subscribe to real-time updates for all candidate applications
