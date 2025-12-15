@@ -82,14 +82,14 @@ export default function AppSidebar() {
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
   ];
 
-  // Team member navigation - filtered based on permissions
+  // Team member navigation - always show all tabs, actions are controlled on individual pages
   const teamMemberNavItems: NavItemProps[] = [
     { icon: Building2, label: "Team Portal", to: "/team-portal" },
     { icon: Briefcase, label: "Jobs", to: "/jobs" },
     { icon: Users, label: "Applicants", to: "/applicants" },
-    ...(permissions?.canScheduleInterviews ? [{ icon: Calendar, label: "Interviews", to: "/interviews" }] : []),
-    ...(permissions?.canMessageCandidates ? [{ icon: MessageSquare, label: "Messages", to: "/messages" }] : []),
-    ...(permissions?.canSendDocuments ? [{ icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 }] : []),
+    { icon: Calendar, label: "Interviews", to: "/interviews" },
+    { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
   ];
 
   const candidateNavItems: NavItemProps[] = [
