@@ -11,11 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
+import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 
 // Get display status based on document state and user role
 const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
   if (doc.status === "signed") {
-    return { color: "bg-success/20 text-success", icon: CheckCircle, label: "Signed" };
+    return { color: "bg-success/20 text-success", icon: CheckCircle, label: "Fully Signed" };
   }
   if (doc.status === "declined") {
     return { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" };
@@ -41,6 +42,7 @@ export default function Documents() {
   const { data: applications = [] } = useApplicationsForDocuments();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithApplication | null>(null);
 
   const pendingDocs = documents?.filter(d => d.status === "pending") || [];
@@ -49,7 +51,12 @@ export default function Documents() {
 
   const handleViewDocument = (doc: DocumentWithApplication) => {
     setSelectedDocument(doc);
-    setSigningDialogOpen(true);
+    // Use the signed viewer for fully signed documents, otherwise use signing dialog
+    if (doc.status === "signed") {
+      setViewerOpen(true);
+    } else {
+      setSigningDialogOpen(true);
+    }
   };
 
   const renderDocumentCard = (doc: DocumentWithApplication) => {
@@ -158,6 +165,7 @@ export default function Documents() {
 
       <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
       <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
+      <SignedDocumentViewer document={selectedDocument} open={viewerOpen} onOpenChange={setViewerOpen} />
     </div>
   );
 }
