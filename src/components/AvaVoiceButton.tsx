@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Loader2, X, MessageSquare, Lock, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ export default function AvaVoiceButton() {
   const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,6 +48,11 @@ export default function AvaVoiceButton() {
     const match = location.pathname.match(/\/applicants\/([a-f0-9-]+)/);
     return match ? match[1] : undefined;
   }, [location.pathname]);
+
+  // Auto-scroll to bottom when messages or actions change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, actions]);
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     setMessages((prev) => {
@@ -76,7 +84,24 @@ export default function AvaVoiceButton() {
         timestamp: new Date(),
       },
     ]);
-  }, []);
+
+    // Invalidate relevant queries to sync dashboard when AVA performs actions
+    if (result?.success) {
+      if (toolName === 'move_applicant_to_phase' || toolName === 'reject_applicant') {
+        // Refresh application details and applicants list
+        if (currentApplicationId) {
+          queryClient.invalidateQueries({ queryKey: ["application", currentApplicationId] });
+        }
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+        toast.success(`Action completed: ${toolName.replace(/_/g, ' ')}`);
+      }
+      if (toolName === 'get_applicant_count' || toolName === 'get_job_stats' || toolName === 'list_recent_applicants') {
+        // Refresh jobs and applications data
+        queryClient.invalidateQueries({ queryKey: ["jobs"] });
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    }
+  }, [queryClient, currentApplicationId]);
 
   const {
     isConnected,
@@ -386,6 +411,8 @@ export default function AvaVoiceButton() {
                       )}
                     </div>
                   ))}
+                  {/* Auto-scroll anchor */}
+                  <div ref={messagesEndRef} />
                 </div>
               )}
             </ScrollArea>
