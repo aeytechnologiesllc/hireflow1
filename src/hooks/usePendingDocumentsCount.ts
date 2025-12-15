@@ -23,12 +23,16 @@ export function usePendingDocumentsCount() {
 
       const applicationIds = applications.map(a => a.id);
 
-      // Count pending documents for these applications
+      // Count documents that:
+      // 1. Are pending status
+      // 2. Candidate has NOT signed yet (candidate_signed_at is null)
+      // This means only documents awaiting the candidate's signature are counted
       const { count, error: docError } = await supabase
         .from("documents")
         .select("id", { count: "exact", head: true })
         .in("application_id", applicationIds)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .is("candidate_signed_at", null);
 
       if (docError) throw docError;
       return count || 0;
