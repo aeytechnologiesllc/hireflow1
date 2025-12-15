@@ -154,13 +154,13 @@ export default function Index() {
   const [selectedFeature, setSelectedFeature] = useState<typeof features[0] | null>(null);
 
   return (
-    <div className="min-h-screen bg-[hsl(220,20%,4%)] overflow-x-hidden">
+    <div className="min-h-screen bg-[hsl(220,18%,7%)] overflow-x-hidden">
       {/* Navigation */}
       <motion.nav 
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: easeOut }}
-        className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,20%,4%)]/90 backdrop-blur-md border-b border-[hsl(220,15%,12%)]"
+        className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,18%,7%)]/85 backdrop-blur-md border-b border-[hsl(220,15%,14%)]"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -180,7 +180,7 @@ export default function Index() {
             </Link>
             <Link to="/auth">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-                <Button className="bg-[hsl(220,15%,10%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,16%)] rounded-full px-6">
+                <Button className="bg-[hsl(220,15%,13%)] hover:bg-[hsl(220,15%,17%)] text-white border border-[hsl(220,15%,18%)] rounded-full px-6">
                   Get Started
                 </Button>
               </motion.div>
@@ -227,7 +227,7 @@ export default function Index() {
               </motion.div>
               <motion.div 
                 whileHover={{ scale: 1.05 }}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[hsl(220,15%,8%)] border border-[hsl(220,15%,14%)] text-gray-300 text-sm"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[hsl(220,15%,11%)] border border-[hsl(220,15%,17%)] text-gray-300 text-sm"
               >
                 Powered by AVA AI
                 <motion.div 
@@ -283,7 +283,7 @@ export default function Index() {
                 >
                   <Button 
                     size="lg" 
-                    className="bg-[hsl(220,15%,8%)] hover:bg-[hsl(220,15%,11%)] text-white border border-[hsl(220,15%,14%)] rounded-xl px-8 py-6 text-lg h-auto"
+                    className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,17%)] rounded-xl px-8 py-6 text-lg h-auto"
                   >
                     <Rocket className="mr-2 h-5 w-5" />
                     Start Hiring for Free
@@ -316,7 +316,7 @@ export default function Index() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 border-t border-b border-[hsl(220,15%,10%)]">
+      <section className="py-16 border-t border-b border-[hsl(220,15%,12%)]">
         <div className="container mx-auto px-4">
           <motion.div 
             initial="hidden"
@@ -410,7 +410,7 @@ export default function Index() {
                   borderColor: "hsl(220, 15%, 30%)"
                 }}
                 onClick={() => setSelectedFeature(feature)}
-                className="group p-6 rounded-2xl bg-[hsl(220,15%,7%)] border border-[hsl(220,15%,12%)] transition-colors cursor-pointer"
+                className="group p-6 rounded-2xl bg-[hsl(220,15%,10%)] border border-[hsl(220,15%,15%)] transition-colors cursor-pointer"
               >
                 <motion.div 
                   whileHover={{ scale: 1.1, rotate: 5 }}
@@ -440,7 +440,7 @@ export default function Index() {
       {/* Final CTA Section */}
       <section className="py-24 relative overflow-hidden">
         {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,20%,4%)] via-[hsl(260,25%,8%)] to-[hsl(160,25%,8%)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,18%,7%)] via-[hsl(260,28%,10%)] to-[hsl(160,28%,10%)]" />
         <motion.div 
           animate={{ 
             opacity: [0.1, 0.2, 0.1],
@@ -528,7 +528,7 @@ export default function Index() {
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
-        className="py-6 border-t border-[hsl(220,15%,10%)] bg-[hsl(220,20%,3%)]"
+        className="py-6 border-t border-[hsl(220,15%,12%)] bg-[hsl(220,18%,5%)]"
       >
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-center gap-2 text-sm text-gray-400">
@@ -551,7 +551,7 @@ export default function Index() {
       </motion.footer>
       {/* Feature Detail Dialog */}
       <Dialog open={!!selectedFeature} onOpenChange={() => setSelectedFeature(null)}>
-        <DialogContent className="bg-[hsl(220,15%,7%)] border-[hsl(220,15%,14%)] text-white max-w-lg p-0 overflow-hidden">
+        <DialogContent className="bg-[hsl(220,15%,10%)] border-[hsl(220,15%,17%)] text-white max-w-lg p-0 overflow-hidden">
           {selectedFeature && (
             <>
               {/* Header with gradient */}
