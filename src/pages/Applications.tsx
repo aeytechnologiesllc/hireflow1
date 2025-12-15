@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
-  Play, Clock, Sparkles, Hand, Keyboard, Video, MessageSquare, ClipboardList,
+  Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
   Users, Mic
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,18 +62,41 @@ function getPhaseType(phase: string): string {
 function ApplicationCard({ application }: ApplicationCardProps) {
   const navigate = useNavigate();
   const job = application.jobs;
-  const isManualMode = job?.processing_mode === "manual";
   const phase = application.phase || "application";
   const phaseType = getPhaseType(phase);
   
-  // Determine if action is required (not in waiting phases)
+  // Parse notes to check if phase has been submitted
+  let notes: Record<string, any> = {};
+  try {
+    notes = application.notes ? JSON.parse(application.notes as string) : {};
+  } catch {
+    // ignore
+  }
+  
+  // Check if the current phase has been completed/submitted
+  const hasPhaseData = (() => {
+    if (phaseType === "quiz") return !!notes.quizAnswers?.[phase] || !!notes.quizAnswers;
+    if (phaseType === "typing_test") return !!notes.typingTestResult;
+    if (phaseType === "video_intro") return !!notes.videoIntroUrl;
+    if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;
+    if (phaseType === "chat_interview") return !!notes.chatInterviewResult;
+    if (phaseType === "sales_simulation") return !!notes.salesSimulationResult;
+    return false;
+  })();
+  
+  // Determine states
   const isWaitingPhase = ["application", "review", "interview", "hired"].includes(phase);
   const actionConfig = phaseActionConfig[phaseType];
-  const hasActionRequired = !isWaitingPhase && actionConfig;
+  const hasActionRequired = !isWaitingPhase && actionConfig && !hasPhaseData;
+  const isPendingReview = !isWaitingPhase && hasPhaseData && application.status !== "rejected" && application.status !== "hired";
 
   return (
     <Card 
-      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group"
+      className={`bg-card border-border transition-all cursor-pointer group ${
+        hasActionRequired 
+          ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
+          : "hover:border-primary/50"
+      }`}
       onClick={() => navigate(`/applications/${application.id}`)}
     >
       <CardContent className="p-6">
@@ -86,22 +109,12 @@ function ApplicationCard({ application }: ApplicationCardProps) {
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
               </div>
-              <div className="flex items-center gap-2">
+              {/* Only show status badges for terminal states */}
+              {(application.status === "hired" || application.status === "rejected" || application.status === "offered") && (
                 <Badge className={statusColors[application.status]}>
                   {statusLabels[application.status] || application.status}
                 </Badge>
-                {isManualMode ? (
-                  <Badge variant="outline" className="gap-1">
-                    <Hand className="h-3 w-3" />
-                    Manual
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1">
-                    <Sparkles className="h-3 w-3" />
-                    Auto
-                  </Badge>
-                )}
-              </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -125,13 +138,6 @@ function ApplicationCard({ application }: ApplicationCardProps) {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                {application.phase && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Current Phase: </span>
-                    <span className="text-foreground font-medium capitalize">{application.phase}</span>
-                  </div>
-                )}
-
                 {application.ai_score && (
                   <div className="flex items-center gap-2">
                     <div className="text-xs font-medium text-muted-foreground">Score:</div>
@@ -148,24 +154,30 @@ function ApplicationCard({ application }: ApplicationCardProps) {
                 )}
               </div>
 
-              {/* Action Indicator */}
-              <div className="flex items-center gap-2">
+              {/* Action Indicator - Clean and focused */}
+              <div className="flex items-center gap-3">
                 {hasActionRequired && actionConfig && (
-                  <Badge className="bg-primary text-primary-foreground gap-1.5 px-3 py-1 animate-pulse">
-                    <actionConfig.icon className="h-3.5 w-3.5" />
+                  <Badge className="bg-primary text-primary-foreground gap-2 px-4 py-1.5 text-sm font-medium animate-pulse hover:bg-primary/90 transition-colors">
+                    <actionConfig.icon className="h-4 w-4" />
                     {actionConfig.label}
                   </Badge>
                 )}
-                {!hasActionRequired && application.status === "pending" && (
-                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1">
-                    <Clock className="h-3 w-3" />
+                {isPendingReview && (
+                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
+                    <Clock className="h-3.5 w-3.5" />
                     Awaiting Review
                   </Badge>
                 )}
-                {application.status === "reviewing" && (
-                  <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 gap-1">
-                    <Clock className="h-3 w-3" />
+                {phase === "review" && (
+                  <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 gap-1.5 px-3 py-1">
+                    <Clock className="h-3.5 w-3.5" />
                     Under Review
+                  </Badge>
+                )}
+                {phase === "interview" && (
+                  <Badge className="bg-purple-500/20 text-purple-500 border-purple-500/30 gap-1.5 px-3 py-1">
+                    <Users className="h-3.5 w-3.5" />
+                    Interview Stage
                   </Badge>
                 )}
                 <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />

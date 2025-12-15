@@ -350,19 +350,6 @@ export default function CandidateApplicationDetail() {
                 </div>
               </div>
             </div>
-            
-            {/* Processing Mode Badge */}
-            {isManualMode ? (
-              <Badge className="bg-orange-500/20 text-orange-500 border-orange-500/30 gap-1">
-                <Hand className="h-3 w-3" />
-                Manual Review
-              </Badge>
-            ) : (
-              <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-                <Sparkles className="h-3 w-3" />
-                Auto-Pilot
-              </Badge>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -537,36 +524,6 @@ export default function CandidateApplicationDetail() {
         </CardContent>
       </Card>
 
-      {/* Mode Explanation Card */}
-      {isManualMode ? (
-        <Card className="bg-card border-border border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Hand className="h-5 w-5 text-orange-500 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-orange-500">Manual Review Process</h3>
-                <p className="text-sm text-muted-foreground">
-                  After completing each phase, an employer will review your submission before you can proceed to the next step.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="bg-card border-border border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-primary mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-primary">Auto-Pilot Mode</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your submissions are automatically evaluated. Score {passingScore}% or higher to advance to the next phase.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* AI Score Display */}
       {application.ai_score && (
