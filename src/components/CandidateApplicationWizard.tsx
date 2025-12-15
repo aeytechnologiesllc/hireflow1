@@ -214,6 +214,13 @@ export default function CandidateApplicationWizard({
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      
+      // If this is a resume file question (type: file), also set resumeUrl for tracking
+      const question = applicationQuestions.find(q => q.id === questionId);
+      if (question?.type === "file" && (question.question?.toLowerCase().includes("resume") || questionId.toLowerCase().includes("resume"))) {
+        setResumeUrl(urlData.publicUrl);
+      }
+      
       toast.success("File uploaded successfully");
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -236,6 +243,12 @@ export default function CandidateApplicationWizard({
   };
 
   const removeQuestionFile = (questionId: string) => {
+    // Check if this is a resume file question
+    const question = applicationQuestions.find(q => q.id === questionId);
+    if (question?.type === "file" && (question.question?.toLowerCase().includes("resume") || questionId.toLowerCase().includes("resume"))) {
+      setResumeUrl("");
+    }
+    
     setQuestionFiles(prev => {
       const newFiles = { ...prev };
       delete newFiles[questionId];
