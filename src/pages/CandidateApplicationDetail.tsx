@@ -53,6 +53,7 @@ const stepTypeIcons: Record<string, any> = {
   video_intro: Video,
   typing_test: Keyboard,
   chat_simulation: MessageSquare,
+  chat_interview: Users,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
@@ -196,6 +197,8 @@ export default function CandidateApplicationDetail() {
         hasPhaseData = !!notes.typingTestResult;
       } else if (phase.type === "chat_simulation") {
         hasPhaseData = !!notes.chatSimulationResult;
+      } else if (phase.type === "chat_interview") {
+        hasPhaseData = !!notes.chatInterviewResult;
       } else if (phase.type === "quiz") {
         hasPhaseData = !!(notes.quizAnswers?.[phase.id] || notes.quizAnswers);
       } else if (phase.type === "video_intro") {
@@ -237,6 +240,9 @@ export default function CandidateApplicationDetail() {
         break;
       case "chat_simulation":
         navigate(`/applications/${id}/chat-simulation/${phaseId}`);
+        break;
+      case "chat_interview":
+        navigate(`/applications/${id}/chat-interview/${phaseId}`);
         break;
       default:
         toast.info("This phase type is not yet implemented");
