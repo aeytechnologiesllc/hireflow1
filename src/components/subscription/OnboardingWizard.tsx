@@ -11,44 +11,42 @@ import {
   BarChart3,
   MessageSquare,
   ChevronRight,
-  ChevronLeft,
   Check,
   Crown,
   Zap,
-  Clock,
+  Brain,
+  Rocket,
+  Target,
+  Shield,
+  Globe,
+  TrendingUp,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
-const FEATURES = [
+const FUTURE_FEATURES = [
   {
-    icon: Briefcase,
-    title: "Smart Job Posting",
-    description: "AI-powered job descriptions and automated workflows",
-    gradient: "from-blue-500 to-cyan-400",
+    icon: Brain,
+    title: "AI-First Hiring",
+    description: "AVA thinks, screens, and interviews like your best recruiter—but never sleeps.",
+    stat: "10x faster",
   },
   {
-    icon: Users,
-    title: "Automated Screening",
-    description: "AVA handles candidate assessment 24/7",
-    gradient: "from-emerald-500 to-teal-400",
+    icon: Target,
+    title: "Precision Matching",
+    description: "Find the perfect candidate, not just the available one.",
+    stat: "94% match rate",
   },
   {
-    icon: MessageSquare,
-    title: "AI Interviews",
-    description: "Dynamic conversational interviews with AVA",
-    gradient: "from-purple-500 to-fuchsia-400",
+    icon: Rocket,
+    title: "Zero to Hired",
+    description: "From job posting to signed offer in days, not months.",
+    stat: "5 day average",
   },
   {
-    icon: FileText,
-    title: "Document Workflows",
-    description: "DocuSign-style contracts and offers",
-    gradient: "from-orange-500 to-amber-400",
-  },
-  {
-    icon: BarChart3,
-    title: "Analytics Dashboard",
-    description: "Track hiring metrics and pipeline health",
-    gradient: "from-pink-500 to-rose-400",
+    icon: Shield,
+    title: "Bias-Free Process",
+    description: "AI ensures every candidate gets a fair, consistent evaluation.",
+    stat: "100% consistent",
   },
 ];
 
@@ -58,7 +56,7 @@ interface OnboardingWizardProps {
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
-  const [featureIndex, setFeatureIndex] = useState(0);
+  const [activeFeature, setActiveFeature] = useState(0);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const { completeOnboarding } = useSubscription();
   const pricing = usePricing();
@@ -66,324 +64,554 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   useEffect(() => {
     if (step === 1) {
       const interval = setInterval(() => {
-        setFeatureIndex((prev) => (prev + 1) % FEATURES.length);
-      }, 3000);
+        setActiveFeature((prev) => (prev + 1) % FUTURE_FEATURES.length);
+      }, 4000);
       return () => clearInterval(interval);
     }
   }, [step]);
 
   const handleComplete = async () => {
-    confetti({
-      particleCount: 150,
-      spread: 80,
-      origin: { y: 0.6 },
-      colors: ["#14b8a6", "#8b5cf6", "#f59e0b", "#ec4899"],
-    });
+    // Epic confetti burst
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.7 },
+        colors: ["#14b8a6", "#8b5cf6", "#06b6d4"],
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.7 },
+        colors: ["#14b8a6", "#8b5cf6", "#06b6d4"],
+      });
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
 
     await completeOnboarding.mutateAsync();
-    setTimeout(onComplete, 1500);
+    setTimeout(onComplete, 2000);
   };
 
   const PLANS = [
     {
       name: "Growth",
       price: billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly,
-      period: billingInterval === "monthly" ? "/month" : "/mo (billed yearly)",
+      period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.growth.yearlyFormatted,
-      features: ["3 Active Jobs", "50 Applicants/month", "AI Screening", "Documents"],
+      features: ["3 Active Jobs", "50 Applicants/month", "AI Screening", "Smart Documents"],
       popular: false,
     },
     {
       name: "Business",
       price: billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly,
-      period: billingInterval === "monthly" ? "/month" : "/mo (billed yearly)",
+      period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.business.yearlyFormatted,
       features: ["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "Priority Support"],
       popular: true,
     },
   ];
 
-  const steps = [
-    // Step 0: Welcome
-    <motion.div
-      key="welcome"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center text-center space-y-8"
-    >
-      {/* AVA Orb Animation */}
-      <div className="relative">
-        <motion.div
-          className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 via-fuchsia-500 to-pink-500"
-          animate={{
-            scale: [1, 1.1, 1],
-            boxShadow: [
-              "0 0 0 0 rgba(168, 85, 247, 0.4)",
-              "0 0 40px 20px rgba(168, 85, 247, 0.2)",
-              "0 0 0 0 rgba(168, 85, 247, 0)",
-            ],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        >
-          <Sparkles className="h-12 w-12 text-white drop-shadow-lg" />
-        </motion.div>
-        {/* Floating particles */}
-        {[...Array(3)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-emerald-400"
-            style={{ left: "50%", top: "50%" }}
-            animate={{
-              x: [0, Math.cos((i * 120 * Math.PI) / 180) * 60],
-              y: [0, Math.sin((i * 120 * Math.PI) / 180) * 60],
-              opacity: [0, 1, 0],
-              scale: [0.5, 1, 0.5],
-            }}
-            transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
-          />
-        ))}
-      </div>
-
-      <div className="space-y-3">
-        <h1 className="text-3xl font-bold text-white">Welcome to HireFlow</h1>
-        <p className="text-gray-400 text-lg max-w-md">
-          Meet AVA, your AI hiring assistant. Let's show you around!
-        </p>
-      </div>
-
-      <Button
-        size="lg"
-        className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25"
-        onClick={() => setStep(1)}
-      >
-        Get Started <ChevronRight className="h-4 w-4" />
-      </Button>
-    </motion.div>,
-
-    // Step 1: Feature Carousel
-    <motion.div
-      key="features"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center text-center space-y-8"
-    >
-      <h2 className="text-2xl font-bold text-white">Powerful Features</h2>
-
-      <div className="relative h-56 w-full max-w-md">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={featureIndex}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            className="absolute inset-0 flex flex-col items-center justify-center"
-          >
-            <div className={`p-5 rounded-2xl bg-gradient-to-br ${FEATURES[featureIndex].gradient} mb-4 shadow-xl`}>
-              {(() => {
-                const Icon = FEATURES[featureIndex].icon;
-                return <Icon className="h-12 w-12 text-white" />;
-              })()}
-            </div>
-            <h3 className="text-xl font-semibold text-white">
-              {FEATURES[featureIndex].title}
-            </h3>
-            <p className="text-gray-400 mt-2">
-              {FEATURES[featureIndex].description}
-            </p>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Dots */}
-      <div className="flex gap-2">
-        {FEATURES.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setFeatureIndex(idx)}
-            className={`h-2 rounded-full transition-all duration-300 ${
-              idx === featureIndex ? "bg-emerald-400 w-8" : "bg-gray-600 w-2 hover:bg-gray-500"
-            }`}
-          />
-        ))}
-      </div>
-
-      <div className="flex gap-3">
-        <Button variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => setStep(0)}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Back
-        </Button>
-        <Button
-          className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white"
-          onClick={() => setStep(2)}
-        >
-          Next <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </div>
-    </motion.div>,
-
-    // Step 2: Trial Benefits with Pricing
-    <motion.div
-      key="trial"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="flex flex-col items-center text-center space-y-6"
-    >
-      <div className="flex items-center gap-2 text-emerald-400">
-        <Clock className="h-6 w-6" />
-        <span className="text-lg font-semibold">7-Day Free Trial</span>
-      </div>
-
-      <h2 className="text-2xl font-bold text-white">
-        Try Everything, Risk Free
-      </h2>
-      <p className="text-gray-400 max-w-md">
-        Full access to all features during your trial. No credit card required.
-      </p>
-
-      {/* Billing Toggle */}
-      <div className="flex items-center gap-3 p-1 rounded-full bg-gray-800/50 border border-gray-700">
-        <button
-          onClick={() => setBillingInterval("monthly")}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-            billingInterval === "monthly"
-              ? "bg-emerald-500 text-white shadow-lg"
-              : "text-gray-400 hover:text-white"
-          }`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setBillingInterval("yearly")}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
-            billingInterval === "yearly"
-              ? "bg-emerald-500 text-white shadow-lg"
-              : "text-gray-400 hover:text-white"
-          }`}
-        >
-          Yearly
-          <span className="text-xs bg-emerald-400/20 text-emerald-300 px-2 py-0.5 rounded-full">
-            2 months free
-          </span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 w-full max-w-lg">
-        {PLANS.map((plan) => (
-          <motion.div
-            key={plan.name}
-            whileHover={{ scale: 1.02, y: -4 }}
-            className={`relative p-4 rounded-xl border transition-all ${
-              plan.popular
-                ? "bg-gradient-to-b from-emerald-500/10 to-transparent border-emerald-500/50"
-                : "bg-gray-800/30 border-gray-700 hover:border-gray-600"
-            }`}
-          >
-            {plan.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                  <Crown className="h-3 w-3" /> Popular
-                </span>
-              </div>
-            )}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-white">{plan.name}</h3>
-              <div className="flex items-baseline justify-center">
-                <span className="text-2xl font-bold text-white">{plan.price}</span>
-                <span className="text-gray-400 text-sm ml-1">{plan.period}</span>
-              </div>
-              {billingInterval === "yearly" && (
-                <p className="text-xs text-gray-500">Billed {plan.yearlyTotal}/year</p>
-              )}
-              <ul className="space-y-2 text-sm text-left">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2">
-                    <Check className="h-3 w-3 text-emerald-400 shrink-0" />
-                    <span className="text-gray-400">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="flex gap-3">
-        <Button variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => setStep(1)}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Back
-        </Button>
-        <Button
-          className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white"
-          onClick={() => setStep(3)}
-        >
-          Let's Go! <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-      </div>
-    </motion.div>,
-
-    // Step 3: Celebration
-    <motion.div
-      key="celebrate"
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="flex flex-col items-center text-center space-y-6"
-    >
-      <motion.div
-        className="p-6 rounded-full bg-gradient-to-br from-purple-500 via-fuchsia-500 to-pink-500 shadow-2xl shadow-purple-500/30"
-        animate={{
-          rotate: [0, 10, -10, 0],
-          scale: [1, 1.1, 1],
-        }}
-        transition={{ duration: 0.5 }}
-      >
-        <Zap className="h-16 w-16 text-white" />
-      </motion.div>
-
-      <h2 className="text-3xl font-bold text-white">You're All Set!</h2>
-      <p className="text-gray-400 text-lg max-w-md">
-        Your 7-day trial has started. Time to revolutionize your hiring!
-      </p>
-
-      <Button
-        size="lg"
-        className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25"
-        onClick={handleComplete}
-      >
-        <Sparkles className="h-4 w-4" />
-        Start Hiring
-      </Button>
-    </motion.div>,
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsl(220, 18%, 7%)" }}>
-      {/* Background gradient orbs */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/12 rounded-full blur-[150px] pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background">
+      {/* Animated background grid */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
+              linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }}
+        />
+        {/* Animated scan line */}
+        <motion.div
+          className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+          initial={{ top: "-10%" }}
+          animate={{ top: "110%" }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
 
-      <div className="w-full max-w-2xl p-8 rounded-2xl border border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-        {/* Progress */}
-        <div className="flex gap-1 mb-8">
+      {/* Floating orbs */}
+      <motion.div
+        className="absolute top-[10%] right-[15%] w-[400px] h-[400px] rounded-full bg-primary/20 blur-[120px]"
+        animate={{
+          scale: [1, 1.2, 1],
+          opacity: [0.2, 0.3, 0.2],
+        }}
+        transition={{ duration: 8, repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute bottom-[10%] left-[10%] w-[350px] h-[350px] rounded-full bg-accent/15 blur-[100px]"
+        animate={{
+          scale: [1.2, 1, 1.2],
+          opacity: [0.15, 0.25, 0.15],
+        }}
+        transition={{ duration: 6, repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute top-[40%] left-[30%] w-[200px] h-[200px] rounded-full bg-cyan-500/10 blur-[80px]"
+        animate={{
+          x: [0, 100, 0],
+          y: [0, -50, 0],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
+
+      {/* Main content */}
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-6">
+        {/* Progress indicators */}
+        <div className="flex justify-center gap-3 mb-8">
           {[0, 1, 2, 3].map((s) => (
-            <motion.div
+            <motion.button
               key={s}
-              className={`h-1 flex-1 rounded-full transition-all ${
-                s <= step ? "bg-gradient-to-r from-emerald-500 to-teal-400" : "bg-gray-700"
+              onClick={() => s < step && setStep(s)}
+              className={`relative h-2 rounded-full transition-all duration-500 ${
+                s <= step ? "w-12" : "w-2"
               }`}
-              initial={false}
-              animate={{ scaleX: s <= step ? 1 : 0.8 }}
-            />
+              style={{
+                background: s <= step 
+                  ? "linear-gradient(90deg, hsl(var(--primary)), hsl(180, 100%, 50%))"
+                  : "hsl(var(--muted))",
+              }}
+              whileHover={s < step ? { scale: 1.1 } : {}}
+            >
+              {s === step && (
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: "linear-gradient(90deg, hsl(var(--primary)), hsl(180, 100%, 50%))",
+                    filter: "blur(6px)",
+                  }}
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
           ))}
         </div>
 
-        <AnimatePresence mode="wait">{steps[step]}</AnimatePresence>
+        <AnimatePresence mode="wait">
+          {step === 0 && (
+            <motion.div
+              key="welcome"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center text-center"
+            >
+              {/* Futuristic logo animation */}
+              <div className="relative mb-8">
+                {/* Outer rotating ring */}
+                <motion.div
+                  className="absolute inset-0 rounded-full border-2 border-dashed border-primary/30"
+                  style={{ width: 180, height: 180, left: -30, top: -30 }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                />
+                
+                {/* Middle pulsing ring */}
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-primary/50"
+                  style={{ width: 150, height: 150, left: -15, top: -15 }}
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+
+                {/* Core orb */}
+                <motion.div
+                  className="relative w-[120px] h-[120px] rounded-full flex items-center justify-center"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
+                    boxShadow: "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
+                  }}
+                  animate={{
+                    boxShadow: [
+                      "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
+                      "0 0 100px hsl(var(--primary) / 0.7), inset 0 0 30px rgba(255,255,255,0.2)",
+                      "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
+                    ],
+                  }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                >
+                  <Sparkles className="h-12 w-12 text-white" />
+                </motion.div>
+
+                {/* Orbiting particles */}
+                {[0, 1, 2, 3].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-3 h-3 rounded-full bg-primary"
+                    style={{
+                      left: "50%",
+                      top: "50%",
+                      marginLeft: -6,
+                      marginTop: -6,
+                      boxShadow: "0 0 10px hsl(var(--primary))",
+                    }}
+                    animate={{
+                      x: Math.cos((i * 90 * Math.PI) / 180) * 80,
+                      y: Math.sin((i * 90 * Math.PI) / 180) * 80,
+                      scale: [1, 0.5, 1],
+                      opacity: [1, 0.5, 1],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      delay: i * 0.5,
+                    }}
+                  />
+                ))}
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="space-y-4 mb-8"
+              >
+                <h1 className="text-4xl md:text-5xl font-bold text-foreground">
+                  The <span className="text-gradient">Future</span> of Hiring
+                </h1>
+                <p className="text-xl text-muted-foreground max-w-lg mx-auto leading-relaxed">
+                  Welcome to HireFlow. Where AI meets human intuition to find your next great hire.
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                <Button
+                  size="lg"
+                  onClick={() => setStep(1)}
+                  className="group relative px-8 py-6 text-lg bg-card border border-primary/50 text-foreground hover:bg-card/80 shadow-[0_0_30px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_50px_hsl(var(--primary)/0.5)] transition-all duration-300"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    Enter the Future
+                    <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {step === 1 && (
+            <motion.div
+              key="features"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center"
+            >
+              <h2 className="text-3xl font-bold text-foreground mb-2">What Makes Us Different</h2>
+              <p className="text-muted-foreground mb-10">Hiring reimagined for the modern era</p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full mb-10">
+                {FUTURE_FEATURES.map((feature, idx) => {
+                  const Icon = feature.icon;
+                  const isActive = idx === activeFeature;
+                  
+                  return (
+                    <motion.button
+                      key={feature.title}
+                      onClick={() => setActiveFeature(idx)}
+                      className={`relative p-5 rounded-xl border text-left transition-all duration-500 ${
+                        isActive 
+                          ? "border-primary/50 bg-primary/5" 
+                          : "border-border bg-card/30 hover:border-muted-foreground/30"
+                      }`}
+                      animate={isActive ? {
+                        boxShadow: "0 0 30px hsl(var(--primary) / 0.2)",
+                      } : {
+                        boxShadow: "0 0 0px transparent",
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                    >
+                      {isActive && (
+                        <motion.div
+                          className="absolute inset-0 rounded-xl border-2 border-primary/50"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          layoutId="activeFeature"
+                        />
+                      )}
+                      
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-all ${
+                        isActive ? "bg-primary/20" : "bg-muted"
+                      }`}>
+                        <Icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                      </div>
+                      
+                      <h3 className={`font-semibold mb-1 ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                        {feature.title}
+                      </h3>
+                      
+                      <p className={`text-xs leading-relaxed ${isActive ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
+                        {feature.description}
+                      </p>
+
+                      <div className={`mt-3 text-sm font-bold ${isActive ? "text-primary" : "text-muted-foreground/50"}`}>
+                        {feature.stat}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              {/* Progress bar for auto-rotation */}
+              <div className="flex gap-2 mb-8">
+                {FUTURE_FEATURES.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`h-1 rounded-full transition-all duration-300 ${
+                      idx === activeFeature ? "w-8 bg-primary" : "w-2 bg-muted"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <Button
+                size="lg"
+                onClick={() => setStep(2)}
+                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg"
+              >
+                See What You Get <ChevronRight className="h-5 w-5 ml-2" />
+              </Button>
+            </motion.div>
+          )}
+
+          {step === 2 && (
+            <motion.div
+              key="trial"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center"
+            >
+              {/* Trial badge */}
+              <motion.div
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 mb-6"
+                animate={{
+                  boxShadow: [
+                    "0 0 20px hsl(var(--primary) / 0.2)",
+                    "0 0 40px hsl(var(--primary) / 0.4)",
+                    "0 0 20px hsl(var(--primary) / 0.2)",
+                  ],
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Zap className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-primary">7-Day Free Trial</span>
+              </motion.div>
+
+              <h2 className="text-3xl font-bold text-foreground mb-2">Try Everything Free</h2>
+              <p className="text-muted-foreground mb-6">Full access. No credit card. No commitment.</p>
+
+              {/* Billing Toggle */}
+              <div className="flex items-center gap-1 p-1 rounded-full bg-muted/50 border border-border mb-8">
+                <button
+                  onClick={() => setBillingInterval("monthly")}
+                  className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+                    billingInterval === "monthly"
+                      ? "bg-primary text-primary-foreground shadow-lg"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingInterval("yearly")}
+                  className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
+                    billingInterval === "yearly"
+                      ? "bg-primary text-primary-foreground shadow-lg"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Yearly
+                  <span className="text-xs bg-background/20 px-2 py-0.5 rounded-full">
+                    Save 20%
+                  </span>
+                </button>
+              </div>
+
+              {/* Plans */}
+              <div className="grid md:grid-cols-2 gap-5 w-full max-w-2xl mb-8">
+                {PLANS.map((plan, idx) => (
+                  <motion.div
+                    key={plan.name}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    className={`relative p-6 rounded-2xl border transition-all ${
+                      plan.popular
+                        ? "border-primary/50 bg-gradient-to-b from-primary/10 to-transparent shadow-[0_0_30px_hsl(var(--primary)/0.15)]"
+                        : "border-border bg-card/50 hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    {plan.popular && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <span className="bg-gradient-to-r from-primary to-cyan-400 text-primary-foreground text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
+                          <Crown className="h-3.5 w-3.5" /> Most Popular
+                        </span>
+                      </div>
+                    )}
+                    
+                    <h3 className="font-bold text-xl text-foreground mb-4">{plan.name}</h3>
+                    
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-4xl font-bold text-foreground">{plan.price}</span>
+                      <span className="text-muted-foreground">{plan.period}</span>
+                    </div>
+                    
+                    {billingInterval === "yearly" && (
+                      <p className="text-sm text-muted-foreground mb-4">Billed {plan.yearlyTotal}/year</p>
+                    )}
+                    
+                    <ul className="space-y-3 mt-6">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-center gap-3">
+                          <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                            <Check className="h-3 w-3 text-primary" />
+                          </div>
+                          <span className="text-muted-foreground text-sm">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                ))}
+              </div>
+
+              <Button
+                size="lg"
+                onClick={() => setStep(3)}
+                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg shadow-primary/25"
+              >
+                Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
+              </Button>
+            </motion.div>
+          )}
+
+          {step === 3 && (
+            <motion.div
+              key="celebrate"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.6, type: "spring" }}
+              className="flex flex-col items-center text-center"
+            >
+              {/* Epic celebration animation */}
+              <div className="relative mb-8">
+                {/* Expanding rings */}
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute rounded-full border border-primary/30"
+                    style={{
+                      width: 160,
+                      height: 160,
+                      left: -40,
+                      top: -40,
+                    }}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{
+                      scale: [1, 2, 2],
+                      opacity: [0.5, 0.2, 0],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: i * 0.6,
+                    }}
+                  />
+                ))}
+
+                <motion.div
+                  className="relative w-20 h-20 rounded-full flex items-center justify-center"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(var(--primary)), hsl(180, 100%, 50%))",
+                    boxShadow: "0 0 80px hsl(var(--primary) / 0.6)",
+                  }}
+                  initial={{ scale: 0 }}
+                  animate={{ 
+                    scale: 1,
+                    rotate: [0, 10, -10, 0],
+                  }}
+                  transition={{ 
+                    scale: { duration: 0.5, type: "spring" },
+                    rotate: { duration: 0.5, delay: 0.5 },
+                  }}
+                >
+                  <Rocket className="h-10 w-10 text-white" />
+                </motion.div>
+              </div>
+
+              <motion.h2
+                className="text-4xl md:text-5xl font-bold text-foreground mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                You are <span className="text-gradient">Ready</span>
+              </motion.h2>
+
+              <motion.p
+                className="text-xl text-muted-foreground max-w-md mb-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                Your 7-day journey into the future of hiring starts now.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <Button
+                  size="lg"
+                  onClick={handleComplete}
+                  className="group relative px-10 py-7 text-lg bg-gradient-to-r from-primary via-cyan-400 to-primary bg-[length:200%_auto] hover:bg-right text-primary-foreground shadow-[0_0_40px_hsl(var(--primary)/0.4)] transition-all duration-500"
+                >
+                  <span className="flex items-center gap-3">
+                    <Sparkles className="h-5 w-5" />
+                    Launch HireFlow
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                </Button>
+              </motion.div>
+
+              <motion.p
+                className="text-sm text-muted-foreground mt-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+              >
+                Welcome to the future of hiring.
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
