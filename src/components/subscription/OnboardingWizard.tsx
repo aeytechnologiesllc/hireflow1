@@ -120,7 +120,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center overflow-y-auto bg-background py-8 md:py-0">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background py-6 md:py-8">
       {/* Animated background grid */}
       <div className="absolute inset-0 overflow-hidden">
         <div 
@@ -169,7 +169,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       />
 
       {/* Main content */}
-      <div className="relative z-10 w-full max-w-4xl mx-auto px-6 pb-8">
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-4 md:px-6 pb-24 md:pb-8">
         {/* Progress indicators */}
         <div className="flex justify-center gap-3 mb-8">
           {[0, 1, 2, 3].map((s) => (
@@ -453,7 +453,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               </div>
 
               {/* Plans */}
-              <div className="grid md:grid-cols-2 gap-4 md:gap-5 w-full max-w-2xl mb-6 md:mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl mb-6 md:mb-8">
                 {PLANS.map((plan, idx) => (
                   <motion.div
                     key={plan.name}
@@ -461,7 +461,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
                     whileHover={{ scale: 1.02, y: -4 }}
-                    className={`relative p-6 rounded-2xl border transition-all ${
+                    className={`relative p-4 md:p-6 rounded-2xl border transition-all ${
                       plan.popular
                         ? "border-primary/50 bg-gradient-to-b from-primary/10 to-transparent shadow-[0_0_30px_hsl(var(--primary)/0.15)]"
                         : "border-border bg-card/50 hover:border-muted-foreground/30"
@@ -475,24 +475,24 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       </div>
                     )}
                     
-                    <h3 className="font-bold text-xl text-foreground mb-4">{plan.name}</h3>
+                    <h3 className="font-bold text-lg md:text-xl text-foreground mb-3 md:mb-4">{plan.name}</h3>
                     
                     <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-4xl font-bold text-foreground">{plan.price}</span>
+                      <span className="text-3xl md:text-4xl font-bold text-foreground">{plan.price}</span>
                       <span className="text-muted-foreground">{plan.period}</span>
                     </div>
                     
                     {billingInterval === "yearly" && (
-                      <p className="text-sm text-muted-foreground mb-4">Billed {plan.yearlyTotal}/year</p>
+                      <p className="text-sm text-muted-foreground mb-3 md:mb-4">Billed {plan.yearlyTotal}/year</p>
                     )}
                     
-                    <ul className="space-y-3 mt-6">
+                    <ul className="space-y-2 md:space-y-3 mt-4 md:mt-6">
                       {plan.features.map((feature) => (
-                        <li key={feature} className="flex items-center gap-3">
-                          <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                            <Check className="h-3 w-3 text-primary" />
+                        <li key={feature} className="flex items-center gap-2 md:gap-3">
+                          <div className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                            <Check className="h-2.5 w-2.5 md:h-3 md:w-3 text-primary" />
                           </div>
-                          <span className="text-muted-foreground text-sm">{feature}</span>
+                          <span className="text-muted-foreground text-xs md:text-sm">{feature}</span>
                         </li>
                       ))}
                     </ul>
