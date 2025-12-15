@@ -53,7 +53,14 @@ import {
   MessageSquare,
   Upload,
   Bot,
-  Hand
+  Hand,
+  User,
+  Mail,
+  Phone,
+  FileText as FileTextIcon,
+  Type,
+  Clock,
+  HelpCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -126,6 +133,16 @@ const STEP_TYPE_INFO = {
   sales_simulation: { icon: Bot, label: "Sales Simulation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
   chat_interview: { icon: MessageSquare, label: "AI Interview with AVA", description: "AI-powered interview" },
+};
+
+const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
+  text: Type,
+  email: Mail,
+  phone: Phone,
+  file: Upload,
+  textarea: FileTextIcon,
+  select: HelpCircle,
+  number: Target,
 };
 
 export default function CreateJob() {
@@ -1293,73 +1310,86 @@ export default function CreateJob() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {applicationQuestions.map((q, index) => (
-                          <div
-                            key={q.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 group"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                                  onClick={() => moveQuestion(index, 'up')}
-                                  disabled={index === 0}
-                                >
-                                  <ChevronUp className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                                  onClick={() => moveQuestion(index, 'down')}
-                                  disabled={index === applicationQuestions.length - 1}
-                                >
-                                  <ChevronDown className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <div>
-                                <div className="font-medium text-sm">{q.question}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  Type: {q.type} {q.required && "• Required"}
+                        {applicationQuestions.map((q, index) => {
+                          const QuestionIcon = QUESTION_TYPE_ICONS[q.type] || HelpCircle;
+                          return (
+                            <div
+                              key={q.id}
+                              className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 group border border-border/50"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="flex flex-col gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                                    onClick={() => moveQuestion(index, 'up')}
+                                    disabled={index === 0}
+                                  >
+                                    <ChevronUp className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                                    onClick={() => moveQuestion(index, 'down')}
+                                    disabled={index === applicationQuestions.length - 1}
+                                  >
+                                    <ChevronDown className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                  <QuestionIcon className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <div className="font-medium text-sm">{q.question}</div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {q.type}
+                                    </Badge>
+                                    {q.required && (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                        Required
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => setEditingQuestion(q)}
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Edit</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive"
+                                        onClick={() => deleteQuestion(q.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Delete</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => setEditingQuestion(q)}
-                                    >
-                                      <Edit2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Edit</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive"
-                                      onClick={() => deleteQuestion(q.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Delete</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -1367,47 +1397,63 @@ export default function CreateJob() {
                   {/* Quiz Questions */}
                   <Card className="bg-card border-border">
                     <CardHeader>
-                      <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
-                      <CardDescription>
-                        {quizQuestions.length} questions • Candidates answer under time pressure
-                      </CardDescription>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                          <Clock className="h-4 w-4 text-amber-500" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
+                          <CardDescription>
+                            {quizQuestions.length} questions • Candidates answer under time pressure
+                          </CardDescription>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <Accordion type="single" collapsible className="w-full">
+                      <Accordion type="single" collapsible className="w-full space-y-2">
                         {quizQuestions.map((q, index) => (
-                          <AccordionItem key={q.id} value={q.id}>
-                            <AccordionTrigger className="hover:no-underline">
-                              <div className="flex items-center gap-3 text-left">
-                                <Badge variant="outline" className="text-xs">
-                                  {q.time_limit_seconds}s
-                                </Badge>
-                                <span className="text-sm font-medium">
-                                  {index + 1}. {q.question.substring(0, 60)}...
-                                </span>
+                          <AccordionItem key={q.id} value={q.id} className="border border-border/50 rounded-lg px-4 bg-secondary/30">
+                            <AccordionTrigger className="hover:no-underline py-4">
+                              <div className="flex items-center gap-4 text-left">
+                                <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                                  <span className="text-xs font-bold text-amber-400">{q.time_limit_seconds}s</span>
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium">
+                                    {index + 1}. {q.question.length > 60 ? `${q.question.substring(0, 60)}...` : q.question}
+                                  </span>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {q.category}
+                                    </Badge>
+                                  </div>
+                                </div>
                               </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                              <div className="p-3 space-y-3">
-                                <div className="text-sm">{q.question}</div>
+                              <div className="pb-4 space-y-3">
+                                <div className="text-sm text-muted-foreground">{q.question}</div>
                                 {q.options && (
                                   <div className="grid grid-cols-2 gap-2">
                                     {q.options.map((opt, i) => (
                                       <div
                                         key={i}
                                         className={cn(
-                                          "p-2 rounded text-sm",
+                                          "p-3 rounded-lg text-sm flex items-center gap-2",
                                           opt === q.correct_answer
-                                            ? "bg-green-500/20 border border-green-500/50"
-                                            : "bg-secondary"
+                                            ? "bg-green-500/20 border border-green-500/50 text-green-400"
+                                            : "bg-secondary/50 border border-border/50"
                                         )}
                                       >
+                                        {opt === q.correct_answer && (
+                                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                        )}
                                         {opt}
                                       </div>
                                     ))}
                                   </div>
                                 )}
-                                <div className="flex items-center justify-between">
-                                  <Badge variant="secondary">{q.category}</Badge>
+                                <div className="flex items-center justify-end pt-2">
                                   <Button
                                     variant="ghost"
                                     size="sm"
