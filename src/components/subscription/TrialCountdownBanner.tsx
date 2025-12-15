@@ -39,7 +39,7 @@ export default function TrialCountdownBanner() {
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-3 px-4 py-2 rounded-xl border backdrop-blur-sm transition-all duration-300 ${
+      className={`flex items-center gap-2 md:gap-3 px-2 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl border backdrop-blur-sm transition-all duration-300 ${
         isCritical
           ? "bg-gradient-to-r from-red-500/20 to-orange-500/20 border-red-500/30"
           : isUrgent
@@ -52,7 +52,7 @@ export default function TrialCountdownBanner() {
         transition={{ duration: 1, repeat: isCritical ? Infinity : 0 }}
       >
         <Clock
-          className={`h-4 w-4 ${
+          className={`h-3.5 w-3.5 md:h-4 md:w-4 ${
             isCritical
               ? "text-red-400"
               : isUrgent
@@ -62,7 +62,7 @@ export default function TrialCountdownBanner() {
         />
       </motion.div>
       <span
-        className={`text-sm font-medium ${
+        className={`text-xs md:text-sm font-medium ${
           isCritical
             ? "text-red-400"
             : isUrgent
@@ -70,11 +70,11 @@ export default function TrialCountdownBanner() {
             : "text-emerald-400"
         }`}
       >
-        Trial: {formatTime()} left
+        <span className="hidden sm:inline">Trial: </span>{formatTime()}
       </span>
       <Button
         size="sm"
-        className={`h-7 gap-1 text-xs ${
+        className={`h-6 md:h-7 gap-1 text-xs px-2 md:px-3 ${
           isCritical
             ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
             : "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500"
@@ -82,7 +82,7 @@ export default function TrialCountdownBanner() {
         onClick={() => navigate("/settings?tab=subscription")}
       >
         <Sparkles className="h-3 w-3" />
-        Upgrade
+        <span className="hidden sm:inline">Upgrade</span>
       </Button>
     </motion.div>
   );

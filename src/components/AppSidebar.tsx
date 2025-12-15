@@ -115,12 +115,13 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
 }
 
 interface AppSidebarProps {
-  collapsed: boolean;
+  isOpen: boolean;
+  isMobile: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
 }
 
-export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSidebarProps) {
+export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: AppSidebarProps) {
   const { role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
@@ -170,11 +171,21 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
     navItems = candidateNavItems;
   }
 
+  // Desktop: show collapsed or expanded based on isOpen
+  // Mobile: show as slide-out drawer
+  const collapsed = !isMobile && !isOpen;
+
   return (
     <aside className={cn(
-      "relative min-h-screen flex flex-col shrink-0 transition-all duration-300 sidebar-gradient-border",
+      "fixed md:relative min-h-screen flex flex-col shrink-0 transition-all duration-300 sidebar-gradient-border z-50",
       "bg-gradient-to-b from-card via-card to-card/95",
-      collapsed ? "w-16" : "w-64"
+      // Mobile: slide in/out from left
+      isMobile && !isOpen && "-translate-x-full",
+      isMobile && isOpen && "translate-x-0",
+      // Desktop: collapsed or expanded width
+      !isMobile && (collapsed ? "w-16" : "w-64"),
+      // Mobile: full width up to max
+      isMobile && "w-72"
     )}>
       {/* Animated gradient background overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
@@ -186,30 +197,43 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
       {/* Logo */}
       <div className={cn(
         "relative z-10 h-16 flex items-center",
-        collapsed ? "justify-center px-2" : "gap-3 px-6"
+        collapsed && !isMobile ? "justify-center px-2" : "gap-3 px-6"
       )}>
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shrink-0 animate-logo-breathe">
           <Sparkles className="h-4 w-4 text-primary-foreground" />
         </div>
-        {!collapsed && (
+        {(!collapsed || isMobile) && (
           <span className="text-xl font-bold text-gradient">HireFlow</span>
+        )}
+        {/* Close button on mobile */}
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="ml-auto h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
         )}
       </div>
 
       {/* Gradient divider */}
       <div className="relative z-10 mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
-      {/* Collapse Toggle */}
-      <div className={cn("relative z-10 px-2 py-2 flex", collapsed ? "justify-center" : "justify-end")}>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggle}
-          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-300"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
+      {/* Collapse Toggle - Desktop only */}
+      {!isMobile && (
+        <div className={cn("relative z-10 px-2 py-2 flex", collapsed ? "justify-center" : "justify-end")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-300"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="relative z-10 flex-1 p-2 space-y-1 overflow-y-auto">
@@ -221,7 +245,7 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
             to={item.to}
             badge={item.badge}
             highlight={item.highlight}
-            collapsed={collapsed}
+            collapsed={collapsed && !isMobile}
             onNavigate={onNavigate}
           />
         ))}
@@ -236,14 +260,14 @@ export default function AppSidebar({ collapsed, onToggle, onNavigate }: AppSideb
             label="Notifications" 
             to="/notifications" 
             badge={unreadNotifications || 0} 
-            collapsed={collapsed}
+            collapsed={collapsed && !isMobile}
             onNavigate={onNavigate}
           />
           <NavItem 
             icon={Settings} 
             label="Settings" 
             to="/settings" 
-            collapsed={collapsed}
+            collapsed={collapsed && !isMobile}
             onNavigate={onNavigate}
           />
         </div>

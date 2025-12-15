@@ -16,22 +16,22 @@ export default function AppLayout() {
   const { subscription, isLoading: subLoading, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   const isMobile = useIsMobile();
   
-  // Auto-collapse on mobile/smaller screens
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
+  // Mobile sidebar is hidden by default, desktop is expanded
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
 
-  // Update collapsed state when screen size changes
+  // Update sidebar state when screen size changes
   useEffect(() => {
-    setSidebarCollapsed(isMobile);
+    setSidebarOpen(!isMobile);
   }, [isMobile]);
 
   const handleToggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
+    setSidebarOpen(prev => !prev);
   }, []);
 
-  // Auto-collapse sidebar after navigation on mobile
+  // Close sidebar after navigation on mobile
   const handleNavigate = useCallback(() => {
     if (isMobile) {
-      setSidebarCollapsed(true);
+      setSidebarOpen(false);
     }
   }, [isMobile]);
 
@@ -75,14 +75,26 @@ export default function AppLayout() {
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/15 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-accent/12 rounded-full blur-[150px] pointer-events-none" />
         
+        {/* Mobile overlay backdrop */}
+        {isMobile && sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
         <AppSidebar 
-          collapsed={sidebarCollapsed} 
+          isOpen={sidebarOpen}
+          isMobile={isMobile}
           onToggle={handleToggleSidebar}
           onNavigate={handleNavigate}
         />
         <div className="flex-1 flex flex-col min-w-0 relative z-10">
-          <AppHeader />
-          <main className="flex-1 p-6 overflow-auto">
+          <AppHeader 
+            onMenuClick={handleToggleSidebar}
+            isMobile={isMobile}
+          />
+          <main className="flex-1 p-4 md:p-6 overflow-auto">
             <Outlet />
           </main>
         </div>
