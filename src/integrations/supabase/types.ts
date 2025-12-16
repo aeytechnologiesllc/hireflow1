@@ -857,6 +857,48 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_credits: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          granted_at: string | null
+          id: string
+          minutes_granted: number
+          minutes_remaining: number
+          pack_size: string | null
+          source: string
+          status: string | null
+          stripe_payment_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          granted_at?: string | null
+          id?: string
+          minutes_granted: number
+          minutes_remaining: number
+          pack_size?: string | null
+          source: string
+          status?: string | null
+          stripe_payment_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          granted_at?: string | null
+          id?: string
+          minutes_granted?: number
+          minutes_remaining?: number
+          pack_size?: string | null
+          source?: string
+          status?: string | null
+          stripe_payment_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

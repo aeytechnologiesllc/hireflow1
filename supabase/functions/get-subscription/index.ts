@@ -28,6 +28,11 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     // Get subscription
     const { data: subscription, error: subError } = await supabaseClient
       .from("subscriptions")
@@ -42,15 +47,25 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    // Get active voice credits (not expired, not voided)
+    const { data: voiceCredits } = await supabaseAdmin
+      .from("voice_credits")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: true });
+
+    // Calculate total voice minutes available
+    const totalVoiceMinutes = (voiceCredits || []).reduce(
+      (sum, credit) => sum + (credit.minutes_remaining || 0),
+      0
+    );
+
     // If no subscription exists, create trial
     if (!subscription) {
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + 7);
-
-      const supabaseAdmin = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-      );
 
       const { data: newSub } = await supabaseAdmin.from("subscriptions").insert({
         user_id: user.id,
@@ -65,10 +80,28 @@ serve(async (req) => {
         user_id: user.id,
       });
 
+      // Create initial trial voice credits (5 minutes, expires with trial)
+      await supabaseAdmin.from("voice_credits").insert({
+        user_id: user.id,
+        source: 'subscription',
+        minutes_granted: 5,
+        minutes_remaining: 5,
+        expires_at: trialEnd.toISOString(),
+      });
+
       return new Response(JSON.stringify({
         subscription: newSub,
-        usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0 },
+        usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
         limits: getPlanLimits('trial'),
+        voiceCredits: {
+          totalMinutesAvailable: 5,
+          credits: [{
+            id: 'initial',
+            source: 'subscription',
+            minutes_remaining: 5,
+            expires_at: trialEnd.toISOString(),
+          }],
+        },
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -78,14 +111,14 @@ serve(async (req) => {
     if (subscription.status === 'trialing' && subscription.trial_end) {
       const trialEnd = new Date(subscription.trial_end);
       if (trialEnd < new Date()) {
-        const supabaseAdmin = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-        );
-        
         await supabaseAdmin.from("subscriptions").update({
           status: 'expired',
         }).eq('user_id', user.id);
+
+        // Void all voice credits when trial expires
+        await supabaseAdmin.from("voice_credits").update({
+          status: 'voided',
+        }).eq('user_id', user.id).eq('status', 'active');
 
         subscription.status = 'expired';
       }
@@ -93,8 +126,20 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       subscription,
-      usage: usage || { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0 },
+      usage: usage || { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
       limits: getPlanLimits(subscription.plan_type),
+      voiceCredits: {
+        totalMinutesAvailable: totalVoiceMinutes,
+        credits: (voiceCredits || []).map(c => ({
+          id: c.id,
+          source: c.source,
+          pack_size: c.pack_size,
+          minutes_remaining: c.minutes_remaining,
+          minutes_granted: c.minutes_granted,
+          expires_at: c.expires_at,
+          granted_at: c.granted_at,
+        })),
+      },
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -117,7 +162,7 @@ function getPlanLimits(planType: string) {
         documents: -1,
         teamMembers: -1,
         aiAnalyses: -1,
-        voiceMinutes: 500,
+        voiceMinutes: 150, // Changed from 500 to 150
         hasAdvancedAnalytics: true,
         hasTeamPortal: true,
         hasDocuments: true,
@@ -162,14 +207,14 @@ function getPlanLimits(planType: string) {
         documents: 5,
         teamMembers: 0,
         aiAnalyses: 20,
-        voiceMinutes: 5, // 5 minutes trial for voice features
+        voiceMinutes: 5,
         hasAdvancedAnalytics: false,
         hasTeamPortal: false,
         hasDocuments: true,
         hasPrioritySupport: false,
-        hasVoiceAssistant: false, // Keep false to differentiate from Enterprise
+        hasVoiceAssistant: false,
         hasVoiceInterviews: false,
-        hasVoiceTrialAccess: true, // Special flag for trial voice access
+        hasVoiceTrialAccess: true,
       };
   }
 }
