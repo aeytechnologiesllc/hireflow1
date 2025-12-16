@@ -413,7 +413,9 @@ export default function ApplicantDetails() {
       return !!parsedNotes.typingTestResult;
     }
     if (phaseType === "video_intro") {
-      return !!parsedNotes.videoIntroUrl;
+      // Check both legacy videoIntroUrl and stepId-based storage
+      const stepData = parsedNotes[phaseId];
+      return !!parsedNotes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
     }
     if (phaseType === "chat_simulation") {
       return !!parsedNotes.chatSimulationResult;
@@ -822,6 +824,10 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
       return parsedNotes.typingTestResult;
     }
     if (stepType === "video_intro") {
+      // Check stepId first (new format with object), then legacy videoIntroUrl (just URL string)
+      if (parsedNotes[stepId]) {
+        return parsedNotes[stepId];
+      }
       return parsedNotes.videoIntroUrl;
     }
     if (stepType === "chat_simulation") {
@@ -1533,19 +1539,30 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                       
                       {dialogData.type === "video_intro" && (
                         <div className="space-y-4">
-                          {typeof dialogData.content === "string" ? (
-                            <div className="rounded-lg overflow-hidden border border-border bg-muted">
-                              <video 
-                                src={dialogData.content} 
-                                controls 
-                                className="w-full"
-                              />
-                            </div>
-                          ) : (
-                            <div className="p-4 bg-muted/50 rounded-lg">
-                              <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(dialogData.content, null, 2)}</pre>
-                            </div>
-                          )}
+                          {(() => {
+                            // Extract videoUrl from either string or object format
+                            const videoUrl = typeof dialogData.content === "string" 
+                              ? dialogData.content 
+                              : dialogData.content?.videoUrl;
+                            
+                            if (videoUrl) {
+                              return (
+                                <div className="rounded-lg overflow-hidden border border-border bg-muted">
+                                  <video 
+                                    src={videoUrl} 
+                                    controls 
+                                    className="w-full"
+                                  />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <Video className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                <p>Video not available</p>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       
