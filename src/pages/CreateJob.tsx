@@ -48,6 +48,8 @@ import {
   Plus,
   ChevronUp,
   ChevronDown,
+  ChevronsUpDown,
+  Check,
   Keyboard,
   Video,
   MessageSquare,
@@ -83,6 +85,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 
 interface ApplicationQuestion {
@@ -146,6 +156,81 @@ const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
   number: Target,
 };
 
+const CURRENCIES = [
+  { value: "USD", label: "USD ($) - US Dollar" },
+  { value: "EUR", label: "EUR (€) - Euro" },
+  { value: "GBP", label: "GBP (£) - British Pound" },
+  { value: "CAD", label: "CAD ($) - Canadian Dollar" },
+  { value: "AUD", label: "AUD ($) - Australian Dollar" },
+  { value: "NZD", label: "NZD ($) - New Zealand Dollar" },
+  { value: "CHF", label: "CHF (Fr) - Swiss Franc" },
+  { value: "JPY", label: "JPY (¥) - Japanese Yen" },
+  { value: "CNY", label: "CNY (¥) - Chinese Yuan" },
+  { value: "HKD", label: "HKD ($) - Hong Kong Dollar" },
+  { value: "SGD", label: "SGD ($) - Singapore Dollar" },
+  { value: "INR", label: "INR (₹) - Indian Rupee" },
+  { value: "PKR", label: "PKR (₨) - Pakistani Rupee" },
+  { value: "BDT", label: "BDT (৳) - Bangladeshi Taka" },
+  { value: "LKR", label: "LKR (₨) - Sri Lankan Rupee" },
+  { value: "NPR", label: "NPR (₨) - Nepalese Rupee" },
+  { value: "AED", label: "AED (د.إ) - UAE Dirham" },
+  { value: "SAR", label: "SAR (﷼) - Saudi Riyal" },
+  { value: "QAR", label: "QAR (﷼) - Qatari Riyal" },
+  { value: "KWD", label: "KWD (د.ك) - Kuwaiti Dinar" },
+  { value: "BHD", label: "BHD (د.ب) - Bahraini Dinar" },
+  { value: "OMR", label: "OMR (﷼) - Omani Rial" },
+  { value: "EGP", label: "EGP (£) - Egyptian Pound" },
+  { value: "ZAR", label: "ZAR (R) - South African Rand" },
+  { value: "NGN", label: "NGN (₦) - Nigerian Naira" },
+  { value: "KES", label: "KES (KSh) - Kenyan Shilling" },
+  { value: "GHS", label: "GHS (₵) - Ghanaian Cedi" },
+  { value: "TZS", label: "TZS (TSh) - Tanzanian Shilling" },
+  { value: "UGX", label: "UGX (USh) - Ugandan Shilling" },
+  { value: "MAD", label: "MAD (د.م.) - Moroccan Dirham" },
+  { value: "TND", label: "TND (د.ت) - Tunisian Dinar" },
+  { value: "BRL", label: "BRL (R$) - Brazilian Real" },
+  { value: "MXN", label: "MXN ($) - Mexican Peso" },
+  { value: "ARS", label: "ARS ($) - Argentine Peso" },
+  { value: "CLP", label: "CLP ($) - Chilean Peso" },
+  { value: "COP", label: "COP ($) - Colombian Peso" },
+  { value: "PEN", label: "PEN (S/) - Peruvian Sol" },
+  { value: "VES", label: "VES (Bs) - Venezuelan Bolívar" },
+  { value: "KRW", label: "KRW (₩) - South Korean Won" },
+  { value: "TWD", label: "TWD ($) - Taiwan Dollar" },
+  { value: "THB", label: "THB (฿) - Thai Baht" },
+  { value: "VND", label: "VND (₫) - Vietnamese Dong" },
+  { value: "IDR", label: "IDR (Rp) - Indonesian Rupiah" },
+  { value: "MYR", label: "MYR (RM) - Malaysian Ringgit" },
+  { value: "PHP", label: "PHP (₱) - Philippine Peso" },
+  { value: "RUB", label: "RUB (₽) - Russian Ruble" },
+  { value: "UAH", label: "UAH (₴) - Ukrainian Hryvnia" },
+  { value: "PLN", label: "PLN (zł) - Polish Zloty" },
+  { value: "CZK", label: "CZK (Kč) - Czech Koruna" },
+  { value: "HUF", label: "HUF (Ft) - Hungarian Forint" },
+  { value: "RON", label: "RON (lei) - Romanian Leu" },
+  { value: "BGN", label: "BGN (лв) - Bulgarian Lev" },
+  { value: "HRK", label: "HRK (kn) - Croatian Kuna" },
+  { value: "SEK", label: "SEK (kr) - Swedish Krona" },
+  { value: "NOK", label: "NOK (kr) - Norwegian Krone" },
+  { value: "DKK", label: "DKK (kr) - Danish Krone" },
+  { value: "ISK", label: "ISK (kr) - Icelandic Króna" },
+  { value: "TRY", label: "TRY (₺) - Turkish Lira" },
+  { value: "ILS", label: "ILS (₪) - Israeli Shekel" },
+  { value: "JOD", label: "JOD (د.ا) - Jordanian Dinar" },
+  { value: "LBP", label: "LBP (ل.ل) - Lebanese Pound" },
+  { value: "IRR", label: "IRR (﷼) - Iranian Rial" },
+  { value: "IQD", label: "IQD (ع.د) - Iraqi Dinar" },
+  { value: "AFN", label: "AFN (؋) - Afghan Afghani" },
+  { value: "MMK", label: "MMK (K) - Myanmar Kyat" },
+  { value: "KHR", label: "KHR (៛) - Cambodian Riel" },
+  { value: "LAK", label: "LAK (₭) - Lao Kip" },
+  { value: "BND", label: "BND ($) - Brunei Dollar" },
+  { value: "FJD", label: "FJD ($) - Fiji Dollar" },
+  { value: "PGK", label: "PGK (K) - Papua New Guinean Kina" },
+  { value: "XOF", label: "XOF (CFA) - West African CFA Franc" },
+  { value: "XAF", label: "XAF (FCFA) - Central African CFA Franc" },
+];
+
 export default function CreateJob() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -192,6 +277,7 @@ export default function CreateJob() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
 
   // Load existing job data for edit mode
   useEffect(() => {
@@ -906,19 +992,49 @@ export default function CreateJob() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="salary_currency">Currency</Label>
-                      <Select value={formData.salary_currency} onValueChange={(v) => handleChange("salary_currency", v)}>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD ($)</SelectItem>
-                          <SelectItem value="EUR">EUR (€)</SelectItem>
-                          <SelectItem value="GBP">GBP (£)</SelectItem>
-                          <SelectItem value="CAD">CAD ($)</SelectItem>
-                          <SelectItem value="AUD">AUD ($)</SelectItem>
-                          <SelectItem value="INR">INR (₹)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Popover open={currencyOpen} onOpenChange={setCurrencyOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={currencyOpen}
+                            className="w-full justify-between bg-background"
+                          >
+                            {formData.salary_currency 
+                              ? CURRENCIES.find(c => c.value === formData.salary_currency)?.label || formData.salary_currency
+                              : "Select currency"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search currency..." />
+                            <CommandList>
+                              <CommandEmpty>No currency found.</CommandEmpty>
+                              <CommandGroup className="max-h-[300px] overflow-auto">
+                                {CURRENCIES.map((currency) => (
+                                  <CommandItem
+                                    key={currency.value}
+                                    value={currency.value + " " + currency.label}
+                                    onSelect={() => {
+                                      handleChange("salary_currency", currency.value);
+                                      setCurrencyOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.salary_currency === currency.value ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {currency.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="salary_period">Pay Period</Label>
