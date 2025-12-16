@@ -28,24 +28,32 @@ interface ToolAction {
   timestamp: Date;
 }
 
-// Typewriter component for smooth text animation
-function TypewriterText({ text }: { text: string }) {
+// Typewriter component for smooth text animation - tracks completed state
+function TypewriterText({ text, onComplete }: { text: string; onComplete?: () => void }) {
   const [displayedLength, setDisplayedLength] = useState(0);
+  const prevTextRef = useRef(text);
   
+  // When new text arrives (longer than what we've shown), continue animating
   useEffect(() => {
     if (displayedLength < text.length) {
       const timer = setTimeout(() => {
-        setDisplayedLength(prev => Math.min(prev + 2, text.length)); // 2 chars at a time for smoother effect
-      }, 25); // 25ms per iteration
+        const newLength = Math.min(displayedLength + 2, text.length);
+        setDisplayedLength(newLength);
+        // If we've finished, call onComplete
+        if (newLength >= text.length && onComplete) {
+          onComplete();
+        }
+      }, 20); // 20ms per iteration for smoother typing
       return () => clearTimeout(timer);
     }
-  }, [displayedLength, text.length]);
+  }, [displayedLength, text.length, onComplete]);
   
-  // Reset when text changes significantly (new message)
+  // If text changes to something completely new (shorter), reset
   useEffect(() => {
-    if (text.length < displayedLength) {
+    if (text.length < prevTextRef.current.length * 0.5) {
       setDisplayedLength(0);
     }
+    prevTextRef.current = text;
   }, [text]);
   
   return <>{text.slice(0, displayedLength)}{displayedLength < text.length && <span className="animate-pulse">|</span>}</>;
@@ -64,6 +72,7 @@ export default function AvaVoiceButton() {
   const [actions, setActions] = useState<ToolAction[]>([]);
   const [textInput, setTextInput] = useState("");
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [animatedMessageIds, setAnimatedMessageIds] = useState<Set<string>>(new Set());
 
   const voiceAccessState = getVoiceAccessState();
   const voiceMinutesRemaining = getVoiceMinutesRemaining();
@@ -141,6 +150,7 @@ export default function AvaVoiceButton() {
     isSpeaking,
     isListening,
     error,
+    audioLevels,
     connect,
     disconnect,
     sendTextMessage,
@@ -258,7 +268,42 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // Show AVA orb with glow effect
+    // When actively listening - show reactive audio bars instead of orb
+    if (isConnected && isListening) {
+      return (
+        <div className="flex items-end justify-center gap-0.5 h-10">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 bg-primary rounded-full"
+              animate={{ height: audioLevels[i] }}
+              transition={{ duration: 0.05, ease: "linear" }}
+            />
+          ))}
+        </div>
+      );
+    }
+    // When speaking - show green audio bars
+    if (isConnected && isSpeaking) {
+      return (
+        <div className="flex items-end justify-center gap-0.5 h-10">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 bg-emerald-400 rounded-full"
+              animate={{ height: [12, 24, 16, 28, 12][i % 5] }}
+              transition={{ 
+                duration: 0.2, 
+                repeat: Infinity, 
+                repeatType: "reverse",
+                delay: i * 0.08 
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+    // Show AVA orb with glow effect (default/idle)
     return (
       <div className="relative">
         <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
@@ -453,9 +498,9 @@ export default function AvaVoiceButton() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {messages.map((msg, index) => {
-                    const isLastAssistantMessage = msg.role === "assistant" && 
-                      index === messages.length - 1;
+                  {messages.map((msg) => {
+                    const isAssistantMessage = msg.role === "assistant";
+                    const hasBeenAnimated = animatedMessageIds.has(msg.id);
                     
                     return (
                       <div
@@ -473,9 +518,12 @@ export default function AvaVoiceButton() {
                               : "bg-muted text-foreground"
                           )}
                         >
-                          {/* Typewriter effect for last assistant message while speaking */}
-                          {isLastAssistantMessage && isSpeaking ? (
-                            <TypewriterText text={msg.content} />
+                          {/* Typewriter effect for assistant messages that haven't been fully animated */}
+                          {isAssistantMessage && !hasBeenAnimated ? (
+                            <TypewriterText 
+                              text={msg.content} 
+                              onComplete={() => setAnimatedMessageIds(prev => new Set(prev).add(msg.id))}
+                            />
                           ) : (
                             msg.content
                           )}
