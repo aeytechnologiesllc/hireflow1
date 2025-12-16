@@ -73,9 +73,10 @@ export function PdfSignaturePlacer({
   const [error, setError] = useState<string | null>(null);
   
   // Drawing state for visual preview while creating signature field
+  // Store both pixel (px, py) for preview and percentage (x, y) for final placement
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
-  const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [drawStart, setDrawStart] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
+  const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
 
   const file = useMemo(() => ({ url: pdfUrl }), [pdfUrl]);
 
@@ -109,12 +110,14 @@ export function PdfSignaturePlacer({
     if (clickedOnField) return;
     
     const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const x = (px / rect.width) * 100;
+    const y = (py / rect.height) * 100;
     
     setIsDrawing(true);
-    setDrawStart({ x, y });
-    setDrawCurrent({ x, y });
+    setDrawStart({ x, y, px, py });
+    setDrawCurrent({ x, y, px, py });
   }, [placementMode, readOnly, isDragging]);
 
   // Update drawing preview as mouse moves
@@ -125,10 +128,17 @@ export function PdfSignaturePlacer({
     if (!container) return;
     
     const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const x = (px / rect.width) * 100;
+    const y = (py / rect.height) * 100;
     
-    setDrawCurrent({ x: Math.max(0, Math.min(x, 100)), y: Math.max(0, Math.min(y, 100)) });
+    setDrawCurrent({ 
+      x: Math.max(0, Math.min(x, 100)), 
+      y: Math.max(0, Math.min(y, 100)),
+      px: Math.max(0, Math.min(px, rect.width)),
+      py: Math.max(0, Math.min(py, rect.height))
+    });
   }, [isDrawing, drawStart]);
 
   // Finish drawing and create the signature field
@@ -383,22 +393,20 @@ export function PdfSignaturePlacer({
                 renderAnnotationLayer={false}
               />
 
-              {/* Drawing Preview */}
+              {/* Drawing Preview - uses pixel coordinates for accurate mouse tracking */}
               {isDrawing && drawStart && drawCurrent && placementMode && (
                 <div
                   className={cn(
-                    "absolute border-2 border-dashed rounded opacity-70",
+                    "absolute border-2 border-dashed rounded opacity-70 pointer-events-none",
                     placementMode === "candidate" 
                       ? "border-blue-500 bg-blue-500/20" 
                       : "border-emerald-500 bg-emerald-500/20"
                   )}
                   style={{
-                    left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
-                    top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
-                    width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
-                    height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
-                    minHeight: "20px",
-                    minWidth: "50px",
+                    left: `${Math.min(drawStart.px, drawCurrent.px)}px`,
+                    top: `${Math.min(drawStart.py, drawCurrent.py)}px`,
+                    width: `${Math.max(Math.abs(drawCurrent.px - drawStart.px), 50)}px`,
+                    height: `${Math.max(Math.abs(drawCurrent.py - drawStart.py), 20)}px`,
                   }}
                 />
               )}
