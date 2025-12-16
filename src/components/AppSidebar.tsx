@@ -16,7 +16,6 @@ import {
   Settings,
   Bell,
   UserPlus,
-  Sparkles,
   User,
   ClipboardCheck,
   Building2,
@@ -25,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import hireflowLogo from "@/assets/hireflow-logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NavItemProps {
@@ -203,9 +203,11 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
         "relative z-10 h-16 flex items-center",
         collapsed && !isMobile ? "justify-center px-2" : "gap-3 px-6"
       )}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shrink-0 animate-logo-breathe">
-          <Sparkles className="h-4 w-4 text-primary-foreground" />
-        </div>
+        <img 
+          src={hireflowLogo} 
+          alt="HireFlow" 
+          className="w-9 h-9 rounded-xl shrink-0 animate-logo-breathe object-cover"
+        />
         {(!collapsed || isMobile) && (
           <span className="text-xl font-bold text-gradient">HireFlow</span>
         )}
