@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, type Easing } from "framer-motion";
 import FeatureDetailDialog from "@/components/landing/FeatureDetailDialog";
+import hireflowLogo from "@/assets/hireflow-logo.png";
 import { 
   ArrowRight,
   CheckCircle,
@@ -158,12 +159,12 @@ export default function Index() {
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <motion.div 
+            <motion.img 
+              src={hireflowLogo}
+              alt="HireFlow"
               whileHover={{ scale: 1.05, rotate: 5 }}
-              className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-fuchsia-500 flex items-center justify-center"
-            >
-              <Sparkles className="h-5 w-5 text-white" />
-            </motion.div>
+              className="w-10 h-10 rounded-lg object-cover"
+            />
             <span className="text-xl font-bold text-white">HireFlow</span>
           </Link>
           <div className="flex items-center gap-4">
