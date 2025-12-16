@@ -65,6 +65,7 @@ const phaseStatusLabels: Record<string, { label: string; color: string; icon: an
   in_progress: { label: "In Progress", color: "bg-blue-500/20 text-blue-500 border-blue-500/30", icon: Play },
   completed: { label: "Completed", color: "bg-success/20 text-success border-success/30", icon: CheckCircle },
   awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30", icon: Play },
+  under_review: { label: "Under Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
 };
 
 // Friendly action messages for each phase type
@@ -194,6 +195,11 @@ export default function CandidateApplicationDetail() {
     
     if (phaseIndex < effectivePhaseIndex) return "completed";
     if (phaseIndex === effectivePhaseIndex) {
+      // Special handling for "review" phase - employer is reviewing, not candidate action
+      if (phase.type === "review" || phase.id === "review") {
+        return "under_review";
+      }
+      
       // For manual mode, show pending review if phase is current but employer hasn't advanced yet
       const isManualMode = application?.jobs?.processing_mode === "manual";
       
