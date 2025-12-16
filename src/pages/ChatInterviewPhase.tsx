@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -707,7 +708,6 @@ export default function ChatInterviewPhase() {
 
   // Show already submitted view if phase was completed
   if (existingResult) {
-    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
