@@ -76,18 +76,32 @@ const phaseColors = {
 };
 
 // Component to render AI analysis with proper formatting
+type SectionContext = 'neutral' | 'strengths' | 'concerns' | 'critical';
+
+interface ParsedSection {
+  type: 'score' | 'heading' | 'list' | 'paragraph';
+  text: string;
+  context?: SectionContext;
+}
+
+interface ListItem {
+  text: string;
+  context: SectionContext;
+}
+
 function AIAnalysisContent({ content }: { content: string }) {
-  // Parse the content into sections
-  const sections: { type: 'score' | 'heading' | 'list' | 'paragraph'; text: string }[] = [];
+  // Parse the content into sections with context tracking
+  const sections: ParsedSection[] = [];
   
   const lines = content.split('\n');
-  let currentList: string[] = [];
+  let currentList: ListItem[] = [];
+  let currentSection: SectionContext = 'neutral';
   
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) {
       if (currentList.length > 0) {
-        sections.push({ type: 'list', text: currentList.join('|||') });
+        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
         currentList = [];
       }
       continue;
@@ -96,7 +110,7 @@ function AIAnalysisContent({ content }: { content: string }) {
     // Check for score line
     if (trimmed.match(/^\*\*Overall Score:\s*\d+\*\*$/)) {
       if (currentList.length > 0) {
-        sections.push({ type: 'list', text: currentList.join('|||') });
+        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
         currentList = [];
       }
       const scoreMatch = trimmed.match(/\d+/);
@@ -109,42 +123,56 @@ function AIAnalysisContent({ content }: { content: string }) {
     // Check for headings (bold text like **Key Strengths:**)
     if (trimmed.match(/^\*\*[^*]+:\*\*$/)) {
       if (currentList.length > 0) {
-        sections.push({ type: 'list', text: currentList.join('|||') });
+        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
         currentList = [];
       }
       const headingText = trimmed.replace(/\*\*/g, '');
-      sections.push({ type: 'heading', text: headingText });
+      const lowerText = headingText.toLowerCase();
+      
+      // Track section context for list items
+      if (lowerText.includes('strength') || lowerText.includes('positive') || lowerText.includes('matching skills')) {
+        currentSection = 'strengths';
+      } else if (lowerText.includes('concern') || lowerText.includes('areas') || lowerText.includes('missing') || lowerText.includes('questionable')) {
+        currentSection = 'concerns';
+      } else if (lowerText.includes('red flag') || lowerText.includes('critical') || lowerText.includes('fabricat') || lowerText.includes('suspicious') || lowerText.includes('invalid')) {
+        currentSection = 'critical';
+      } else {
+        currentSection = 'neutral';
+      }
+      
+      sections.push({ type: 'heading', text: headingText, context: currentSection });
       continue;
     }
     
     // Check for recommendation (bold text with value)
     if (trimmed.match(/^\*\*Recommendation:\s*[^*]+\*\*$/)) {
       if (currentList.length > 0) {
-        sections.push({ type: 'list', text: currentList.join('|||') });
+        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
         currentList = [];
       }
       const recText = trimmed.replace(/\*\*/g, '');
-      sections.push({ type: 'heading', text: recText });
+      currentSection = 'neutral';
+      sections.push({ type: 'heading', text: recText, context: currentSection });
       continue;
     }
     
     // Check for list items
     if (trimmed.startsWith('- ')) {
-      currentList.push(trimmed.substring(2));
+      currentList.push({ text: trimmed.substring(2), context: currentSection });
       continue;
     }
     
     // Regular paragraph
     if (currentList.length > 0) {
-      sections.push({ type: 'list', text: currentList.join('|||') });
+      sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
       currentList = [];
     }
-    sections.push({ type: 'paragraph', text: trimmed.replace(/\*\*/g, '') });
+    sections.push({ type: 'paragraph', text: trimmed.replace(/\*\*/g, ''), context: currentSection });
   }
   
   // Don't forget remaining list items
   if (currentList.length > 0) {
-    sections.push({ type: 'list', text: currentList.join('|||') });
+    sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
   }
   
   return (
@@ -162,18 +190,17 @@ function AIAnalysisContent({ content }: { content: string }) {
         
         if (section.type === 'heading') {
           const isRecommendation = section.text.toLowerCase().includes('recommendation');
-          const isStrengths = section.text.toLowerCase().includes('strength');
-          const isConcerns = section.text.toLowerCase().includes('concern') || section.text.toLowerCase().includes('areas');
+          const headingColorClass = 
+            isRecommendation ? 'text-primary' :
+            section.context === 'strengths' ? 'text-emerald-500' : 
+            section.context === 'concerns' ? 'text-amber-500' : 
+            section.context === 'critical' ? 'text-red-400' :
+            'text-foreground';
           
           return (
             <h4 
               key={index} 
-              className={`font-semibold text-sm pt-2 ${
-                isRecommendation ? 'text-primary' : 
-                isStrengths ? 'text-success' : 
-                isConcerns ? 'text-orange-500' : 
-                'text-foreground'
-              }`}
+              className={`font-semibold text-sm pt-2 ${headingColorClass}`}
             >
               {section.text}
             </h4>
@@ -181,15 +208,35 @@ function AIAnalysisContent({ content }: { content: string }) {
         }
         
         if (section.type === 'list') {
-          const items = section.text.split('|||');
+          let items: ListItem[] = [];
+          try {
+            items = JSON.parse(section.text);
+          } catch {
+            // Fallback for old format
+            items = section.text.split('|||').map(t => ({ text: t, context: 'neutral' as SectionContext }));
+          }
+          
           return (
             <ul key={index} className="space-y-2 pl-4">
-              {items.map((item, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                  <span className="text-primary mt-1.5">•</span>
-                  <span>{item}</span>
-                </li>
-              ))}
+              {items.map((item, i) => {
+                const bulletColor = 
+                  item.context === 'strengths' ? 'text-emerald-500' :
+                  item.context === 'concerns' ? 'text-amber-500' :
+                  item.context === 'critical' ? 'text-red-400' : 
+                  'text-primary';
+                const textColor = 
+                  item.context === 'strengths' ? 'text-emerald-300/90' :
+                  item.context === 'concerns' ? 'text-amber-300/90' :
+                  item.context === 'critical' ? 'text-red-300/90' : 
+                  'text-muted-foreground';
+                
+                return (
+                  <li key={i} className={`text-sm flex items-start gap-2 ${textColor}`}>
+                    <span className={`mt-1.5 ${bulletColor}`}>•</span>
+                    <span>{item.text}</span>
+                  </li>
+                );
+              })}
             </ul>
           );
         }
