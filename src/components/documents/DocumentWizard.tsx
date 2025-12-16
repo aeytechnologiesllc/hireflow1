@@ -1176,26 +1176,18 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           const isPdf = uploadedFile?.type === "application/pdf";
           
           if (isPdf && uploadedFileUrl) {
-            // Review step for uploaded PDF documents with visual signature placement
+            // Simplified review step - AI places fields automatically, no extra UI needed
             return (
               <motion.div
                 key="step-review-upload-pdf"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
+                className="space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Place Signature Fields on PDF</h3>
-                  <Badge variant="outline">{documentName || uploadedFile?.name}</Badge>
-                </div>
-                
-                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <p className="text-sm text-blue-600 dark:text-blue-400">
-                    {signatureFields.length > 0 
-                      ? "AI has placed signature fields. You can click to add more or drag existing fields to reposition."
-                      : "Click on the PDF to place signature fields. Candidate signs first, then employer countersigns."}
-                  </p>
+                  <h3 className="font-semibold text-sm">Review Document</h3>
+                  <Badge variant="outline" className="text-xs">{documentName || uploadedFile?.name}</Badge>
                 </div>
 
                 <PdfSignaturePlacer
