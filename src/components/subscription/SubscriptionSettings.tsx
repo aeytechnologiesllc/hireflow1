@@ -275,6 +275,7 @@ export default function SubscriptionSettings() {
                   {billingInterval === "yearly" && (
                     <p className="text-xs text-muted-foreground">Billed {pricing.enterprise.yearlyFormatted}/year</p>
                   )}
+                  <ul className="space-y-2 text-sm">
                     {[
                       "Everything in Business",
                       "AVA Voice Assistant",
