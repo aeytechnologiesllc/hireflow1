@@ -51,13 +51,13 @@ export default function AppLayout() {
   useEffect(() => {
     if (subError) {
       const errorMessage = subError?.message || String(subError);
+      console.log('Subscription error:', errorMessage);
       if (errorMessage.includes('not authenticated') || errorMessage.includes('User not authenticated')) {
         console.log('Session expired, signing out...');
         signOut();
-        navigate("/auth");
       }
     }
-  }, [subError, signOut, navigate]);
+  }, [subError, signOut]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -65,12 +65,25 @@ export default function AppLayout() {
     }
   }, [user, loading, navigate]);
 
+  // Show loading while auth or subscription is loading
   if (loading || subLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // If there's a subscription auth error, show loading and let the useEffect handle redirect
+  if (subError) {
+    const errorMessage = subError?.message || String(subError);
+    if (errorMessage.includes('not authenticated') || errorMessage.includes('User not authenticated')) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
   }
 
   if (!user) {
