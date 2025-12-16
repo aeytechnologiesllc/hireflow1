@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Lock, Clock } from "lucide-react";
+import { Loader2, Lock, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -196,7 +196,7 @@ export default function AvaVoiceButton() {
 
   // Toggle button click - immediately starts/stops conversation
   const handleButtonClick = () => {
-    if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired') {
+    if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired' || voiceAccessState === 'trial_exhausted') {
       setShowUpgradeDialog(true);
       return;
     }
@@ -238,8 +238,9 @@ export default function AvaVoiceButton() {
     switch (voiceAccessState) {
       case 'full':
       case 'trial':
+      case 'trial_exhausted': // Trial exhausted still shows premium orb, not amber
         return "bg-transparent hover:bg-transparent shadow-none";
-      case 'exhausted':
+      case 'exhausted': // Only Enterprise users with 0 minutes show amber
         return "bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50";
       case 'locked':
       case 'expired':
@@ -259,6 +260,7 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
+    // Enterprise users with 0 minutes show amber clock
     if (voiceAccessState === 'exhausted') {
       return (
         <div className="relative">
@@ -266,6 +268,15 @@ export default function AvaVoiceButton() {
           <div className="absolute inset-0 flex items-center justify-center">
             <Clock className="h-5 w-5 text-amber-500" />
           </div>
+        </div>
+      );
+    }
+    // Trial exhausted - still show premium orb (not amber)
+    if (voiceAccessState === 'trial_exhausted') {
+      return (
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
+          <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
         </div>
       );
     }
@@ -397,7 +408,7 @@ export default function AvaVoiceButton() {
           </motion.div>
         )}
 
-        {/* Exhausted badge */}
+        {/* Exhausted badge - only for Enterprise users */}
         {voiceAccessState === 'exhausted' && (
           <motion.div
             initial={{ scale: 0 }}
@@ -407,6 +418,8 @@ export default function AvaVoiceButton() {
             0:00
           </motion.div>
         )}
+
+        {/* No badge for trial_exhausted - shows clean premium orb */}
 
         {/* Error indicator */}
         {error && (
@@ -428,7 +441,12 @@ export default function AvaVoiceButton() {
               {voiceAccessState === 'exhausted' ? (
                 <>
                   <Clock className="h-5 w-5 text-amber-500" />
-                  Voice Trial Minutes Exhausted
+                  Voice Minutes Exhausted
+                </>
+              ) : voiceAccessState === 'trial_exhausted' ? (
+                <>
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Upgrade for More Voice Minutes
                 </>
               ) : (
                 <>
@@ -439,7 +457,9 @@ export default function AvaVoiceButton() {
             </DialogTitle>
             <DialogDescription>
               {voiceAccessState === 'exhausted'
-                ? "Your 5-minute voice trial has ended. Upgrade to Enterprise for 500 voice minutes per month."
+                ? "Your voice minutes have run out. Purchase more credits or upgrade your plan."
+                : voiceAccessState === 'trial_exhausted'
+                ? "You've used your 5-minute trial. Upgrade to Enterprise to continue using AVA Voice Assistant."
                 : "Get access to AVA Voice Assistant with the Enterprise plan."}
             </DialogDescription>
           </DialogHeader>
