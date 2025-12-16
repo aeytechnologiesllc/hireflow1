@@ -598,7 +598,7 @@ export default function ApplicantDetails() {
         ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
         : "Not provided";
 
-      const content = `
+      let content = `
 Job Title: ${application.jobs?.title || "Unknown"}
 Job Description: ${application.jobs?.description || "Not provided"}
 Requirements: ${application.jobs?.requirements || "Not specified"}
@@ -620,7 +620,60 @@ Cover Letter:
 ${application.cover_letter || "Not provided"}
 
 Resume URL: ${application.resume_url || "Not provided"}
-      `;
+`;
+
+      // Add Typing Test results if available
+      if (parsedNotes.typingTestResult) {
+        content += `
+Typing Test Results:
+- Speed: ${parsedNotes.typingTestResult.wpm} WPM
+- Accuracy: ${parsedNotes.typingTestResult.accuracy}%
+- Consistency Score: ${parsedNotes.typingTestResult.consistency || 'N/A'}
+`;
+      }
+
+      // Add Quiz answers if available
+      if (parsedNotes.quizAnswers) {
+        const quizData = Object.values(parsedNotes.quizAnswers);
+        content += `
+Quiz Performance:
+${quizData.map((q: any) => `- Score: ${q.score || q.percentage || 'N/A'}%`).join('\n')}
+`;
+      }
+
+      // Add Chat Simulation results if available
+      if (parsedNotes.chatSimulationResult) {
+        content += `
+Chat Simulation (Customer Support) Results:
+- Score: ${parsedNotes.chatSimulationResult.score || 'N/A'}/100
+- Evaluation: ${parsedNotes.chatSimulationResult.evaluation || 'N/A'}
+`;
+      }
+
+      // Add Chat Interview results if available  
+      if (parsedNotes.chatInterviewResult) {
+        content += `
+Interview Results:
+- Overall Score: ${parsedNotes.chatInterviewResult.overallScore || 'N/A'}/100
+- Evaluation: ${parsedNotes.chatInterviewResult.evaluation || 'N/A'}
+`;
+      }
+
+      // Add Sales Simulation results if available
+      if (parsedNotes.salesSimulationResult) {
+        content += `
+Sales Simulation Results:
+- Score: ${parsedNotes.salesSimulationResult.score || 'N/A'}/100
+- Evaluation: ${parsedNotes.salesSimulationResult.evaluation || 'N/A'}
+`;
+      }
+
+      // Add Video Intro URL if available
+      if (parsedNotes.videoIntroUrl) {
+        content += `
+Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
+`;
+      }
 
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
@@ -1147,6 +1200,42 @@ Resume URL: ${application.resume_url || "Not provided"}
                   <Badge variant="outline" className="text-xs">
                     <CheckCircle className="h-3 w-3 mr-1 text-success" />
                     Application Answers
+                  </Badge>
+                )}
+                {parsedNotes.typingTestResult && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Typing Test
+                  </Badge>
+                )}
+                {parsedNotes.quizAnswers && Object.keys(parsedNotes.quizAnswers).length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Quiz
+                  </Badge>
+                )}
+                {parsedNotes.chatSimulationResult && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Chat Simulation
+                  </Badge>
+                )}
+                {parsedNotes.chatInterviewResult && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Interview
+                  </Badge>
+                )}
+                {parsedNotes.salesSimulationResult && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Sales Simulation
+                  </Badge>
+                )}
+                {parsedNotes.videoIntroUrl && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Video Intro
                   </Badge>
                 )}
               </div>
