@@ -214,9 +214,7 @@ export default function Index() {
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                 className="relative"
               >
-              {/* Subtle glow behind orb - using box-shadow for iOS compatibility */}
-                <div className="absolute inset-0 rounded-full" style={{ boxShadow: '0 0 40px 20px rgba(168, 85, 247, 0.35)' }} />
-                <img 
+                <img
                   src={avaOrbLogo} 
                   alt="AVA AI" 
                   className="relative w-14 h-14 object-contain"
@@ -371,9 +369,7 @@ export default function Index() {
               variants={scaleIn}
               className="relative w-20 h-20 mx-auto mb-6"
             >
-              {/* Subtle glow behind orb - using box-shadow for iOS compatibility */}
-              <div className="absolute inset-0 rounded-full" style={{ boxShadow: '0 0 60px 30px rgba(168, 85, 247, 0.4)' }} />
-              <motion.img 
+              <motion.img
                 src={avaOrbLogo}
                 alt="AVA AI"
                 className="relative w-full h-full object-contain"
