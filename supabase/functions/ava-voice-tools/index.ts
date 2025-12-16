@@ -192,18 +192,60 @@ serve(async (req) => {
 
       case "get_applicant_details": {
         const { application_id } = parameters;
+        
+        // Check if application_id is a valid UUID or a name
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const isUuid = uuidRegex.test(application_id);
+        
+        let app: any = null;
+        
+        if (isUuid) {
+          // Direct lookup by ID
+          const { data, error } = await supabaseClient
+            .from("applications")
+            .select(`
+              id, status, phase, ai_score, notes, created_at, candidate_id,
+              jobs!inner(title, employer_id)
+            `)
+            .eq("id", application_id)
+            .eq("jobs.employer_id", user.id)
+            .single();
+          
+          if (!error && data) app = data;
+        }
+        
+        // If not found by UUID or not a UUID, try name-based lookup
+        if (!app) {
+          // Get all applications for this employer with profile info
+          const { data: applications } = await supabaseClient
+            .from("applications")
+            .select(`
+              id, status, phase, ai_score, notes, created_at, candidate_id,
+              jobs!inner(title, employer_id)
+            `)
+            .eq("jobs.employer_id", user.id);
+          
+          if (applications && applications.length > 0) {
+            // Get profiles for all candidates
+            const candidateIds = applications.map((a: any) => a.candidate_id);
+            const { data: profiles } = await supabaseClient
+              .from("profiles")
+              .select("user_id, full_name")
+              .in("user_id", candidateIds);
+            
+            // Find matching application by name (case-insensitive)
+            const searchName = application_id.toLowerCase();
+            for (const application of applications) {
+              const profile = profiles?.find((p: any) => p.user_id === application.candidate_id);
+              if (profile?.full_name?.toLowerCase().includes(searchName)) {
+                app = application;
+                break;
+              }
+            }
+          }
+        }
 
-        const { data: app, error } = await supabaseClient
-          .from("applications")
-          .select(`
-            id, status, phase, ai_score, notes, created_at, candidate_id,
-            jobs!inner(title, employer_id)
-          `)
-          .eq("id", application_id)
-          .eq("jobs.employer_id", user.id)
-          .single();
-
-        if (error || !app) {
+        if (!app) {
           throw new Error("Application not found or access denied");
         }
 
