@@ -312,9 +312,10 @@ export function PdfSignaturePlacer({
               disableStream: true,
             }}
           >
-            <div
-              className={cn("relative", placementMode && "cursor-crosshair")}
-              onClick={handlePageClick}
+          <div
+            ref={pageContainerRef}
+            className={cn("relative", placementMode && "cursor-crosshair")}
+            onClick={handlePageClick}
               onMouseMove={(e) => draggedField && handleFieldDrag(e, draggedField)}
               onMouseUp={handleFieldDragEnd}
               onMouseLeave={handleFieldDragEnd}
