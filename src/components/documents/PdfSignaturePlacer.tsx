@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import "react-pdf/dist/esm/Page/TextLayer.css";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,12 +12,17 @@ import {
   Trash2, 
   User, 
   Building2, 
-  Move,
-  Plus,
+  GripVertical,
   ZoomIn,
   ZoomOut,
-  GripVertical
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 export interface SignatureFieldWithPosition {
   id: string;
@@ -46,16 +53,32 @@ export function PdfSignaturePlacer({
   activeSignerId,
   signatures = {},
 }: PdfSignaturePlacerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const pageContainerRef = useRef<HTMLDivElement>(null);
   const [draggedField, setDraggedField] = useState<string | null>(null);
   const [placementMode, setPlacementMode] = useState<"candidate" | "employer" | null>(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
+  const [numPages, setNumPages] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setLoading(false);
+    setError(null);
+  };
+
+  const onDocumentLoadError = (err: Error) => {
+    console.error("PDF load error:", err);
+    setError("Failed to load PDF document");
+    setLoading(false);
+  };
+
+  const handlePageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!placementMode || readOnly || isDragging) return;
     
-    const container = containerRef.current;
+    const container = pageContainerRef.current;
     if (!container) return;
     
     const rect = container.getBoundingClientRect();
@@ -63,24 +86,25 @@ export function PdfSignaturePlacer({
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
     // Check if clicking on existing field
-    const clickedOnField = (e.target as HTMLElement).closest('[data-signature-field]');
+    const clickedOnField = (e.target as HTMLElement).closest("[data-signature-field]");
     if (clickedOnField) return;
     
+    const fieldCount = signatureFields.filter(f => f.type === placementMode).length;
     const newField: SignatureFieldWithPosition = {
       id: `field_${Date.now()}`,
-      label: placementMode === "candidate" ? "Candidate Signature" : "Employer Signature",
+      label: `${placementMode === "candidate" ? "Candidate" : "Employer"} Signature ${fieldCount + 1}`,
       required: true,
       type: placementMode,
       x: Math.max(0, Math.min(x - 10, 80)), // Center the field (20% width)
       y: Math.max(0, Math.min(y - 3, 90)), // Offset slightly
-      page: 1,
+      page: currentPage,
       width: 20,
       height: 6,
     };
     
     onFieldsChange([...signatureFields, newField]);
     setPlacementMode(null);
-  }, [placementMode, readOnly, isDragging, signatureFields, onFieldsChange]);
+  }, [placementMode, readOnly, isDragging, signatureFields, onFieldsChange, currentPage]);
 
   const handleFieldDragStart = (fieldId: string) => {
     if (readOnly) return;
@@ -91,7 +115,7 @@ export function PdfSignaturePlacer({
   const handleFieldDrag = useCallback((e: React.MouseEvent<HTMLDivElement>, fieldId: string) => {
     if (!draggedField || draggedField !== fieldId || readOnly) return;
     
-    const container = containerRef.current;
+    const container = pageContainerRef.current;
     if (!container) return;
     
     const rect = container.getBoundingClientRect();
@@ -107,13 +131,14 @@ export function PdfSignaturePlacer({
           ...f,
           x: Math.max(0, Math.min(x - field.width / 2, 100 - field.width)),
           y: Math.max(0, Math.min(y - field.height / 2, 100 - field.height)),
+          page: currentPage,
         };
       }
       return f;
     });
     
     onFieldsChange(updatedFields);
-  }, [draggedField, readOnly, signatureFields, onFieldsChange]);
+  }, [draggedField, readOnly, signatureFields, onFieldsChange, currentPage]);
 
   const handleFieldDragEnd = () => {
     setDraggedField(null);
@@ -134,11 +159,13 @@ export function PdfSignaturePlacer({
     return type === "candidate" ? User : Building2;
   };
 
+  const currentPageFields = signatureFields.filter(f => f.page === currentPage);
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
       {!readOnly && (
-        <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Add Signature:</span>
             <Button
@@ -170,18 +197,18 @@ export function PdfSignaturePlacer({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => setZoom(Math.max(50, zoom - 10))}
-              disabled={zoom <= 50}
+              onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+              disabled={zoom <= 0.5}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-xs text-muted-foreground w-12 text-center">{zoom}%</span>
+            <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
             <Button
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => setZoom(Math.min(150, zoom + 10))}
-              disabled={zoom >= 150}
+              onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+              disabled={zoom >= 2}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -202,117 +229,161 @@ export function PdfSignaturePlacer({
         </div>
       )}
 
-      {/* PDF Container with Signature Fields Overlay */}
-      <div 
-        ref={containerRef}
-        className={cn(
-          "relative rounded-lg border border-border overflow-hidden bg-zinc-100 dark:bg-zinc-900",
-          placementMode && "cursor-crosshair",
-          !readOnly && !placementMode && "cursor-default"
+      {/* PDF Container */}
+      <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
+        {/* Page Navigation */}
+        {numPages > 1 && (
+          <div className="flex items-center justify-center gap-4 p-2 border-b border-border bg-background">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {numPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
+              disabled={currentPage >= numPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         )}
-        style={{ 
-          minHeight: "500px",
-          transform: `scale(${zoom / 100})`,
-          transformOrigin: "top center",
-        }}
-        onClick={handleContainerClick}
-        onMouseMove={(e) => draggedField && handleFieldDrag(e, draggedField)}
-        onMouseUp={handleFieldDragEnd}
-        onMouseLeave={handleFieldDragEnd}
-      >
-        {/* PDF Iframe */}
-        <iframe
-          src={`${pdfUrl}#toolbar=0&navpanes=0`}
-          className="w-full h-[600px] border-0 pointer-events-none"
-          title="Document Preview"
-        />
 
-        {/* Signature Fields Overlay */}
-        <div className="absolute inset-0 pointer-events-none">
-          <AnimatePresence>
-            {signatureFields.map((field) => {
-              const FieldIcon = getFieldIcon(field.type);
-              const hasSignature = signatures[field.id];
-              const isActive = activeSignerId === field.type && !hasSignature;
-              
-              return (
-                <motion.div
-                  key={field.id}
-                  data-signature-field
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className={cn(
-                    "absolute border-2 rounded pointer-events-auto transition-all",
-                    getFieldColor(field.type),
-                    hasSignature && "border-success bg-success/10",
-                    isActive && "ring-2 ring-primary ring-offset-2 animate-pulse",
-                    draggedField === field.id && "opacity-70 scale-105",
-                    !readOnly && "hover:shadow-lg"
-                  )}
-                  style={{
-                    left: `${field.x}%`,
-                    top: `${field.y}%`,
-                    width: `${field.width}%`,
-                    height: `${field.height}%`,
-                    minHeight: "40px",
-                    minWidth: "100px",
-                  }}
-                >
-                  {/* Field Content */}
-                  <div className="flex items-center justify-center h-full p-2 gap-2">
-                    {hasSignature ? (
-                      <img 
-                        src={signatures[field.id]} 
-                        alt="Signature" 
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    ) : (
-                      <>
-                        <FieldIcon className={cn(
-                          "h-4 w-4",
-                          field.type === "candidate" ? "text-blue-600" : "text-emerald-600"
-                        )} />
-                        <span className={cn(
-                          "text-xs font-medium truncate",
-                          field.type === "candidate" ? "text-blue-700" : "text-emerald-700"
-                        )}>
-                          {field.label}
-                        </span>
-                      </>
-                    )}
-                  </div>
+        {/* PDF Content */}
+        <div className="overflow-auto max-h-[600px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
+          {loading && !error && (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
 
-                  {/* Drag Handle & Delete Button (Edit Mode Only) */}
-                  {!readOnly && !hasSignature && (
-                    <>
-                      <div
+          {error && (
+            <div className="flex flex-col items-center justify-center h-64 gap-2 text-destructive">
+              <AlertCircle className="h-8 w-8" />
+              <p>{error}</p>
+            </div>
+          )}
+
+          <Document
+            file={pdfUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={null}
+          >
+            <div 
+              ref={pageContainerRef}
+              className={cn(
+                "relative",
+                placementMode && "cursor-crosshair"
+              )}
+              onClick={handlePageClick}
+              onMouseMove={(e) => draggedField && handleFieldDrag(e, draggedField)}
+              onMouseUp={handleFieldDragEnd}
+              onMouseLeave={handleFieldDragEnd}
+            >
+              <Page
+                pageNumber={currentPage}
+                scale={zoom}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+
+              {/* Signature Fields Overlay */}
+              <div className="absolute inset-0 pointer-events-none">
+                <AnimatePresence>
+                  {currentPageFields.map((field) => {
+                    const FieldIcon = getFieldIcon(field.type);
+                    const hasSignature = signatures[field.id];
+                    const isActive = activeSignerId === field.type && !hasSignature;
+                    
+                    return (
+                      <motion.div
+                        key={field.id}
+                        data-signature-field
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
                         className={cn(
-                          "absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-8 rounded-l flex items-center justify-center cursor-grab active:cursor-grabbing",
-                          field.type === "candidate" ? "bg-blue-500" : "bg-emerald-500"
+                          "absolute border-2 rounded pointer-events-auto transition-all",
+                          getFieldColor(field.type),
+                          hasSignature && "border-success bg-success/10",
+                          isActive && "ring-2 ring-primary ring-offset-2 animate-pulse",
+                          draggedField === field.id && "opacity-70 scale-105",
+                          !readOnly && "hover:shadow-lg"
                         )}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleFieldDragStart(field.id);
+                        style={{
+                          left: `${field.x}%`,
+                          top: `${field.y}%`,
+                          width: `${field.width}%`,
+                          height: `${field.height}%`,
+                          minHeight: "40px",
+                          minWidth: "100px",
                         }}
                       >
-                        <GripVertical className="h-4 w-4 text-white" />
-                      </div>
-                      <button
-                        className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeField(field.id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                        {/* Field Content */}
+                        <div className="flex items-center justify-center h-full p-2 gap-2">
+                          {hasSignature ? (
+                            <img 
+                              src={signatures[field.id]} 
+                              alt="Signature" 
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          ) : (
+                            <>
+                              <FieldIcon className={cn(
+                                "h-4 w-4",
+                                field.type === "candidate" ? "text-blue-600" : "text-emerald-600"
+                              )} />
+                              <span className={cn(
+                                "text-xs font-medium truncate",
+                                field.type === "candidate" ? "text-blue-700" : "text-emerald-700"
+                              )}>
+                                {field.label}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Drag Handle & Delete Button (Edit Mode Only) */}
+                        {!readOnly && !hasSignature && (
+                          <>
+                            <div
+                              className={cn(
+                                "absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-8 rounded-l flex items-center justify-center cursor-grab active:cursor-grabbing",
+                                field.type === "candidate" ? "bg-blue-500" : "bg-emerald-500"
+                              )}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                handleFieldDragStart(field.id);
+                              }}
+                            >
+                              <GripVertical className="h-4 w-4 text-white" />
+                            </div>
+                            <button
+                              className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeField(field.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </div>
+          </Document>
         </div>
       </div>
 
@@ -335,7 +406,7 @@ export function PdfSignaturePlacer({
                   )}
                 >
                   <FieldIcon className="h-3 w-3" />
-                  {field.label}
+                  {field.label} (Page {field.page})
                   {!readOnly && (
                     <button
                       onClick={() => removeField(field.id)}
