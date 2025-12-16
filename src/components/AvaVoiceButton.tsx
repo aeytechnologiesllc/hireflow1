@@ -184,47 +184,57 @@ export default function AvaVoiceButton() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get button styling based on access state
+  // Get button styling based on access state - transparent for orb, colored for locked states
   const getButtonStyles = () => {
     switch (voiceAccessState) {
       case 'full':
-        return isConnected
-          ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-emerald-500/30"
-          : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-purple-500/30";
       case 'trial':
-        return isConnected
-          ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 shadow-emerald-500/30"
-          : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30";
+        return "bg-transparent hover:bg-transparent shadow-none";
       case 'exhausted':
-        return "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/30";
+        return "bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50";
       case 'locked':
       case 'expired':
       default:
-        return "bg-muted/80 hover:bg-muted text-muted-foreground shadow-none";
+        return "bg-muted/50 hover:bg-muted/70 border border-muted-foreground/20";
     }
   };
 
   const getButtonContent = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
-      return <Lock className="h-5 w-5" />;
+      return (
+        <div className="relative">
+          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-50 grayscale" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Lock className="h-5 w-5 text-muted-foreground" />
+          </div>
+        </div>
+      );
     }
     if (voiceAccessState === 'exhausted') {
-      return <Clock className="h-5 w-5" />;
+      return (
+        <div className="relative">
+          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-50" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Clock className="h-5 w-5 text-amber-500" />
+          </div>
+        </div>
+      );
     }
     if (isConnecting) {
-      return <Loader2 className="h-5 w-5 animate-spin text-white" />;
+      return (
+        <div className="relative">
+          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-70" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        </div>
+      );
     }
-    // Show AVA orb with listening indicator
+    // Show AVA orb with glow effect
     return (
-      <div className="flex items-center gap-1.5">
-        <img src={avaOrbLogo} alt="AVA" className="h-8 w-8 object-contain" />
-        {isConnected && isListening && (
-          <motion.div
-            className="h-2 w-2 rounded-full bg-white"
-            animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-          />
-        )}
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
+        <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
       </div>
     );
   };
@@ -282,12 +292,9 @@ export default function AvaVoiceButton() {
         <Button
           onClick={handleButtonClick}
           disabled={isConnecting}
+          variant="ghost"
           className={cn(
-            "h-14 rounded-full shadow-lg transition-all duration-300 relative",
-            // Pill shape for AVA name, circle for icons
-            voiceAccessState === 'locked' || voiceAccessState === 'expired' || voiceAccessState === 'exhausted' || isConnecting
-              ? "w-14"
-              : "px-5 min-w-14",
+            "h-16 w-16 rounded-full p-0 transition-all duration-300 relative",
             getButtonStyles(),
             isSpeaking && voiceAccessState !== 'locked' && "animate-pulse"
           )}
