@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -90,9 +90,12 @@ export default function ChatSimulationPhase() {
   const [currentScenario, setCurrentScenario] = useState<ChatScenario | null>(null);
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
+  const [isResolved, setIsResolved] = useState(false);
+  const [completionCountdown, setCompletionCountdown] = useState<number | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -122,10 +125,39 @@ export default function ChatSimulationPhase() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Check for resolution marker in messages
+  useEffect(() => {
+    if (messages.length > 0 && state === "chatting") {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === "customer" && lastMessage.content.includes("[RESOLVED]")) {
+        // Strip the marker from the message
+        setMessages(prev => prev.map((m, i) => 
+          i === prev.length - 1 
+            ? { ...m, content: m.content.replace("[RESOLVED]", "").trim() }
+            : m
+        ));
+        setIsResolved(true);
+        // Start countdown
+        setCompletionCountdown(5);
+      }
+    }
+  }, [messages, state]);
+
+  // Countdown timer for auto-submission
+  useEffect(() => {
+    if (completionCountdown === null) return;
+    if (completionCountdown <= 0) {
+      endChat();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCompletionCountdown(prev => prev !== null ? prev - 1 : null);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [completionCountdown]);
 
   // Log anti-cheat violation
   const logViolation = (type: AntiCheatViolation['type'], details: string) => {
@@ -203,7 +235,12 @@ export default function ChatSimulationPhase() {
       e.preventDefault();
       logViolation('screenshot_attempt', 'User pressed PrintScreen');
     }
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    handleKeyDown(e);
     if (e.key === "Enter" && !e.shiftKey && state === "chatting") {
+      e.preventDefault();
       sendMessage();
     }
   };
@@ -726,7 +763,7 @@ export default function ChatSimulationPhase() {
               </div>
 
               {/* Chat Area */}
-              <ScrollArea className="h-[400px] rounded-lg border border-border p-4" ref={scrollRef}>
+              <ScrollArea className="h-[400px] rounded-lg border border-border bg-background/50 p-4" ref={scrollRef}>
                 <div className="space-y-4">
                   {messages.map((message) => (
                     <div
@@ -736,29 +773,29 @@ export default function ChatSimulationPhase() {
                       }`}
                     >
                       {message.role === "customer" && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-muted text-muted-foreground">
+                        <Avatar className="h-8 w-8 border border-border shadow-sm">
+                          <AvatarFallback className="bg-secondary text-secondary-foreground font-medium">
                             {currentScenario.customerName.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
                       )}
                       <div
-                        className={`max-w-[70%] rounded-lg p-3 ${
+                        className={`max-w-[70%] rounded-xl p-3 shadow-sm ${
                           message.role === "agent"
                             ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
+                            : "bg-secondary/80 border border-border/50 text-foreground"
                         }`}
                       >
                         {message.role === "customer" && (
-                          <p className="text-xs font-medium mb-1 opacity-70">
+                          <p className="text-xs font-semibold mb-1 text-primary">
                             {currentScenario.customerName}
                           </p>
                         )}
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       </div>
                       {message.role === "agent" && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Avatar className="h-8 w-8 border border-primary/30 shadow-sm">
+                          <AvatarFallback className="bg-primary text-primary-foreground font-medium">
                             You
                           </AvatarFallback>
                         </Avatar>
@@ -768,42 +805,68 @@ export default function ChatSimulationPhase() {
                   
                   {isTyping && (
                     <div className="flex gap-3 justify-start">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-muted text-muted-foreground">
+                      <Avatar className="h-8 w-8 border border-border shadow-sm">
+                        <AvatarFallback className="bg-secondary text-secondary-foreground font-medium">
                           {currentScenario.customerName.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="bg-muted rounded-lg p-3">
+                      <div className="bg-secondary/80 border border-border/50 rounded-xl p-3 shadow-sm">
                         <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
               </ScrollArea>
 
-              {/* Input Area */}
-              {state === "chatting" && (
-                <div className="flex gap-2">
-                  <Input
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Type your response..."
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+              {/* Resolution Banner */}
+              {isResolved && state === "chatting" && (
+                <div className="bg-success/10 border border-success/30 rounded-lg p-4 text-center animate-fade-in">
+                  <CheckCircle className="h-8 w-8 mx-auto text-success mb-2" />
+                  <p className="text-foreground font-medium">Customer Satisfied!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Auto-completing in {completionCountdown} seconds...
+                  </p>
+                  <Button 
+                    onClick={endChat} 
+                    className="mt-3 gap-2"
                     disabled={isTyping}
-                  />
-                  <Button onClick={sendMessage} disabled={!inputValue.trim() || isTyping}>
-                    <Send className="h-4 w-4" />
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Complete Now
                   </Button>
                 </div>
               )}
 
-              {/* End Chat Button */}
-              {state === "chatting" && canEndChat && (
+              {/* Input Area */}
+              {state === "chatting" && !isResolved && (
+                <div className="flex gap-2 items-end">
+                  <Textarea
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder="Type your response... (Press Enter to send)"
+                    onKeyDown={handleTextareaKeyDown}
+                    disabled={isTyping}
+                    rows={3}
+                    className="resize-none min-h-[80px] bg-background/50"
+                  />
+                  <Button 
+                    onClick={sendMessage} 
+                    disabled={!inputValue.trim() || isTyping}
+                    className="h-[80px] px-4"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </div>
+              )}
+
+              {/* End Chat Button - only show if not auto-resolved */}
+              {state === "chatting" && canEndChat && !isResolved && (
                 <div className="text-center pt-2">
                   <Button 
                     variant="outline" 
