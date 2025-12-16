@@ -13,6 +13,7 @@ import { usePricing } from "@/hooks/usePricing";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import avaOrbLogo from "@/assets/ava-orb.png";
+import { dispatchAvaFormCommand } from "@/utils/avaFormEvents";
 
 interface Message {
   id: string;
@@ -63,6 +64,8 @@ function TypewriterText({ text, onComplete }: { text: string; onComplete?: () =>
   return <>{text.slice(0, displayedLength)}{displayedLength < text.length && <span className="animate-pulse">|</span>}</>;
 }
 
+const FIRST_USE_KEY = 'ava_has_used_assistant';
+
 export default function AvaVoiceButton() {
   const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
@@ -77,6 +80,11 @@ export default function AvaVoiceButton() {
   const [textInput, setTextInput] = useState("");
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [animatedMessageIds, setAnimatedMessageIds] = useState<Set<string>>(new Set());
+  
+  // First-use detection
+  const [isFirstUse, setIsFirstUse] = useState(() => {
+    return !localStorage.getItem(FIRST_USE_KEY);
+  });
 
   const voiceAccessState = getVoiceAccessState();
   const voiceMinutesRemaining = getVoiceMinutesRemaining();
@@ -124,12 +132,76 @@ export default function AvaVoiceButton() {
     ]);
 
     // Invalidate relevant queries to sync dashboard when AVA performs actions
-    if (result?.success) {
+    if (result?.success || result?.action) {
       // Handle navigation commands
       if (toolName === 'navigate_to_page' && result.action === 'navigate' && result.route) {
         toast.success(`Opening ${result.page.replace(/_/g, ' ')}...`);
         navigate(result.route);
         return;
+      }
+      
+      // Handle walkthrough - navigate to first page and explain
+      if (toolName === 'start_walkthrough' && result.pages) {
+        // Navigate to first walkthrough page
+        if (result.pages[0]?.route) {
+          toast.success(`Starting walkthrough - ${result.pages[0].name}`);
+          navigate(result.pages[0].route);
+        }
+        return;
+      }
+      
+      // Handle message sent
+      if (toolName === 'send_message' && result.success) {
+        toast.success('Message sent to applicant!');
+        queryClient.invalidateQueries({ queryKey: ["messages"] });
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        return;
+      }
+      
+      // Handle interactive job creation
+      if (toolName === 'create_job_interactive') {
+        // Navigate to create job page if starting
+        if (result.action === 'navigate_and_prepare' && result.route) {
+          toast.success('Opening job creation wizard...');
+          navigate(result.route);
+          return;
+        }
+        
+        // Fill a field in the form
+        if (result.action === 'fill_field' && result.field) {
+          dispatchAvaFormCommand({
+            action: 'fill_field',
+            field: result.field,
+            value: result.value
+          });
+          return;
+        }
+        
+        // Navigate wizard steps
+        if (result.action === 'navigate_step') {
+          dispatchAvaFormCommand({
+            action: 'navigate_step',
+            step: result.step
+          });
+          return;
+        }
+        
+        // Trigger generation (workflow or content)
+        if (result.action === 'trigger_generate') {
+          dispatchAvaFormCommand({
+            action: 'trigger_generate',
+            target: result.target
+          });
+          return;
+        }
+        
+        // Submit the form
+        if (result.action === 'submit') {
+          dispatchAvaFormCommand({
+            action: 'submit'
+          });
+          return;
+        }
       }
       
       if (toolName === 'move_applicant_to_phase' || toolName === 'reject_applicant') {
@@ -166,9 +238,18 @@ export default function AvaVoiceButton() {
     subscriptionStatus: subscription?.status,
     countryCode: pricing.countryCode,
     voiceMinutesRemaining: voiceMinutesRemaining,
+    isFirstUse: isFirstUse,
     onTranscript: handleTranscript,
     onToolCall: handleToolCall,
   });
+
+  // Mark as used after first connection
+  useEffect(() => {
+    if (isConnected && isFirstUse) {
+      localStorage.setItem(FIRST_USE_KEY, 'true');
+      setIsFirstUse(false);
+    }
+  }, [isConnected, isFirstUse]);
 
   // Toggle button click - immediately starts/stops conversation
   const handleButtonClick = () => {

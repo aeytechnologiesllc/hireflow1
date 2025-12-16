@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -83,6 +83,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 
 interface ApplicationQuestion {
   id: string;
@@ -237,6 +238,61 @@ export default function CreateJob() {
       }
     }
   }, [isEditMode, existingJob]);
+
+  // Subscribe to AVA form commands for voice-controlled job creation
+  useEffect(() => {
+    const unsubscribe = subscribeToAvaFormCommands((command: AvaFormCommand) => {
+      console.log('CreateJob received AVA command:', command);
+      
+      if (command.action === 'fill_field' && command.field && command.value !== undefined) {
+        // Map field names to form data keys
+        const fieldMap: Record<string, string> = {
+          title: 'title',
+          description: 'description',
+          location: 'location',
+          job_type: 'job_type',
+          experience_level: 'experience_level',
+          department: 'department',
+          salary_min: 'salary_min',
+          salary_max: 'salary_max',
+          requirements: 'requirements',
+          responsibilities: 'responsibilities',
+          skills_required: 'skills_required',
+          benefits: 'benefits'
+        };
+        
+        const formField = fieldMap[command.field];
+        if (formField) {
+          setFormData(prev => ({ ...prev, [formField]: command.value }));
+          toast.success(`AVA filled: ${command.field.replace(/_/g, ' ')}`);
+        }
+      }
+      
+      if (command.action === 'navigate_step') {
+        if (command.step === 1 && currentStep < WIZARD_STEPS.length - 1) {
+          setCurrentStep(prev => prev + 1);
+          toast.success('Moving to next step');
+        } else if (command.step === -1 && currentStep > 0) {
+          setCurrentStep(prev => prev - 1);
+          toast.success('Going back');
+        }
+      }
+      
+      if (command.action === 'trigger_generate') {
+        if (command.target === 'workflow') {
+          generateWorkflow();
+        } else if (command.target === 'full_job') {
+          generateFullJob();
+        }
+      }
+      
+      if (command.action === 'submit') {
+        handleSubmit('published');
+      }
+    });
+    
+    return unsubscribe;
+  }, [currentStep]);
 
   const handleChange = (field: string, value: string | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

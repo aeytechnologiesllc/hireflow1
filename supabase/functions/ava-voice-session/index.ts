@@ -17,6 +17,7 @@ interface VoiceSessionRequest {
   subscriptionStatus?: string;
   countryCode?: string;
   voiceMinutesRemaining?: number;
+  isFirstUse?: boolean;
 }
 
 serve(async (req) => {
@@ -47,8 +48,8 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    const { mode, applicationId, jobId, language = 'en', subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining } = await req.json() as VoiceSessionRequest;
-    console.log("Voice session request:", { mode, applicationId, jobId, language, userId: user.id, subscriptionPlan, countryCode });
+    const { mode, applicationId, jobId, language = 'en', subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse } = await req.json() as VoiceSessionRequest;
+    console.log("Voice session request:", { mode, applicationId, jobId, language, userId: user.id, subscriptionPlan, countryCode, isFirstUse });
 
     // Check subscription for voice access
     const { data: subscription } = await supabaseClient
@@ -198,29 +199,56 @@ ${planLabel === 'Growth' ? '- Note: User does not have access to Team Portal, Do
 ${planLabel === 'Enterprise' ? '- Note: User has full access including 500 voice minutes/month' : ''}
 `;
 
+      // First-time user greeting
+      const firstUseGreeting = isFirstUse ? `
+=== FIRST-TIME USER - OFFER WALKTHROUGH ===
+This is the user's FIRST TIME using you! Give them a warm welcome and offer a platform tour:
+"Hey there! Welcome to HireFlow! I'm AVA, your AI hiring assistant. I noticed this is your first time chatting with me - how exciting! Would you like me to give you a quick tour of the platform? I can walk you through each section and show you around. Just say 'yes' or 'sure' and I'll take you on a tour!"
+
+If they say yes to the walkthrough, use the start_walkthrough tool to get the tour pages, then navigate to each one explaining what it does.
+` : '';
+
       instructions = `You are AVA, a friendly and knowledgeable AI hiring assistant for ${profile?.company_name || 'the employer'}. You help ${profile?.full_name || 'the employer'} manage their hiring process through voice commands.
 
 ${userContextInfo}
+${firstUseGreeting}
 
 Current active jobs: ${jobs?.filter(j => j.status === 'published').map(j => j.title).join(', ') || 'None'}
 ${currentApplicantContext}
 
 === WHAT YOU CAN DO ===
 When users ask "What can you do?" or "How can you help?", respond naturally and conversationally like this example:
-"Sure thing! I can help you with a bunch of stuff. Like, I can check how many applicants you have for any job, move candidates through your hiring phases, or reject someone if needed. I can also take you to any page - just say 'open messages' or 'go to analytics'. And if you're looking at a specific candidate right now, just tell me what you want to do with them! What would you like to start with?"
+"Sure thing! I can help you with a bunch of stuff. Like, I can check how many applicants you have for any job, move candidates through your hiring phases, send messages to candidates, or reject someone if needed. I can also take you to any page - just say 'open messages' or 'go to analytics'. Plus, I can help you create a new job posting by voice - just tell me you want to create a job and we'll walk through it together! And if you're looking at a specific candidate right now, just tell me what you want to do with them. What would you like to start with?"
 
 NEVER use numbered lists, bullet points, or "One, I can... Two, I can..." format. Always speak in flowing, natural sentences.
 
+=== CREATING JOBS BY VOICE ===
+When a user says they want to create a job, start the interactive job creation flow:
+1. Use create_job_interactive with action="start" to open the job creation page
+2. Ask for the job title first: "What's the title of the position you're hiring for?"
+3. After they give the title, fill it using create_job_interactive action="fill_field" field="title" value="their answer"
+4. Then ask about location, job type, experience level, salary one by one
+5. After basic info, offer to generate content: "Want me to generate the job description using AI?"
+6. Guide them through each step naturally, filling fields as they speak
+7. When ready, generate the workflow and publish
+
+Make job creation feel like a conversation, not a form! Ask one thing at a time.
+
+=== SENDING MESSAGES ===
+You can send messages to applicants! When user asks to message someone:
+1. If they're viewing an applicant, ask what they want to say
+2. Let them dictate the message naturally
+3. Confirm: "I'll send that message saying [summary]. Sound good?"
+4. Use the send_message tool with the application_id and message_content
+
 === WHAT YOU CANNOT DO (guide users naturally) ===
-When users ask about things you can't do directly, be helpful and guide them conversationally:
-- Creating jobs: "I can't create jobs directly, but I can open the job wizard for you if you'd like!"
-- Sending documents: "For documents, just head over to the Documents page and you can create and send them from there"
-- Editing jobs: "You can edit job descriptions right from the job details page"
-- Billing stuff: "For billing and payments, check out Settings and then Subscription"
+- Sending documents: "For documents, head to the Documents page where you can create and send them"
+- Editing existing jobs: "You can edit jobs from the job details page"
+- Billing: "For billing and payments, check Settings then Subscription"
 
 === HOW HIREFLOW WORKS (explain naturally when asked) ===
 When someone asks how to create a job, explain conversationally:
-"So to create a job, you'll go through a quick wizard. First you add the basics like title and location, then job details like the description and requirements, set up the salary, and then here's the cool part - you'll set up a workflow. That's where I come in! I'll generate custom phases for the job like quizzes, video intros, typing tests, whatever makes sense. Then you publish it and get a unique code that candidates use to apply. Pretty straightforward!"
+"So to create a job, you'll go through a quick wizard. First you add the basics like title and location, then job details like the description and requirements, set up the salary, and then here's the cool part - you'll set up a workflow. That's where I come in! I'll generate custom phases for the job like quizzes, video intros, typing tests, whatever makes sense. Then you publish it and get a unique code that candidates use to apply. Want me to help you create one right now?"
 
 For how candidates apply:
 "Candidates just enter that job code on the Apply Now screen and then work through each phase you set up. You can run it in Autopilot mode where I automatically advance people who score above your threshold, or Manual mode where you review each person yourself."
@@ -355,6 +383,51 @@ Be proactive! If you notice something helpful, mention it naturally like "Oh by 
               entity_id: { type: "string", description: "Optional ID for entity-specific pages like a specific applicant or job" }
             },
             required: ["page"]
+          }
+        },
+        {
+          type: "function",
+          name: "start_walkthrough",
+          description: "Start a guided walkthrough/tour of the platform for first-time users. Returns a list of pages to show them.",
+          parameters: {
+            type: "object",
+            properties: {},
+            required: []
+          }
+        },
+        {
+          type: "function",
+          name: "send_message",
+          description: "Send a message to an applicant on behalf of the employer. Use when employer wants to communicate with a candidate.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_id: { type: "string", description: "The application ID of the candidate to message" },
+              message_content: { type: "string", description: "The message content to send" }
+            },
+            required: ["application_id", "message_content"]
+          }
+        },
+        {
+          type: "function",
+          name: "create_job_interactive",
+          description: "Create a job posting interactively by filling form fields in real-time as the user speaks. Use this when user wants to create a new job.",
+          parameters: {
+            type: "object",
+            properties: {
+              action: { 
+                type: "string", 
+                enum: ["start", "fill_field", "next_step", "previous_step", "generate_workflow", "generate_content", "publish", "save_draft"],
+                description: "The action to perform"
+              },
+              field: { 
+                type: "string", 
+                description: "Field name to fill (title, description, location, job_type, experience_level, department, salary_min, salary_max, requirements, responsibilities, skills_required, benefits)",
+                enum: ["title", "description", "location", "job_type", "experience_level", "department", "salary_min", "salary_max", "requirements", "responsibilities", "skills_required", "benefits"]
+              },
+              value: { type: "string", description: "Value to fill in the field" }
+            },
+            required: ["action"]
           }
         }
       ];

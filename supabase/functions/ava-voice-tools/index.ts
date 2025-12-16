@@ -342,6 +342,121 @@ serve(async (req) => {
         break;
       }
 
+      case "start_walkthrough": {
+        // Returns list of pages to tour with descriptions
+        result = {
+          action: "walkthrough",
+          pages: [
+            { route: "/dashboard", name: "Dashboard", description: "This is your dashboard where you see an overview of all your jobs and recent applicants" },
+            { route: "/jobs", name: "Jobs", description: "Here's where all your job postings live. You can see active, draft, and closed jobs" },
+            { route: "/jobs/create", name: "Create Job", description: "This is where you create new job postings - and I can help you do this by voice!" },
+            { route: "/applicants", name: "Applicants", description: "All your applicants appear here. You can filter by job, status, and phase" },
+            { route: "/messages", name: "Messages", description: "This is your messaging center for communicating with candidates" },
+            { route: "/documents", name: "Documents", description: "Send and track documents like offer letters and NDAs here" },
+            { route: "/analytics", name: "Analytics", description: "View hiring analytics and insights about your recruitment funnel" }
+          ],
+          success: true
+        };
+        break;
+      }
+
+      case "send_message": {
+        const { application_id, message_content } = parameters;
+
+        // Get application and candidate info
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select("candidate_id, jobs!inner(employer_id)")
+          .eq("id", application_id)
+          .single();
+
+        if (appError || !app) {
+          throw new Error("Application not found");
+        }
+
+        // Verify the employer owns this application
+        if ((app.jobs as any).employer_id !== user.id) {
+          throw new Error("Access denied");
+        }
+
+        // Insert message
+        const { error: msgError } = await supabaseClient
+          .from("messages")
+          .insert({
+            sender_id: user.id,
+            receiver_id: app.candidate_id,
+            application_id: application_id,
+            content: message_content,
+          });
+
+        if (msgError) throw msgError;
+
+        result = { 
+          success: true, 
+          message: "Message sent successfully",
+          to_application: application_id 
+        };
+        break;
+      }
+
+      case "create_job_interactive": {
+        const { action, field, value } = parameters;
+        
+        if (action === "start") {
+          // Navigate to create job page
+          result = {
+            action: "navigate_and_prepare",
+            route: "/jobs/create",
+            message: "Opening the job creation form. Tell me the job title to get started!"
+          };
+        } else if (action === "fill_field") {
+          // Return command to fill a specific field
+          result = {
+            action: "fill_field",
+            field: field,
+            value: value,
+            message: `Got it, filling in ${field}`
+          };
+        } else if (action === "next_step") {
+          result = {
+            action: "navigate_step",
+            step: 1,
+            message: "Moving to the next step"
+          };
+        } else if (action === "previous_step") {
+          result = {
+            action: "navigate_step",
+            step: -1,
+            message: "Going back to the previous step"
+          };
+        } else if (action === "generate_workflow") {
+          result = {
+            action: "trigger_generate",
+            target: "workflow",
+            message: "Generating the AI workflow for this job"
+          };
+        } else if (action === "generate_content") {
+          result = {
+            action: "trigger_generate",
+            target: "full_job",
+            message: "Generating the full job content"
+          };
+        } else if (action === "publish") {
+          result = {
+            action: "submit",
+            status: "published",
+            message: "Publishing the job now!"
+          };
+        } else if (action === "save_draft") {
+          result = {
+            action: "submit",
+            status: "draft",
+            message: "Saving as draft"
+          };
+        }
+        break;
+      }
+
       default:
         throw new Error(`Unknown tool: ${tool_name}`);
     }
