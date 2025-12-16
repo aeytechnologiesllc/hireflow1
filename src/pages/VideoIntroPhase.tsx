@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { 
   ArrowLeft, 
   Video, 
@@ -534,7 +535,6 @@ export default function VideoIntroPhase() {
   }
 
   if (existingResult) {
-    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
