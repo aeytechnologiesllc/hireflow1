@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences }
 export default function Settings() {
   const { user, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
   
@@ -57,9 +58,12 @@ export default function Settings() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
+    const currentRole = role; // Save role before sign out
     try {
       await supabase.auth.signOut();
       toast.success("Signed out successfully");
+      // Navigate based on saved role - candidates go to /candidate, employers to /auth
+      navigate(currentRole === "candidate" ? "/candidate" : "/auth");
     } catch (error) {
       toast.error("Failed to sign out");
     } finally {
