@@ -12,6 +12,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import avaOrbLogo from "@/assets/ava-orb.png";
 
 interface Message {
   id: string;
@@ -213,10 +214,10 @@ export default function AvaVoiceButton() {
     if (isConnecting) {
       return <Loader2 className="h-5 w-5 animate-spin text-white" />;
     }
-    // Show AVA name with listening indicator
+    // Show AVA orb with listening indicator
     return (
-      <div className="flex items-center gap-2">
-        <span className="font-bold text-white text-sm tracking-wide">AVA</span>
+      <div className="flex items-center gap-1.5">
+        <img src={avaOrbLogo} alt="AVA" className="h-8 w-8 object-contain" />
         {isConnected && isListening && (
           <motion.div
             className="h-2 w-2 rounded-full bg-white"
@@ -329,13 +330,9 @@ export default function AvaVoiceButton() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10">
               <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "h-10 w-10 rounded-full flex items-center justify-center",
-                    "bg-gradient-to-r from-emerald-500 to-teal-400"
-                  )}
-                >
-                  <span className="text-white font-bold text-sm">AVA</span>
+                <div className="relative h-10 w-10">
+                  <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-md scale-110" />
+                  <img src={avaOrbLogo} alt="AVA" className="relative h-full w-full object-contain" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">AVA Voice Assistant</h3>
