@@ -9,8 +9,6 @@ import {
   Trash2,
   User,
   Building2,
-  ZoomIn,
-  ZoomOut,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -100,30 +98,7 @@ export function PdfSignaturePlacer({
   const currentPageFields = signatureFields.filter(f => f.page === currentPage);
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar - Zoom only */}
-      <div className="flex items-center justify-end gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-          disabled={zoom <= 0.5}
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-          disabled={zoom >= 2}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <div className="space-y-2">
       {/* PDF Container */}
       <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
         {/* Page Navigation */}
@@ -152,7 +127,7 @@ export function PdfSignaturePlacer({
         )}
 
         {/* PDF Content */}
-        <div className="overflow-auto max-h-[600px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
+        <div className="overflow-auto max-h-[700px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
           {loading && !error && (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
