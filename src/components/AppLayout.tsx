@@ -9,6 +9,7 @@ import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import AvaVoiceButton from "./AvaVoiceButton";
 import OnboardingWizard from "./subscription/OnboardingWizard";
+import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -64,8 +65,11 @@ export default function AppLayout() {
     return null;
   }
 
-  // Show onboarding wizard for new trial users
+  // Show onboarding wizard for new users (role-specific)
   if (hookNeedsOnboarding) {
+    if (role === 'candidate') {
+      return <CandidateOnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
+    }
     return <OnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
   }
 
