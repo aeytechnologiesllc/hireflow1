@@ -59,6 +59,8 @@ const stepTypeIcons: Record<string, any> = {
   application: FileCheck,
   quiz: ClipboardList,
   video_intro: Video,
+  video_message: Video,
+  portfolio_upload: FileCheck,
   typing_test: Keyboard,
   chat_simulation: MessageSquare,
   chat_interview: MessageSquare,
@@ -412,10 +414,14 @@ export default function ApplicantDetails() {
     if (phaseType === "typing_test") {
       return !!parsedNotes.typingTestResult;
     }
-    if (phaseType === "video_intro") {
+    if (phaseType === "video_intro" || phaseType === "video_message") {
       // Check both legacy videoIntroUrl and stepId-based storage
       const stepData = parsedNotes[phaseId];
       return !!parsedNotes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
+    }
+    if (phaseType === "portfolio_upload") {
+      const stepData = parsedNotes[phaseId];
+      return !!(stepData?.completed || stepData?.portfolioUrls?.length > 0);
     }
     if (phaseType === "chat_simulation") {
       return !!parsedNotes.chatSimulationResult;
@@ -823,12 +829,15 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
     if (stepType === "typing_test") {
       return parsedNotes.typingTestResult;
     }
-    if (stepType === "video_intro") {
+    if (stepType === "video_intro" || stepType === "video_message") {
       // Check stepId first (new format with object), then legacy videoIntroUrl (just URL string)
       if (parsedNotes[stepId]) {
         return parsedNotes[stepId];
       }
       return parsedNotes.videoIntroUrl;
+    }
+    if (stepType === "portfolio_upload") {
+      return parsedNotes[stepId];
     }
     if (stepType === "chat_simulation") {
       // First try stepId which contains full data including messages
