@@ -310,6 +310,23 @@ serve(async (req) => {
           .select("user_id, full_name")
           .in("user_id", candidateIds);
         
+        // SMART AUTO-SELECT: If only ONE applicant exists, just open them without asking
+        if (applications.length === 1) {
+          const onlyApp = applications[0];
+          const onlyProfile = profiles?.find((p: any) => p.user_id === onlyApp.candidate_id);
+          const onlyName = onlyProfile?.full_name || 'your applicant';
+          
+          result = {
+            action: "navigate",
+            route: `/applicants/${onlyApp.id}`,
+            candidate_name: onlyName,
+            application_id: onlyApp.id,
+            auto_selected: true,
+            message: `Opening ${onlyName}'s profile - they're your only applicant right now.`
+          };
+          break;
+        }
+        
         // Find matching application by name (case-insensitive)
         const searchName = applicant_name.toLowerCase();
         let foundApp: any = null;
@@ -325,7 +342,13 @@ serve(async (req) => {
         }
         
         if (!foundApp) {
-          throw new Error(`Could not find applicant matching "${applicant_name}"`);
+          // Provide helpful context about available applicants
+          const availableNames = applications.map((a: any) => {
+            const p = profiles?.find((p: any) => p.user_id === a.candidate_id);
+            return p?.full_name || 'Unknown';
+          }).filter(n => n !== 'Unknown');
+          
+          throw new Error(`Could not find applicant matching "${applicant_name}". You have ${applications.length} applicants: ${availableNames.join(', ')}`);
         }
         
         result = {
