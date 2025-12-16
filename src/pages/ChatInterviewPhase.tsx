@@ -75,12 +75,24 @@ export default function ChatInterviewPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0); // Track elapsed seconds for live clock
   const [questionCount, setQuestionCount] = useState(0);
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Update elapsed time every second when interviewing
+  useEffect(() => {
+    if (state !== "interviewing" || !startTime) return;
+    
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime.getTime()) / 1000));
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [state, startTime]);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -150,12 +162,10 @@ export default function ChatInterviewPhase() {
     };
   }, [state]);
 
-  // Calculate interview duration
+  // Format elapsed time for display
   const getDuration = () => {
-    if (!startTime) return "0:00";
-    const diff = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
-    const mins = Math.floor(diff / 60);
-    const secs = diff % 60;
+    const mins = Math.floor(elapsedTime / 60);
+    const secs = elapsedTime % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
