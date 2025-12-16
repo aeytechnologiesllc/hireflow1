@@ -140,9 +140,21 @@ export default function CandidateApplicationDetail() {
   // Build phases from workflow
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
-    const allPhases = [
+    const quizQuestions = application?.jobs?.quiz_questions as any[] | undefined;
+    
+    const allPhases: { id: string; title: string; icon: any; type: string }[] = [
       { id: "application", title: "Application", icon: FileCheck, type: "application" },
     ];
+
+    // Add Quiz phase if quiz_questions exist
+    if (quizQuestions && quizQuestions.length > 0) {
+      allPhases.push({
+        id: "quiz",
+        title: "Timed Quiz",
+        icon: ClipboardList,
+        type: "quiz",
+      });
+    }
 
     if (workflowSteps && workflowSteps.length > 0) {
       workflowSteps.forEach((step) => {
