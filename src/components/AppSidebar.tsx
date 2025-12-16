@@ -203,13 +203,19 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
         "relative z-10 h-16 flex items-center",
         collapsed && !isMobile ? "justify-center px-2" : "gap-3 px-6"
       )}>
-        <img 
-          src={hireflowLogo} 
-          alt="HireFlow" 
-          className="w-9 h-9 rounded-xl shrink-0 animate-logo-breathe object-cover"
-        />
+        <div className="relative shrink-0">
+          {/* Glow effect behind logo */}
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-500/40 via-fuchsia-500/30 to-emerald-500/20 blur-lg scale-125 animate-glow-pulse" />
+          <img 
+            src={hireflowLogo} 
+            alt="HireFlow" 
+            className="relative w-9 h-9 rounded-xl animate-logo-breathe object-cover"
+          />
+        </div>
         {(!collapsed || isMobile) && (
-          <span className="text-xl font-bold text-gradient">HireFlow</span>
+          <span className="text-xl font-bold bg-gradient-to-r from-white via-white to-gray-300 bg-clip-text text-transparent tracking-tight">
+            HireFlow
+          </span>
         )}
         {/* Close button on mobile */}
         {isMobile && (
