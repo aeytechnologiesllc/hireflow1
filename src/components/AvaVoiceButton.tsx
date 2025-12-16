@@ -271,13 +271,17 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // Trial exhausted - still show premium orb (not amber)
+    // Trial exhausted - still show premium orb with pulse (not amber)
     if (voiceAccessState === 'trial_exhausted') {
       return (
-        <div className="relative">
+        <motion.div 
+          className="relative"
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
           <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
           <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
-        </div>
+        </motion.div>
       );
     }
     if (isConnecting) {
@@ -325,12 +329,20 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // Show AVA orb with glow effect (default/disconnected)
+    // Show AVA orb with glow effect and subtle pulse (default/disconnected)
     return (
-      <div className="relative">
-        <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
+      <motion.div 
+        className="relative"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <motion.div 
+          className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125"
+          animate={{ opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
         <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
-      </div>
+      </motion.div>
     );
   };
 
