@@ -20,6 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { format } from "date-fns";
+import VoiceCreditsSection from "./VoiceCreditsSection";
 
 export default function SubscriptionSettings() {
   const {
@@ -274,12 +275,11 @@ export default function SubscriptionSettings() {
                   {billingInterval === "yearly" && (
                     <p className="text-xs text-muted-foreground">Billed {pricing.enterprise.yearlyFormatted}/year</p>
                   )}
-                  <ul className="space-y-2 text-sm">
                     {[
                       "Everything in Business",
                       "AVA Voice Assistant",
                       "Voice Interviews",
-                      "500 Voice Minutes/mo",
+                      "150 Voice Minutes/mo",
                     ].map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-purple-400 flex-shrink-0" />
@@ -361,6 +361,8 @@ export default function SubscriptionSettings() {
           )}
         </div>
       </div>
+      {/* Voice Credits Section - For Enterprise users */}
+      <VoiceCreditsSection />
 
       {/* Usage Stats */}
       <div className="p-6 rounded-xl border border-border bg-card/50">

@@ -61,37 +61,50 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Get usage data
-    const { data: usage } = await supabaseClient
-      .from("subscription_usage")
-      .select("voice_minutes_used")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const voiceMinutesUsed = usage?.voice_minutes_used || 0;
-    
-    // Determine voice limits based on plan
-    const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
-    const isTrial = subscription?.status === 'trialing';
-    const voiceMinutesLimit = isEnterprise ? 500 : (isTrial ? 5 : 0);
-    
-    // Check access
+    // Check access - only Enterprise and Trial can use voice
     if (!subscription) {
       throw new Error("No subscription found");
     }
     
-    if (isEnterprise) {
-      // Enterprise has full access (500 min)
-      console.log("Enterprise user, full voice access");
-    } else if (isTrial) {
-      // Trial users get 5 minutes
-      if (voiceMinutesUsed >= voiceMinutesLimit) {
-        throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 500 minutes/month.");
-      }
-      console.log(`Trial user, ${voiceMinutesLimit - voiceMinutesUsed} minutes remaining`);
-    } else {
-      // Growth/Business users don't have voice access
+    const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
+    const isTrial = subscription?.status === 'trialing';
+    
+    if (!isEnterprise && !isTrial) {
       throw new Error("Voice features require Enterprise plan");
+    }
+
+    // Get active voice credits from voice_credits table (FIFO by expiration)
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: voiceCredits } = await adminClient
+      .from("voice_credits")
+      .select("id, minutes_remaining, expires_at")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .gt("expires_at", new Date().toISOString())
+      .gt("minutes_remaining", 0)
+      .order("expires_at", { ascending: true });
+
+    const totalMinutesAvailable = (voiceCredits || []).reduce(
+      (sum, credit) => sum + (credit.minutes_remaining || 0),
+      0
+    );
+
+    if (totalMinutesAvailable <= 0) {
+      if (isTrial) {
+        throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 150 minutes/month.");
+      }
+      throw new Error("No voice minutes available. Purchase a voice credit pack to continue.");
+    }
+
+    console.log(`User has ${totalMinutesAvailable.toFixed(1)} voice minutes available`);
+    if (isEnterprise) {
+      console.log("Enterprise user with voice credits");
+    } else if (isTrial) {
+      console.log("Trial user with voice credits");
     }
 
     // Build system instructions based on mode
@@ -609,16 +622,8 @@ ${application.ai_score && application.ai_score < 60 ? 'Note: Initial AI screenin
     const sessionData = await response.json();
     console.log("Voice session created:", { sessionId: sessionData.id });
 
-    // Track voice usage
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
-    await supabaseAdmin
-      .from("subscription_usage")
-      .update({ voice_minutes_used: supabaseAdmin.rpc('increment_voice_minutes') })
-      .eq("user_id", user.id);
+    // Voice usage will be tracked when session ends via webhook or frontend tracking
+    // The voice_credits table is used for minute tracking with FIFO consumption
 
     return new Response(JSON.stringify({
       ...sessionData,

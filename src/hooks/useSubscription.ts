@@ -43,10 +43,26 @@ export interface PlanLimits {
   hasVoiceInterviews: boolean;
 }
 
+export interface VoiceCredit {
+  id: string;
+  source: 'subscription' | 'purchase';
+  pack_size?: string;
+  minutes_remaining: number;
+  minutes_granted: number;
+  expires_at: string;
+  granted_at: string;
+}
+
+export interface VoiceCreditsData {
+  totalMinutesAvailable: number;
+  credits: VoiceCredit[];
+}
+
 export interface SubscriptionState {
   subscription: SubscriptionData | null;
   usage: UsageData;
   limits: PlanLimits;
+  voiceCredits: VoiceCreditsData;
 }
 
 export function useSubscription() {
@@ -89,6 +105,23 @@ export function useSubscription() {
       });
       if (error) throw error;
       return data;
+    },
+  });
+
+  const purchaseVoiceCredits = useMutation({
+    mutationFn: async ({ packSize }: { packSize: 'small' | 'medium' | 'large' }) => {
+      const { data, error } = await supabase.functions.invoke('purchase-voice-credits', {
+        body: {
+          packSize,
+          successUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=success`,
+          cancelUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=canceled`,
+        },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
     },
   });
 
@@ -138,40 +171,54 @@ export function useSubscription() {
     return usage < limit;
   };
 
-  // Voice access helpers
+  // Voice credits helpers
+  const getVoiceMinutesRemaining = () => {
+    return data?.voiceCredits?.totalMinutesAvailable || 0;
+  };
+
   const hasVoiceAccess = () => {
     if (!data?.subscription) return false;
     const isEnterprise = data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active';
     const isTrial = data.subscription.status === 'trialing';
-    const voiceMinutesRemaining = (data.limits?.voiceMinutes || 0) - (data.usage?.voice_minutes_used || 0);
-    return isEnterprise || (isTrial && voiceMinutesRemaining > 0);
-  };
-
-  const getVoiceMinutesRemaining = () => {
-    if (!data?.limits) return 0;
-    return Math.max(0, (data.limits.voiceMinutes || 0) - (data.usage?.voice_minutes_used || 0));
+    const voiceMinutesRemaining = getVoiceMinutesRemaining();
+    return (isEnterprise || isTrial) && voiceMinutesRemaining > 0;
   };
 
   const getVoiceAccessState = (): 'full' | 'trial' | 'exhausted' | 'locked' | 'expired' => {
     if (!data?.subscription) return 'locked';
     if (data.subscription.status === 'expired') return 'expired';
-    if (data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active') return 'full';
-    if (data.subscription.status === 'trialing') {
-      const remaining = getVoiceMinutesRemaining();
-      return remaining > 0 ? 'trial' : 'exhausted';
+    
+    const isEnterprise = data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active';
+    const isTrial = data.subscription.status === 'trialing';
+    const voiceMinutesRemaining = getVoiceMinutesRemaining();
+    
+    if (isEnterprise) {
+      return voiceMinutesRemaining > 0 ? 'full' : 'exhausted';
+    }
+    if (isTrial) {
+      return voiceMinutesRemaining > 0 ? 'trial' : 'exhausted';
     }
     return 'locked'; // Growth/Business
+  };
+
+  // Low balance warning (show when <= 15 minutes)
+  const showLowBalanceWarning = () => {
+    const state = getVoiceAccessState();
+    if (state === 'locked' || state === 'expired') return false;
+    return getVoiceMinutesRemaining() <= 15 && getVoiceMinutesRemaining() > 0;
   };
 
   return {
     subscription: data?.subscription ?? null,
     usage: data?.usage ?? { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
     limits: data?.limits ?? { jobs: 1, applicants: 10, documents: 5, teamMembers: 0, aiAnalyses: 20, voiceMinutes: 0, hasAdvancedAnalytics: false, hasTeamPortal: false, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: false },
+    voiceCredits: data?.voiceCredits ?? { totalMinutesAvailable: 0, credits: [] },
     isLoading,
     error,
     refetch,
     createCheckoutSession,
     createBillingPortal,
+    purchaseVoiceCredits,
     completeOnboarding,
     getTrialTimeRemaining,
     hasFeature,
@@ -184,5 +231,6 @@ export function useSubscription() {
     hasVoiceAccess,
     getVoiceMinutesRemaining,
     getVoiceAccessState,
+    showLowBalanceWarning,
   };
 }

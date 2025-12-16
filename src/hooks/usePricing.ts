@@ -85,6 +85,13 @@ export const REGIONAL_PRICING: Record<string, {
   DEFAULT: { currency: "USD", symbol: "$", growth: { monthly: 29, yearly: 290 }, business: { monthly: 49, yearly: 490 }, enterprise: { monthly: 99, yearly: 990 }, tier: 1 },
 };
 
+export interface VoiceCreditPackPricing {
+  minutes: number;
+  price: number;
+  priceFormatted: string;
+  pricePerMinute: string;
+}
+
 export interface PricingData {
   countryCode: string;
   currency: string;
@@ -109,6 +116,11 @@ export interface PricingData {
     monthlyFormatted: string;
     yearlyFormatted: string;
     yearlyMonthly: string;
+  };
+  voiceCredits: {
+    small: VoiceCreditPackPricing;
+    medium: VoiceCreditPackPricing;
+    large: VoiceCreditPackPricing;
   };
   tier: number;
   isLoading: boolean;
@@ -208,6 +220,35 @@ export function usePricing(): PricingData {
 
   const pricing = REGIONAL_PRICING[countryCode] || REGIONAL_PRICING.DEFAULT;
 
+  // Calculate voice credit pricing based on tier discount
+  const getVoiceCreditPricing = () => {
+    // Base USD prices
+    const basePrices = { small: 15, medium: 39, large: 99 };
+    const minutes = { small: 50, medium: 150, large: 500 };
+    
+    // Apply tier discount (same ratio as subscription pricing)
+    const tierMultiplier = pricing.tier === 1 ? 1 : 
+                          pricing.tier === 2 ? 0.93 : 
+                          pricing.tier === 3 ? 0.6 : 0.4;
+    
+    const calculatePack = (size: 'small' | 'medium' | 'large') => {
+      const basePrice = basePrices[size];
+      const adjustedPrice = Math.round(basePrice * tierMultiplier);
+      return {
+        minutes: minutes[size],
+        price: adjustedPrice,
+        priceFormatted: formatPrice(adjustedPrice, pricing.symbol, pricing.currency),
+        pricePerMinute: formatPrice(adjustedPrice / minutes[size], pricing.symbol, pricing.currency),
+      };
+    };
+
+    return {
+      small: calculatePack('small'),
+      medium: calculatePack('medium'),
+      large: calculatePack('large'),
+    };
+  };
+
   return {
     countryCode,
     currency: pricing.currency,
@@ -233,6 +274,7 @@ export function usePricing(): PricingData {
       yearlyFormatted: formatPrice(pricing.enterprise.yearly, pricing.symbol, pricing.currency),
       yearlyMonthly: formatPrice(Math.round(pricing.enterprise.yearly / 12), pricing.symbol, pricing.currency),
     },
+    voiceCredits: getVoiceCreditPricing(),
     tier: pricing.tier,
     isLoading,
   };
