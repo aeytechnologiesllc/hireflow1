@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,8 @@ export function PdfSignaturePlacer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const file = useMemo(() => ({ url: pdfUrl }), [pdfUrl]);
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setLoading(false);
@@ -69,7 +71,13 @@ export function PdfSignaturePlacer({
 
   const onDocumentLoadError = (err: Error) => {
     console.error("PDF load error:", err);
-    setError("Failed to load PDF document");
+    setError(err?.message || "Failed to load PDF document");
+    setLoading(false);
+  };
+
+  const onDocumentSourceError = (err: Error) => {
+    console.error("PDF source error:", err, { pdfUrl });
+    setError(err?.message || "Failed to resolve PDF source");
     setLoading(false);
   };
 
@@ -263,24 +271,38 @@ export function PdfSignaturePlacer({
           )}
 
           {error && (
-            <div className="flex flex-col items-center justify-center h-64 gap-2 text-destructive">
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-destructive max-w-[720px] w-full">
               <AlertCircle className="h-8 w-8" />
-              <p>{error}</p>
+              <p className="text-center text-sm">{error}</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => window.open(pdfUrl, "_blank")}>Open PDF</Button>
+              </div>
+              {/* Fallback preview for environments where pdf.js cannot stream/range-request signed URLs */}
+              <div className="w-full rounded-lg overflow-hidden border border-border bg-background">
+                <iframe
+                  src={pdfUrl}
+                  title="PDF Preview"
+                  className="w-full h-[420px] border-0"
+                />
+              </div>
             </div>
           )}
 
           <Document
-            file={{ url: pdfUrl }}
-            options={{ withCredentials: false }}
+            file={file}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
+            onSourceError={onDocumentSourceError}
             loading={null}
+            options={{
+              // Signed/private URLs sometimes don't support PDF.js streaming/range requests reliably.
+              // Disabling these makes PDF.js fetch the whole file in a single request.
+              disableRange: true,
+              disableStream: true,
+            }}
           >
             <div
-              className={cn(
-                "relative",
-                placementMode && "cursor-crosshair"
-              )}
+              className={cn("relative", placementMode && "cursor-crosshair")}
               onClick={handlePageClick}
               onMouseMove={(e) => draggedField && handleFieldDrag(e, draggedField)}
               onMouseUp={handleFieldDragEnd}
