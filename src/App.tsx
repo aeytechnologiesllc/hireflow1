@@ -35,6 +35,8 @@ import Profile from "./pages/Profile";
 import CreateJob from "./pages/CreateJob";
 import NotFound from "./pages/NotFound";
 import MarketingDemo from "./pages/MarketingDemo";
+import CandidatePortalLanding from "./pages/CandidatePortalLanding";
+import CandidateAuth from "./pages/CandidateAuth";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +50,10 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            
+            {/* Candidate Portal (separate entry point) */}
+            <Route path="/candidate" element={<CandidatePortalLanding />} />
+            <Route path="/candidate/auth" element={<CandidateAuth />} />
             
             {/* Protected routes with AppLayout */}
             <Route element={<AppLayout />}>

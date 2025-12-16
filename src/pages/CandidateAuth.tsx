@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, Check, Circle, Briefcase } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Check, Circle } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import hireflowLogo from "@/assets/hireflow-logo.png";
@@ -42,13 +42,16 @@ const PasswordRequirements = ({ password }: { password: string }) => {
   );
 };
 
-export default function Auth() {
+export default function CandidateAuth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">(
+    searchParams.get("tab") === "signup" ? "signup" : "signin"
+  );
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -61,7 +64,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !authLoading) {
-      navigate("/dashboard");
+      navigate("/apply");
     }
   }, [user, authLoading, navigate]);
 
@@ -98,7 +101,7 @@ export default function Auth() {
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
-      navigate("/dashboard");
+      navigate("/apply");
     }
 
     setIsLoading(false);
@@ -123,8 +126,8 @@ export default function Auth() {
       }
     }
 
-    // Always register as employer - candidates use /candidate/auth
-    const { error } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
+    // Always register as candidate - no role selector needed
+    const { error } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate");
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
@@ -139,9 +142,9 @@ export default function Auth() {
     } else {
       toast({
         title: "Account created!",
-        description: "Welcome to HireFlow. You can now start using the platform.",
+        description: "Welcome to HireFlow. You can now apply for jobs.",
       });
-      navigate("/dashboard");
+      navigate("/apply");
     }
 
     setIsLoading(false);
@@ -172,11 +175,11 @@ export default function Auth() {
 
       <div className="container mx-auto px-4 py-8 relative z-10">
         <Link
-          to="/"
+          to="/candidate"
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Home
+          Back to Candidate Portal
         </Link>
 
         <motion.div
@@ -195,8 +198,8 @@ export default function Auth() {
               <span className="text-2xl font-bold text-foreground">HireFlow</span>
             </div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium">
-              <Briefcase className="h-3.5 w-3.5" />
-              Employer Portal
+              <Sparkles className="h-3.5 w-3.5" />
+              Candidate Portal
             </div>
           </div>
 
@@ -236,7 +239,7 @@ export default function Auth() {
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
                   <p className="text-muted-foreground text-sm mt-1">
-                    Sign in to manage your hiring
+                    Sign in to continue your job applications
                   </p>
                 </div>
 
@@ -289,9 +292,9 @@ export default function Auth() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-foreground">Create an employer account</h2>
+                  <h2 className="text-2xl font-bold text-foreground">Create an account</h2>
                   <p className="text-muted-foreground text-sm mt-1">
-                    Start hiring with AI-powered tools
+                    Sign up to start applying for jobs
                   </p>
                 </div>
 
@@ -344,7 +347,7 @@ export default function Auth() {
                         Creating account...
                       </>
                     ) : (
-                      "Create Employer Account"
+                      "Create Account"
                     )}
                   </Button>
                 </form>
@@ -353,9 +356,9 @@ export default function Auth() {
 
             {/* Footer link */}
             <p className="text-center text-sm text-muted-foreground mt-6">
-              Are you a job seeker?{" "}
-              <Link to="/candidate" className="text-primary hover:underline">
-                Visit the candidate portal
+              Are you an employer?{" "}
+              <Link to="/auth" className="text-primary hover:underline">
+                Sign in here
               </Link>
             </p>
           </div>
