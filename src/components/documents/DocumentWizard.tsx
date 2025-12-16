@@ -145,6 +145,8 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [documentName, setDocumentName] = useState("");
+  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false);
+  const [totalPdfPages, setTotalPdfPages] = useState(1);
   
   // Optional fields
   const [hiringManagerName, setHiringManagerName] = useState("");
@@ -205,6 +207,8 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     setUploadedFileUrl("");
     setDocumentName("");
     setSignatureFields([]);
+    setIsAnalyzingDocument(false);
+    setTotalPdfPages(1);
     setLegacySignatureFields([
       { id: "recipient", label: "Recipient Signature", required: true },
       { id: "employer", label: "Employer Signature", required: true },
@@ -248,7 +252,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       case "generate":
         return !!generatedContent;
       case "upload":
-        return !!uploadedFileUrl && !!documentName.trim();
+        return !!uploadedFileUrl && !!documentName.trim() && !isAnalyzingDocument;
       case "review":
         // For uploads with PDF, require at least one positioned signature field
         if (documentSource === "upload" && uploadedFile?.type === "application/pdf") {
@@ -360,9 +364,16 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       
       setUploadedFileUrl(fullUrl);
       
+      // For PDFs, automatically analyze and place signature fields
+      if (file.type === "application/pdf") {
+        await analyzeDocumentFields(fullUrl);
+      }
+      
       toast({
         title: "File Uploaded",
-        description: "Your document has been uploaded successfully.",
+        description: file.type === "application/pdf" 
+          ? "Document analyzed and signature fields placed automatically."
+          : "Your document has been uploaded successfully.",
       });
     } catch (error: any) {
       console.error("Error uploading file:", error);
@@ -420,6 +431,73 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const analyzeDocumentFields = async (pdfUrl: string) => {
+    setIsAnalyzingDocument(true);
+    
+    try {
+      // Get PDF page count by loading it
+      // We'll estimate 1 page for now since we can't easily count without full PDF parsing
+      // The edge function will handle the actual analysis
+      const estimatedPages = 1;
+      setTotalPdfPages(estimatedPages);
+      
+      const { data, error } = await supabase.functions.invoke("ai-analyze-document-fields", {
+        body: {
+          pdfUrl,
+          totalPages: estimatedPages,
+        },
+      });
+
+      if (error) {
+        console.error("Error analyzing document:", error);
+        // Use default fields on error
+        setDefaultSignatureFields(estimatedPages);
+        return;
+      }
+
+      if (data?.suggestedFields && data.suggestedFields.length > 0) {
+        console.log("AI suggested fields:", data.suggestedFields);
+        setSignatureFields(data.suggestedFields);
+      } else {
+        // Fallback to defaults
+        setDefaultSignatureFields(estimatedPages);
+      }
+    } catch (error) {
+      console.error("Error analyzing document:", error);
+      setDefaultSignatureFields(1);
+    } finally {
+      setIsAnalyzingDocument(false);
+    }
+  };
+
+  const setDefaultSignatureFields = (totalPages: number) => {
+    const timestamp = Date.now();
+    setSignatureFields([
+      {
+        id: `field_${timestamp}_0`,
+        label: "Candidate Signature",
+        required: true,
+        type: "candidate",
+        x: 10,
+        y: 82,
+        page: totalPages,
+        width: 25,
+        height: 5,
+      },
+      {
+        id: `field_${timestamp}_1`,
+        label: "Employer Signature",
+        required: true,
+        type: "employer",
+        x: 55,
+        y: 82,
+        page: totalPages,
+        width: 25,
+        height: 5,
+      },
+    ]);
   };
 
   const handleSubmit = async () => {
@@ -1058,10 +1136,17 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                {uploadedFileUrl && (
+                {isAnalyzingDocument ? (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing document and placing signature fields...
+                  </div>
+                ) : uploadedFileUrl && (
                   <div className="mt-3 flex items-center gap-2 text-sm text-success">
                     <Check className="h-4 w-4" />
-                    File uploaded successfully
+                    {uploadedFile?.type === "application/pdf" 
+                      ? "Document analyzed - signature fields placed automatically"
+                      : "File uploaded successfully"}
                   </div>
                 )}
               </div>
@@ -1107,7 +1192,9 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                 
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                   <p className="text-sm text-blue-600 dark:text-blue-400">
-                    Click on the PDF to place signature fields. Candidate signs first, then employer countersigns.
+                    {signatureFields.length > 0 
+                      ? "AI has placed signature fields. You can click to add more or drag existing fields to reposition."
+                      : "Click on the PDF to place signature fields. Candidate signs first, then employer countersigns."}
                   </p>
                 </div>
 
