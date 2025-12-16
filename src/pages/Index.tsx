@@ -369,14 +369,17 @@ export default function Index() {
           >
             <motion.div 
               variants={scaleIn}
-              className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-500 flex items-center justify-center mx-auto mb-6"
+              className="relative w-20 h-20 mx-auto mb-6"
             >
-              <motion.div 
-                animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Sparkles className="h-8 w-8 text-white" />
-              </motion.div>
+              {/* Subtle glow behind orb */}
+              <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-xl scale-125" />
+              <motion.img 
+                src={avaOrbLogo}
+                alt="AVA AI"
+                className="relative w-full h-full object-contain"
+                animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              />
             </motion.div>
             <motion.h2 
               variants={fadeInUp}
