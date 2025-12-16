@@ -83,8 +83,14 @@ EVALUATION MODE: You are now evaluating the support agent's performance. Analyze
 RESPONSE GUIDELINES:
 - Keep responses 1-3 sentences typically (real customers don't write essays)
 - Occasionally send very short responses ("ok", "and?", "I see")
-- If you're satisfied with the resolution, say something like "Thank you for your help!" or "I appreciate it"
 - Don't be satisfied too easily - make sure the agent actually addresses your concern
+
+NATURAL CONVERSATION ENDING:
+- When you feel the agent has genuinely resolved your issue (after at least ${Math.max(5, messageCount)} exchanges), you should naturally wrap up
+- Express genuine gratitude and satisfaction in a natural way like: "Thank you so much! I really appreciate your help." or "That's great, thanks for sorting this out for me!"
+- When you're satisfied and ready to end the conversation, add [RESOLVED] at the very END of your message (this is a hidden marker, write your natural message first then add [RESOLVED] at the end)
+- Only add [RESOLVED] when you're truly satisfied - the agent must have actually addressed your concern
+- Example: "Perfect, that's exactly what I needed. Thanks so much for your help! [RESOLVED]"
 `}`;
 
     let userContent = "";
