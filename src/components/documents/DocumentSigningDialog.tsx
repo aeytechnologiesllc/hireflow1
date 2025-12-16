@@ -38,9 +38,12 @@ interface SignatureField {
 }
 
 interface DocumentData {
-  content: string;
+  content: string | null;
   signatureFields: SignatureField[];
   metadata?: Record<string, any>;
+  uploadedFileUrl?: string;
+  uploadedFileName?: string;
+  uploadedFileType?: string;
 }
 
 interface AuditLog {
@@ -122,7 +125,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         const jsonString = atob(base64Content);
         const parsed = JSON.parse(jsonString) as DocumentData;
         setDocumentData(parsed);
-        setEditedContent(parsed.content);
+        setEditedContent(parsed.content || "");
       } else if (document.file_url.startsWith("data:text/plain;base64,")) {
         const base64Content = document.file_url.split(",")[1];
         const content = atob(base64Content);
@@ -143,6 +146,8 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       });
     }
   };
+
+  const isUploadedDocument = documentData?.uploadedFileUrl && !documentData?.content;
 
   const recordDocumentView = async () => {
     if (!document || !user) return;
@@ -444,7 +449,14 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   const handleDownload = () => {
     if (!document || !documentData) return;
     
-    const blob = new Blob([documentData.content], { type: "text/plain" });
+    // For uploaded documents, open the file URL
+    if (isUploadedDocument && documentData.uploadedFileUrl) {
+      window.open(documentData.uploadedFileUrl, "_blank");
+      return;
+    }
+    
+    // For generated documents, download as text
+    const blob = new Blob([documentData.content || ""], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = window.document.createElement("a");
     a.href = url;
@@ -537,7 +549,30 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
             {/* Document View */}
             <TabsContent value="document" className="h-full m-0">
               <ScrollArea className="h-[calc(70vh-180px)]">
-                {isEditing ? (
+                {isUploadedDocument ? (
+                  // Uploaded document view
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border min-h-full shadow-inner overflow-hidden">
+                    {documentData?.uploadedFileType === "application/pdf" ? (
+                      <iframe
+                        src={documentData.uploadedFileUrl}
+                        className="w-full h-[500px] border-0"
+                        title="Document Preview"
+                      />
+                    ) : (
+                      <div className="p-8 text-center">
+                        <FileText className="h-16 w-16 text-primary mx-auto mb-4" />
+                        <h3 className="font-semibold mb-2">{documentData?.uploadedFileName || document?.name}</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {documentData?.uploadedFileType || "Document file"}
+                        </p>
+                        <Button onClick={() => window.open(documentData?.uploadedFileUrl, "_blank")}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Open Document
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : isEditing ? (
                   <Textarea
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
