@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,6 +12,9 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  CheckCircle2,
+  MousePointer2,
+  RotateCcw,
 } from "lucide-react";
 
 // Set up PDF.js worker (Vite + pdfjs-dist v5+ uses .mjs)
@@ -45,7 +47,16 @@ interface PdfSignaturePlacerProps {
   readOnly?: boolean;
   activeSignerId?: "candidate" | "employer";
   signatures?: Record<string, string>;
+  guidedMode?: boolean; // Enable step-by-step guided placement
 }
+
+// Define the 4 fields to place in order
+const PLACEMENT_STEPS = [
+  { id: "candidate_signature", label: "Candidate Signature", type: "candidate" as const, width: 20, height: 5 },
+  { id: "candidate_date", label: "Candidate Date", type: "candidate" as const, width: 12, height: 4 },
+  { id: "employer_signature", label: "Employer Signature", type: "employer" as const, width: 20, height: 5 },
+  { id: "employer_date", label: "Employer Date", type: "employer" as const, width: 12, height: 4 },
+];
 
 export function PdfSignaturePlacer({
   pdfUrl,
@@ -54,14 +65,20 @@ export function PdfSignaturePlacer({
   readOnly = false,
   activeSignerId,
   signatures = {},
+  guidedMode = false,
 }: PdfSignaturePlacerProps) {
   const pageContainerRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom] = useState(1);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [placementStep, setPlacementStep] = useState(0); // 0-3 for guided mode
+  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const file = useMemo(() => ({ url: pdfUrl }), [pdfUrl]);
+
+  const isPlacementComplete = placementStep >= PLACEMENT_STEPS.length;
+  const currentStepInfo = PLACEMENT_STEPS[placementStep];
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -81,8 +98,73 @@ export function PdfSignaturePlacer({
     setLoading(false);
   };
 
+  const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly || !guidedMode || isPlacementComplete) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // Create the field at clicked position
+    const newField: SignatureFieldWithPosition = {
+      id: currentStepInfo.id,
+      label: currentStepInfo.label,
+      required: true,
+      type: currentStepInfo.type,
+      x: Math.max(0, Math.min(100 - currentStepInfo.width, x - currentStepInfo.width / 2)),
+      y: Math.max(0, Math.min(100 - currentStepInfo.height, y - currentStepInfo.height / 2)),
+      page: currentPage,
+      width: currentStepInfo.width,
+      height: currentStepInfo.height,
+    };
+
+    onFieldsChange([...signatureFields, newField]);
+    setPlacementStep(placementStep + 1);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly || !guidedMode || isPlacementComplete) {
+      setHoverPosition(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setHoverPosition({ x, y });
+  };
+
+  const handleMouseLeave = () => {
+    setHoverPosition(null);
+  };
+
+  const handleUndo = () => {
+    if (placementStep > 0) {
+      const prevStep = placementStep - 1;
+      const prevStepId = PLACEMENT_STEPS[prevStep].id;
+      onFieldsChange(signatureFields.filter(f => f.id !== prevStepId));
+      setPlacementStep(prevStep);
+    }
+  };
+
+  const handleReset = () => {
+    onFieldsChange([]);
+    setPlacementStep(0);
+  };
+
   const removeField = (fieldId: string) => {
-    onFieldsChange(signatureFields.filter(f => f.id !== fieldId));
+    // Find which step this field belongs to
+    const stepIndex = PLACEMENT_STEPS.findIndex(s => s.id === fieldId);
+    if (stepIndex !== -1 && stepIndex < placementStep) {
+      // Reset back to that step
+      onFieldsChange(signatureFields.filter(f => {
+        const fIndex = PLACEMENT_STEPS.findIndex(s => s.id === f.id);
+        return fIndex < stepIndex;
+      }));
+      setPlacementStep(stepIndex);
+    } else {
+      onFieldsChange(signatureFields.filter(f => f.id !== fieldId));
+    }
   };
 
   const getFieldColor = (type: "candidate" | "employer") => {
@@ -98,7 +180,75 @@ export function PdfSignaturePlacer({
   const currentPageFields = signatureFields.filter(f => f.page === currentPage);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Guided Placement Instructions */}
+      {guidedMode && !readOnly && (
+        <div className="space-y-3">
+          {/* Progress Bar */}
+          <div className="flex items-center gap-2">
+            {PLACEMENT_STEPS.map((step, index) => (
+              <div key={step.id} className="flex items-center gap-1">
+                <div className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all",
+                  index < placementStep 
+                    ? "bg-emerald-500 text-white" 
+                    : index === placementStep 
+                      ? "bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2 ring-offset-background" 
+                      : "bg-muted text-muted-foreground"
+                )}>
+                  {index < placementStep ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </div>
+                {index < PLACEMENT_STEPS.length - 1 && (
+                  <div className={cn(
+                    "w-8 h-0.5 transition-colors",
+                    index < placementStep ? "bg-emerald-500" : "bg-muted"
+                  )} />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Current Step Instruction */}
+          {!isPlacementComplete ? (
+            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-2">
+                <MousePointer2 className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium text-primary">
+                  Step {placementStep + 1}: Click where the <strong>{currentStepInfo.label}</strong> should go
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                {currentStepInfo.type === "candidate" 
+                  ? "Place this where the candidate will sign/date"
+                  : "Place this where you (employer) will countersign/date"}
+              </p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  All signature fields placed successfully!
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Undo/Reset Buttons */}
+          {placementStep > 0 && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleUndo}>
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Undo Last
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleReset}>
+                Reset All
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* PDF Container */}
       <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
         {/* Page Navigation */}
@@ -127,7 +277,7 @@ export function PdfSignaturePlacer({
         )}
 
         {/* PDF Content */}
-        <div className="overflow-auto max-h-[700px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
+        <div className="overflow-auto max-h-[600px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
           {loading && !error && (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -163,13 +313,47 @@ export function PdfSignaturePlacer({
               disableStream: true,
             }}
           >
-            <div ref={pageContainerRef} className="relative">
+            <div 
+              ref={pageContainerRef} 
+              className={cn(
+                "relative",
+                guidedMode && !isPlacementComplete && !readOnly && "cursor-crosshair"
+              )}
+              onClick={handlePdfClick}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            >
               <Page
                 pageNumber={currentPage}
                 scale={zoom}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
               />
+
+              {/* Hover Preview (Guided Mode) */}
+              {guidedMode && !readOnly && !isPlacementComplete && hoverPosition && (
+                <div
+                  className={cn(
+                    "absolute border-2 border-dashed rounded opacity-60 pointer-events-none",
+                    currentStepInfo.type === "candidate" ? "border-blue-500 bg-blue-500/20" : "border-emerald-500 bg-emerald-500/20"
+                  )}
+                  style={{
+                    left: `${Math.max(0, Math.min(100 - currentStepInfo.width, hoverPosition.x - currentStepInfo.width / 2))}%`,
+                    top: `${Math.max(0, Math.min(100 - currentStepInfo.height, hoverPosition.y - currentStepInfo.height / 2))}%`,
+                    width: `${currentStepInfo.width}%`,
+                    height: `${currentStepInfo.height}%`,
+                    minHeight: "24px",
+                    minWidth: "60px",
+                  }}
+                >
+                  <span className={cn(
+                    "absolute inset-0 flex items-center justify-center text-xs font-medium",
+                    currentStepInfo.type === "candidate" ? "text-blue-700" : "text-emerald-700"
+                  )}>
+                    {currentStepInfo.label}
+                  </span>
+                </div>
+              )}
 
               {/* Signature Fields Overlay */}
               <div className="absolute inset-0 pointer-events-none">
@@ -197,8 +381,8 @@ export function PdfSignaturePlacer({
                           top: `${field.y}%`,
                           width: `${field.width}%`,
                           height: `${field.height}%`,
-                          minHeight: "32px",
-                          minWidth: "80px",
+                          minHeight: "24px",
+                          minWidth: "60px",
                         }}
                       >
                         {/* Field Content */}
@@ -247,10 +431,10 @@ export function PdfSignaturePlacer({
         </div>
       </div>
 
-      {/* Field List */}
-      {signatureFields.length > 0 && (
+      {/* Field List (Non-guided mode) */}
+      {!guidedMode && signatureFields.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">AI-Placed Signature Fields ({signatureFields.length})</Label>
+          <p className="text-xs text-muted-foreground">Signature Fields ({signatureFields.length})</p>
           <div className="flex flex-wrap gap-2">
             {signatureFields.map((field) => {
               const FieldIcon = getFieldIcon(field.type);
@@ -279,14 +463,6 @@ export function PdfSignaturePlacer({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {signatureFields.length === 0 && !readOnly && (
-        <div className="text-center py-6 text-muted-foreground">
-          <p className="text-sm">No signature fields placed yet.</p>
-          <p className="text-xs mt-1">AI will automatically place fields when you upload a document.</p>
         </div>
       )}
     </div>
