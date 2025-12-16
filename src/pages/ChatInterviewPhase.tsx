@@ -343,6 +343,8 @@ export default function ChatInterviewPhase() {
       toast.error(error instanceof Error ? error.message : "Failed to get interview response");
     } finally {
       setIsTyping(false);
+      // Auto-focus the input after Ava responds
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
