@@ -414,9 +414,14 @@ export default function Index() {
               >
                 <motion.div 
                   whileHover={{ scale: 1.1, rotate: 5 }}
-                  className={`w-14 h-14 rounded-xl ${feature.iconBg} flex items-center justify-center mb-5`}
+                  className="relative w-14 h-14 mb-5"
                 >
-                  <feature.icon className="h-7 w-7 text-white" />
+                  {/* Glow effect */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-500/50 via-fuchsia-500/40 to-emerald-500/30 blur-lg scale-110 opacity-60 group-hover:opacity-90 transition-opacity" />
+                  {/* Glass background */}
+                  <div className="relative w-full h-full rounded-xl bg-gradient-to-br from-purple-500/20 via-fuchsia-500/15 to-transparent backdrop-blur-sm border border-purple-500/30 flex items-center justify-center">
+                    <feature.icon className="h-7 w-7 text-purple-300" />
+                  </div>
                 </motion.div>
                 <h3 className={`text-xl font-bold mb-3 ${feature.titleColor}`}>
                   {feature.title}
