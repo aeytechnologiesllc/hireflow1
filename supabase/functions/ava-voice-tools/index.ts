@@ -257,6 +257,9 @@ serve(async (req) => {
           .single();
 
         const appData = app as any;
+        const notes = typeof app.notes === 'string' ? JSON.parse(app.notes || '{}') : (app.notes || {});
+        
+        // Build comprehensive AVA analysis response
         result = {
           application_id: app.id,
           candidate_name: profile?.full_name || 'Unknown',
@@ -266,7 +269,70 @@ serve(async (req) => {
           ai_score: app.ai_score,
           skills: profile?.skills,
           experience: profile?.experience_years,
-          applied_at: app.created_at
+          applied_at: app.created_at,
+          // Include full AVA analysis data
+          ava_analysis: {
+            phase_analysis: appData.phase_ai_analysis,
+            resume_analysis: notes.resumeAnalysis,
+            quiz_score: notes.quizAnswers?.score,
+            typing_test: notes.typingTestResult,
+            chat_simulation: notes.chatSimulationResult,
+            sales_simulation: notes.salesSimulationResult,
+            chat_interview: notes.chatInterviewResult,
+            video_intro_url: notes.videoIntroUrl,
+            inconsistencies: notes.inconsistencies,
+            credibility_rating: notes.credibilityRating
+          }
+        };
+        break;
+      }
+
+      case "open_applicant_page": {
+        const { applicant_name } = parameters;
+        
+        // Get all applications for this employer with profile info
+        const { data: applications } = await supabaseClient
+          .from("applications")
+          .select(`
+            id, status, phase, ai_score, candidate_id,
+            jobs!inner(title, employer_id)
+          `)
+          .eq("jobs.employer_id", user.id);
+        
+        if (!applications || applications.length === 0) {
+          throw new Error("No applicants found");
+        }
+        
+        // Get profiles for all candidates
+        const candidateIds = applications.map((a: any) => a.candidate_id);
+        const { data: profiles } = await supabaseClient
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", candidateIds);
+        
+        // Find matching application by name (case-insensitive)
+        const searchName = applicant_name.toLowerCase();
+        let foundApp: any = null;
+        let foundName: string = '';
+        
+        for (const application of applications) {
+          const profile = profiles?.find((p: any) => p.user_id === application.candidate_id);
+          if (profile?.full_name?.toLowerCase().includes(searchName)) {
+            foundApp = application;
+            foundName = profile.full_name;
+            break;
+          }
+        }
+        
+        if (!foundApp) {
+          throw new Error(`Could not find applicant matching "${applicant_name}"`);
+        }
+        
+        result = {
+          action: "navigate",
+          route: `/applicants/${foundApp.id}`,
+          candidate_name: foundName,
+          application_id: foundApp.id
         };
         break;
       }

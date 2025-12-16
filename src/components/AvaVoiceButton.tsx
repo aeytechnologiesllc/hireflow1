@@ -48,9 +48,14 @@ export default function AvaVoiceButton() {
 
     // Invalidate relevant queries to sync dashboard when AVA performs actions
     if (result?.success || result?.action) {
-      // Handle navigation commands
+      // Handle open_applicant_page - instant navigation, no toast
+      if (toolName === 'open_applicant_page' && result.action === 'navigate' && result.route) {
+        navigate(result.route);
+        return;
+      }
+      
+      // Handle navigation commands - minimal feedback
       if (toolName === 'navigate_to_page' && result.action === 'navigate' && result.route) {
-        toast.success(`Opening ${result.page.replace(/_/g, ' ')}...`);
         navigate(result.route);
         return;
       }
@@ -70,7 +75,7 @@ export default function AvaVoiceButton() {
       
       // Handle message sent
       if (toolName === 'send_message' && result.success) {
-        toast.success('Message sent to applicant!');
+        toast.success('Message sent!');
         queryClient.invalidateQueries({ queryKey: ["messages"] });
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         return;
