@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -116,21 +116,33 @@ export function PdfSignaturePlacer({
     setPlacementStep(placementStep + 1);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const rafRef = useRef<number | null>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !guidedMode || isPlacementComplete) {
       setHoverPosition(null);
       return;
     }
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setHoverPosition({ x, y });
-  };
+    // Throttle updates using requestAnimationFrame
+    if (rafRef.current) return;
+    
+    rafRef.current = requestAnimationFrame(() => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      setHoverPosition({ x, y });
+      rafRef.current = null;
+    });
+  }, [readOnly, guidedMode, isPlacementComplete]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     setHoverPosition(null);
-  };
+  }, []);
 
   const handleUndo = () => {
     if (placementStep > 0) {
@@ -330,8 +342,8 @@ export function PdfSignaturePlacer({
               {guidedMode && !readOnly && !isPlacementComplete && hoverPosition && (
                 <div
                   className={cn(
-                    "absolute border-2 border-dashed rounded opacity-60 pointer-events-none",
-                    currentStepInfo.type === "candidate" ? "border-blue-500 bg-blue-500/20" : "border-emerald-500 bg-emerald-500/20"
+                    "absolute border-2 border-dashed rounded pointer-events-none",
+                    currentStepInfo.type === "candidate" ? "border-blue-500/70 bg-blue-500/15" : "border-emerald-500/70 bg-emerald-500/15"
                   )}
                   style={{
                     left: `${Math.max(0, Math.min(100 - currentStepInfo.width, hoverPosition.x - currentStepInfo.width / 2))}%`,
@@ -340,11 +352,13 @@ export function PdfSignaturePlacer({
                     height: `${currentStepInfo.height}%`,
                     minHeight: "24px",
                     minWidth: "60px",
+                    willChange: "transform, left, top",
+                    transform: "translateZ(0)",
                   }}
                 >
                   <span className={cn(
                     "absolute inset-0 flex items-center justify-center text-xs font-medium",
-                    currentStepInfo.type === "candidate" ? "text-blue-700" : "text-emerald-700"
+                    currentStepInfo.type === "candidate" ? "text-blue-600" : "text-emerald-600"
                   )}>
                     {currentStepInfo.label}
                   </span>
@@ -363,14 +377,15 @@ export function PdfSignaturePlacer({
                       <motion.div
                         key={field.id}
                         data-signature-field
-                        initial={{ opacity: 0, scale: 0.8 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
                         className={cn(
-                          "absolute border-2 rounded pointer-events-auto transition-all",
+                          "absolute border-2 rounded pointer-events-auto",
                           getFieldColor(field.type),
                           hasSignature && "border-success bg-success/10",
-                          isActive && "ring-2 ring-primary ring-offset-2 animate-pulse"
+                          isActive && "ring-2 ring-primary ring-offset-2"
                         )}
                         style={{
                           left: `${field.x}%`,
