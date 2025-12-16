@@ -22,10 +22,12 @@ serve(async (req) => {
       throw new Error("Text is required");
     }
 
-    console.log(`Generating TTS for text: "${text.substring(0, 50)}..." with voice: ${voiceId || "Roger"}`);
+    // Default to Sarah - warm, professional female voice
+    const selectedVoice = voiceId || "EXAVITQu4vr4xnSDxMaL";
+    console.log(`Generating TTS for text: "${text.substring(0, 50)}..." with voice: ${selectedVoice}`);
 
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId || "CwhRBWXzGAHq8TQ4Fs17"}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`,
       {
         method: "POST",
         headers: {
@@ -37,11 +39,11 @@ serve(async (req) => {
           model_id: "eleven_multilingual_v2",
           output_format: "mp3_44100_128",
           voice_settings: {
-            stability: 0.6,
-            similarity_boost: 0.8,
-            style: 0.4,
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.3,
             use_speaker_boost: true,
-            speed: 1.1,
+            speed: 1.0,
           },
         }),
       }

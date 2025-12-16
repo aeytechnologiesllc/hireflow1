@@ -9,21 +9,22 @@ import {
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { usePricing } from "@/hooks/usePricing";
 
-// Voice narration scripts for each scene
+// Voice narration scripts for each scene - shorter, punchier
 const VOICE_SCRIPTS = [
   "Stop wasting hours on hiring. Let AI do the work.", // Scene 1: Hero
-  "One click. AVA creates your entire hiring workflow—quizzes, assessments, and interviews.", // Scene 2: Workflow
-  "Candidates complete assessments automatically. No scheduling. No coordination.", // Scene 3: Candidate Journey
-  "Track every candidate at a glance. Drag to advance. Click to review.", // Scene 4: Pipeline
-  "AVA analyzes every resume and application. Spots inconsistencies. Ranks candidates instantly.", // Scene 5: Analysis
-  "Set it and forget it. Autopilot advances qualified candidates automatically.", // Scene 6: Autopilot
+  "One click. AVA creates your entire hiring workflow.", // Scene 2: Workflow
+  "Candidates complete assessments automatically. No scheduling needed.", // Scene 3: Candidate Journey
+  "Track every candidate at a glance. Drag to advance.", // Scene 4: Pipeline
+  "AVA analyzes every resume. Spots inconsistencies. Ranks candidates instantly.", // Scene 5: Analysis
+  "Set it and forget it. Autopilot advances qualified candidates.", // Scene 6: Autopilot
   "Control everything with your voice. AVA, move this applicant to interview.", // Scene 7: Voice
   "Send offers and NDAs. E-signatures and audit trails built in.", // Scene 8: Documents
   "Start your free trial today.", // Scene 9: CTA
 ];
 
-const SCENE_DURATIONS = [3500, 6500, 8000, 7500, 5500, 4500, 6500, 5000, 5000];
-const TOTAL_DURATION = SCENE_DURATIONS.reduce((a, b) => a + b, 0);
+// Fallback durations (used only if audio fails to load)
+const FALLBACK_DURATIONS = [4000, 5000, 5500, 5000, 6000, 5000, 6000, 5500, 4000];
+const AUDIO_END_BUFFER = 600; // Buffer after audio ends before next scene
 
 export default function MarketingDemo() {
   const [currentScene, setCurrentScene] = useState(-1);
@@ -32,13 +33,22 @@ export default function MarketingDemo() {
   const [isMuted, setIsMuted] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [audioDurations, setAudioDurations] = useState<number[]>([]);
   const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const sceneTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Preload all audio
+  // Calculate total duration based on actual audio or fallbacks
+  const totalDuration = audioDurations.length > 0 
+    ? audioDurations.reduce((a, b) => a + b, 0) + (AUDIO_END_BUFFER * VOICE_SCRIPTS.length)
+    : FALLBACK_DURATIONS.reduce((a, b) => a + b, 0);
+
+  // Preload all audio and get durations
   const preloadAudio = useCallback(async () => {
     setIsLoading(true);
     const loadedAudios: (HTMLAudioElement | null)[] = [];
+    const durations: number[] = [];
     
     for (let i = 0; i < VOICE_SCRIPTS.length; i++) {
       try {
@@ -59,37 +69,86 @@ export default function MarketingDemo() {
           const audioBlob = await response.blob();
           const audioUrl = URL.createObjectURL(audioBlob);
           const audio = new Audio(audioUrl);
+          
+          // Wait for metadata to get duration
+          await new Promise<void>((resolve) => {
+            audio.addEventListener('loadedmetadata', () => {
+              durations.push(audio.duration * 1000); // Convert to ms
+              resolve();
+            });
+            audio.addEventListener('error', () => {
+              durations.push(FALLBACK_DURATIONS[i]);
+              resolve();
+            });
+            // Fallback if metadata doesn't load
+            setTimeout(() => {
+              if (durations.length <= i) {
+                durations.push(FALLBACK_DURATIONS[i]);
+                resolve();
+              }
+            }, 2000);
+          });
+          
           loadedAudios.push(audio);
         } else {
           loadedAudios.push(null);
+          durations.push(FALLBACK_DURATIONS[i]);
         }
       } catch (error) {
         console.error(`Failed to load audio for scene ${i}:`, error);
         loadedAudios.push(null);
+        durations.push(FALLBACK_DURATIONS[i]);
       }
     }
     
     audioRefs.current = loadedAudios;
+    setAudioDurations(durations);
     setAudioLoaded(true);
     setIsLoading(false);
   }, []);
 
+  const advanceToNextScene = useCallback(() => {
+    setCurrentScene(prev => prev + 1);
+  }, []);
+
   const playSceneAudio = useCallback((sceneIndex: number) => {
-    if (isMuted || !audioRefs.current[sceneIndex]) return;
-    
-    // Stop any currently playing audio
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current.currentTime = 0;
+    // Clear any existing timer
+    if (sceneTimerRef.current) {
+      clearTimeout(sceneTimerRef.current);
+      sceneTimerRef.current = null;
     }
-    
+
     const audio = audioRefs.current[sceneIndex];
-    if (audio) {
+    const sceneDuration = audioDurations[sceneIndex] || FALLBACK_DURATIONS[sceneIndex];
+
+    if (!isMuted && audio) {
+      // Stop any currently playing audio
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+      }
+      
       currentAudioRef.current = audio;
       audio.currentTime = 0;
-      audio.play().catch(console.error);
+      
+      // Set up audio end listener for scene transition
+      const handleAudioEnd = () => {
+        audio.removeEventListener('ended', handleAudioEnd);
+        // Add buffer before advancing
+        sceneTimerRef.current = setTimeout(advanceToNextScene, AUDIO_END_BUFFER);
+      };
+      
+      audio.addEventListener('ended', handleAudioEnd);
+      audio.play().catch(() => {
+        // If audio fails to play, use fallback timer
+        audio.removeEventListener('ended', handleAudioEnd);
+        sceneTimerRef.current = setTimeout(advanceToNextScene, sceneDuration + AUDIO_END_BUFFER);
+      });
+    } else {
+      // No audio or muted - use timer-based transition
+      sceneTimerRef.current = setTimeout(advanceToNextScene, sceneDuration + AUDIO_END_BUFFER);
     }
-  }, [isMuted]);
+  }, [isMuted, audioDurations, advanceToNextScene]);
 
   const startDemo = async () => {
     if (!audioLoaded) {
@@ -105,6 +164,12 @@ export default function MarketingDemo() {
       currentAudioRef.current.pause();
       currentAudioRef.current.currentTime = 0;
     }
+    if (sceneTimerRef.current) {
+      clearTimeout(sceneTimerRef.current);
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
     setCurrentScene(-1);
     setIsPlaying(false);
     setProgress(0);
@@ -119,35 +184,44 @@ export default function MarketingDemo() {
     }
   };
 
-  // Scene progression
+  // Scene progression - audio-driven
   useEffect(() => {
     if (!isPlaying || currentScene < 0) return;
     
-    if (currentScene >= SCENE_DURATIONS.length) {
+    if (currentScene >= VOICE_SCRIPTS.length) {
       setIsPlaying(false);
       return;
     }
 
-    // Play audio for current scene
+    // Play audio for current scene (this also sets up scene transition)
     playSceneAudio(currentScene);
 
-    const timer = setTimeout(() => {
-      setCurrentScene(prev => prev + 1);
-    }, SCENE_DURATIONS[currentScene]);
-
-    return () => clearTimeout(timer);
+    return () => {
+      if (sceneTimerRef.current) {
+        clearTimeout(sceneTimerRef.current);
+      }
+    };
   }, [currentScene, isPlaying, playSceneAudio]);
 
   // Progress bar
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying) {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+      return;
+    }
     
-    const interval = setInterval(() => {
-      setProgress(prev => Math.min(prev + (100 / (TOTAL_DURATION / 100)), 100));
+    progressIntervalRef.current = setInterval(() => {
+      setProgress(prev => Math.min(prev + (100 / (totalDuration / 100)), 100));
     }, 100);
 
-    return () => clearInterval(interval);
-  }, [isPlaying]);
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, [isPlaying, totalDuration]);
 
   return (
     <div className="fixed inset-0 bg-background overflow-hidden">
@@ -238,7 +312,7 @@ export default function MarketingDemo() {
             animate={{ opacity: 1 }}
             className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2"
           >
-            {SCENE_DURATIONS.map((_, i) => (
+            {VOICE_SCRIPTS.map((_, i) => (
               <div 
                 key={i}
                 className={`h-2 rounded-full transition-all duration-300 ${
@@ -292,7 +366,7 @@ function StartScreen({ onStart, isLoading }: { onStart: () => void; isLoading: b
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
-        The Future of Hiring • 48-Second Demo
+        The Future of Hiring • Demo
       </motion.p>
       
       <motion.button
@@ -404,6 +478,26 @@ function Scene1Hero() {
   );
 }
 
+// ============ TYPEWRITER TEXT HELPER ============
+function TypewriterText({ text, delay = 50 }: { text: string; delay?: number }) {
+  const [displayText, setDisplayText] = useState("");
+  
+  useEffect(() => {
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i < text.length) {
+        setDisplayText(text.slice(0, i + 1));
+        i++;
+      } else {
+        clearInterval(timer);
+      }
+    }, delay);
+    return () => clearInterval(timer);
+  }, [text, delay]);
+  
+  return <>{displayText}</>;
+}
+
 // ============ SCENE 2: WORKFLOW GENERATION ============
 function Scene2Workflow() {
   const [step, setStep] = useState(0);
@@ -411,10 +505,10 @@ function Scene2Workflow() {
   
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStep(1), 500),   // Show input
-      setTimeout(() => setStep(2), 1500),  // Typing animation done
-      setTimeout(() => setStep(3), 2500),  // Click generate
-      setTimeout(() => setStep(4), 3500),  // Show phases
+      setTimeout(() => setStep(1), 300),
+      setTimeout(() => setStep(2), 1200),
+      setTimeout(() => setStep(3), 2000),
+      setTimeout(() => setStep(4), 2800),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -457,7 +551,7 @@ function Scene2Workflow() {
           <label className="text-sm text-muted-foreground mb-2 block">Job Title</label>
           <div className="relative">
             <div className="w-full p-4 bg-muted/30 border border-border/50 rounded-xl text-xl font-medium text-foreground">
-              {step >= 1 && <TypewriterText text={jobTitle} delay={80} />}
+              {step >= 1 && <TypewriterText text={jobTitle} delay={60} />}
               {step < 2 && <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.5, repeat: Infinity }}>|</motion.span>}
             </div>
           </div>
@@ -501,7 +595,7 @@ function Scene2Workflow() {
                 key={phase.label}
                 initial={{ opacity: 0, y: 20, scale: 0.8 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: i * 0.1 }}
+                transition={{ delay: i * 0.08 }}
                 className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border/30"
               >
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${phase.color} flex items-center justify-center`}>
@@ -524,7 +618,7 @@ function Scene3CandidateJourney() {
   useEffect(() => {
     const interval = setInterval(() => {
       setActivePhase(prev => (prev + 1) % 5);
-    }, 1500);
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -684,7 +778,7 @@ function Scene4Pipeline() {
   useEffect(() => {
     const interval = setInterval(() => {
       setSliderPosition(prev => (prev + 1) % 6);
-    }, 1200);
+    }, 800);
     return () => clearInterval(interval);
   }, []);
 
@@ -798,10 +892,10 @@ function Scene5Analysis() {
   
   useEffect(() => {
     const scoreTimer = setInterval(() => {
-      setScore(prev => Math.min(prev + 3, 94));
-    }, 50);
+      setScore(prev => Math.min(prev + 4, 94));
+    }, 40);
     
-    const detailsTimer = setTimeout(() => setShowDetails(true), 2000);
+    const detailsTimer = setTimeout(() => setShowDetails(true), 1500);
     
     return () => {
       clearInterval(scoreTimer);
@@ -857,7 +951,7 @@ function Scene5Analysis() {
                 strokeDasharray={440}
                 initial={{ strokeDashoffset: 440 }}
                 animate={{ strokeDashoffset: 440 - (440 * score / 100) }}
-                transition={{ duration: 2, ease: "easeOut" }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
               />
               <defs>
                 <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -890,13 +984,13 @@ function Scene5Analysis() {
                   <CheckCircle className="w-4 h-4" />
                   Key Strengths
                 </div>
-                <p className="text-sm text-muted-foreground">8+ years PM experience, strong technical background, excellent communication</p>
+                <p className="text-sm text-muted-foreground">8+ years PM experience, strong technical background</p>
               </motion.div>
 
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+                transition={{ delay: 0.15 }}
                 className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/30"
               >
                 <div className="flex items-center gap-2 text-orange-500 font-medium mb-2">
@@ -909,7 +1003,7 @@ function Scene5Analysis() {
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
+                transition={{ delay: 0.3 }}
                 className="p-4 rounded-xl bg-red-500/10 border border-red-500/30"
               >
                 <div className="flex items-center gap-2 text-red-500 font-medium mb-2">
@@ -932,17 +1026,17 @@ function Scene6Autopilot() {
   const [passingScore, setPassingScore] = useState(60);
   
   useEffect(() => {
-    const toggleTimer = setTimeout(() => setIsAutopilot(true), 1000);
-    const scoreTimer = setTimeout(() => {
+    const timer1 = setTimeout(() => setIsAutopilot(true), 600);
+    const timer2 = setTimeout(() => {
       const interval = setInterval(() => {
-        setPassingScore(prev => Math.min(prev + 2, 80));
+        setPassingScore(prev => Math.min(prev + 3, 75));
       }, 50);
-      return () => clearInterval(interval);
-    }, 2000);
+      setTimeout(() => clearInterval(interval), 800);
+    }, 1200);
     
     return () => {
-      clearTimeout(toggleTimer);
-      clearTimeout(scoreTimer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
     };
   }, []);
 
@@ -969,27 +1063,7 @@ function Scene6Autopilot() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        {/* Toggle */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-xl font-semibold text-foreground">Processing Mode</h3>
-            <p className="text-muted-foreground">Automatically advance qualified candidates</p>
-          </div>
-          <motion.div 
-            className={`w-20 h-10 rounded-full p-1 cursor-pointer transition-colors ${
-              isAutopilot ? "bg-gradient-to-r from-primary to-accent" : "bg-muted/50"
-            }`}
-            onClick={() => setIsAutopilot(!isAutopilot)}
-          >
-            <motion.div 
-              className="w-8 h-8 rounded-full bg-white shadow-md"
-              animate={{ x: isAutopilot ? 40 : 0 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            />
-          </motion.div>
-        </div>
-
-        {/* Mode labels */}
+        {/* Mode toggle */}
         <div className="flex gap-4 mb-8">
           <motion.div 
             className={`flex-1 p-4 rounded-xl border-2 transition-all ${
@@ -1045,11 +1119,11 @@ function Scene7Voice() {
   
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStep(1), 500),   // Show FAB
-      setTimeout(() => setStep(2), 1500),  // Listening
-      setTimeout(() => setStep(3), 3000),  // User command
-      setTimeout(() => setStep(4), 4500),  // AVA response
-      setTimeout(() => setStep(5), 5500),  // Success
+      setTimeout(() => setStep(1), 400),
+      setTimeout(() => setStep(2), 1200),
+      setTimeout(() => setStep(3), 2400),
+      setTimeout(() => setStep(4), 3600),
+      setTimeout(() => setStep(5), 4800),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -1196,10 +1270,10 @@ function Scene8Documents() {
   
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStep(1), 500),   // Show document
-      setTimeout(() => setStep(2), 1500),  // Signature field
-      setTimeout(() => setStep(3), 2500),  // Drawing signature
-      setTimeout(() => setStep(4), 3500),  // Signed checkmark
+      setTimeout(() => setStep(1), 400),
+      setTimeout(() => setStep(2), 1200),
+      setTimeout(() => setStep(3), 2200),
+      setTimeout(() => setStep(4), 3200),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -1367,7 +1441,7 @@ function Scene9CTA() {
             key={plan.name}
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 + i * 0.15 }}
+            transition={{ delay: 0.3 + i * 0.12 }}
             className={`relative bg-card/60 backdrop-blur-xl rounded-2xl border p-6 ${
               plan.popular ? "border-primary shadow-2xl shadow-primary/20" : "border-border/50"
             }`}
@@ -1456,33 +1530,13 @@ function EndScreen({ onRestart }: { onRestart: () => void }) {
         </motion.button>
         <motion.button
           className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full font-semibold shadow-xl shadow-primary/30"
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px hsl(var(--primary)/0.4)" }}
           whileTap={{ scale: 0.95 }}
         >
-          <Rocket className="w-5 h-5" />
           Start Free Trial
+          <ArrowRight className="w-5 h-5" />
         </motion.button>
       </motion.div>
     </motion.div>
   );
-}
-
-// ============ HELPER COMPONENTS ============
-function TypewriterText({ text, delay = 50 }: { text: string; delay?: number }) {
-  const [displayText, setDisplayText] = useState("");
-  
-  useEffect(() => {
-    let i = 0;
-    const timer = setInterval(() => {
-      if (i < text.length) {
-        setDisplayText(text.slice(0, i + 1));
-        i++;
-      } else {
-        clearInterval(timer);
-      }
-    }, delay);
-    return () => clearInterval(timer);
-  }, [text, delay]);
-
-  return <span>{displayText}</span>;
 }
