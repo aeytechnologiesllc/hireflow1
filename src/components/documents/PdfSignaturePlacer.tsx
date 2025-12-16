@@ -71,13 +71,6 @@ export function PdfSignaturePlacer({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Drawing state for visual preview while creating signature field
-  // Store both pixel (px, py) for preview and percentage (x, y) for final placement
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStart, setDrawStart] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
-  const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
-
   const file = useMemo(() => ({ url: pdfUrl }), [pdfUrl]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -98,67 +91,24 @@ export function PdfSignaturePlacer({
     setLoading(false);
   };
 
-  // Start drawing a signature field
-  const handleDrawStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // Click-to-place: instantly creates a pre-sized signature field at click location
+  const handlePageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!placementMode || readOnly || isDragging) return;
     
     const container = pageContainerRef.current;
     if (!container) return;
     
-    // Check if clicking on existing field
+    // Check if clicking on existing field or drag handle
     const clickedOnField = (e.target as HTMLElement).closest("[data-signature-field]");
     if (clickedOnField) return;
     
     const rect = container.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-    const x = (px / rect.width) * 100;
-    const y = (py / rect.height) * 100;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    setIsDrawing(true);
-    setDrawStart({ x, y, px, py });
-    setDrawCurrent({ x, y, px, py });
-  }, [placementMode, readOnly, isDragging]);
-
-  // Update drawing preview as mouse moves
-  const handleDrawMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDrawing || !drawStart) return;
-    
-    const container = pageContainerRef.current;
-    if (!container) return;
-    
-    const rect = container.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-    const x = (px / rect.width) * 100;
-    const y = (py / rect.height) * 100;
-    
-    setDrawCurrent({ 
-      x: Math.max(0, Math.min(x, 100)), 
-      y: Math.max(0, Math.min(y, 100)),
-      px: Math.max(0, Math.min(px, rect.width)),
-      py: Math.max(0, Math.min(py, rect.height))
-    });
-  }, [isDrawing, drawStart]);
-
-  // Finish drawing and create the signature field
-  const handleDrawEnd = useCallback(() => {
-    if (!isDrawing || !drawStart || !drawCurrent || !placementMode) {
-      setIsDrawing(false);
-      setDrawStart(null);
-      setDrawCurrent(null);
-      return;
-    }
-    
-    // Calculate field dimensions
-    const minX = Math.min(drawStart.x, drawCurrent.x);
-    const minY = Math.min(drawStart.y, drawCurrent.y);
-    const width = Math.abs(drawCurrent.x - drawStart.x);
-    const height = Math.abs(drawCurrent.y - drawStart.y);
-    
-    // Minimum size requirements
-    const finalWidth = Math.max(width, 15);
-    const finalHeight = Math.max(height, 5);
+    // Default signature field size
+    const defaultWidth = 18;
+    const defaultHeight = 6;
     
     const fieldCount = signatureFields.filter(f => f.type === placementMode).length;
     const newField: SignatureFieldWithPosition = {
@@ -166,19 +116,17 @@ export function PdfSignaturePlacer({
       label: `${placementMode === "candidate" ? "Candidate" : "Employer"} Signature ${fieldCount + 1}`,
       required: true,
       type: placementMode,
-      x: Math.max(0, Math.min(minX, 100 - finalWidth)),
-      y: Math.max(0, Math.min(minY, 100 - finalHeight)),
+      // Center the field around the click point, with bounds checking
+      x: Math.max(0, Math.min(x - defaultWidth / 2, 100 - defaultWidth)),
+      y: Math.max(0, Math.min(y - defaultHeight / 2, 100 - defaultHeight)),
       page: currentPage,
-      width: finalWidth,
-      height: finalHeight,
+      width: defaultWidth,
+      height: defaultHeight,
     };
     
     onFieldsChange([...signatureFields, newField]);
-    setPlacementMode(null);
-    setIsDrawing(false);
-    setDrawStart(null);
-    setDrawCurrent(null);
-  }, [isDrawing, drawStart, drawCurrent, placementMode, signatureFields, onFieldsChange, currentPage]);
+    // Stay in placement mode to allow adding multiple fields quickly
+  }, [placementMode, readOnly, isDragging, signatureFields, onFieldsChange, currentPage]);
 
   const handleFieldDragStart = (fieldId: string) => {
     if (readOnly) return;
@@ -299,7 +247,7 @@ export function PdfSignaturePlacer({
             : "border-emerald-500 bg-emerald-500/5 text-emerald-600"
         )}>
           <PenTool className="h-4 w-4 inline mr-2" />
-          Click anywhere on the PDF to place {placementMode === "candidate" ? "candidate" : "employer"} signature
+          Click to add {placementMode === "candidate" ? "candidate" : "employer"} signature field, then drag to reposition
         </div>
       )}
 
@@ -371,20 +319,13 @@ export function PdfSignaturePlacer({
           >
           <div
             ref={pageContainerRef}
-            className={cn("relative", placementMode && "cursor-crosshair")}
-            onMouseDown={handleDrawStart}
+            className={cn("relative", placementMode && "cursor-pointer")}
+            onClick={handlePageClick}
             onMouseMove={(e) => {
-              if (isDrawing) handleDrawMove(e);
-              else if (draggedField) handleFieldDrag(e, draggedField);
+              if (draggedField) handleFieldDrag(e, draggedField);
             }}
-            onMouseUp={() => {
-              if (isDrawing) handleDrawEnd();
-              else handleFieldDragEnd();
-            }}
-            onMouseLeave={() => {
-              if (isDrawing) handleDrawEnd();
-              else handleFieldDragEnd();
-            }}
+            onMouseUp={handleFieldDragEnd}
+            onMouseLeave={handleFieldDragEnd}
           >
               <Page
                 pageNumber={currentPage}
@@ -392,24 +333,6 @@ export function PdfSignaturePlacer({
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
               />
-
-              {/* Drawing Preview - uses pixel coordinates for accurate mouse tracking */}
-              {isDrawing && drawStart && drawCurrent && placementMode && (
-                <div
-                  className={cn(
-                    "absolute border-2 border-dashed rounded opacity-70 pointer-events-none",
-                    placementMode === "candidate" 
-                      ? "border-blue-500 bg-blue-500/20" 
-                      : "border-emerald-500 bg-emerald-500/20"
-                  )}
-                  style={{
-                    left: `${Math.min(drawStart.px, drawCurrent.px)}px`,
-                    top: `${Math.min(drawStart.py, drawCurrent.py)}px`,
-                    width: `${Math.max(Math.abs(drawCurrent.px - drawStart.px), 50)}px`,
-                    height: `${Math.max(Math.abs(drawCurrent.py - drawStart.py), 20)}px`,
-                  }}
-                />
-              )}
 
               {/* Signature Fields Overlay */}
               <div className="absolute inset-0 pointer-events-none">
