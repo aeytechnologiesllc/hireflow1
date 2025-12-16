@@ -25,33 +25,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Defer role fetch with setTimeout to avoid deadlock
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserRole(session.user.id);
-            checkTeamMembership(session.user.id);
-          }, 0);
-        } else {
-          setRole(null);
-          setIsTeamMember(false);
-        }
-      }
-    );
+    const validateSession = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+      // If the client has a session cached but the server says it doesn't exist anymore,
+      // we must clear local auth state to avoid infinite "User not authenticated" loops.
+      if (error || !user) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        setRole(null);
+        setIsTeamMember(false);
+      }
+
+      return { user, error };
+    };
+
+    // Set up auth state listener FIRST
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Defer all additional auth-dependent calls to avoid deadlocks
       if (session?.user) {
-        fetchUserRole(session.user.id);
-        checkTeamMembership(session.user.id);
+        setTimeout(async () => {
+          const { user: verifiedUser } = await validateSession();
+          if (verifiedUser) {
+            fetchUserRole(verifiedUser.id);
+            checkTeamMembership(verifiedUser.id);
+          }
+        }, 0);
+      } else {
+        setRole(null);
+        setIsTeamMember(false);
       }
+    });
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        const { user: verifiedUser } = await validateSession();
+        if (verifiedUser) {
+          fetchUserRole(verifiedUser.id);
+          checkTeamMembership(verifiedUser.id);
+        }
+      }
+
       setLoading(false);
     });
 
