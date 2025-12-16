@@ -28,9 +28,10 @@ interface ToolAction {
   timestamp: Date;
 }
 
-// Typewriter component for smooth text animation - tracks completed state
+// Typewriter component for smooth text animation - starts with first character visible
 function TypewriterText({ text, onComplete }: { text: string; onComplete?: () => void }) {
-  const [displayedLength, setDisplayedLength] = useState(0);
+  // Start with first character to avoid showing just cursor
+  const [displayedLength, setDisplayedLength] = useState(Math.min(1, text.length));
   const prevTextRef = useRef(text);
   
   // When new text arrives (longer than what we've shown), continue animating
@@ -48,13 +49,16 @@ function TypewriterText({ text, onComplete }: { text: string; onComplete?: () =>
     }
   }, [displayedLength, text.length, onComplete]);
   
-  // If text changes to something completely new (shorter), reset
+  // If text changes to something completely new (shorter), reset but show first char
   useEffect(() => {
     if (text.length < prevTextRef.current.length * 0.5) {
-      setDisplayedLength(0);
+      setDisplayedLength(Math.min(1, text.length));
     }
     prevTextRef.current = text;
   }, [text]);
+  
+  // Handle empty text
+  if (text.length === 0) return null;
   
   return <>{text.slice(0, displayedLength)}{displayedLength < text.length && <span className="animate-pulse">|</span>}</>;
 }
@@ -503,8 +507,11 @@ export default function AvaVoiceButton() {
                     const hasBeenAnimated = animatedMessageIds.has(msg.id);
                     
                     return (
-                      <div
+                      <motion.div
                         key={msg.id}
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
                         className={cn(
                           "flex",
                           msg.role === "user" ? "justify-end" : "justify-start"
@@ -528,7 +535,7 @@ export default function AvaVoiceButton() {
                             msg.content
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                   {/* Auto-scroll anchor */}
