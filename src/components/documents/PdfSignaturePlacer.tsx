@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -20,8 +19,20 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// Set up PDF.js worker (Vite-native, reliable for pdfjs-dist v5+)
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Set up PDF.js worker (Vite + pdfjs-dist v5+ uses .mjs)
+try {
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).toString();
+} catch {
+  // Fallback with correct .mjs extension
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+}
+
+// Helpful debug (kept as info-level)
+console.info("PDF workerSrc:", pdfjs.GlobalWorkerOptions.workerSrc);
+
 export interface SignatureFieldWithPosition {
   id: string;
   label: string;
