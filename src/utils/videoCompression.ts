@@ -15,7 +15,26 @@ export interface CompressionResult {
   compressedSize: number;
 }
 
+export class CompressionNotSupportedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CompressionNotSupportedError";
+  }
+}
+
+// Check if SharedArrayBuffer is available (required for FFmpeg.wasm)
+export const isCompressionSupported = (): boolean => {
+  return typeof SharedArrayBuffer !== "undefined" && typeof crossOriginIsolated !== "undefined" && crossOriginIsolated;
+};
+
 const loadFFmpeg = async (onProgress: (progress: CompressionProgress) => void): Promise<FFmpeg> => {
+  // Check for SharedArrayBuffer support first
+  if (!isCompressionSupported()) {
+    throw new CompressionNotSupportedError(
+      "Video compression requires cross-origin isolation. Please try recording directly or upload a smaller file."
+    );
+  }
+
   if (ffmpeg && ffmpeg.loaded) {
     return ffmpeg;
   }
@@ -24,13 +43,25 @@ const loadFFmpeg = async (onProgress: (progress: CompressionProgress) => void): 
 
   onProgress({ progress: 5, stage: "loading", message: "Loading compression engine..." });
 
-  // Load FFmpeg with CORS-enabled URLs
+  // Load FFmpeg with CORS-enabled URLs and timeout
   const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
   
-  await ffmpeg.load({
+  const loadTimeout = 30000; // 30 second timeout
+  
+  const loadPromise = ffmpeg.load({
     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
   });
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new CompressionNotSupportedError(
+        "Compression engine took too long to load. Please try recording directly or upload a smaller file."
+      ));
+    }, loadTimeout);
+  });
+
+  await Promise.race([loadPromise, timeoutPromise]);
 
   onProgress({ progress: 15, stage: "loading", message: "Compression engine ready" });
 
@@ -44,7 +75,7 @@ export const compressVideo = async (
 ): Promise<CompressionResult> => {
   const originalSize = file.size;
 
-  // Load FFmpeg
+  // Load FFmpeg (with support check and timeout)
   const ff = await loadFFmpeg(onProgress);
 
   if (abortSignal?.aborted) {

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { compressVideo, shouldCompress, formatFileSize as formatFileSizeUtil, CompressionProgress } from "@/utils/videoCompression";
+import { compressVideo, shouldCompress, formatFileSize as formatFileSizeUtil, CompressionProgress, isCompressionSupported, CompressionNotSupportedError } from "@/utils/videoCompression";
 
 interface ApplicationDetails {
   id: string;
@@ -284,6 +284,23 @@ export default function VideoIntroPhase() {
     
     // Check if compression is needed (files > 50MB)
     if (shouldCompress(file)) {
+      // Check if compression is supported before attempting
+      if (!isCompressionSupported()) {
+        // File is large but compression not supported - warn user but allow upload if under storage limit
+        const storageLimitMB = 100; // Supabase storage limit
+        if (file.size > storageLimitMB * 1024 * 1024) {
+          toast.error("File too large for upload", {
+            description: `Video compression is not available. Please upload a file under ${storageLimitMB}MB, or try recording directly.`,
+          });
+          resetUpload();
+          return;
+        }
+        toast.warning("Video compression not available", {
+          description: "Your video will be uploaded without compression. For best results, record directly instead.",
+        });
+        return;
+      }
+      
       setIsCompressing(true);
       compressionAbortRef.current = new AbortController();
       
@@ -301,13 +318,33 @@ export default function VideoIntroPhase() {
           description: `${formatFileSizeUtil(result.originalSize)} → ${formatFileSizeUtil(result.compressedSize)}`,
         });
       } catch (error: any) {
-        if (error.message !== "Compression cancelled") {
-          console.error("Compression failed:", error);
-          toast.error("Compression failed", {
-            description: "Unable to compress video. Please try a smaller file.",
-          });
-          resetUpload();
+        if (error.message === "Compression cancelled") {
+          return;
         }
+        
+        console.error("Compression failed:", error);
+        
+        // Handle compression not supported gracefully
+        if (error instanceof CompressionNotSupportedError) {
+          const storageLimitMB = 100;
+          if (file.size > storageLimitMB * 1024 * 1024) {
+            toast.error("File too large for upload", {
+              description: `${error.message} Please upload a file under ${storageLimitMB}MB.`,
+            });
+            resetUpload();
+            return;
+          }
+          toast.warning("Compression not available", {
+            description: "Your video will be uploaded without compression.",
+          });
+          // Keep the file, just skip compression
+          return;
+        }
+        
+        toast.error("Compression failed", {
+          description: "Unable to compress video. Please try a smaller file or record directly.",
+        });
+        resetUpload();
       } finally {
         setIsCompressing(false);
         setCompressionProgress(null);
