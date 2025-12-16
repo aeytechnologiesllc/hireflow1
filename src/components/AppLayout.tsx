@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate, Outlet } from "react-router-dom";
+import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -15,11 +15,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading, role, signOut } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   const isEmployer = role === "employer";
   const isMobile = useIsMobile();
-  
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return !isMobile;
@@ -51,9 +51,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (subError) {
       const errorMessage = subError?.message || String(subError);
-      console.log('Subscription error:', errorMessage);
-      if (errorMessage.includes('not authenticated') || errorMessage.includes('User not authenticated')) {
-        console.log('Session expired, signing out...');
+      if (errorMessage.includes("not authenticated") || errorMessage.includes("User not authenticated")) {
         signOut();
       }
     }
@@ -61,9 +59,10 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth");
+      const isCandidateRoute = location.pathname.startsWith("/candidate");
+      navigate(isCandidateRoute ? "/candidate/auth" : "/auth", { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, location.pathname]);
 
   // Show loading while auth or subscription is loading
   if (loading || subLoading) {
@@ -74,10 +73,10 @@ export default function AppLayout() {
     );
   }
 
-  // If there's a subscription auth error, show loading and let the useEffect handle redirect
-  if (subError) {
+  // If there's a subscription auth error while logged in, show loading and let the useEffect handle sign-out
+  if (user && subError) {
     const errorMessage = subError?.message || String(subError);
-    if (errorMessage.includes('not authenticated') || errorMessage.includes('User not authenticated')) {
+    if (errorMessage.includes("not authenticated") || errorMessage.includes("User not authenticated")) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
