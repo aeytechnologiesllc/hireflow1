@@ -79,6 +79,7 @@ export default function ChatInterviewPhase() {
   const [questionCount, setQuestionCount] = useState(0);
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
+  const [autoEndTriggered, setAutoEndTriggered] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -161,6 +162,85 @@ export default function ChatInterviewPhase() {
       window.removeEventListener("focus", handleFocus);
     };
   }, [state]);
+
+  // Auto-end interview when closing message is detected
+  useEffect(() => {
+    if (autoEndTriggered && state === "interviewing") {
+      setState("evaluating");
+      // Need to call handleSubmit - we'll trigger it via the button's logic
+      setAutoEndTriggered(false);
+      // Directly execute the submission logic
+      const runSubmit = async () => {
+        if (!application) return;
+        setIsSubmitting(true);
+        try {
+          const candidateContext = buildCandidateContext();
+          const evalResponse = await fetch(CHAT_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              mode: "evaluate",
+              jobTitle: application.jobs?.title || "",
+              jobDescription: application.jobs?.description || "",
+              candidateName: application.profiles?.full_name || "Candidate",
+              candidateContext,
+              messages: messages.map(m => ({ role: m.role, content: m.content })),
+            }),
+          });
+
+          let evaluation = null;
+          if (evalResponse.ok) {
+            evaluation = await evalResponse.json();
+          }
+
+          const notes = application.notes ? JSON.parse(application.notes) : {};
+          const updatedNotes = {
+            ...notes,
+            chatInterviewResult: {
+              messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+              duration: getDuration(),
+              questionCount,
+              violations: violations.length > 0 ? violations : undefined,
+              evaluation,
+            },
+          };
+
+          const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string }> || [];
+          const currentStepIndex = workflowSteps.findIndex(s => s.id === stepId);
+          const nextStep = workflowSteps[currentStepIndex + 1];
+
+          await supabase
+            .from("applications")
+            .update({
+              notes: JSON.stringify(updatedNotes),
+              phase: nextStep ? nextStep.id : "review",
+              phase_ai_analysis: evaluation?.summary || null,
+              ai_score: evaluation?.score || null,
+              status: "reviewing",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", id);
+
+          queryClient.invalidateQueries({ queryKey: ["applications"] });
+          queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
+
+          toast.success("Interview completed successfully!");
+          setState("completed");
+          setTimeout(() => navigate(`/applications/${id}`), 2000);
+        } catch (error) {
+          console.error("Submit error:", error);
+          toast.error("Failed to submit interview");
+          setState("interviewing");
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+      runSubmit();
+    }
+  }, [autoEndTriggered]);
 
   // Format elapsed time for display
   const getDuration = () => {
@@ -336,6 +416,26 @@ export default function ChatInterviewPhase() {
       // Count questions (rough heuristic: messages ending with ?)
       if (assistantContent.includes("?")) {
         setQuestionCount(prev => prev + 1);
+      }
+
+      // Auto-detect closing message and end interview automatically
+      const closingPhrases = [
+        "take care",
+        "be in touch with next steps",
+        "best of luck",
+        "good luck",
+        "thank you for your time today"
+      ];
+      const lowerContent = assistantContent.toLowerCase();
+      const isClosingMessage = closingPhrases.some(phrase => lowerContent.includes(phrase));
+      
+      // If it's a closing message (not a question), auto-end the interview after a short delay
+      if (isClosingMessage && !lowerContent.includes("?")) {
+        // Give user 2.5 seconds to read the closing message, then auto-submit
+        setTimeout(() => {
+          setAutoEndTriggered(true);
+        }, 2500);
+        return; // Don't focus input since interview is ending
       }
 
     } catch (error) {
