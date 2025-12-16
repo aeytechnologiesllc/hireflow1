@@ -15,8 +15,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function AppLayout() {
   const navigate = useNavigate();
-  const { user, loading, role } = useAuth();
-  const { subscription, isLoading: subLoading, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
+  const { user, loading, role, signOut } = useAuth();
+  const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   const isEmployer = role === "employer";
   const isMobile = useIsMobile();
   
@@ -46,6 +46,18 @@ export default function AppLayout() {
                     (subscription?.status === 'trialing' && 
                      subscription?.trial_end && 
                      new Date(subscription.trial_end) < new Date());
+
+  // Handle auth errors from subscription - session likely expired
+  useEffect(() => {
+    if (subError) {
+      const errorMessage = subError?.message || String(subError);
+      if (errorMessage.includes('not authenticated') || errorMessage.includes('User not authenticated')) {
+        console.log('Session expired, signing out...');
+        signOut();
+        navigate("/auth");
+      }
+    }
+  }, [subError, signOut, navigate]);
 
   useEffect(() => {
     if (!loading && !user) {
