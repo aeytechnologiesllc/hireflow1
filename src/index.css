@@ -185,6 +185,12 @@
     box-shadow: var(--shadow-glow);
   }
 
+  .ava-orb-glow {
+    filter:
+      drop-shadow(0 0 14px hsl(var(--accent) / 0.38))
+      drop-shadow(0 0 36px hsl(var(--accent) / 0.22));
+  }
+
   .text-gradient {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
