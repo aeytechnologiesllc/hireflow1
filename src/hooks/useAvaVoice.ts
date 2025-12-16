@@ -13,6 +13,7 @@ interface UseAvaVoiceOptions {
   subscriptionStatus?: string;
   countryCode?: string;
   voiceMinutesRemaining?: number;
+  isFirstUse?: boolean;
   onTranscript?: (text: string, role: 'user' | 'assistant') => void;
   onToolCall?: (toolName: string, result: any) => void;
   onInterviewEnd?: (evaluation: any) => void;
@@ -74,6 +75,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           subscriptionStatus: options.subscriptionStatus,
           countryCode: options.countryCode,
           voiceMinutesRemaining: options.voiceMinutesRemaining,
+          isFirstUse: options.isFirstUse,
         },
       });
 
