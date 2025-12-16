@@ -214,7 +214,7 @@ export function DocumentViewerDialog({ document, open, onOpenChange }: DocumentV
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!document) return;
     
     if (documentContent) {
@@ -226,7 +226,21 @@ export function DocumentViewerDialog({ document, open, onOpenChange }: DocumentV
       a.click();
       URL.revokeObjectURL(url);
     } else if (document.file_url) {
-      window.open(document.file_url, "_blank");
+      try {
+        const response = await fetch(document.file_url);
+        if (!response.ok) throw new Error("Failed to fetch document");
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = window.document.createElement("a");
+        a.href = url;
+        a.download = `${document.name}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Download error:", error);
+        window.open(document.file_url, "_blank");
+      }
     }
   };
 
