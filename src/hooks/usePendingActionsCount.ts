@@ -20,9 +20,9 @@ export function usePendingActionsCount() {
     queryClient.invalidateQueries({ queryKey: ["pending-actions-count"] });
   }, [queryClient]);
 
-  // Auto-mark as seen when on /applications page
+  // Auto-mark as seen when on /applications page or any application sub-route
   useEffect(() => {
-    if (location.pathname === "/applications") {
+    if (location.pathname === "/applications" || location.pathname.startsWith("/applications/")) {
       markAsSeen();
     }
   }, [location.pathname, markAsSeen]);
