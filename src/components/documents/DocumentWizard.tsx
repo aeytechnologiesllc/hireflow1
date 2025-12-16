@@ -39,6 +39,7 @@ import {
   File
 } from "lucide-react";
 import type { ApplicationForDocument } from "@/hooks/useApplicationsForDocuments";
+import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
 
 interface DocumentWizardProps {
   open: boolean;
@@ -131,7 +132,8 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
   const [additionalTerms, setAdditionalTerms] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
-  const [signatureFields, setSignatureFields] = useState<{ id: string; label: string; required: boolean }[]>([
+  const [signatureFields, setSignatureFields] = useState<SignatureFieldWithPosition[]>([]);
+  const [legacySignatureFields, setLegacySignatureFields] = useState<{ id: string; label: string; required: boolean }[]>([
     { id: "recipient", label: "Recipient Signature", required: true },
     { id: "employer", label: "Employer Signature", required: true },
   ]);
@@ -202,7 +204,8 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     setUploadedFile(null);
     setUploadedFileUrl("");
     setDocumentName("");
-    setSignatureFields([
+    setSignatureFields([]);
+    setLegacySignatureFields([
       { id: "recipient", label: "Recipient Signature", required: true },
       { id: "employer", label: "Employer Signature", required: true },
     ]);
@@ -247,7 +250,12 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       case "upload":
         return !!uploadedFileUrl && !!documentName.trim();
       case "review":
-        return signatureFields.length > 0;
+        // For uploads with PDF, require at least one positioned signature field
+        if (documentSource === "upload" && uploadedFile?.type === "application/pdf") {
+          return signatureFields.length > 0;
+        }
+        // For AI-generated or non-PDF uploads, use legacy fields
+        return legacySignatureFields.length > 0;
       default:
         return true;
     }
@@ -421,15 +429,17 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
 
       if (documentSource === "upload") {
         // For uploaded documents, store the URL and metadata
+        const isPdf = uploadedFile?.type === "application/pdf";
         const documentData = {
           content: null,
           uploadedFileUrl,
           uploadedFileName: uploadedFile?.name,
           uploadedFileType: uploadedFile?.type,
-          signatureFields,
+          signatureFields: isPdf ? signatureFields : legacySignatureFields,
           metadata: {
             recipientName: recipient.name || recipientName,
             recipientEmail: recipient.email || recipientEmail,
+            hasPositionedSignatures: isPdf,
           },
         };
         fileUrl = `data:application/json;base64,${btoa(JSON.stringify(documentData))}`;
@@ -439,7 +449,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
         // For AI-generated documents
         const documentData = {
           content: generatedContent,
-          signatureFields,
+          signatureFields: legacySignatureFields,
           metadata: {
             companyName,
             jobTitle: recipient.jobTitle || jobTitle,
@@ -518,19 +528,19 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
     }
   };
 
-  const addSignatureField = () => {
-    setSignatureFields(prev => [
+  const addLegacySignatureField = () => {
+    setLegacySignatureFields(prev => [
       ...prev,
       { id: `field_${Date.now()}`, label: "New Signature Field", required: false },
     ]);
   };
 
-  const removeSignatureField = (id: string) => {
-    setSignatureFields(prev => prev.filter(f => f.id !== id));
+  const removeLegacySignatureField = (id: string) => {
+    setLegacySignatureFields(prev => prev.filter(f => f.id !== id));
   };
 
-  const updateSignatureField = (id: string, updates: Partial<typeof signatureFields[0]>) => {
-    setSignatureFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  const updateLegacySignatureField = (id: string, updates: Partial<typeof legacySignatureFields[0]>) => {
+    setLegacySignatureFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
   const renderStepContent = () => {
@@ -1069,7 +1079,39 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
 
       case "review":
         if (documentSource === "upload") {
-          // Review step for uploaded documents
+          const isPdf = uploadedFile?.type === "application/pdf";
+          
+          if (isPdf && uploadedFileUrl) {
+            // Review step for uploaded PDF documents with visual signature placement
+            return (
+              <motion.div
+                key="step-review-upload-pdf"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Place Signature Fields on PDF</h3>
+                  <Badge variant="outline">{documentName || uploadedFile?.name}</Badge>
+                </div>
+                
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <p className="text-sm text-blue-600 dark:text-blue-400">
+                    Click on the PDF to place signature fields. Candidate signs first, then employer countersigns.
+                  </p>
+                </div>
+
+                <PdfSignaturePlacer
+                  pdfUrl={uploadedFileUrl}
+                  signatureFields={signatureFields}
+                  onFieldsChange={setSignatureFields}
+                />
+              </motion.div>
+            );
+          }
+          
+          // Review step for non-PDF uploaded documents (legacy signature fields)
           return (
             <motion.div
               key="step-review-upload"
@@ -1089,17 +1131,6 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                   <p className="text-sm text-muted-foreground mt-1">
                     {uploadedFile?.type || "Document"}
                   </p>
-                  {uploadedFileUrl && uploadedFile?.type === "application/pdf" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => window.open(uploadedFileUrl, "_blank")}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Preview PDF
-                    </Button>
-                  )}
                 </div>
               </div>
 
@@ -1107,7 +1138,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Signature Fields</h3>
-                  <Button variant="outline" size="sm" onClick={addSignatureField}>
+                  <Button variant="outline" size="sm" onClick={addLegacySignatureField}>
                     Add Field
                   </Button>
                 </div>
@@ -1119,7 +1150,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                 </div>
 
                 <div className="space-y-3">
-                  {signatureFields.map((field) => (
+                  {legacySignatureFields.map((field) => (
                     <div
                       key={field.id}
                       className="p-3 rounded-lg border border-border bg-secondary/30 space-y-2"
@@ -1134,7 +1165,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                       </div>
                       <Input
                         value={field.label}
-                        onChange={(e) => updateSignatureField(field.id, { label: e.target.value })}
+                        onChange={(e) => updateLegacySignatureField(field.id, { label: e.target.value })}
                         placeholder="Field label"
                         className="text-sm"
                       />
@@ -1143,7 +1174,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                           <input
                             type="checkbox"
                             checked={field.required}
-                            onChange={(e) => updateSignatureField(field.id, { required: e.target.checked })}
+                            onChange={(e) => updateLegacySignatureField(field.id, { required: e.target.checked })}
                             className="rounded"
                           />
                           Required
@@ -1152,7 +1183,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeSignatureField(field.id)}
+                            onClick={() => removeLegacySignatureField(field.id)}
                             className="text-destructive hover:text-destructive"
                           >
                             Remove
@@ -1225,7 +1256,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Signature Fields</h3>
-                <Button variant="outline" size="sm" onClick={addSignatureField}>
+                <Button variant="outline" size="sm" onClick={addLegacySignatureField}>
                   Add Field
                 </Button>
               </div>
@@ -1237,7 +1268,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
               </div>
 
               <div className="space-y-3">
-                {signatureFields.map((field) => (
+                {legacySignatureFields.map((field) => (
                   <div
                     key={field.id}
                     className="p-3 rounded-lg border border-border bg-secondary/30 space-y-2"
@@ -1252,7 +1283,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                     </div>
                     <Input
                       value={field.label}
-                      onChange={(e) => updateSignatureField(field.id, { label: e.target.value })}
+                      onChange={(e) => updateLegacySignatureField(field.id, { label: e.target.value })}
                       placeholder="Field label"
                       className="text-sm"
                     />
@@ -1261,7 +1292,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                         <input
                           type="checkbox"
                           checked={field.required}
-                          onChange={(e) => updateSignatureField(field.id, { required: e.target.checked })}
+                          onChange={(e) => updateLegacySignatureField(field.id, { required: e.target.checked })}
                           className="rounded"
                         />
                         Required
@@ -1270,7 +1301,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeSignatureField(field.id)}
+                          onClick={() => removeLegacySignatureField(field.id)}
                           className="text-destructive hover:text-destructive"
                         >
                           Remove
