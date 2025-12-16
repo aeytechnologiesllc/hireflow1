@@ -8,16 +8,46 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, CreditCard } from "lucide-react";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
+import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 
 export default function Settings() {
   const { user, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
+  
+  const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
+  const updatePrefs = useUpdateEmailPreferences();
+  
+  const [localPrefs, setLocalPrefs] = useState<EmailPreferences>({
+    email_notifications_enabled: true,
+    email_new_applications: true,
+    email_messages: true,
+    email_interview_reminders: true,
+    email_document_updates: true,
+    email_phase_updates: true,
+  });
+
+  useEffect(() => {
+    if (emailPrefs) {
+      setLocalPrefs(emailPrefs);
+    }
+  }, [emailPrefs]);
+
+  const handlePrefChange = async (key: keyof EmailPreferences, value: boolean) => {
+    setLocalPrefs(prev => ({ ...prev, [key]: value }));
+    try {
+      await updatePrefs.mutateAsync({ [key]: value });
+      toast.success("Preference updated");
+    } catch {
+      setLocalPrefs(prev => ({ ...prev, [key]: !value }));
+      toast.error("Failed to update preference");
+    }
+  };
 
   const activeTab = searchParams.get("tab") || "account";
 
@@ -176,15 +206,19 @@ export default function Settings() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg">Notifications</CardTitle>
-              <CardDescription>Configure how you receive notifications</CardDescription>
+              <CardDescription>Configure how you receive email notifications</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-foreground">Email Notifications</p>
-                  <p className="text-sm text-muted-foreground">Receive email updates about your activity</p>
+                  <p className="text-sm text-muted-foreground">Master toggle for all email notifications</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={localPrefs.email_notifications_enabled}
+                  onCheckedChange={(checked) => handlePrefChange("email_notifications_enabled", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -192,7 +226,23 @@ export default function Settings() {
                   <p className="font-medium text-foreground">New Applications</p>
                   <p className="text-sm text-muted-foreground">Get notified when someone applies to your jobs</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={localPrefs.email_new_applications}
+                  onCheckedChange={(checked) => handlePrefChange("email_new_applications", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Messages</p>
+                  <p className="text-sm text-muted-foreground">Get notified when you receive messages</p>
+                </div>
+                <Switch 
+                  checked={localPrefs.email_messages}
+                  onCheckedChange={(checked) => handlePrefChange("email_messages", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
@@ -200,15 +250,35 @@ export default function Settings() {
                   <p className="font-medium text-foreground">Interview Reminders</p>
                   <p className="text-sm text-muted-foreground">Receive reminders before scheduled interviews</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={localPrefs.email_interview_reminders}
+                  onCheckedChange={(checked) => handlePrefChange("email_interview_reminders", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
+                />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-foreground">Marketing Emails</p>
-                  <p className="text-sm text-muted-foreground">Receive tips and product updates</p>
+                  <p className="font-medium text-foreground">Document Updates</p>
+                  <p className="text-sm text-muted-foreground">Get notified about document signatures</p>
                 </div>
-                <Switch />
+                <Switch 
+                  checked={localPrefs.email_document_updates}
+                  onCheckedChange={(checked) => handlePrefChange("email_document_updates", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Phase Updates</p>
+                  <p className="text-sm text-muted-foreground">Get notified when candidates complete phases</p>
+                </div>
+                <Switch 
+                  checked={localPrefs.email_phase_updates}
+                  onCheckedChange={(checked) => handlePrefChange("email_phase_updates", checked)}
+                  disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
+                />
               </div>
             </CardContent>
           </Card>

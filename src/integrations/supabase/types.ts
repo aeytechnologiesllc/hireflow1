@@ -513,6 +513,12 @@ export type Database = {
           company_name: string | null
           created_at: string
           email: string
+          email_document_updates: boolean | null
+          email_interview_reminders: boolean | null
+          email_messages: boolean | null
+          email_new_applications: boolean | null
+          email_notifications_enabled: boolean | null
+          email_phase_updates: boolean | null
           experience_years: number | null
           full_name: string | null
           id: string
@@ -533,6 +539,12 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email: string
+          email_document_updates?: boolean | null
+          email_interview_reminders?: boolean | null
+          email_messages?: boolean | null
+          email_new_applications?: boolean | null
+          email_notifications_enabled?: boolean | null
+          email_phase_updates?: boolean | null
           experience_years?: number | null
           full_name?: string | null
           id?: string
@@ -553,6 +565,12 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email?: string
+          email_document_updates?: boolean | null
+          email_interview_reminders?: boolean | null
+          email_messages?: boolean | null
+          email_new_applications?: boolean | null
+          email_notifications_enabled?: boolean | null
+          email_phase_updates?: boolean | null
           experience_years?: number | null
           full_name?: string | null
           id?: string
