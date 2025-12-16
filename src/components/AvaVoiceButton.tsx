@@ -268,22 +268,7 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // When actively listening - show reactive audio bars instead of orb
-    if (isConnected && isListening) {
-      return (
-        <div className="flex items-end justify-center gap-0.5 h-10">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <motion.div
-              key={i}
-              className="w-1.5 bg-primary rounded-full"
-              animate={{ height: audioLevels[i] }}
-              transition={{ duration: 0.05, ease: "linear" }}
-            />
-          ))}
-        </div>
-      );
-    }
-    // When speaking - show green audio bars
+    // When AVA is speaking - show green animated bars
     if (isConnected && isSpeaking) {
       return (
         <div className="flex items-end justify-center gap-0.5 h-10">
@@ -303,7 +288,22 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // Show AVA orb with glow effect (default/idle)
+    // When connected (user can speak) - show reactive audio bars throughout session
+    if (isConnected) {
+      return (
+        <div className="flex items-end justify-center gap-0.5 h-10">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 bg-primary rounded-full"
+              animate={{ height: audioLevels[i] }}
+              transition={{ duration: 0.05, ease: "linear" }}
+            />
+          ))}
+        </div>
+      );
+    }
+    // Show AVA orb with glow effect (default/disconnected)
     return (
       <div className="relative">
         <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
