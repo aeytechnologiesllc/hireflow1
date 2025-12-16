@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +17,13 @@ import {
   Loader2,
   Camera,
   Mic,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  FileVideo,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ApplicationDetails {
   id: string;
@@ -36,17 +40,31 @@ interface ApplicationDetails {
   } | null;
 }
 
+type Mode = "select" | "record" | "upload";
+type RecordingState = "intro" | "recording" | "preview" | "submitting";
+
 export default function VideoIntroPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "recording" | "preview" | "submitting">("intro");
+  // Mode selection state
+  const [mode, setMode] = useState<Mode>("select");
+  
+  // Recording state
+  const [recordingState, setRecordingState] = useState<RecordingState>("intro");
   const [hasPermissions, setHasPermissions] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  
+  // Upload state
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  // Common state
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +72,7 @@ export default function VideoIntroPhase() {
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -76,7 +95,7 @@ export default function VideoIntroPhase() {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
-      maxDuration: videoStep?.config?.maxDuration || 60, // 60 seconds default
+      maxDuration: videoStep?.config?.maxDuration || 60,
       prompt: videoStep?.config?.prompt || "Record a brief 60-second video introducing yourself. Share your name, a bit about your background, why you're interested in this role, and what makes you a great fit.",
     };
   })();
@@ -93,8 +112,11 @@ export default function VideoIntroPhase() {
       if (recordedUrl) {
         URL.revokeObjectURL(recordedUrl);
       }
+      if (uploadedPreviewUrl) {
+        URL.revokeObjectURL(uploadedPreviewUrl);
+      }
     };
-  }, [recordedUrl]);
+  }, [recordedUrl, uploadedPreviewUrl]);
 
   const requestPermissions = async () => {
     try {
@@ -143,15 +165,14 @@ export default function VideoIntroPhase() {
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
       setRecordedBlob(blob);
       setRecordedUrl(URL.createObjectURL(blob));
-      setState("preview");
+      setRecordingState("preview");
     };
     
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start();
-    setState("recording");
+    setRecordingState("recording");
     setRecordingTime(0);
     
-    // Start timer
     timerRef.current = setInterval(() => {
       setRecordingTime(prev => {
         if (prev >= videoConfig.maxDuration - 1) {
@@ -182,8 +203,22 @@ export default function VideoIntroPhase() {
     setRecordedBlob(null);
     setRecordedUrl(null);
     setRecordingTime(0);
-    setState("intro");
+    setRecordingState("intro");
     setHasPermissions(false);
+  };
+
+  const resetUpload = () => {
+    if (uploadedPreviewUrl) {
+      URL.revokeObjectURL(uploadedPreviewUrl);
+    }
+    setUploadedFile(null);
+    setUploadedPreviewUrl(null);
+  };
+
+  const goBackToSelect = () => {
+    resetRecording();
+    resetUpload();
+    setMode("select");
   };
 
   const formatTime = (seconds: number) => {
@@ -192,26 +227,91 @@ export default function VideoIntroPhase() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // File upload handlers
+  const validateFile = (file: File): boolean => {
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    const allowedTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
+    
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+      toast.error("Invalid file format", {
+        description: "Please upload a video file (MP4, WebM, MOV, AVI, MKV)",
+      });
+      return false;
+    }
+    
+    if (file.size > maxSize) {
+      toast.error("File too large", {
+        description: "Maximum file size is 100MB",
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleFileSelect = (file: File) => {
+    if (!validateFile(file)) return;
+    
+    setUploadedFile(file);
+    setUploadedPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!recordedBlob || !application || !user) return;
+    const videoToUpload = recordedBlob || uploadedFile;
+    if (!videoToUpload || !application || !user) return;
     
     setIsSubmitting(true);
-    setState("submitting");
+    setRecordingState("submitting");
     
     try {
-      // Upload video to Supabase Storage
-      const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
+      const isRecorded = !!recordedBlob;
+      const extension = isRecorded ? "webm" : uploadedFile?.name.split('.').pop() || "mp4";
+      const mimeType = isRecorded ? "video/webm" : uploadedFile?.type || "video/mp4";
+      const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.${extension}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(fileName, recordedBlob, {
-          contentType: "video/webm",
+        .upload(fileName, videoToUpload, {
+          contentType: mimeType,
           cacheControl: "3600",
         });
 
       if (uploadError) throw uploadError;
 
-      // Get the public URL
       const { data: urlData } = supabase.storage
         .from("videos")
         .getPublicUrl(fileName);
@@ -220,32 +320,33 @@ export default function VideoIntroPhase() {
 
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
-      // Video intro is considered "passed" if completed (no scoring needed)
       const passed = true;
-      const score = 100; // Full marks for completing video
+      const score = 100;
+      const duration = isRecorded ? recordingTime : 0;
       
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
           type: "video_intro",
-          duration: recordingTime,
+          duration,
           recordedAt: new Date().toISOString(),
           completed: true,
           passed,
           score,
           videoUrl,
+          uploadMethod: isRecorded ? "recorded" : "uploaded",
         },
         videoIntroResult: {
-          duration: recordingTime,
+          duration,
           completed: true,
           passed,
           score,
           videoUrl,
+          uploadMethod: isRecorded ? "recorded" : "uploaded",
         },
         videoIntroUrl: videoUrl,
       };
 
-      // Determine next phase based on processing mode
       const isAutoMode = application.jobs?.processing_mode !== "manual";
       
       const workflowSteps = application.jobs?.workflow_steps || [];
@@ -268,7 +369,6 @@ export default function VideoIntroPhase() {
       const newStatus = application.status;
 
       if (isAutoMode) {
-        // Video intro always passes if completed, advance to next phase
         if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
           newPhase = allPhases[currentIndex + 1].id;
         }
@@ -287,20 +387,19 @@ export default function VideoIntroPhase() {
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
           status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
+          phase_ai_analysis: `Video intro: ${isRecorded ? formatTime(duration) + " duration" : "uploaded"}. COMPLETED. Video URL: ${videoUrl}`,
         })
         .eq("id", id!);
 
       if (error) throw error;
 
-      // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
       navigate(`/applications/${id}`);
     } catch (error) {
       console.error("Error submitting video:", error);
       toast.error("Failed to upload video");
-      setState("preview");
+      setRecordingState("preview");
     } finally {
       setIsSubmitting(false);
     }
@@ -341,7 +440,6 @@ export default function VideoIntroPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
   if (existingResult) {
     const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
@@ -353,17 +451,21 @@ export default function VideoIntroPhase() {
     );
   }
 
+  // Preview state for both modes
+  const hasPreview = (mode === "record" && recordedUrl) || (mode === "upload" && uploadedPreviewUrl);
+  const previewUrl = mode === "record" ? recordedUrl : uploadedPreviewUrl;
+
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button 
           variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
+          onClick={() => mode === "select" ? navigate(`/applications/${id}`) : goBackToSelect()} 
           className="gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Application
+          {mode === "select" ? "Back to Application" : "Change Method"}
         </Button>
         
         <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
@@ -373,118 +475,313 @@ export default function VideoIntroPhase() {
       </div>
 
       {/* Main Card */}
-      <Card className="bg-card border-border">
-        <CardHeader>
+      <Card className="bg-card border-border overflow-hidden">
+        <CardHeader className="border-b border-border/50">
           <CardTitle className="flex items-center gap-2">
             <Video className="h-5 w-5 text-primary" />
-            Record Your Introduction
+            {mode === "select" ? "Submit Your Video Introduction" : mode === "record" ? "Record Your Video" : "Upload Your Video"}
           </CardTitle>
           <p className="text-muted-foreground">
             For: {application.jobs?.title}
           </p>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-6 space-y-6">
           {/* Prompt */}
-          <div className="bg-muted/30 rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-1">Prompt:</p>
+          <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl p-5 border border-primary/20">
+            <p className="text-xs uppercase tracking-wider text-primary font-medium mb-2">Instructions</p>
             <p className="text-foreground">{videoConfig.prompt}</p>
           </div>
 
-          {/* Video Area */}
-          <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-            {state === "intro" && !hasPermissions && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                <Camera className="h-16 w-16 text-muted-foreground" />
-                <p className="text-muted-foreground text-center">
-                  Click "Start Recording" to begin
-                </p>
-              </div>
-            )}
-            
-            {(state === "intro" || state === "recording") && hasPermissions && (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            )}
-            
-            {state === "preview" && recordedUrl && (
-              <video
-                src={recordedUrl}
-                controls
-                className="w-full h-full object-cover"
-              />
+          <AnimatePresence mode="wait">
+            {/* Mode Selection */}
+            {mode === "select" && (
+              <motion.div
+                key="select"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">How would you like to submit?</h3>
+                  <p className="text-muted-foreground text-sm">Choose the method that works best for you</p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Record Option */}
+                  <motion.button
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setMode("record")}
+                    className="group relative bg-gradient-to-br from-card to-muted/30 rounded-2xl p-8 border border-border/50 hover:border-primary/50 transition-all duration-300 text-left overflow-hidden"
+                  >
+                    {/* Glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className="relative space-y-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center group-hover:from-primary/30 group-hover:to-primary/20 transition-colors duration-300">
+                        <Camera className="h-8 w-8 text-primary" />
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">Record Video</h4>
+                        <p className="text-muted-foreground text-sm">Record directly from your webcam with audio. Perfect for a fresh, authentic introduction.</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Camera className="h-3.5 w-3.5" />
+                        <span>Webcam + Microphone</span>
+                        <span className="text-border">•</span>
+                        <span>Max {formatTime(videoConfig.maxDuration)}</span>
+                      </div>
+                    </div>
+                  </motion.button>
+
+                  {/* Upload Option */}
+                  <motion.button
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setMode("upload")}
+                    className="group relative bg-gradient-to-br from-card to-muted/30 rounded-2xl p-8 border border-border/50 hover:border-accent/50 transition-all duration-300 text-left overflow-hidden"
+                  >
+                    {/* Glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className="relative space-y-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center group-hover:from-accent/30 group-hover:to-accent/20 transition-colors duration-300">
+                        <Upload className="h-8 w-8 text-accent" />
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-xl font-semibold text-foreground mb-2 group-hover:text-accent transition-colors">Upload Video</h4>
+                        <p className="text-muted-foreground text-sm">Upload a pre-recorded video file. Great if you've already prepared your introduction.</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <FileVideo className="h-3.5 w-3.5" />
+                        <span>MP4, WebM, MOV</span>
+                        <span className="text-border">•</span>
+                        <span>Max 100MB</span>
+                      </div>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-muted/30 rounded-xl p-5 space-y-3">
+                  <h4 className="font-medium text-foreground text-sm">Tips for a great video:</h4>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Camera className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                      <span>Find a well-lit area with a clean background</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Mic className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                      <span>Speak clearly and maintain eye contact</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Video className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                      <span>Keep it focused and professional</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <AlertCircle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                      <span>Maximum {formatTime(videoConfig.maxDuration)} duration</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             )}
 
-            {state === "recording" && (
-              <div className="absolute top-4 left-4 flex items-center gap-2">
-                <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                <Badge className="bg-red-500/90 text-white">
-                  {formatTime(recordingTime)} / {formatTime(videoConfig.maxDuration)}
-                </Badge>
-              </div>
-            )}
-          </div>
-
-          {/* Instructions */}
-          {state === "intro" && (
-            <div className="space-y-3">
-              <h4 className="font-medium text-foreground">Tips for a great video:</h4>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Camera className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Find a well-lit area with a clean, professional background</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Mic className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Speak clearly, smile, and maintain eye contact with the camera</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Video className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Briefly introduce yourself: name, background, and interest in this role</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <AlertCircle className="h-4 w-4 mt-0.5 text-amber-500" />
-                <span>Maximum {formatTime(videoConfig.maxDuration)} — keep it focused and engaging!</span>
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-center gap-4">
-            {state === "intro" && (
-              <Button onClick={startRecording} size="lg" className="gap-2">
-                <Play className="h-5 w-5" />
-                Start Recording
-              </Button>
-            )}
-            
-            {state === "recording" && (
-              <Button onClick={stopRecording} variant="destructive" size="lg" className="gap-2">
-                <Square className="h-5 w-5" />
-                Stop Recording
-              </Button>
-            )}
-            
-            {state === "preview" && (
-              <>
-                <Button onClick={resetRecording} variant="outline" className="gap-2">
-                  <RotateCcw className="h-4 w-4" />
-                  Record Again
-                </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4" />
+            {/* Record Mode */}
+            {mode === "record" && !hasPreview && (
+              <motion.div
+                key="record"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* Video Area */}
+                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
+                  {recordingState === "intro" && !hasPermissions && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-muted/20 to-background/80">
+                      <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Camera className="h-10 w-10 text-primary" />
+                      </div>
+                      <p className="text-muted-foreground text-center">
+                        Click "Start Recording" to begin
+                      </p>
+                    </div>
                   )}
-                  Submit Video
-                </Button>
-              </>
+                  
+                  {(recordingState === "intro" || recordingState === "recording") && hasPermissions && (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  {recordingState === "recording" && (
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                      <Badge className="bg-red-500/90 text-white border-0">
+                        {formatTime(recordingTime)} / {formatTime(videoConfig.maxDuration)}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-center gap-4">
+                  {recordingState === "intro" && (
+                    <Button onClick={startRecording} size="lg" className="gap-2 px-8">
+                      <Play className="h-5 w-5" />
+                      Start Recording
+                    </Button>
+                  )}
+                  
+                  {recordingState === "recording" && (
+                    <Button onClick={stopRecording} variant="destructive" size="lg" className="gap-2 px-8">
+                      <Square className="h-5 w-5" />
+                      Stop Recording
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
             )}
-          </div>
+
+            {/* Upload Mode */}
+            {mode === "upload" && !hasPreview && (
+              <motion.div
+                key="upload"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* Dropzone */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-4 ${
+                    isDragging 
+                      ? "border-primary bg-primary/10" 
+                      : "border-border/50 bg-muted/20 hover:border-primary/50 hover:bg-muted/30"
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,.mp4,.webm,.mov,.avi,.mkv"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+                  
+                  <motion.div
+                    animate={isDragging ? { scale: 1.1 } : { scale: 1 }}
+                    className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center"
+                  >
+                    <Upload className={`h-10 w-10 transition-colors ${isDragging ? "text-primary" : "text-accent"}`} />
+                  </motion.div>
+                  
+                  <div className="text-center">
+                    <p className="text-foreground font-medium mb-1">
+                      {isDragging ? "Drop your video here" : "Drag & drop your video here"}
+                    </p>
+                    <p className="text-muted-foreground text-sm">
+                      or <span className="text-primary hover:underline">browse files</span>
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <FileVideo className="h-3.5 w-3.5" />
+                      MP4, WebM, MOV, AVI, MKV
+                    </span>
+                    <span className="text-border">•</span>
+                    <span>Max 100MB</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Preview Mode (both record and upload) */}
+            {hasPreview && (
+              <motion.div
+                key="preview"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* Video Preview */}
+                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
+                  <video
+                    src={previewUrl!}
+                    controls
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+
+                {/* File Info for uploads */}
+                {mode === "upload" && uploadedFile && (
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
+                        <FileVideo className="h-5 w-5 text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-foreground font-medium text-sm truncate max-w-[200px] sm:max-w-none">
+                          {uploadedFile.name}
+                        </p>
+                        <p className="text-muted-foreground text-xs">{formatFileSize(uploadedFile.size)}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={resetUpload} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Recording duration for recorded videos */}
+                {mode === "record" && recordingTime > 0 && (
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Video className="h-4 w-4" />
+                    <span>Duration: {formatTime(recordingTime)}</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-center gap-4">
+                  <Button 
+                    onClick={mode === "record" ? resetRecording : resetUpload} 
+                    variant="outline" 
+                    className="gap-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    {mode === "record" ? "Record Again" : "Choose Different File"}
+                  </Button>
+                  <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2 px-8">
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    Submit Video
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
     </div>
