@@ -231,7 +231,7 @@ export default function Index() {
                   animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <img src={avaOrbLogo} alt="AVA" className="h-5 w-5 object-contain" />
                 </motion.div>
               </motion.div>
             </motion.div>
