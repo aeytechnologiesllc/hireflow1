@@ -349,7 +349,16 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
 
       if (urlError) throw urlError;
 
-      setUploadedFileUrl(urlData.signedUrl);
+      // Ensure we have a full absolute URL (Supabase may return relative path)
+      const signedPath = urlData.signedUrl;
+      const fullUrl = signedPath.startsWith('http') 
+        ? signedPath 
+        : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1${signedPath}`;
+      
+      console.log('Signed URL:', signedPath);
+      console.log('Full URL:', fullUrl);
+      
+      setUploadedFileUrl(fullUrl);
       
       toast({
         title: "File Uploaded",
