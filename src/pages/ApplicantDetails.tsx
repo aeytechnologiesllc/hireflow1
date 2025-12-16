@@ -220,6 +220,7 @@ export default function ApplicantDetails() {
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
+  const [isAwaitingReview, setIsAwaitingReview] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
@@ -373,10 +374,12 @@ export default function ApplicantDetails() {
       const currentPhase = phases[effectivePhaseIndex];
       const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
       const isLastPhase = effectivePhaseIndex === phases.length - 1;
-      const isAwaitingReview = isComplete && !isLastPhase && isManualMode;
+      const awaitingReview = isComplete && !isLastPhase && isManualMode;
+      
+      setIsAwaitingReview(awaitingReview);
       
       // Add 0.5 offset if awaiting review (halfway to next phase)
-      const adjustedPosition = isAwaitingReview 
+      const adjustedPosition = awaitingReview 
         ? effectivePhaseIndex + 0.5 
         : effectivePhaseIndex;
       
@@ -955,16 +958,18 @@ Resume URL: ${application.resume_url || "Not provided"}
 
             {/* Draggable avatar */}
             <div 
-              className={`absolute top-3 -translate-x-1/2 z-20 ${
+              className={`absolute top-3 z-20 ${
+                isAwaitingReview && !isDragging ? "animate-float-awaiting" : "-translate-x-1/2"
+              } ${
                 canManagePipeline ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-70"
               } ${
-                phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline ? "animate-bounce-subtle" : ""
+                phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline && !isAwaitingReview ? "animate-bounce-subtle" : ""
               }`}
               style={{ left: `${dragPosition}%` }}
               onMouseDown={canManagePipeline ? handleDragStart : undefined}
               onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
-              <Avatar className="h-10 w-10 ring-4 ring-primary/30">
+              <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"}`}>
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                   {initials}
                 </AvatarFallback>
