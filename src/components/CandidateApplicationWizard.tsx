@@ -545,6 +545,10 @@ Resume URL: ${resumeUrl || "Not provided"}
                         onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
                         placeholder="Enter your answer..."
                         className="min-h-[100px]"
+                        onPaste={(e) => { e.preventDefault(); toast.error("Copying and pasting is not allowed"); }}
+                        onCopy={(e) => e.preventDefault()}
+                        onCut={(e) => e.preventDefault()}
+                        onContextMenu={(e) => e.preventDefault()}
                       />
                     ) : question.type === "select" && question.options ? (
                       <RadioGroup
@@ -569,6 +573,10 @@ Resume URL: ${resumeUrl || "Not provided"}
                           onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
                           placeholder="email@example.com"
                           className={validationErrors[question.id] ? "border-destructive" : ""}
+                          onPaste={(e) => { e.preventDefault(); toast.error("Copying and pasting is not allowed"); }}
+                          onCopy={(e) => e.preventDefault()}
+                          onCut={(e) => e.preventDefault()}
+                          onContextMenu={(e) => e.preventDefault()}
                         />
                         {validationErrors[question.id] && (
                           <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
@@ -694,6 +702,10 @@ Resume URL: ${resumeUrl || "Not provided"}
                         value={answers[question.id] || ""}
                         onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
                         placeholder="Enter your answer..."
+                        onPaste={(e) => { e.preventDefault(); toast.error("Copying and pasting is not allowed"); }}
+                        onCopy={(e) => e.preventDefault()}
+                        onCut={(e) => e.preventDefault()}
+                        onContextMenu={(e) => e.preventDefault()}
                       />
                     )}
                   </div>

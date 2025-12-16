@@ -196,11 +196,32 @@ serve(async (req) => {
 
     console.log(`Processing ${type} analysis request`);
 
-    // For resume analysis, note that PDF text extraction is handled via context
+    // For resume analysis, fetch and parse PDF content
     let resumeContent = "";
+    let pdfExtracted = false;
     if (type === "resume" && resumeUrl) {
-      console.log("Resume URL provided:", resumeUrl);
-      resumeContent = "\n\n[Resume document available at provided URL. Please analyze based on the context and metadata provided.]";
+      console.log("Fetching resume from:", resumeUrl);
+      try {
+        const pdfResponse = await fetch(resumeUrl);
+        if (pdfResponse.ok) {
+          const pdfBuffer = await pdfResponse.arrayBuffer();
+          
+          // Use pdf-parse library to extract text
+          const pdfParse = (await import("https://esm.sh/pdf-parse@1.1.1")).default;
+          const pdfData = await pdfParse(new Uint8Array(pdfBuffer));
+          const extractedText = pdfData.text;
+          
+          console.log("Successfully extracted resume text, length:", extractedText.length);
+          resumeContent = `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${extractedText}\n--- END RESUME CONTENT ---`;
+          pdfExtracted = true;
+        } else {
+          console.warn("Failed to fetch resume:", pdfResponse.status);
+          resumeContent = "\n\n[Note: Could not access resume file - HTTP " + pdfResponse.status + "]";
+        }
+      } catch (err) {
+        console.error("Error extracting resume text:", err);
+        resumeContent = "\n\n[Note: Resume file could not be parsed - may not be a valid PDF. Error: " + (err instanceof Error ? err.message : "Unknown") + "]";
+      }
     }
 
     let userContent = content + resumeContent;
@@ -253,7 +274,7 @@ serve(async (req) => {
         analysis,
         type,
         timestamp: new Date().toISOString(),
-        resumeExtracted: false, // PDF extraction removed - analysis based on metadata
+        resumeExtracted: pdfExtracted,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
