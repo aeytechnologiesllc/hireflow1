@@ -124,13 +124,19 @@ export function PdfSignaturePlacer({
       return;
     }
 
+    // Capture values synchronously before RAF (event object gets pooled/nullified)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+
     // Throttle updates using requestAnimationFrame
-    if (rafRef.current) return;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
     
     rafRef.current = requestAnimationFrame(() => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      const x = ((clientX - rect.left) / rect.width) * 100;
+      const y = ((clientY - rect.top) / rect.height) * 100;
       setHoverPosition({ x, y });
       rafRef.current = null;
     });
@@ -159,18 +165,23 @@ export function PdfSignaturePlacer({
   };
 
   const removeField = (fieldId: string) => {
-    // Find which step this field belongs to
-    const stepIndex = PLACEMENT_STEPS.findIndex(s => s.id === fieldId);
-    if (stepIndex !== -1 && stepIndex < placementStep) {
-      // Reset back to that step
-      onFieldsChange(signatureFields.filter(f => {
-        const fIndex = PLACEMENT_STEPS.findIndex(s => s.id === f.id);
-        return fIndex < stepIndex;
-      }));
-      setPlacementStep(stepIndex);
-    } else {
-      onFieldsChange(signatureFields.filter(f => f.id !== fieldId));
+    // Simply remove the specific field
+    const newFields = signatureFields.filter(f => f.id !== fieldId);
+    onFieldsChange(newFields);
+    
+    // Recalculate placement step based on remaining fields
+    const placedFieldIds = newFields.map(f => f.id);
+    let newStep = 0;
+    for (let i = 0; i < PLACEMENT_STEPS.length; i++) {
+      if (placedFieldIds.includes(PLACEMENT_STEPS[i].id)) {
+        newStep = i + 1;
+      } else {
+        // Found a gap - this is where we should resume
+        newStep = i;
+        break;
+      }
     }
+    setPlacementStep(Math.min(newStep, PLACEMENT_STEPS.length));
   };
 
   const getFieldColor = (type: "candidate" | "employer") => {
