@@ -8,6 +8,11 @@ interface UseAvaVoiceOptions {
   applicationId?: string;
   jobId?: string;
   language?: string;
+  // User context for personalized AVA responses
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  countryCode?: string;
+  voiceMinutesRemaining?: number;
   onTranscript?: (text: string, role: 'user' | 'assistant') => void;
   onToolCall?: (toolName: string, result: any) => void;
   onInterviewEnd?: (evaluation: any) => void;
@@ -59,6 +64,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           applicationId: options.applicationId,
           jobId: options.jobId,
           language: options.language || 'en',
+          // Pass user context for personalized responses
+          subscriptionPlan: options.subscriptionPlan,
+          subscriptionStatus: options.subscriptionStatus,
+          countryCode: options.countryCode,
+          voiceMinutesRemaining: options.voiceMinutesRemaining,
         },
       });
 
