@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion, type Easing } from "framer-motion";
 import FeatureDetailDialog from "@/components/landing/FeatureDetailDialog";
 import hireflowLogo from "@/assets/hireflow-logo.png";
+import avaOrbLogo from "@/assets/ava-orb.png";
 import { 
   ArrowRight,
   CheckCircle,
@@ -211,14 +212,15 @@ export default function Index() {
               <motion.div 
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-500 flex items-center justify-center"
+                className="relative"
               >
-                <motion.div 
-                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Sparkles className="h-6 w-6 text-white" />
-                </motion.div>
+                {/* Subtle glow behind orb */}
+                <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-xl scale-150" />
+                <img 
+                  src={avaOrbLogo} 
+                  alt="AVA AI" 
+                  className="relative w-14 h-14 object-contain"
+                />
               </motion.div>
               <motion.div 
                 whileHover={{ scale: 1.05 }}
