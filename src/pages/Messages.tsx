@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers, useDeleteConversation } from "@/hooks/useMessages";
+import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers, useMessageableCandidates, useDeleteConversation } from "@/hooks/useMessages";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Send, Plus, Briefcase, Trash2, EyeOff } from "lucide-react";
+import { MessageSquare, Search, Plus, Briefcase, Trash2, EyeOff, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +31,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { MessageComposer } from "@/components/messages/MessageComposer";
+import { FileMessage } from "@/components/messages/FileMessage";
 
 function formatMessageDate(date: Date) {
   if (isToday(date)) return format(date, "h:mm a");
@@ -42,12 +44,13 @@ export default function Messages() {
   const { user, role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
   const isCandidate = role === "candidate";
+  const isEmployer = role === "employer";
   const canMessageCandidates = !isTeamMember || permissions?.canMessageCandidates;
   const { data: conversations, isLoading: isLoadingConversations } = useConversations();
   const { data: messageableEmployers } = useMessageableEmployers();
+  const { data: messageableCandidates } = useMessageableCandidates();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [newMessage, setNewMessage] = useState("");
   const [showNewConversation, setShowNewConversation] = useState(false);
   const { data: messages, isLoading: isLoadingMessages } = useMessages(selectedContactId);
   const sendMessage = useSendMessage();
@@ -56,8 +59,10 @@ export default function Messages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConversation = conversations?.find((c) => c.contact_id === selectedContactId);
-  // For new conversations, find employer info
+  // For new conversations, find employer info (for candidates)
   const selectedEmployer = messageableEmployers?.find((e) => e.employer_id === selectedContactId);
+  // For new conversations, find candidate info (for employers)
+  const selectedCandidate = messageableCandidates?.find((c) => c.candidate_id === selectedContactId);
 
   const filteredConversations = conversations?.filter((conv) => {
     const name = conv.contact_profile?.full_name?.toLowerCase() || "";
@@ -77,8 +82,13 @@ export default function Messages() {
   };
 
   // Get employers the candidate can message but hasn't yet
-  const newContactOptions = messageableEmployers?.filter(
+  const newEmployerOptions = messageableEmployers?.filter(
     (emp) => !conversations?.some((c) => c.contact_id === emp.employer_id)
+  ) || [];
+
+  // Get candidates the employer can message but hasn't yet
+  const newCandidateOptions = messageableCandidates?.filter(
+    (cand) => !conversations?.some((c) => c.contact_id === cand.candidate_id)
   ) || [];
 
   // Mark messages as read when conversation is selected
@@ -99,24 +109,25 @@ export default function Messages() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!newMessage.trim() || !selectedContactId) return;
+  const handleSend = async (content: string, file?: File) => {
+    if ((!content.trim() && !file) || !selectedContactId) return;
 
     try {
       await sendMessage.mutateAsync({
         receiver_id: selectedContactId,
-        content: newMessage.trim(),
-        application_id: selectedEmployer?.application_id,
+        content: content.trim(),
+        application_id: selectedEmployer?.application_id || selectedCandidate?.application_id,
+        file,
       });
-      setNewMessage("");
       setShowNewConversation(false);
     } catch (error) {
       console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
     }
   };
 
-  const handleStartNewConversation = (employerId: string) => {
-    setSelectedContactId(employerId);
+  const handleStartNewConversation = (contactId: string) => {
+    setSelectedContactId(contactId);
     setShowNewConversation(false);
   };
 
@@ -154,7 +165,9 @@ export default function Messages() {
               </Badge>
             )}
             <h2 className="text-lg font-semibold text-foreground">Messages</h2>
-            {isCandidate && newContactOptions.length > 0 && (
+            
+            {/* Plus button for candidates */}
+            {isCandidate && newEmployerOptions.length > 0 && (
               <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -169,7 +182,7 @@ export default function Messages() {
                     <p className="text-sm text-muted-foreground mb-4">
                       Select an employer to message about your application:
                     </p>
-                    {newContactOptions.map((emp) => (
+                    {newEmployerOptions.map((emp) => (
                       <button
                         key={emp.employer_id}
                         onClick={() => handleStartNewConversation(emp.employer_id)}
@@ -187,6 +200,49 @@ export default function Messages() {
                           <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
                             <Briefcase className="h-3 w-3" />
                             {emp.job_title}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Plus button for employers */}
+            {isEmployer && newCandidateOptions.length > 0 && (
+              <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+                  <DialogHeader>
+                    <DialogTitle>Start New Conversation</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 mt-4 overflow-y-auto flex-1">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Select an applicant to message:
+                    </p>
+                    {newCandidateOptions.map((cand) => (
+                      <button
+                        key={`${cand.candidate_id}-${cand.application_id}`}
+                        onClick={() => handleStartNewConversation(cand.candidate_id)}
+                        className="w-full p-3 rounded-lg flex items-center gap-3 hover:bg-secondary/50 transition-colors text-left border border-border"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+                            {getInitials(cand.candidate_profile)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">
+                            {cand.candidate_profile?.full_name || cand.candidate_profile?.email || "Candidate"}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            Applied for: {cand.job_title}
                           </p>
                         </div>
                       </button>
@@ -255,7 +311,7 @@ export default function Messages() {
                 </button>
               ))}
             </div>
-          ) : isCandidate && newContactOptions.length > 0 ? (
+          ) : (isCandidate && newEmployerOptions.length > 0) || (isEmployer && newCandidateOptions.length > 0) ? (
             <div className="p-8 text-center">
               <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
               <p className="text-muted-foreground mb-4">No conversations yet</p>
@@ -353,7 +409,22 @@ export default function Messages() {
                               : "bg-secondary text-secondary-foreground"
                           )}
                         >
-                          <p className="text-sm">{message.content}</p>
+                          {/* File attachment */}
+                          {message.file_url && message.file_name && message.file_type && (
+                            <div className="mb-2">
+                              <FileMessage
+                                fileUrl={message.file_url}
+                                fileName={message.file_name}
+                                fileType={message.file_type}
+                                fileSize={message.file_size || undefined}
+                                isMine={isMine}
+                              />
+                            </div>
+                          )}
+                          {/* Text content - only show if not just "Sent a file:" */}
+                          {message.content && !message.content.startsWith("Sent a file:") && (
+                            <p className="text-sm">{message.content}</p>
+                          )}
                           <p className={cn(
                             "text-xs mt-1",
                             isMine ? "text-primary-foreground/70" : "text-muted-foreground"
@@ -380,21 +451,10 @@ export default function Messages() {
                   You don't have permission to send messages
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Type a message..."
-                    className="bg-background border-border"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                  />
-                  <Button 
-                    onClick={handleSend} 
-                    disabled={!newMessage.trim() || sendMessage.isPending}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+                <MessageComposer
+                  onSend={handleSend}
+                  isPending={sendMessage.isPending}
+                />
               )}
             </div>
           </>

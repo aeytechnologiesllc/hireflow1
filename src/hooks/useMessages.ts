@@ -4,7 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useEffect } from "react";
 
-export type Message = Tables<"messages">;
+export type Message = Tables<"messages"> & {
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
+};
 export type MessageInsert = TablesInsert<"messages">;
 
 export interface MessageWithProfile extends Message {
@@ -24,6 +29,13 @@ export interface Conversation {
 export interface MessageableEmployer {
   employer_id: string;
   employer_profile: Tables<"profiles"> | null;
+  job_title: string;
+  application_id: string;
+}
+
+export interface MessageableCandidate {
+  candidate_id: string;
+  candidate_profile: Tables<"profiles"> | null;
   job_title: string;
   application_id: string;
 }
@@ -79,6 +91,61 @@ export function useMessageableEmployers() {
         seen.add(e.employer_id);
         return true;
       });
+    },
+    enabled: !!user,
+  });
+}
+
+// Hook to get candidates the employer can message (from applications to their jobs)
+export function useMessageableCandidates() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["messageable-candidates", user?.id],
+    queryFn: async () => {
+      // Get all jobs for this employer
+      const { data: jobs, error: jobsError } = await supabase
+        .from("jobs")
+        .select("id, title, employer_id")
+        .eq("employer_id", user!.id);
+
+      if (jobsError) throw jobsError;
+      if (!jobs || jobs.length === 0) return [];
+
+      const jobIds = jobs.map((j) => j.id);
+
+      // Get all applications for these jobs
+      const { data: applications, error } = await supabase
+        .from("applications")
+        .select("id, candidate_id, job_id")
+        .in("job_id", jobIds);
+
+      if (error) throw error;
+      if (!applications || applications.length === 0) return [];
+
+      // Get unique candidate IDs
+      const candidateIds = [...new Set(applications.map((app) => app.candidate_id))];
+
+      // Fetch candidate profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", candidateIds);
+
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+      const jobMap = new Map(jobs.map((j) => [j.id, j.title]));
+
+      // Create messageable candidates list
+      const candidates: MessageableCandidate[] = applications.map((app) => ({
+        candidate_id: app.candidate_id,
+        candidate_profile: profileMap.get(app.candidate_id) || null,
+        job_title: jobMap.get(app.job_id) || "Unknown Job",
+        application_id: app.id,
+      }));
+
+      return candidates;
     },
     enabled: !!user,
   });
@@ -257,14 +324,54 @@ export function useSendMessage() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ receiver_id, content, application_id }: { receiver_id: string; content: string; application_id?: string }) => {
+    mutationFn: async ({ 
+      receiver_id, 
+      content, 
+      application_id,
+      file
+    }: { 
+      receiver_id: string; 
+      content: string; 
+      application_id?: string;
+      file?: File;
+    }) => {
+      let fileUrl: string | null = null;
+      let fileName: string | null = null;
+      let fileType: string | null = null;
+      let fileSize: number | null = null;
+
+      // Upload file if provided
+      if (file) {
+        const fileExt = file.name.split(".").pop();
+        const filePath = `${user!.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("message-attachments")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("message-attachments")
+          .getPublicUrl(filePath);
+
+        fileUrl = publicUrl;
+        fileName = file.name;
+        fileType = file.type;
+        fileSize = file.size;
+      }
+
       const { data, error } = await supabase
         .from("messages")
         .insert({
           sender_id: user!.id,
           receiver_id,
-          content,
+          content: content || (file ? `Sent a file: ${file.name}` : ""),
           application_id,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_type: fileType,
+          file_size: fileSize,
         })
         .select()
         .single();
