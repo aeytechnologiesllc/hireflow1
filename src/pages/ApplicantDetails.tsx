@@ -26,7 +26,7 @@ import {
   FileCheck, ClipboardList, Video, Keyboard, 
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
-  HelpCircle, Move, Zap
+  HelpCircle, Move, Zap, AlertCircle
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
@@ -1565,11 +1565,33 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                                   <video 
                                     src={videoUrl} 
                                     controls 
+                                    preload="metadata"
+                                    playsInline
                                     className="w-full"
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.display = 'none';
+                                      const fallback = target.nextElementSibling;
+                                      if (fallback) (fallback as HTMLElement).style.display = 'block';
+                                    }}
                                   />
+                                  <div className="text-center py-8 text-muted-foreground space-y-3 hidden">
+                                    <AlertCircle className="h-12 w-12 mx-auto mb-3 text-destructive/50" />
+                                    <p>Video could not be loaded</p>
+                                    <p className="text-xs">The file may be corrupted or in an unsupported format</p>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(videoUrl, '_blank')}
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      Open in New Tab
+                                    </Button>
+                                  </div>
                                 </div>
                               );
                             }
+                            
                             return (
                               <div className="text-center py-8 text-muted-foreground">
                                 <Video className="h-12 w-12 mx-auto mb-3 opacity-50" />
