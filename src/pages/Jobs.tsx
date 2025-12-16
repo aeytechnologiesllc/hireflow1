@@ -75,22 +75,22 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border-border">
-                  <DropdownMenuItem onClick={() => onViewDetails(job)}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails(job); }}>
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onViewWorkflow(job)}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewWorkflow(job); }}>
                     <Sparkles className="h-4 w-4 mr-2" />
                     View Workflow
                   </DropdownMenuItem>
                   {canEdit && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onEdit(job)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(job); }}>
                         <Edit className="h-4 w-4 mr-2" />
                         Edit Job
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onDuplicate(job)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDuplicate(job); }}>
                         <Copy className="h-4 w-4 mr-2" />
                         Duplicate
                       </DropdownMenuItem>
@@ -101,7 +101,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         className="text-destructive"
-                        onClick={() => onDelete(job.id)}
+                        onClick={(e) => { e.stopPropagation(); onDelete(job.id); }}
                         disabled={isDeleting}
                       >
                         {isDeleting ? (
