@@ -135,15 +135,30 @@ export const compressVideo = async (
 
   // Read compressed file
   const data = await ff.readFile(outputName);
-  // Handle FileData type - copy to ArrayBuffer for Blob compatibility
-  let arrayBuffer: ArrayBuffer;
-  if (typeof data === 'string') {
-    arrayBuffer = new TextEncoder().encode(data).buffer as ArrayBuffer;
-  } else {
-    // Create a copy of the buffer to ensure it's a proper ArrayBuffer
-    arrayBuffer = (data as Uint8Array).slice().buffer as ArrayBuffer;
+  
+  // Validate output exists and has content
+  if (!data || (typeof data !== 'string' && (data as Uint8Array).length === 0)) {
+    throw new Error("Compression failed: output file is empty or missing");
   }
-  const blob = new Blob([arrayBuffer], { type: "video/mp4" });
+
+  // Create blob - ensure we have a proper Uint8Array copy for Blob compatibility
+  const uint8Data = typeof data === 'string' 
+    ? new TextEncoder().encode(data) 
+    : new Uint8Array(data as Uint8Array);
+  const blob = new Blob([uint8Data], { type: "video/mp4" });
+
+  // Validate compression produced reasonable result
+  const compressionRatio = blob.size / originalSize;
+  if (compressionRatio < 0.01) {
+    // Less than 1% of original is suspicious - likely corruption
+    console.warn(`Suspicious compression ratio: ${originalSize} → ${blob.size} (${(compressionRatio * 100).toFixed(2)}%)`);
+    throw new Error("Compression produced an unusually small file. The output may be corrupted. Please try recording directly.");
+  }
+  
+  if (compressionRatio > 0.95) {
+    // More than 95% means compression didn't help much
+    console.info(`Low compression achieved: ${(compressionRatio * 100).toFixed(1)}% of original`);
+  }
 
   // Cleanup
   await ff.deleteFile(inputName);
