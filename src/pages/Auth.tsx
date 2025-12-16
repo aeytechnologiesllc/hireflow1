@@ -6,13 +6,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { Briefcase, User, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Briefcase, User, ArrowLeft, Loader2, Sparkles, Check, Circle } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+
+// Real-time password requirements component
+const PasswordRequirements = ({ password }: { password: string }) => {
+  const requirements = [
+    { label: "At least 6 characters", met: password.length >= 6 },
+    { label: "Contains a letter", met: /[a-zA-Z]/.test(password) },
+    { label: "Contains a number", met: /\d/.test(password) },
+  ];
+
+  if (!password) return null;
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {requirements.map((req, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs transition-all duration-200">
+          {req.met ? (
+            <Check className="h-3.5 w-3.5 text-emerald-500" />
+          ) : (
+            <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+          <span className={req.met ? "text-emerald-500" : "text-muted-foreground"}>
+            {req.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -49,7 +77,6 @@ export default function Auth() {
       if (err instanceof z.ZodError) {
         toast({
           variant: "destructive",
-          title: "Validation Error",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -90,7 +117,6 @@ export default function Auth() {
       if (err instanceof z.ZodError) {
         toast({
           variant: "destructive",
-          title: "Validation Error",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -305,6 +331,7 @@ export default function Auth() {
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
+                    <PasswordRequirements password={signUpPassword} />
                   </div>
                   <div className="space-y-3">
                     <Label className="text-foreground">I want to</Label>
