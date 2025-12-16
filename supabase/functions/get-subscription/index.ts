@@ -202,8 +202,13 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error fetching subscription:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+
+    const isAuthError =
+      message.toLowerCase().includes("not authenticated") ||
+      message.toLowerCase().includes("no authorization header");
+
     return new Response(JSON.stringify({ error: message }), {
-      status: 400,
+      status: isAuthError ? 401 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
