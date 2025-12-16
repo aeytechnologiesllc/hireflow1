@@ -175,10 +175,14 @@ export default function JoinTeam() {
       }
 
       // Update invitation status
-      await supabase
+      const { error: updateError } = await supabase
         .from("team_invitations")
         .update({ status: "accepted" })
         .eq("id", invitation.id);
+
+      if (updateError) {
+        console.error("Failed to update invitation status:", updateError);
+      }
 
       // Add team_member role if not already present
       const { data: existingRole } = await supabase
