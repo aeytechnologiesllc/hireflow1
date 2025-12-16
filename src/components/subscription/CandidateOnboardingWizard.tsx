@@ -1,141 +1,283 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { FileText, Bell, MessageSquare, CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
+import { FileText, Bell, MessageSquare, CheckCircle2, ArrowRight, Sparkles, Briefcase, Shield, Clock } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface CandidateOnboardingWizardProps {
   onComplete: () => void;
 }
 
-const STEPS = [
+const FEATURES = [
   {
     icon: FileText,
-    title: "Enter Your Code",
-    description: "Received an application code from an employer? Simply enter it to start your application."
+    title: "Simple Application",
+    description: "Just enter your code and follow the guided steps",
+    stat: "2 min"
   },
   {
-    icon: CheckCircle2,
-    title: "Complete Your Application",
-    description: "Answer questions, upload your resume, and complete any assessments - all in one place."
+    icon: Clock,
+    title: "Real-Time Updates",
+    description: "Know exactly where you stand at every stage",
+    stat: "Instant"
   },
   {
-    icon: Bell,
-    title: "Track Your Progress",
-    description: "Get real-time updates as your application moves through each stage of the hiring process."
+    icon: Shield,
+    title: "Secure Documents",
+    description: "Sign offers and contracts with confidence",
+    stat: "100%"
   },
   {
     icon: MessageSquare,
-    title: "Stay Connected",
-    description: "Communicate directly with employers and sign documents securely when you get the offer."
+    title: "Direct Communication",
+    description: "Chat directly with your potential employer",
+    stat: "24/7"
+  }
+];
+
+const STEPS = [
+  {
+    number: "01",
+    title: "Enter Your Code",
+    description: "Use the application code shared by your employer"
+  },
+  {
+    number: "02",
+    title: "Complete Application",
+    description: "Answer questions and showcase your skills"
+  },
+  {
+    number: "03",
+    title: "Track Progress",
+    description: "Watch your application move through each stage"
+  },
+  {
+    number: "04",
+    title: "Get Hired",
+    description: "Sign your offer and start your new journey"
   }
 ];
 
 export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboardingWizardProps) {
   const [step, setStep] = useState(0);
+  const [activeFeature, setActiveFeature] = useState(0);
+
+  // Auto-rotate features on step 1
+  useEffect(() => {
+    if (step !== 1) return;
+    const interval = setInterval(() => {
+      setActiveFeature((prev) => (prev + 1) % FEATURES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [step]);
 
   const handleComplete = async () => {
-    // Trigger confetti
+    // Premium confetti burst
+    const colors = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
+    
     confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#10b981', '#34d399', '#6ee7b7']
+      particleCount: 80,
+      spread: 60,
+      origin: { y: 0.6, x: 0.3 },
+      colors
     });
     
     setTimeout(() => {
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6, x: 0.7 },
+        colors
+      });
+    }, 150);
+
+    setTimeout(() => {
+      confetti({
+        particleCount: 100,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors
+      });
+    }, 300);
+    
+    setTimeout(() => {
       onComplete();
-    }, 1000);
+    }, 1500);
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 overflow-y-auto">
-      {/* Background effects */}
+      {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-accent/8 rounded-full blur-[100px]" />
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.2, 1],
+            opacity: [0.1, 0.15, 0.1]
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px]" 
+        />
+        <motion.div 
+          animate={{ 
+            scale: [1.2, 1, 1.2],
+            opacity: [0.08, 0.12, 0.08]
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-accent/15 rounded-full blur-[100px]" 
+        />
+        <motion.div 
+          animate={{ 
+            y: [0, -20, 0],
+            opacity: [0.05, 0.1, 0.05]
+          }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[150px]" 
+        />
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-lg"
+        className="relative z-10 w-full max-w-2xl"
       >
         <AnimatePresence mode="wait">
+          {/* Step 0: Welcome */}
           {step === 0 && (
             <motion.div
               key="welcome"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="text-center space-y-6"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.4 }}
+              className="text-center space-y-8"
             >
-              {/* Welcome icon */}
+              {/* Animated icon with glow */}
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-                className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="relative w-28 h-28 mx-auto"
               >
-                <Sparkles className="w-10 h-10 text-primary" />
+                <div className="absolute inset-0 bg-primary/30 rounded-full blur-xl animate-pulse" />
+                <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 backdrop-blur-sm">
+                  <motion.div
+                    animate={{ rotate: [0, 5, -5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                  >
+                    <Briefcase className="w-12 h-12 text-primary" />
+                  </motion.div>
+                </div>
               </motion.div>
 
-              <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-foreground">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="space-y-3"
+              >
+                <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
                   Welcome to HireFlow
                 </h1>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-xl text-muted-foreground">
                   Your gateway to your next opportunity
                 </p>
-              </div>
+              </motion.div>
 
-              <p className="text-muted-foreground">
-                We make the job application process simple, transparent, and stress-free.
-              </p>
-
-              <Button
-                onClick={() => setStep(1)}
-                size="lg"
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-muted-foreground max-w-md mx-auto"
               >
-                Let's Get Started
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
+                We've made the job application process simple, transparent, and stress-free. 
+                Let's show you how it works.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <Button
+                  onClick={() => setStep(1)}
+                  size="lg"
+                  className="relative group bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg overflow-hidden"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    Get Started
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Button>
+              </motion.div>
             </motion.div>
           )}
 
+          {/* Step 1: Features Showcase */}
           {step === 1 && (
             <motion.div
-              key="how-it-works"
-              initial={{ opacity: 0, x: 20 }}
+              key="features"
+              initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.4 }}
               className="space-y-8"
             >
               <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold text-foreground">
-                  How It Works
-                </h2>
+                <motion.h2 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-3xl font-bold text-foreground"
+                >
+                  Everything You Need
+                </motion.h2>
                 <p className="text-muted-foreground">
-                  Applying for jobs has never been easier
+                  A seamless experience from application to offer
                 </p>
               </div>
 
-              <div className="space-y-4">
-                {STEPS.map((item, index) => (
+              {/* Feature cards with auto-rotation highlight */}
+              <div className="grid grid-cols-2 gap-4">
+                {FEATURES.map((feature, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-start gap-4 p-4 rounded-xl bg-card/50 border border-border/50"
+                    className={`relative p-5 rounded-2xl border transition-all duration-500 cursor-pointer ${
+                      activeFeature === index
+                        ? 'bg-primary/10 border-primary/50 scale-[1.02]'
+                        : 'bg-card/50 border-border/50 hover:border-primary/30'
+                    }`}
+                    onClick={() => setActiveFeature(index)}
                   >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <item.icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                    {activeFeature === index && (
+                      <motion.div
+                        layoutId="activeFeature"
+                        className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl"
+                        initial={false}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                    <div className="relative z-10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                          activeFeature === index ? 'bg-primary/20' : 'bg-muted'
+                        }`}>
+                          <feature.icon className={`w-5 h-5 ${
+                            activeFeature === index ? 'text-primary' : 'text-muted-foreground'
+                          }`} />
+                        </div>
+                        <span className={`text-sm font-bold ${
+                          activeFeature === index ? 'text-primary' : 'text-muted-foreground'
+                        }`}>
+                          {feature.stat}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{feature.title}</h3>
+                        <p className="text-sm text-muted-foreground">{feature.description}</p>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -145,86 +287,198 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                 <Button
                   variant="outline"
                   onClick={() => setStep(0)}
-                  className="flex-1"
+                  className="flex-1 py-6"
                 >
                   Back
                 </Button>
                 <Button
                   onClick={() => setStep(2)}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="flex-1 py-6 bg-primary hover:bg-primary/90 text-primary-foreground group"
                 >
                   Continue
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                  <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </div>
             </motion.div>
           )}
 
+          {/* Step 2: How It Works */}
           {step === 2 && (
             <motion.div
-              key="ready"
-              initial={{ opacity: 0, x: 20 }}
+              key="how-it-works"
+              initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="text-center space-y-6"
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-8"
             >
-              {/* Success icon */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring" }}
-                className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-emerald-500/10 flex items-center justify-center border border-primary/30"
-              >
-                <CheckCircle2 className="w-12 h-12 text-primary" />
-              </motion.div>
-
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-foreground">
-                  You're All Set!
-                </h2>
-                <p className="text-muted-foreground">
-                  Ready to start applying? Enter your application code and let's go.
-                </p>
+              <div className="text-center space-y-2">
+                <h2 className="text-3xl font-bold text-foreground">How It Works</h2>
+                <p className="text-muted-foreground">Four simple steps to your dream job</p>
               </div>
 
-              <div className="bg-card/50 border border-border/50 rounded-xl p-4 space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Pro tip:</span> Keep your application code handy - you received it from the employer when they shared the job posting with you.
-                </p>
+              {/* Timeline steps */}
+              <div className="relative space-y-0">
+                {/* Connecting line */}
+                <div className="absolute left-6 top-8 bottom-8 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-primary/20" />
+                
+                {STEPS.map((item, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.15 }}
+                    className="relative flex items-start gap-5 py-4"
+                  >
+                    {/* Step number */}
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: index * 0.15 + 0.2, type: "spring" }}
+                      className="relative z-10 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center shadow-lg shadow-primary/20"
+                    >
+                      <span className="text-sm font-bold text-primary-foreground">{item.number}</span>
+                    </motion.div>
+                    
+                    {/* Content */}
+                    <div className="flex-1 pt-2">
+                      <h3 className="font-semibold text-lg text-foreground">{item.title}</h3>
+                      <p className="text-muted-foreground">{item.description}</p>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
 
               <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => setStep(1)}
-                  className="flex-1"
+                  className="flex-1 py-6"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-6 bg-primary hover:bg-primary/90 text-primary-foreground group"
+                >
+                  Continue
+                  <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Ready to Start */}
+          {step === 3 && (
+            <motion.div
+              key="ready"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.4 }}
+              className="text-center space-y-8"
+            >
+              {/* Animated success icon */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 200 }}
+                className="relative w-32 h-32 mx-auto"
+              >
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="absolute inset-0 bg-primary/20 rounded-full blur-xl" 
+                />
+                <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.3, type: "spring" }}
+                  >
+                    <CheckCircle2 className="w-16 h-16 text-primary" />
+                  </motion.div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="space-y-3"
+              >
+                <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">
+                  You're All Set!
+                </h2>
+                <p className="text-lg text-muted-foreground max-w-md mx-auto">
+                  Ready to start your journey? Enter your application code and take the first step.
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 max-w-md mx-auto backdrop-blur-sm"
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">Pro tip:</span> Keep your application code handy — you received it from the employer when they shared the job posting.
+                  </p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="flex gap-3 pt-4 max-w-md mx-auto"
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setStep(2)}
+                  className="flex-1 py-6"
                 >
                   Back
                 </Button>
                 <Button
                   onClick={handleComplete}
                   size="lg"
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="flex-1 py-6 relative group bg-gradient-to-r from-primary to-emerald-500 hover:from-primary/90 hover:to-emerald-500/90 text-primary-foreground overflow-hidden"
                 >
-                  Start Applying
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    Start Applying
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
                 </Button>
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Step indicators */}
-        <div className="flex justify-center gap-2 mt-8">
-          {[0, 1, 2].map((i) => (
-            <div
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="flex justify-center gap-2 mt-10"
+        >
+          {[0, 1, 2, 3].map((i) => (
+            <motion.div
               key={i}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                i === step ? 'bg-primary' : 'bg-muted'
+              animate={{ 
+                scale: i === step ? 1 : 0.8,
+                opacity: i === step ? 1 : 0.5
+              }}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                i === step ? 'w-8 bg-primary' : 'w-2 bg-muted'
               }`}
             />
           ))}
-        </div>
+        </motion.div>
       </motion.div>
     </div>
   );
