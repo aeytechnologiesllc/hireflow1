@@ -40,12 +40,68 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // Get usage
-    const { data: usage, error: usageError } = await supabaseClient
-      .from("subscription_usage")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Calculate actual usage from tables
+    const { count: jobsCount } = await supabaseAdmin
+      .from("jobs")
+      .select("*", { count: "exact", head: true })
+      .eq("employer_id", user.id);
+
+    const { data: userJobs } = await supabaseAdmin
+      .from("jobs")
+      .select("id")
+      .eq("employer_id", user.id);
+    
+    const jobIds = (userJobs || []).map(j => j.id);
+    
+    let applicantsCount = 0;
+    let documentsCount = 0;
+    let aiAnalysesCount = 0;
+    
+    if (jobIds.length > 0) {
+      const { count: appCount } = await supabaseAdmin
+        .from("applications")
+        .select("*", { count: "exact", head: true })
+        .in("job_id", jobIds);
+      applicantsCount = appCount || 0;
+
+      // Get applications for document count
+      const { data: apps } = await supabaseAdmin
+        .from("applications")
+        .select("id")
+        .in("job_id", jobIds);
+      
+      const appIds = (apps || []).map(a => a.id);
+      if (appIds.length > 0) {
+        const { count: docCount } = await supabaseAdmin
+          .from("documents")
+          .select("*", { count: "exact", head: true })
+          .in("application_id", appIds);
+        documentsCount = docCount || 0;
+
+        // Count AI analyses (applications with ai_score)
+        const { count: analysisCount } = await supabaseAdmin
+          .from("applications")
+          .select("*", { count: "exact", head: true })
+          .in("job_id", jobIds)
+          .not("ai_score", "is", null);
+        aiAnalysesCount = analysisCount || 0;
+      }
+    }
+
+    const { count: teamCount } = await supabaseAdmin
+      .from("team_members")
+      .select("*", { count: "exact", head: true })
+      .eq("employer_id", user.id)
+      .eq("status", "active");
+
+    const usage = {
+      jobs_created: jobsCount || 0,
+      applicants_received: applicantsCount,
+      documents_sent: documentsCount,
+      team_members_added: teamCount || 0,
+      ai_analyses_used: aiAnalysesCount,
+      voice_minutes_used: 0,
+    };
 
     // Get active voice credits (not expired, not voided)
     const { data: voiceCredits } = await supabaseAdmin

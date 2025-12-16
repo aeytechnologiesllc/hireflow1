@@ -184,7 +184,7 @@ export function useSubscription() {
     return (isEnterprise || isTrial) && voiceMinutesRemaining > 0;
   };
 
-  const getVoiceAccessState = (): 'full' | 'trial' | 'exhausted' | 'locked' | 'expired' => {
+  const getVoiceAccessState = (): 'full' | 'trial' | 'trial_exhausted' | 'exhausted' | 'locked' | 'expired' => {
     if (!data?.subscription) return 'locked';
     if (data.subscription.status === 'expired') return 'expired';
     
@@ -196,7 +196,8 @@ export function useSubscription() {
       return voiceMinutesRemaining > 0 ? 'full' : 'exhausted';
     }
     if (isTrial) {
-      return voiceMinutesRemaining > 0 ? 'trial' : 'exhausted';
+      // Trial users: never show "exhausted" amber state - show trial_exhausted which displays premium orb
+      return voiceMinutesRemaining > 0 ? 'trial' : 'trial_exhausted';
     }
     return 'locked'; // Growth/Business
   };
