@@ -2,10 +2,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Loader2, X, MessageSquare, Lock, Clock, Send } from "lucide-react";
+import { Loader2, Lock, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -15,71 +13,16 @@ import { toast } from "sonner";
 import avaOrbLogo from "@/assets/ava-orb.png";
 import { dispatchAvaFormCommand } from "@/utils/avaFormEvents";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
-
-interface ToolAction {
-  id: string;
-  tool: string;
-  result: any;
-  timestamp: Date;
-}
-
-// Typewriter component for smooth text animation - starts with first character visible
-function TypewriterText({ text, onComplete }: { text: string; onComplete?: () => void }) {
-  // Start with first character to avoid showing just cursor
-  const [displayedLength, setDisplayedLength] = useState(Math.min(1, text.length));
-  const prevTextRef = useRef(text);
-  
-  // When new text arrives (longer than what we've shown), continue animating
-  useEffect(() => {
-    if (displayedLength < text.length) {
-      const timer = setTimeout(() => {
-        const newLength = Math.min(displayedLength + 2, text.length);
-        setDisplayedLength(newLength);
-        // If we've finished, call onComplete
-        if (newLength >= text.length && onComplete) {
-          onComplete();
-        }
-      }, 20); // 20ms per iteration for smoother typing
-      return () => clearTimeout(timer);
-    }
-  }, [displayedLength, text.length, onComplete]);
-  
-  // If text changes to something completely new (shorter), reset but show first char
-  useEffect(() => {
-    if (text.length < prevTextRef.current.length * 0.5) {
-      setDisplayedLength(Math.min(1, text.length));
-    }
-    prevTextRef.current = text;
-  }, [text]);
-  
-  // Handle empty text
-  if (text.length === 0) return null;
-  
-  return <>{text.slice(0, displayedLength)}{displayedLength < text.length && <span className="animate-pulse">|</span>}</>;
-}
-
 const FIRST_USE_KEY = 'ava_has_used_assistant';
 
 export default function AvaVoiceButton() {
-  const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
+  const { subscription, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [actions, setActions] = useState<ToolAction[]>([]);
-  const [textInput, setTextInput] = useState("");
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [animatedMessageIds, setAnimatedMessageIds] = useState<Set<string>>(new Set());
   
   // First-use detection
   const [isFirstUse, setIsFirstUse] = useState(() => {
@@ -95,41 +38,13 @@ export default function AvaVoiceButton() {
     return match ? match[1] : undefined;
   }, [location.pathname]);
 
-  // Auto-scroll to bottom when messages or actions change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, actions]);
-
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
-    setMessages((prev) => {
-      const lastMsg = prev[prev.length - 1];
-      if (lastMsg && lastMsg.role === role) {
-        return prev.map((m, i) =>
-          i === prev.length - 1 ? { ...m, content: m.content + text } : m
-        );
-      }
-      return [
-        ...prev,
-        {
-          id: `${Date.now()}-${Math.random()}`,
-          role,
-          content: text,
-          timestamp: new Date(),
-        },
-      ];
-    });
+    // No longer storing messages since we removed the chat panel
+    console.log(`[${role}]: ${text}`);
   }, []);
 
   const handleToolCall = useCallback((toolName: string, result: any) => {
-    setActions((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random()}`,
-        tool: toolName,
-        result,
-        timestamp: new Date(),
-      },
-    ]);
+    console.log("Tool call result:", toolName, result);
 
     // Invalidate relevant queries to sync dashboard when AVA performs actions
     if (result?.success || result?.action) {
@@ -140,12 +55,15 @@ export default function AvaVoiceButton() {
         return;
       }
       
-      // Handle walkthrough - navigate to first page and explain
-      if (toolName === 'start_walkthrough' && result.pages) {
-        // Navigate to first walkthrough page
-        if (result.pages[0]?.route) {
-          toast.success(`Starting walkthrough - ${result.pages[0].name}`);
-          navigate(result.pages[0].route);
+      // Handle walkthrough navigation - synchronized with speech
+      if (toolName === 'walkthrough_navigate') {
+        if (result.completed) {
+          toast.success("Walkthrough complete!");
+          return;
+        }
+        if (result.route) {
+          toast.success(`${result.pageName} (${result.step}/${result.totalSteps})`);
+          navigate(result.route);
         }
         return;
       }
@@ -229,7 +147,6 @@ export default function AvaVoiceButton() {
     audioLevels,
     connect,
     disconnect,
-    sendTextMessage,
   } = useAvaVoice({
     mode: "assistant",
     applicationId: currentApplicationId,
@@ -259,26 +176,9 @@ export default function AvaVoiceButton() {
     }
 
     if (isConnected) {
-      // Toggle OFF - disconnect and close panel
       disconnect();
-      setIsOpen(false);
     } else {
-      // Toggle ON - connect immediately and open panel
       connect();
-      setIsOpen(true);
-    }
-  };
-
-  // Close panel and disconnect
-  const handleClose = () => {
-    disconnect();
-    setIsOpen(false);
-  };
-
-  const handleSendText = () => {
-    if (textInput.trim() && isConnected) {
-      sendTextMessage(textInput.trim());
-      setTextInput("");
     }
   };
 
@@ -307,7 +207,7 @@ export default function AvaVoiceButton() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get button styling based on access state - transparent for orb, colored for locked states
+  // Get button styling based on access state
   const getButtonStyles = () => {
     switch (voiceAccessState) {
       case 'full':
@@ -481,177 +381,18 @@ export default function AvaVoiceButton() {
             0:00
           </motion.div>
         )}
-      </motion.div>
 
-      {/* Expanded Panel - Only show for users with access */}
-      <AnimatePresence>
-        {isOpen && (voiceAccessState === 'full' || voiceAccessState === 'trial') && (
+        {/* Error indicator */}
+        {error && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-96 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-              <div className="flex items-center gap-3">
-                <div className="relative h-10 w-10">
-                  <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-md scale-110" />
-                  <img src={avaOrbLogo} alt="AVA" className="relative h-full w-full object-contain" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">AVA Voice Assistant</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {isSpeaking
-                      ? "Speaking..."
-                      : isListening
-                      ? "Listening..."
-                      : voiceAccessState === 'trial'
-                      ? `Trial: ${formatMinutes(voiceMinutesRemaining)} left`
-                      : "Connected"}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={handleClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Messages */}
-            <ScrollArea className="h-64 p-4">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                  {isListening ? (
-                    <>
-                      {/* ChatGPT-style audio bars */}
-                      <div className="flex items-end justify-center gap-1 h-16 mb-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <motion.div
-                            key={i}
-                            className="w-1.5 bg-primary rounded-full"
-                            animate={{
-                              height: [8, 24, 16, 28, 12, 20, 8][i % 7],
-                            }}
-                            transition={{
-                              duration: 0.3,
-                              repeat: Infinity,
-                              repeatType: "reverse",
-                              delay: i * 0.1,
-                              ease: "easeInOut",
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-sm font-medium text-primary">Listening...</p>
-                      <p className="text-xs text-muted-foreground mt-1">Speak now</p>
-                    </>
-                  ) : isSpeaking ? (
-                    <>
-                      {/* Audio bars for speaking */}
-                      <div className="flex items-end justify-center gap-1 h-16 mb-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <motion.div
-                            key={i}
-                            className="w-1.5 bg-emerald-400 rounded-full"
-                            animate={{
-                              height: [12, 28, 18, 32, 14, 22, 10][i % 7],
-                            }}
-                            transition={{
-                              duration: 0.2,
-                              repeat: Infinity,
-                              repeatType: "reverse",
-                              delay: i * 0.08,
-                              ease: "easeInOut",
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-sm font-medium text-emerald-400">AVA is speaking...</p>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-8 w-8 mb-2 opacity-50" />
-                      <p className="text-sm">Start speaking or type a message</p>
-                      <p className="text-xs text-muted-foreground mt-1">Try: "What can you do?"</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {messages.map((msg) => {
-                    const isAssistantMessage = msg.role === "assistant";
-                    const hasBeenAnimated = animatedMessageIds.has(msg.id);
-                    
-                    return (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className={cn(
-                          "flex",
-                          msg.role === "user" ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                            msg.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-foreground"
-                          )}
-                        >
-                          {/* Typewriter effect for assistant messages that haven't been fully animated */}
-                          {isAssistantMessage && !hasBeenAnimated ? (
-                            <TypewriterText 
-                              text={msg.content} 
-                              onComplete={() => setAnimatedMessageIds(prev => new Set(prev).add(msg.id))}
-                            />
-                          ) : (
-                            msg.content
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {/* Auto-scroll anchor */}
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-            </ScrollArea>
-
-            {/* Input */}
-            <div className="p-4 border-t border-border">
-              {/* Text input */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Type a message..."
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendText()}
-                  className="flex-1"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleSendText}
-                  disabled={!textInput.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {error && (
-                <p className="text-xs text-destructive mt-2 text-center">{error}</p>
-              )}
-            </div>
+            Error
           </motion.div>
         )}
-      </AnimatePresence>
+      </motion.div>
 
       {/* Upgrade Dialog */}
       <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
