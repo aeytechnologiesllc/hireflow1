@@ -197,69 +197,36 @@ export function PdfSignaturePlacer({
   const currentPageFields = signatureFields.filter(f => f.page === currentPage);
 
   return (
-    <div className="space-y-3">
-      {/* Guided Placement Instructions */}
+    <div className="space-y-2">
+      {/* Compact Guided Placement Header */}
       {guidedMode && !readOnly && (
-        <div className="space-y-3">
-          {/* Progress Bar */}
-          <div className="flex items-center gap-2">
-            {PLACEMENT_STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center gap-1">
-                <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all",
-                  index < placementStep 
-                    ? "bg-emerald-500 text-white" 
-                    : index === placementStep 
-                      ? "bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2 ring-offset-background" 
-                      : "bg-muted text-muted-foreground"
-                )}>
-                  {index < placementStep ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                </div>
-                {index < PLACEMENT_STEPS.length - 1 && (
-                  <div className={cn(
-                    "w-8 h-0.5 transition-colors",
-                    index < placementStep ? "bg-emerald-500" : "bg-muted"
-                  )} />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Current Step Instruction */}
+        <div className="flex items-center justify-between gap-2 px-1">
           {!isPlacementComplete ? (
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-              <div className="flex items-center gap-2">
-                <MousePointer2 className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-primary">
-                  Step {placementStep + 1}: Click where the <strong>{currentStepInfo.label}</strong> should go
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 ml-6">
-                {currentStepInfo.type === "candidate" 
-                  ? "Place this where the candidate will sign/date"
-                  : "Place this where you (employer) will countersign/date"}
-              </p>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <MousePointer2 className="h-4 w-4 text-primary flex-shrink-0" />
+              <span className="text-sm font-medium text-primary truncate">
+                Click to place: <strong>{currentStepInfo.label}</strong>
+              </span>
+              <Badge variant="outline" className="text-xs flex-shrink-0">
+                {placementStep + 1}/4
+              </Badge>
             </div>
           ) : (
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                  All signature fields placed successfully!
-                </p>
-              </div>
+            <div className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="text-sm font-medium">All fields placed</span>
             </div>
           )}
-
-          {/* Undo/Reset Buttons */}
+          
+          {/* Inline Undo/Reset */}
           {placementStep > 0 && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleUndo}>
+            <div className="flex gap-1 flex-shrink-0">
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={handleUndo}>
                 <RotateCcw className="h-3 w-3 mr-1" />
-                Undo Last
+                Undo
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleReset}>
-                Reset All
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" onClick={handleReset}>
+                Reset
               </Button>
             </div>
           )}
@@ -268,33 +235,35 @@ export function PdfSignaturePlacer({
 
       {/* PDF Container */}
       <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
-        {/* Page Navigation */}
+        {/* Compact Page Navigation */}
         {numPages > 1 && (
-          <div className="flex items-center justify-center gap-4 p-2 border-b border-border bg-background">
+          <div className="flex items-center justify-center gap-2 py-1 px-2 border-b border-border bg-background">
             <Button
               variant="ghost"
               size="icon"
+              className="h-6 w-6"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3 w-3" />
             </Button>
-            <span className="text-sm">
-              Page {currentPage} of {numPages}
+            <span className="text-xs text-muted-foreground">
+              {currentPage} / {numPages}
             </span>
             <Button
               variant="ghost"
               size="icon"
+              className="h-6 w-6"
               onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
               disabled={currentPage >= numPages}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3 w-3" />
             </Button>
           </div>
         )}
 
-        {/* PDF Content */}
-        <div className="overflow-auto max-h-[600px] flex justify-center p-4 bg-zinc-100 dark:bg-zinc-900">
+        {/* PDF Content - Maximized height */}
+        <div className="overflow-auto max-h-[calc(80vh-160px)] flex justify-center p-2 bg-zinc-100 dark:bg-zinc-900">
           {loading && !error && (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
