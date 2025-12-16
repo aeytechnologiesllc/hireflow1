@@ -555,10 +555,7 @@ export default function ChatInterviewPhase() {
       e.preventDefault();
       logViolation('screenshot_attempt', 'User pressed PrintScreen');
     }
-    // Allow Enter to send message
-    if (e.key === "Enter" && !e.shiftKey && state === "interviewing") {
-      sendMessage();
-    }
+    // Note: Enter to send is handled by the Textarea's onKeyDown to avoid double-firing
   };
 
   // Check if already submitted
