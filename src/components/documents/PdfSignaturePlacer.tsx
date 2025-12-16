@@ -1,5 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -17,16 +19,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-// Set up PDF.js worker (Vite + pdfjs-dist v5+ uses .mjs)
-try {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url
-  ).toString();
-} catch {
-  // Fallback with correct .mjs extension
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-}
+// Set up PDF.js worker using CDN for reliability
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export interface SignatureFieldWithPosition {
   id: string;
@@ -303,6 +297,7 @@ export function PdfSignaturePlacer({
           )}
 
           <Document
+            key={pdfUrl}
             file={file}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
@@ -313,22 +308,23 @@ export function PdfSignaturePlacer({
               disableStream: true,
             }}
           >
-            <div 
-              ref={pageContainerRef} 
-              className={cn(
-                "relative",
-                guidedMode && !isPlacementComplete && !readOnly && "cursor-crosshair"
-              )}
-              onClick={handlePdfClick}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-            >
-              <Page
-                pageNumber={currentPage}
-                scale={zoom}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-              />
+            {numPages > 0 && (
+              <div 
+                ref={pageContainerRef} 
+                className={cn(
+                  "relative",
+                  guidedMode && !isPlacementComplete && !readOnly && "cursor-crosshair"
+                )}
+                onClick={handlePdfClick}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              >
+                <Page
+                  pageNumber={currentPage}
+                  scale={zoom}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                />
 
               {/* Hover Preview (Guided Mode) */}
               {guidedMode && !readOnly && !isPlacementComplete && hoverPosition && (
@@ -427,6 +423,7 @@ export function PdfSignaturePlacer({
                 </AnimatePresence>
               </div>
             </div>
+            )}
           </Document>
         </div>
       </div>
