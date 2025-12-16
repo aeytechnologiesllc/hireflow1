@@ -457,12 +457,27 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!document || !documentData) return;
     
-    // For uploaded documents, open the file URL
+    // For uploaded documents, fetch and download the file
     if (isUploadedDocument && documentData.uploadedFileUrl) {
-      window.open(documentData.uploadedFileUrl, "_blank");
+      try {
+        const response = await fetch(documentData.uploadedFileUrl);
+        if (!response.ok) throw new Error("Failed to fetch document");
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = window.document.createElement("a");
+        a.href = url;
+        a.download = documentData.uploadedFileName || `${document.name}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Download error:", error);
+        // Fallback to opening in new tab
+        window.open(documentData.uploadedFileUrl, "_blank");
+      }
       return;
     }
     
@@ -585,9 +600,9 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                         <p className="text-sm text-muted-foreground mb-4">
                           {documentData?.uploadedFileType || "Document file"}
                         </p>
-                        <Button onClick={() => window.open(documentData?.uploadedFileUrl, "_blank")}>
+                        <Button onClick={handleDownload}>
                           <Download className="h-4 w-4 mr-2" />
-                          Open Document
+                          Download Document
                         </Button>
                       </div>
                     )}
