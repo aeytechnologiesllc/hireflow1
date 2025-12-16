@@ -136,12 +136,12 @@ serve(async (req) => {
         user_id: user.id,
       });
 
-      // Create initial trial voice credits (5 minutes, expires with trial)
+      // Create initial trial voice credits (unlimited for testing, expires with trial)
       await supabaseAdmin.from("voice_credits").insert({
         user_id: user.id,
         source: 'subscription',
-        minutes_granted: 5,
-        minutes_remaining: 5,
+        minutes_granted: 9999,
+        minutes_remaining: 9999,
         expires_at: trialEnd.toISOString(),
       });
 
@@ -150,11 +150,11 @@ serve(async (req) => {
         usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
         limits: getPlanLimits('trial'),
         voiceCredits: {
-          totalMinutesAvailable: 5,
+          totalMinutesAvailable: 9999,
           credits: [{
             id: 'initial',
             source: 'subscription',
-            minutes_remaining: 5,
+            minutes_remaining: 9999,
             expires_at: trialEnd.toISOString(),
           }],
         },
@@ -256,16 +256,16 @@ function getPlanLimits(planType: string) {
         hasVoiceAssistant: false,
         hasVoiceInterviews: false,
       };
-    default: // trial
+    default: // trial - unlimited for testing
       return {
-        jobs: 1,
-        applicants: 10,
-        documents: 5,
-        teamMembers: 0,
-        aiAnalyses: 20,
-        voiceMinutes: 5,
-        hasAdvancedAnalytics: false,
-        hasTeamPortal: false,
+        jobs: 999,
+        applicants: 999,
+        documents: 999,
+        teamMembers: 999,
+        aiAnalyses: 999,
+        voiceMinutes: 9999,
+        hasAdvancedAnalytics: true,
+        hasTeamPortal: true,
         hasDocuments: true,
         hasPrioritySupport: false,
         hasVoiceAssistant: false,
