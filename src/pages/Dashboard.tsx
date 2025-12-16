@@ -537,6 +537,42 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Candidate Portal Link - Employer */}
+      {isEmployer && (
+        <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <h3 className="text-base md:text-lg font-semibold text-foreground">Candidate Portal</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Share this link with candidates so they can create accounts and enter their job codes
+                </p>
+              </div>
+              <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-4 py-2 border border-border">
+                <Link2 className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-sm font-medium text-foreground truncate max-w-[200px] sm:max-w-[300px]">
+                  {window.location.origin}/candidate
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary h-8 px-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/candidate`);
+                    toast.success("Candidate portal link copied!");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent Job Postings - Employer */}
       {isEmployer && (
         <Card className="bg-card border-border">
