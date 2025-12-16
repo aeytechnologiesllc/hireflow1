@@ -24,6 +24,7 @@ interface AvaVoiceState {
   isSpeaking: boolean;
   isListening: boolean;
   error: string | null;
+  audioLevels: number[]; // 5 values for audio bars visualization
 }
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
@@ -34,6 +35,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isSpeaking: false,
     isListening: false,
     error: null,
+    audioLevels: [8, 8, 8, 8, 8],
   });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -42,6 +44,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const recorderRef = useRef<AudioRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<AudioQueue | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -100,7 +105,34 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
       // Add local audio track
       const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = ms;
       pcRef.current.addTrack(ms.getTracks()[0]);
+
+      // Set up audio analyser for real-time voice visualization
+      const analyserContext = new AudioContext();
+      analyserRef.current = analyserContext.createAnalyser();
+      analyserRef.current.fftSize = 32;
+      const micSource = analyserContext.createMediaStreamSource(ms);
+      micSource.connect(analyserRef.current);
+
+      // Start animation loop for audio levels
+      const updateAudioLevels = () => {
+        if (!analyserRef.current) return;
+        
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Extract 5 bands and normalize to 8-32 pixel range
+        const bands = [0, 2, 4, 6, 8];
+        const levels = bands.map(i => {
+          const value = dataArray[i] || 0;
+          return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
+        });
+        
+        setState(s => ({ ...s, audioLevels: levels }));
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+      };
+      updateAudioLevels();
 
       // Set up data channel for events
       dcRef.current = pcRef.current.createDataChannel('oai-events');
@@ -249,6 +281,19 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   }, [options, toast]);
 
   const disconnect = useCallback(() => {
+    // Stop animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    // Stop analyser
+    analyserRef.current = null;
+
+    // Stop mic stream
+    micStreamRef.current?.getTracks().forEach(track => track.stop());
+    micStreamRef.current = null;
+
     recorderRef.current?.stop();
     recorderRef.current = null;
 
@@ -273,6 +318,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       isSpeaking: false,
       isListening: false,
       error: null,
+      audioLevels: [8, 8, 8, 8, 8],
     });
   }, []);
 
