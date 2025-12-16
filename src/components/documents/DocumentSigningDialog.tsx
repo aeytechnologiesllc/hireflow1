@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
+import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
 
 interface SignatureField {
   id: string;
@@ -39,7 +40,7 @@ interface SignatureField {
 
 interface DocumentData {
   content: string | null;
-  signatureFields: SignatureField[];
+  signatureFields: SignatureField[] | SignatureFieldWithPosition[];
   metadata?: Record<string, any>;
   uploadedFileUrl?: string;
   uploadedFileName?: string;
@@ -148,6 +149,16 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   };
 
   const isUploadedDocument = documentData?.uploadedFileUrl && !documentData?.content;
+  const hasPositionedSignatures = documentData?.metadata?.hasPositionedSignatures === true;
+  
+  // Check if signature fields have position data
+  const isPositionedField = (field: SignatureField | SignatureFieldWithPosition): field is SignatureFieldWithPosition => {
+    return 'x' in field && 'y' in field && 'type' in field;
+  };
+  
+  const positionedSignatureFields = hasPositionedSignatures && documentData?.signatureFields
+    ? (documentData.signatureFields as SignatureFieldWithPosition[])
+    : [];
 
   const recordDocumentView = async () => {
     if (!document || !user) return;
@@ -549,8 +560,17 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
             {/* Document View */}
             <TabsContent value="document" className="h-full m-0">
               <ScrollArea className="h-[calc(70vh-180px)]">
-                {isUploadedDocument ? (
-                  // Uploaded document view
+                {isUploadedDocument && hasPositionedSignatures && documentData?.uploadedFileUrl ? (
+                  // Uploaded PDF with positioned signatures
+                  <PdfSignaturePlacer
+                    pdfUrl={documentData.uploadedFileUrl}
+                    signatureFields={positionedSignatureFields}
+                    onFieldsChange={() => {}}
+                    readOnly={true}
+                    signatures={signatures}
+                  />
+                ) : isUploadedDocument ? (
+                  // Uploaded document view (legacy)
                   <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border min-h-full shadow-inner overflow-hidden">
                     {documentData?.uploadedFileType === "application/pdf" ? (
                       <iframe
@@ -592,7 +612,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
-                {canEdit && (
+                {canEdit && !hasPositionedSignatures && (
                   isEditing ? (
                     <>
                       <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
