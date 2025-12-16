@@ -254,9 +254,9 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       case "upload":
         return !!uploadedFileUrl && !!documentName.trim() && !isAnalyzingDocument;
       case "review":
-        // For uploads with PDF, require at least one positioned signature field
+        // For uploads with PDF, require all 4 signature fields to be placed
         if (documentSource === "upload" && uploadedFile?.type === "application/pdf") {
-          return signatureFields.length > 0;
+          return signatureFields.length >= 4; // Candidate sig, candidate date, employer sig, employer date
         }
         // For AI-generated or non-PDF uploads, use legacy fields
         return legacySignatureFields.length > 0;
@@ -364,15 +364,13 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       
       setUploadedFileUrl(fullUrl);
       
-      // For PDFs, automatically analyze and place signature fields
-      if (file.type === "application/pdf") {
-        await analyzeDocumentFields(fullUrl);
-      }
+      // Clear any existing signature fields - user will place them manually in guided mode
+      setSignatureFields([]);
       
       toast({
         title: "File Uploaded",
         description: file.type === "application/pdf" 
-          ? "Document analyzed and signature fields placed automatically."
+          ? "Document uploaded. You'll place signature fields in the next step."
           : "Your document has been uploaded successfully.",
       });
     } catch (error: any) {
@@ -1176,7 +1174,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           const isPdf = uploadedFile?.type === "application/pdf";
           
           if (isPdf && uploadedFileUrl) {
-            // Simplified review step - AI places fields automatically, no extra UI needed
+            // Guided click-to-place mode for reliable signature field placement
             return (
               <motion.div
                 key="step-review-upload-pdf"
@@ -1186,7 +1184,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">Review Document</h3>
+                  <h3 className="font-semibold text-sm">Place Signature Fields</h3>
                   <Badge variant="outline" className="text-xs">{documentName || uploadedFile?.name}</Badge>
                 </div>
 
@@ -1194,6 +1192,7 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
                   pdfUrl={uploadedFileUrl}
                   signatureFields={signatureFields}
                   onFieldsChange={setSignatureFields}
+                  guidedMode={true}
                 />
               </motion.div>
             );
