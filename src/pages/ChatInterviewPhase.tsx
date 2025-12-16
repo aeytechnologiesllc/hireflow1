@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -79,8 +79,8 @@ export default function ChatInterviewPhase() {
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -108,12 +108,7 @@ export default function ChatInterviewPhase() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    // Use setTimeout to ensure DOM has updated
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      }
-    }, 50);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
   // Log anti-cheat violation
@@ -231,7 +226,9 @@ export default function ChatInterviewPhase() {
   const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
     if (!application?.jobs) return;
     
+    // Show typing indicator first with a delay to feel more natural
     setIsTyping(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     const candidateContext = buildCandidateContext();
     const jobDetails = {
@@ -699,29 +696,11 @@ export default function ChatInterviewPhase() {
 
           {(state === "interviewing" || state === "evaluating" || state === "completed") && (
             <>
-              {/* Interview Info */}
-              <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Duration</p>
-                    <p className="text-sm font-medium text-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {getDuration()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Questions</p>
-                    <p className="text-sm font-medium text-foreground">{questionCount}</p>
-                  </div>
-                </div>
+              {/* Interview Info - Duration Only */}
+              <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-center">
                 <div className="flex items-center gap-2">
-                  <Progress 
-                    value={Math.min((questionCount / minQuestions) * 100, 100)} 
-                    className="w-20 h-2" 
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {questionCount}/{minQuestions} min
-                  </span>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">{getDuration()}</span>
                 </div>
               </div>
 
@@ -781,23 +760,30 @@ export default function ChatInterviewPhase() {
                     </div>
                   )}
                   {/* Scroll anchor */}
-                  <div ref={scrollRef} />
+                  <div ref={messagesEndRef} />
                 </div>
               </ScrollArea>
 
               {/* Input Area */}
               {state === "interviewing" && (
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-end">
+                  <Textarea
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onPaste={preventPaste}
                     placeholder="Type your response..."
                     disabled={isTyping}
-                    className="flex-1"
+                    rows={3}
+                    className="flex-1 resize-none min-h-[80px] bg-secondary/50 border-border"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
                   />
-                  <Button onClick={sendMessage} disabled={isTyping || !inputValue.trim()}>
+                  <Button onClick={sendMessage} disabled={isTyping || !inputValue.trim()} className="h-[80px]">
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
