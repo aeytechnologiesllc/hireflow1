@@ -706,7 +706,26 @@ Resume URL: ${application.resume_url || "Not provided"}
       return parsedNotes.videoIntroUrl;
     }
     if (stepType === "chat_simulation") {
+      // First try stepId which contains full data including messages
+      if (parsedNotes[stepId]) {
+        return parsedNotes[stepId];
+      }
+      // Fallback to chatSimulationResult for older data
       return parsedNotes.chatSimulationResult;
+    }
+    if (stepType === "chat_interview") {
+      // First try stepId which contains full data including messages
+      if (parsedNotes[stepId]) {
+        return parsedNotes[stepId];
+      }
+      return parsedNotes.chatInterviewResult;
+    }
+    if (stepType === "sales_simulation") {
+      // First try stepId which contains full data including messages
+      if (parsedNotes[stepId]) {
+        return parsedNotes[stepId];
+      }
+      return parsedNotes.salesSimulationResult;
     }
     return parsedNotes[stepId];
   };

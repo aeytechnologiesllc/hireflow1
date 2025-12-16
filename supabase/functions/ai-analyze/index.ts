@@ -1,6 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import * as pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 
 const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
 
@@ -163,50 +162,6 @@ Provide:
 Be thorough but concise in your analysis.`,
 };
 
-/**
- * Attempts to extract text from a PDF URL
- */
-async function extractPdfText(url: string): Promise<string | null> {
-  try {
-    console.log("Fetching PDF from URL:", url);
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error("Failed to fetch PDF:", response.status, response.statusText);
-      return null;
-    }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    
-    console.log("PDF fetched, size:", buffer.length, "bytes");
-    
-    // Try to parse PDF
-    try {
-      const data = await pdfParse.default(buffer);
-      console.log("PDF parsed successfully, text length:", data.text?.length);
-      return data.text || null;
-    } catch (parseError) {
-      console.error("PDF parse error:", parseError);
-      // If PDF parsing fails, try to extract any readable text
-      const textDecoder = new TextDecoder('utf-8', { fatal: false });
-      const rawText = textDecoder.decode(buffer);
-      
-      // Look for text content between stream markers or extract readable portions
-      const textMatches = rawText.match(/[\x20-\x7E\n\r\t]{50,}/g);
-      if (textMatches && textMatches.length > 0) {
-        const extractedText = textMatches.join('\n').trim();
-        console.log("Extracted raw text, length:", extractedText.length);
-        return extractedText.length > 100 ? extractedText : null;
-      }
-      return null;
-    }
-  } catch (error) {
-    console.error("Error extracting PDF text:", error);
-    return null;
-  }
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -241,18 +196,11 @@ serve(async (req) => {
 
     console.log(`Processing ${type} analysis request`);
 
-    // For resume analysis, try to extract PDF content
+    // For resume analysis, note that PDF text extraction is handled via context
     let resumeContent = "";
     if (type === "resume" && resumeUrl) {
-      console.log("Attempting to extract resume PDF content...");
-      const pdfText = await extractPdfText(resumeUrl);
-      if (pdfText) {
-        resumeContent = `\n\n--- RESUME DOCUMENT CONTENT ---\n${pdfText}\n--- END RESUME CONTENT ---`;
-        console.log("Successfully extracted resume content");
-      } else {
-        resumeContent = "\n\n[NOTE: Could not extract text from resume PDF. Analysis based on provided metadata only. Document should be manually reviewed.]";
-        console.log("Could not extract resume content");
-      }
+      console.log("Resume URL provided:", resumeUrl);
+      resumeContent = "\n\n[Resume document available at provided URL. Please analyze based on the context and metadata provided.]";
     }
 
     let userContent = content + resumeContent;
@@ -305,7 +253,7 @@ serve(async (req) => {
         analysis,
         type,
         timestamp: new Date().toISOString(),
-        resumeExtracted: !!resumeContent && !resumeContent.includes("[NOTE: Could not extract"),
+        resumeExtracted: false, // PDF extraction removed - analysis based on metadata
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
