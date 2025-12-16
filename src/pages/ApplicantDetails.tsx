@@ -552,8 +552,13 @@ export default function ApplicantDetails() {
               }
             }
           }
-          if (phase.type === "video_intro") {
+          if (phase.type === "video_intro" || phase.type === "video_message") {
             delete updatedNotes.videoIntroUrl;
+            // Also delete stepId-based storage for video_message
+            delete updatedNotes[phase.id];
+          }
+          if (phase.type === "portfolio_upload") {
+            delete updatedNotes[phase.id];
           }
           // Remove from employer-skipped list if it was there
           if (updatedNotes.employerSkippedPhases) {
@@ -1546,7 +1551,7 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                         </div>
                       )}
                       
-                      {dialogData.type === "video_intro" && (
+                      {(dialogData.type === "video_intro" || dialogData.type === "video_message") && (
                         <div className="space-y-4">
                           {(() => {
                             // Extract videoUrl from either string or object format
@@ -1915,7 +1920,7 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                         </div>
                       )}
                       
-                      {!["quiz", "typing_test", "video_intro", "chat_simulation", "chat_interview", "sales_simulation"].includes(dialogData.type) && (
+                      {!["quiz", "typing_test", "video_intro", "video_message", "chat_simulation", "chat_interview", "sales_simulation", "portfolio_upload"].includes(dialogData.type) && (
                         <div className="p-4 bg-muted/50 rounded-lg">
                           <pre className="text-sm whitespace-pre-wrap">
                             {typeof dialogData.content === "object" 
