@@ -14,6 +14,9 @@ interface UseAvaVoiceOptions {
   countryCode?: string;
   voiceMinutesRemaining?: number;
   isFirstUse?: boolean;
+  // Google Calendar integration
+  googleCalendarConnected?: boolean;
+  googleRefreshToken?: string;
   onTranscript?: (text: string, role: 'user' | 'assistant') => void;
   onToolCall?: (toolName: string, result: any) => void;
   onInterviewEnd?: (evaluation: any) => void;
@@ -76,6 +79,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           countryCode: options.countryCode,
           voiceMinutesRemaining: options.voiceMinutesRemaining,
           isFirstUse: options.isFirstUse,
+          // Google Calendar integration
+          googleCalendarConnected: options.googleCalendarConnected,
+          googleRefreshToken: options.googleRefreshToken,
         },
       });
 
@@ -184,6 +190,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               try {
                 const args = JSON.parse(event.arguments);
                 console.log('Tool call:', event.name, args);
+                
+                // For schedule_interview, inject Google Calendar tokens
+                if (event.name === 'schedule_interview') {
+                  const googleAccessToken = localStorage.getItem("google_access_token");
+                  const googleRefreshToken = localStorage.getItem("google_refresh_token");
+                  if (googleRefreshToken) {
+                    args.google_refresh_token = googleRefreshToken;
+                    args.google_access_token = googleAccessToken;
+                  }
+                }
                 
                 // Execute tool call via edge function
                 const { data: toolResult, error: toolError } = await supabase.functions.invoke('ava-voice-tools', {

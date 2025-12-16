@@ -127,13 +127,27 @@ export default function AvaVoiceButton() {
         }
       }
       
+      // Handle interview scheduling
+      if (toolName === 'schedule_interview' && result.success) {
+        queryClient.invalidateQueries({ queryKey: ["interviews"] });
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+        if (currentApplicationId) {
+          queryClient.invalidateQueries({ queryKey: ["application", currentApplicationId] });
+        }
+        if (result.meet_link) {
+          toast.success(`Interview scheduled! Meet link ready.`);
+        } else {
+          toast.success(`Interview scheduled for ${result.formatted_date}`);
+        }
+        return;
+      }
+      
       if (toolName === 'move_applicant_to_phase' || toolName === 'reject_applicant') {
         // Refresh application details and applicants list
         if (currentApplicationId) {
           queryClient.invalidateQueries({ queryKey: ["application", currentApplicationId] });
         }
         queryClient.invalidateQueries({ queryKey: ["applications"] });
-        toast.success(`Action completed: ${toolName.replace(/_/g, ' ')}`);
       }
       if (toolName === 'get_applicant_count' || toolName === 'get_job_stats' || toolName === 'list_recent_applicants') {
         // Refresh jobs and applications data
@@ -142,6 +156,11 @@ export default function AvaVoiceButton() {
       }
     }
   }, [queryClient, currentApplicationId, navigate]);
+
+  // Get Google Calendar connection state
+  const googleAccessToken = localStorage.getItem("google_access_token");
+  const googleRefreshToken = localStorage.getItem("google_refresh_token");
+  const googleCalendarConnected = !!googleAccessToken;
 
   const {
     isConnected,
@@ -155,6 +174,8 @@ export default function AvaVoiceButton() {
   } = useAvaVoice({
     mode: "assistant",
     applicationId: currentApplicationId,
+    googleCalendarConnected,
+    googleRefreshToken: googleRefreshToken || undefined,
     // Pass user context for personalized AVA responses
     subscriptionPlan: subscription?.plan_type,
     subscriptionStatus: subscription?.status,

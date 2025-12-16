@@ -531,14 +531,12 @@ serve(async (req) => {
         const { action, field, value } = parameters;
         
         if (action === "start") {
-          // Navigate to create job page
           result = {
             action: "navigate_and_prepare",
             route: "/jobs/create",
             message: "Opening the job creation form. Tell me the job title to get started!"
           };
         } else if (action === "fill_field") {
-          // Return command to fill a specific field
           result = {
             action: "fill_field",
             field: field,
@@ -582,6 +580,214 @@ serve(async (req) => {
             message: "Saving as draft"
           };
         }
+        break;
+      }
+
+      case "schedule_interview": {
+        const { application_id, date_time, duration_minutes = 60, send_notification = true } = parameters;
+        
+        // Parse date_time - handle natural language
+        let scheduledDate: Date;
+        const now = new Date();
+        const lowerTime = date_time.toLowerCase();
+        
+        if (lowerTime.includes('tomorrow')) {
+          scheduledDate = new Date(now);
+          scheduledDate.setDate(scheduledDate.getDate() + 1);
+          // Parse time like "10am", "2pm", "10:30am"
+          const timeMatch = lowerTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+          if (timeMatch) {
+            let hours = parseInt(timeMatch[1]);
+            const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+            if (timeMatch[3].toLowerCase() === 'pm' && hours !== 12) hours += 12;
+            if (timeMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+            scheduledDate.setHours(hours, minutes, 0, 0);
+          } else {
+            scheduledDate.setHours(10, 0, 0, 0); // Default to 10am
+          }
+        } else if (lowerTime.includes('next')) {
+          // Handle "next tuesday", "next monday", etc.
+          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const dayMatch = days.findIndex(d => lowerTime.includes(d));
+          if (dayMatch !== -1) {
+            scheduledDate = new Date(now);
+            const currentDay = now.getDay();
+            let daysToAdd = dayMatch - currentDay;
+            if (daysToAdd <= 0) daysToAdd += 7;
+            scheduledDate.setDate(scheduledDate.getDate() + daysToAdd);
+          } else {
+            scheduledDate = new Date(now);
+            scheduledDate.setDate(scheduledDate.getDate() + 1);
+          }
+          // Parse time
+          const timeMatch = lowerTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+          if (timeMatch) {
+            let hours = parseInt(timeMatch[1]);
+            const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+            if (timeMatch[3].toLowerCase() === 'pm' && hours !== 12) hours += 12;
+            if (timeMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+            scheduledDate.setHours(hours, minutes, 0, 0);
+          } else {
+            scheduledDate.setHours(10, 0, 0, 0);
+          }
+        } else {
+          // Try ISO format or other
+          scheduledDate = new Date(date_time);
+          if (isNaN(scheduledDate.getTime())) {
+            // Fallback: tomorrow 10am
+            scheduledDate = new Date(now);
+            scheduledDate.setDate(scheduledDate.getDate() + 1);
+            scheduledDate.setHours(10, 0, 0, 0);
+          }
+        }
+
+        // Get application and candidate info
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select(`
+            id, candidate_id, 
+            jobs!inner(id, title, employer_id)
+          `)
+          .eq("id", application_id)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (appError || !app) {
+          throw new Error("Application not found or access denied");
+        }
+
+        // Get candidate profile
+        const { data: candidateProfile } = await supabaseClient
+          .from("profiles")
+          .select("full_name, email")
+          .eq("user_id", app.candidate_id)
+          .single();
+
+        // Get employer profile
+        const { data: employerProfile } = await supabaseClient
+          .from("profiles")
+          .select("full_name, company_name")
+          .eq("user_id", user.id)
+          .single();
+
+        // Try to create Google Calendar event if tokens available
+        let meetLink: string | null = null;
+        let calendarEventId: string | null = null;
+        
+        // Check if we have Google tokens in localStorage (passed via request context or stored)
+        const googleRefreshToken = parameters.google_refresh_token;
+        
+        if (googleRefreshToken) {
+          try {
+            // Create calendar event via google-calendar edge function
+            const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+            const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+            
+            const endDate = new Date(scheduledDate.getTime() + duration_minutes * 60000);
+            
+            const calResponse = await fetch(`${supabaseUrl}/functions/v1/google-calendar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseAnonKey}`
+              },
+              body: JSON.stringify({
+                action: "create_event",
+                access_token: parameters.google_access_token,
+                refresh_token: googleRefreshToken,
+                event: {
+                  summary: `Interview: ${candidateProfile?.full_name || 'Candidate'} for ${(app.jobs as any).title}`,
+                  description: `Interview with ${candidateProfile?.full_name || 'candidate'} for the ${(app.jobs as any).title} position at ${employerProfile?.company_name || 'Company'}`,
+                  start: scheduledDate.toISOString(),
+                  end: endDate.toISOString(),
+                  attendees: candidateProfile?.email ? [candidateProfile.email] : []
+                },
+                createMeetLink: true
+              })
+            });
+            
+            if (calResponse.ok) {
+              const calResult = await calResponse.json();
+              meetLink = calResult.meetLink || null;
+              calendarEventId = calResult.eventId || null;
+              console.log("Created calendar event with Meet link:", meetLink);
+            }
+          } catch (calError) {
+            console.error("Failed to create calendar event:", calError);
+            // Continue without calendar event
+          }
+        }
+
+        // Create interview record in database
+        const { data: interview, error: interviewError } = await supabaseClient
+          .from("interviews")
+          .insert({
+            application_id: application_id,
+            scheduled_at: scheduledDate.toISOString(),
+            duration_minutes: duration_minutes,
+            meeting_link: meetLink,
+            interview_type: 'video',
+            status: 'scheduled',
+            notes: `Scheduled by AVA Voice Assistant`
+          })
+          .select()
+          .single();
+
+        if (interviewError) {
+          console.error("Failed to create interview:", interviewError);
+          throw new Error("Failed to create interview record");
+        }
+
+        // Update application status to interview
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            status: 'interview', 
+            phase: 'interview',
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", application_id);
+
+        // Send notification to candidate if requested
+        if (send_notification && candidateProfile?.email) {
+          try {
+            await supabaseClient
+              .from("notifications")
+              .insert({
+                user_id: app.candidate_id,
+                type: 'interview',
+                title: 'Interview Scheduled',
+                message: `Your interview for ${(app.jobs as any).title} has been scheduled for ${scheduledDate.toLocaleString()}`,
+                link: `/applications/${application_id}`
+              });
+          } catch (notifError) {
+            console.error("Failed to send notification:", notifError);
+          }
+        }
+
+        const formattedDate = scheduledDate.toLocaleString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        result = {
+          success: true,
+          interview_id: interview?.id,
+          scheduled_at: scheduledDate.toISOString(),
+          formatted_date: formattedDate,
+          duration_minutes: duration_minutes,
+          candidate_name: candidateProfile?.full_name || 'Candidate',
+          job_title: (app.jobs as any).title,
+          meet_link: meetLink,
+          calendar_event_created: !!calendarEventId,
+          message: meetLink 
+            ? `Interview scheduled for ${formattedDate} with ${candidateProfile?.full_name || 'the candidate'}. Meet link created.`
+            : `Interview scheduled for ${formattedDate} with ${candidateProfile?.full_name || 'the candidate'}.`
+        };
         break;
       }
 
