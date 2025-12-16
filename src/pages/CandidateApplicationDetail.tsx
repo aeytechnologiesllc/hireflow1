@@ -51,10 +51,12 @@ const stepTypeIcons: Record<string, any> = {
   application: FileCheck,
   quiz: ClipboardList,
   video_intro: Video,
+  video_message: Video,
   typing_test: Keyboard,
   chat_simulation: MessageSquare,
   chat_interview: Users,
   sales_simulation: Briefcase,
+  portfolio_upload: FileCheck,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
@@ -73,9 +75,11 @@ const phaseActionMessages: Record<string, { buttonText: string; description: str
   quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
   typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
+  video_message: { buttonText: "Record Video", description: "Record a 60-second video about yourself" },
   chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
   chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
   sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
+  portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
 };
 
 export default function CandidateApplicationDetail() {
@@ -232,8 +236,10 @@ export default function CandidateApplicationDetail() {
         hasPhaseData = !!notes.salesSimulationResult;
       } else if (phase.type === "quiz") {
         hasPhaseData = !!(notes.quizAnswers?.[phase.id] || notes.quizAnswers);
-      } else if (phase.type === "video_intro") {
+      } else if (phase.type === "video_intro" || phase.type === "video_message") {
         hasPhaseData = !!notes.videoIntroUrl;
+      } else if (phase.type === "portfolio_upload") {
+        hasPhaseData = !!notes.portfolioResult;
       } else {
         hasPhaseData = !!notes[phase.id];
       }
@@ -267,6 +273,7 @@ export default function CandidateApplicationDetail() {
         navigate(`/applications/${id}/typing-test/${phaseId}`);
         break;
       case "video_intro":
+      case "video_message":
         navigate(`/applications/${id}/video-intro/${phaseId}`);
         break;
       case "chat_simulation":
@@ -277,6 +284,9 @@ export default function CandidateApplicationDetail() {
         break;
       case "sales_simulation":
         navigate(`/applications/${id}/sales-simulation/${phaseId}`);
+        break;
+      case "portfolio_upload":
+        navigate(`/applications/${id}/portfolio/${phaseId}`);
         break;
       default:
         toast.info("This phase type is not yet implemented");

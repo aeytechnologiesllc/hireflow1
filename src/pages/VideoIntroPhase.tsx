@@ -74,10 +74,10 @@ export default function VideoIntroPhase() {
   // Get video intro config
   const videoConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
-    const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro");
+    const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
-      maxDuration: videoStep?.config?.maxDuration || 120, // 2 minutes default
-      prompt: videoStep?.config?.prompt || "Tell us about yourself and why you're interested in this position.",
+      maxDuration: videoStep?.config?.maxDuration || 60, // 60 seconds default
+      prompt: videoStep?.config?.prompt || "Record a brief 60-second video introducing yourself. Share your name, a bit about your background, why you're interested in this role, and what makes you a great fit.",
     };
   })();
 
@@ -432,17 +432,22 @@ export default function VideoIntroPhase() {
           {/* Instructions */}
           {state === "intro" && (
             <div className="space-y-3">
+              <h4 className="font-medium text-foreground">Tips for a great video:</h4>
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Camera className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Make sure you're in a well-lit area with a clear background</span>
+                <span>Find a well-lit area with a clean, professional background</span>
               </div>
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Mic className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Speak clearly and at a moderate pace</span>
+                <span>Speak clearly, smile, and maintain eye contact with the camera</span>
               </div>
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <AlertCircle className="h-4 w-4 mt-0.5 text-primary" />
-                <span>Maximum recording time: {formatTime(videoConfig.maxDuration)}</span>
+                <Video className="h-4 w-4 mt-0.5 text-primary" />
+                <span>Briefly introduce yourself: name, background, and interest in this role</span>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4 mt-0.5 text-amber-500" />
+                <span>Maximum {formatTime(videoConfig.maxDuration)} — keep it focused and engaging!</span>
               </div>
             </div>
           )}

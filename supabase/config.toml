@@ -6,6 +6,9 @@ verify_jwt = true
 [functions.ai-analyze-document-fields]
 verify_jwt = true
 
+[functions.ai-analyze-portfolio]
+verify_jwt = true
+
 [functions.ai-chat-interview]
 verify_jwt = false
 
