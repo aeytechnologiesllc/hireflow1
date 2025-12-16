@@ -73,7 +73,7 @@ const phaseActionMessages: Record<string, { buttonText: string; description: str
   typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
   chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
-  chat_interview: { buttonText: "Begin Interview", description: "Start your AI-powered interview session" },
+  chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
   sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
 };
 
