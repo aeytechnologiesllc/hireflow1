@@ -49,43 +49,82 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a document analysis assistant. When given a PDF URL, analyze what type of document it likely is based on context and suggest optimal signature field placements.
+            content: `You are a document analysis assistant for hiring/employment documents. Analyze the document structure and suggest EXACTLY 4 signature/date field placements.
 
-For most business documents (contracts, agreements, NDAs, offer letters), signatures typically go at the bottom of the last page.
+CRITICAL: You must return exactly 4 fields in this order:
+1. Candidate Signature - where the candidate/receiving party signs
+2. Candidate Date - where the candidate enters the signing date
+3. Employer Signature - where the employer/disclosing party signs  
+4. Employer Date - where the employer enters the signing date
 
-Return a JSON object with this structure:
+For NDAs and contracts, look for these patterns:
+- "Receiving Party" or "Candidate" section usually appears FIRST (upper portion, y: 25-45%)
+- "Disclosing Party" or "Employer" section usually appears SECOND (lower portion, y: 55-80%)
+- Signature fields should be positioned TO THE RIGHT of "Signature" or "Signature:" labels (x: 35-60%)
+- Date fields should be positioned TO THE RIGHT of "Date" or "Date:" labels (x: 25-45%)
+
+Return a JSON object:
 {
-  "documentType": "contract" | "agreement" | "letter" | "form" | "unknown",
+  "documentType": "nda" | "contract" | "offer_letter" | "agreement" | "unknown",
   "suggestedFields": [
     {
-      "type": "candidate" | "employer",
-      "label": "Candidate Signature" | "Employer Signature" | "Date",
+      "type": "candidate",
+      "label": "Candidate Signature",
       "page": 1,
-      "x": 10,
-      "y": 85,
-      "width": 25,
+      "x": 35,
+      "y": 32,
+      "width": 30,
       "height": 5
+    },
+    {
+      "type": "candidate", 
+      "label": "Candidate Date",
+      "page": 1,
+      "x": 25,
+      "y": 40,
+      "width": 20,
+      "height": 4
+    },
+    {
+      "type": "employer",
+      "label": "Employer Signature", 
+      "page": 1,
+      "x": 35,
+      "y": 58,
+      "width": 30,
+      "height": 5
+    },
+    {
+      "type": "employer",
+      "label": "Employer Date",
+      "page": 1,
+      "x": 25,
+      "y": 66,
+      "width": 20,
+      "height": 4
     }
   ],
   "confidence": "high" | "medium" | "low",
-  "reasoning": "Brief explanation"
+  "reasoning": "Brief explanation of field placement logic"
 }
 
-Field positioning rules:
-- x and y are percentages (0-100) from top-left
-- Signatures should be near the bottom (y: 80-90%)
-- Candidate signature on the left (x: 10-15%), employer on the right (x: 55-60%)
-- Date fields are smaller (width: 15%, height: 4%)
-- Always include: candidate signature, employer signature, and a date field
-- Place all fields on the last page`
+Positioning rules:
+- x and y are percentages (0-100) from top-left of page
+- Candidate fields should be in the UPPER signature block (y: 25-45%)
+- Employer fields should be in the LOWER signature block (y: 55-80%)
+- Signature fields: width 30%, height 5%
+- Date fields: width 20%, height 4%
+- Position fields to align with where labels typically appear in standard documents`
           },
           {
             role: "user",
-            content: `Analyze this document and suggest signature field placements. The document has ${totalPages} page(s). Document URL: ${pdfUrl}
+            content: `Analyze this hiring document and place signature fields. Document has ${totalPages} page(s). URL: ${pdfUrl}
 
-Since this is a hiring-related document being sent through a recruitment platform, assume it's likely a contract, offer letter, NDA, or similar employment document that needs both candidate and employer signatures.
+This is a hiring-related document (likely NDA, offer letter, or employment contract) that needs:
+- Candidate/Receiving Party signature and date
+- Employer/Disclosing Party signature and date
 
-Provide optimal field placements for the last page (page ${totalPages}).`
+Place all 4 fields on page ${totalPages} where they would naturally align with signature blocks in a standard document layout.`
           }
         ],
         response_format: { type: "json_object" }
@@ -219,32 +258,43 @@ function getDefaultFields(totalPages: number): SignatureField[] {
       label: "Candidate Signature",
       required: true,
       type: "candidate",
-      x: 10,
-      y: 82,
+      x: 35,
+      y: 32,
       page: totalPages,
-      width: 25,
+      width: 30,
       height: 5,
     },
     {
       id: `field_${timestamp}_1`,
-      label: "Employer Signature",
+      label: "Candidate Date",
       required: true,
-      type: "employer",
-      x: 55,
-      y: 82,
+      type: "candidate",
+      x: 25,
+      y: 40,
       page: totalPages,
-      width: 25,
-      height: 5,
+      width: 20,
+      height: 4,
     },
     {
       id: `field_${timestamp}_2`,
-      label: "Date",
+      label: "Employer Signature",
       required: true,
-      type: "candidate",
-      x: 10,
-      y: 90,
+      type: "employer",
+      x: 35,
+      y: 58,
       page: totalPages,
-      width: 15,
+      width: 30,
+      height: 5,
+    },
+    {
+      id: `field_${timestamp}_3`,
+      label: "Employer Date",
+      required: true,
+      type: "employer",
+      x: 25,
+      y: 66,
+      page: totalPages,
+      width: 20,
       height: 4,
     },
   ];
