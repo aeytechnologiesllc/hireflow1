@@ -28,6 +28,29 @@ interface ToolAction {
   timestamp: Date;
 }
 
+// Typewriter component for smooth text animation
+function TypewriterText({ text }: { text: string }) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  
+  useEffect(() => {
+    if (displayedLength < text.length) {
+      const timer = setTimeout(() => {
+        setDisplayedLength(prev => Math.min(prev + 2, text.length)); // 2 chars at a time for smoother effect
+      }, 25); // 25ms per iteration
+      return () => clearTimeout(timer);
+    }
+  }, [displayedLength, text.length]);
+  
+  // Reset when text changes significantly (new message)
+  useEffect(() => {
+    if (text.length < displayedLength) {
+      setDisplayedLength(0);
+    }
+  }, [text]);
+  
+  return <>{text.slice(0, displayedLength)}{displayedLength < text.length && <span className="animate-pulse">|</span>}</>;
+}
+
 export default function AvaVoiceButton() {
   const { subscription, limits, usage, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
   const pricing = usePricing();
@@ -124,6 +147,11 @@ export default function AvaVoiceButton() {
   } = useAvaVoice({
     mode: "assistant",
     applicationId: currentApplicationId,
+    // Pass user context for personalized AVA responses
+    subscriptionPlan: subscription?.plan_type,
+    subscriptionStatus: subscription?.status,
+    countryCode: pricing.countryCode,
+    voiceMinutesRemaining: voiceMinutesRemaining,
     onTranscript: handleTranscript,
     onToolCall: handleToolCall,
   });
@@ -370,72 +398,91 @@ export default function AvaVoiceButton() {
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                   {isListening ? (
                     <>
-                      <motion.div
-                        className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center mb-3"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      >
-                        <Mic className="h-7 w-7 text-primary" />
-                      </motion.div>
+                      {/* ChatGPT-style audio bars */}
+                      <div className="flex items-end justify-center gap-1 h-16 mb-3">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="w-1.5 bg-primary rounded-full"
+                            animate={{
+                              height: [8, 24, 16, 28, 12, 20, 8][i % 7],
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              repeat: Infinity,
+                              repeatType: "reverse",
+                              delay: i * 0.1,
+                              ease: "easeInOut",
+                            }}
+                          />
+                        ))}
+                      </div>
                       <p className="text-sm font-medium text-primary">Listening...</p>
                       <p className="text-xs text-muted-foreground mt-1">Speak now</p>
                     </>
                   ) : isSpeaking ? (
                     <>
-                      <motion.div
-                        className="h-14 w-14 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3"
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 0.5, repeat: Infinity }}
-                      >
-                        <MessageSquare className="h-7 w-7 text-emerald-400" />
-                      </motion.div>
+                      {/* Audio bars for speaking */}
+                      <div className="flex items-end justify-center gap-1 h-16 mb-3">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="w-1.5 bg-emerald-400 rounded-full"
+                            animate={{
+                              height: [12, 28, 18, 32, 14, 22, 10][i % 7],
+                            }}
+                            transition={{
+                              duration: 0.2,
+                              repeat: Infinity,
+                              repeatType: "reverse",
+                              delay: i * 0.08,
+                              ease: "easeInOut",
+                            }}
+                          />
+                        ))}
+                      </div>
                       <p className="text-sm font-medium text-emerald-400">AVA is speaking...</p>
                     </>
                   ) : (
                     <>
                       <Mic className="h-8 w-8 mb-2 opacity-50" />
                       <p className="text-sm">Start speaking or type a message</p>
+                      <p className="text-xs text-muted-foreground mt-1">Try: "What can you do?"</p>
                     </>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "flex",
-                        msg.role === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
+                  {messages.map((msg, index) => {
+                    const isLastAssistantMessage = msg.role === "assistant" && 
+                      index === messages.length - 1;
+                    
+                    return (
                       <div
+                        key={msg.id}
                         className={cn(
-                          "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-                          msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground"
+                          "flex",
+                          msg.role === "user" ? "justify-end" : "justify-start"
                         )}
                       >
-                        {msg.content}
+                        <div
+                          className={cn(
+                            "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                            msg.role === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground"
+                          )}
+                        >
+                          {/* Typewriter effect for last assistant message while speaking */}
+                          {isLastAssistantMessage && isSpeaking ? (
+                            <TypewriterText text={msg.content} />
+                          ) : (
+                            msg.content
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-
-                  {/* Show actions */}
-                  {actions.slice(-3).map((action) => (
-                    <div
-                      key={action.id}
-                      className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 border border-border"
-                    >
-                      <span className="font-medium text-primary">{action.tool}</span>
-                      {action.result?.count !== undefined && (
-                        <span className="ml-1">→ {action.result.count}</span>
-                      )}
-                      {action.result?.success && (
-                        <span className="ml-1 text-emerald-400">✓</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                   {/* Auto-scroll anchor */}
                   <div ref={messagesEndRef} />
                 </div>
