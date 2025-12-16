@@ -325,13 +325,65 @@ export default function ApplicantDetails() {
   });
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
 
+  // Parse submitted data from notes (moved earlier for use in phase completion check)
+  const parsedNotes = (() => {
+    try {
+      return application?.notes ? JSON.parse(application.notes) : {};
+    } catch {
+      return {};
+    }
+  })();
+
+  // Check if candidate has completed the current phase (awaiting employer review)
+  const hasCompletedCurrentPhase = (phaseId: string, phaseType: string): boolean => {
+    if (phaseType === "application") {
+      return !!(application?.cover_letter || parsedNotes.applicationAnswers?.length > 0);
+    }
+    if (phaseType === "quiz") {
+      return !!(parsedNotes.quizAnswers?.[phaseId] || parsedNotes.quizAnswers);
+    }
+    if (phaseType === "typing_test") {
+      return !!parsedNotes.typingTestResult;
+    }
+    if (phaseType === "video_intro") {
+      return !!parsedNotes.videoIntroUrl;
+    }
+    if (phaseType === "chat_simulation") {
+      return !!parsedNotes.chatSimulationResult;
+    }
+    if (phaseType === "chat_interview") {
+      return !!parsedNotes.chatInterviewResult;
+    }
+    if (phaseType === "sales_simulation") {
+      return !!parsedNotes.salesSimulationResult;
+    }
+    if (phaseType === "voice_interview") {
+      return !!application?.voice_interview_result;
+    }
+    // Review, Interview, Hired are employer-controlled - no candidate submission
+    return false;
+  };
+
+  // Check if currently in manual mode (not autopilot)
+  const isManualMode = application?.jobs?.processing_mode !== "auto";
+
   // Calculate avatar position based on phase
   useEffect(() => {
     if (sliderRef.current && !isDragging) {
-      const percentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
+      const currentPhase = phases[effectivePhaseIndex];
+      const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
+      const isLastPhase = effectivePhaseIndex === phases.length - 1;
+      const isAwaitingReview = isComplete && !isLastPhase && isManualMode;
+      
+      // Add 0.5 offset if awaiting review (halfway to next phase)
+      const adjustedPosition = isAwaitingReview 
+        ? effectivePhaseIndex + 0.5 
+        : effectivePhaseIndex;
+      
+      const percentage = (adjustedPosition / (phases.length - 1)) * 100;
       setDragPosition(percentage);
     }
-  }, [effectivePhaseIndex, phases.length, isDragging]);
+  }, [effectivePhaseIndex, phases.length, isDragging, parsedNotes, application, isManualMode]);
 
   const handleDragStart = () => {
     setIsDragging(true);
@@ -520,14 +572,6 @@ export default function ApplicantDetails() {
     setDragPosition(snapPercentage);
   };
 
-  // Parse submitted data from notes (moved earlier for use in executePhaseChange)
-  const parsedNotes = (() => {
-    try {
-      return application?.notes ? JSON.parse(application.notes) : {};
-    } catch {
-      return {};
-    }
-  })();
 
   const handleReject = async () => {
     if (!application) return;
