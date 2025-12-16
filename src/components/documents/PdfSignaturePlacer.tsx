@@ -92,6 +92,17 @@ export function PdfSignaturePlacer({
     setLoading(false);
   };
 
+  // Helper to find the next missing field step
+  const findNextMissingStep = (fields: SignatureFieldWithPosition[]) => {
+    const placedIds = fields.map(f => f.id);
+    for (let i = 0; i < PLACEMENT_STEPS.length; i++) {
+      if (!placedIds.includes(PLACEMENT_STEPS[i].id)) {
+        return i;
+      }
+    }
+    return PLACEMENT_STEPS.length; // All placed
+  };
+
   const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !guidedMode || isPlacementComplete) return;
 
@@ -112,8 +123,11 @@ export function PdfSignaturePlacer({
       height: currentStepInfo.height,
     };
 
-    onFieldsChange([...signatureFields, newField]);
-    setPlacementStep(placementStep + 1);
+    const newFields = [...signatureFields, newField];
+    onFieldsChange(newFields);
+    
+    // Find the next missing field, not just increment
+    setPlacementStep(findNextMissingStep(newFields));
   };
 
   const rafRef = useRef<number | null>(null);
@@ -165,23 +179,9 @@ export function PdfSignaturePlacer({
   };
 
   const removeField = (fieldId: string) => {
-    // Simply remove the specific field
     const newFields = signatureFields.filter(f => f.id !== fieldId);
     onFieldsChange(newFields);
-    
-    // Recalculate placement step based on remaining fields
-    const placedFieldIds = newFields.map(f => f.id);
-    let newStep = 0;
-    for (let i = 0; i < PLACEMENT_STEPS.length; i++) {
-      if (placedFieldIds.includes(PLACEMENT_STEPS[i].id)) {
-        newStep = i + 1;
-      } else {
-        // Found a gap - this is where we should resume
-        newStep = i;
-        break;
-      }
-    }
-    setPlacementStep(Math.min(newStep, PLACEMENT_STEPS.length));
+    setPlacementStep(findNextMissingStep(newFields));
   };
 
   const getFieldColor = (type: "candidate" | "employer") => {
