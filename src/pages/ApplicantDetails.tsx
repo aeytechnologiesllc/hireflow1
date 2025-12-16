@@ -289,21 +289,40 @@ export default function ApplicantDetails() {
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
+    const quizQuestions = application?.jobs?.quiz_questions as any[] | undefined;
     
     if (workflowSteps && workflowSteps.length > 0) {
       // Start with application phase
-      const allPhases = [
+      const allPhases: { id: string; title: string; icon: any; type: string }[] = [
         { id: "application", title: "Application", icon: FileCheck, type: "application" },
-        ...workflowSteps.map(step => ({
+      ];
+      
+      // Add Quiz phase if quiz_questions exist
+      if (quizQuestions && quizQuestions.length > 0) {
+        allPhases.push({
+          id: "quiz",
+          title: "Quiz",
+          icon: ClipboardList,
+          type: "quiz",
+        });
+      }
+      
+      // Add workflow steps
+      workflowSteps.forEach(step => {
+        allPhases.push({
           id: step.id,
           title: step.title.length > 12 ? step.title.substring(0, 10) + "..." : step.title,
           icon: stepTypeIcons[step.type] || ClipboardList,
           type: step.type,
-        })),
+        });
+      });
+      
+      // Add final phases
+      allPhases.push(
         { id: "review", title: "Review", icon: Eye, type: "review" },
         { id: "interview", title: "Interview", icon: Users, type: "interview" },
-        { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" },
-      ];
+        { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }
+      );
       return allPhases;
     }
     return defaultPhases;
