@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,11 +6,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  PenTool,
   Trash2,
   User,
   Building2,
-  GripVertical,
   ZoomIn,
   ZoomOut,
   ChevronLeft,
@@ -29,9 +27,6 @@ try {
   // Fallback with correct .mjs extension
   pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
-
-// Helpful debug (kept as info-level)
-console.info("PDF workerSrc:", pdfjs.GlobalWorkerOptions.workerSrc);
 
 export interface SignatureFieldWithPosition {
   id: string;
@@ -63,10 +58,7 @@ export function PdfSignaturePlacer({
   signatures = {},
 }: PdfSignaturePlacerProps) {
   const pageContainerRef = useRef<HTMLDivElement>(null);
-  const [draggedField, setDraggedField] = useState<string | null>(null);
-  const [placementMode, setPlacementMode] = useState<"candidate" | "employer" | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState(true);
@@ -91,82 +83,6 @@ export function PdfSignaturePlacer({
     setLoading(false);
   };
 
-  // Click-to-place: instantly creates a pre-sized signature field at click location
-  const handlePageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!placementMode || readOnly || isDragging) return;
-    
-    const container = pageContainerRef.current;
-    if (!container) return;
-    
-    // Check if clicking on existing field or drag handle
-    const clickedOnField = (e.target as HTMLElement).closest("[data-signature-field]");
-    if (clickedOnField) return;
-    
-    const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
-    // Default signature field size
-    const defaultWidth = 18;
-    const defaultHeight = 6;
-    
-    const fieldCount = signatureFields.filter(f => f.type === placementMode).length;
-    const newField: SignatureFieldWithPosition = {
-      id: `field_${Date.now()}`,
-      label: `${placementMode === "candidate" ? "Candidate" : "Employer"} Signature ${fieldCount + 1}`,
-      required: true,
-      type: placementMode,
-      // Center the field around the click point, with bounds checking
-      x: Math.max(0, Math.min(x - defaultWidth / 2, 100 - defaultWidth)),
-      y: Math.max(0, Math.min(y - defaultHeight / 2, 100 - defaultHeight)),
-      page: currentPage,
-      width: defaultWidth,
-      height: defaultHeight,
-    };
-    
-    onFieldsChange([...signatureFields, newField]);
-    // Stay in placement mode to allow adding multiple fields quickly
-  }, [placementMode, readOnly, isDragging, signatureFields, onFieldsChange, currentPage]);
-
-  const handleFieldDragStart = (fieldId: string) => {
-    if (readOnly) return;
-    setDraggedField(fieldId);
-    setIsDragging(true);
-  };
-
-  const handleFieldDrag = useCallback((e: React.MouseEvent<HTMLDivElement>, fieldId: string) => {
-    if (!draggedField || draggedField !== fieldId || readOnly) return;
-    
-    const container = pageContainerRef.current;
-    if (!container) return;
-    
-    const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    
-    const field = signatureFields.find(f => f.id === fieldId);
-    if (!field) return;
-    
-    const updatedFields = signatureFields.map(f => {
-      if (f.id === fieldId) {
-        return {
-          ...f,
-          x: Math.max(0, Math.min(x - field.width / 2, 100 - field.width)),
-          y: Math.max(0, Math.min(y - field.height / 2, 100 - field.height)),
-          page: currentPage,
-        };
-      }
-      return f;
-    });
-    
-    onFieldsChange(updatedFields);
-  }, [draggedField, readOnly, signatureFields, onFieldsChange, currentPage]);
-
-  const handleFieldDragEnd = () => {
-    setDraggedField(null);
-    setTimeout(() => setIsDragging(false), 100);
-  };
-
   const removeField = (fieldId: string) => {
     onFieldsChange(signatureFields.filter(f => f.id !== fieldId));
   };
@@ -185,71 +101,28 @@ export function PdfSignaturePlacer({
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      {!readOnly && (
-        <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Add Signature:</span>
-            <Button
-              variant={placementMode === "candidate" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPlacementMode(placementMode === "candidate" ? null : "candidate")}
-              className={cn(
-                placementMode === "candidate" && "bg-blue-600 hover:bg-blue-700"
-              )}
-            >
-              <User className="h-4 w-4 mr-1" />
-              Candidate
-            </Button>
-            <Button
-              variant={placementMode === "employer" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPlacementMode(placementMode === "employer" ? null : "employer")}
-              className={cn(
-                placementMode === "employer" && "bg-emerald-600 hover:bg-emerald-700"
-              )}
-            >
-              <Building2 className="h-4 w-4 mr-1" />
-              Employer
-            </Button>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-              disabled={zoom <= 0.5}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-              disabled={zoom >= 2}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Placement Mode Indicator */}
-      {placementMode && !readOnly && (
-        <div className={cn(
-          "p-3 rounded-lg border-2 border-dashed text-center text-sm",
-          placementMode === "candidate" 
-            ? "border-blue-500 bg-blue-500/5 text-blue-600" 
-            : "border-emerald-500 bg-emerald-500/5 text-emerald-600"
-        )}>
-          <PenTool className="h-4 w-4 inline mr-2" />
-          Click to add {placementMode === "candidate" ? "candidate" : "employer"} signature field, then drag to reposition
-        </div>
-      )}
+      {/* Toolbar - Zoom only */}
+      <div className="flex items-center justify-end gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+          disabled={zoom <= 0.5}
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+          disabled={zoom >= 2}
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+      </div>
 
       {/* PDF Container */}
       <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
@@ -293,7 +166,7 @@ export function PdfSignaturePlacer({
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => window.open(pdfUrl, "_blank")}>Open PDF</Button>
               </div>
-              {/* Fallback preview for environments where pdf.js cannot stream/range-request signed URLs */}
+              {/* Fallback preview */}
               <div className="w-full rounded-lg overflow-hidden border border-border bg-background">
                 <iframe
                   src={pdfUrl}
@@ -311,22 +184,11 @@ export function PdfSignaturePlacer({
             onSourceError={onDocumentSourceError}
             loading={null}
             options={{
-              // Signed/private URLs sometimes don't support PDF.js streaming/range requests reliably.
-              // Disabling these makes PDF.js fetch the whole file in a single request.
               disableRange: true,
               disableStream: true,
             }}
           >
-          <div
-            ref={pageContainerRef}
-            className={cn("relative", placementMode && "cursor-pointer")}
-            onClick={handlePageClick}
-            onMouseMove={(e) => {
-              if (draggedField) handleFieldDrag(e, draggedField);
-            }}
-            onMouseUp={handleFieldDragEnd}
-            onMouseLeave={handleFieldDragEnd}
-          >
+            <div ref={pageContainerRef} className="relative">
               <Page
                 pageNumber={currentPage}
                 scale={zoom}
@@ -353,21 +215,19 @@ export function PdfSignaturePlacer({
                           "absolute border-2 rounded pointer-events-auto transition-all",
                           getFieldColor(field.type),
                           hasSignature && "border-success bg-success/10",
-                          isActive && "ring-2 ring-primary ring-offset-2 animate-pulse",
-                          draggedField === field.id && "opacity-70 scale-105",
-                          !readOnly && "hover:shadow-lg"
+                          isActive && "ring-2 ring-primary ring-offset-2 animate-pulse"
                         )}
                         style={{
                           left: `${field.x}%`,
                           top: `${field.y}%`,
                           width: `${field.width}%`,
                           height: `${field.height}%`,
-                          minHeight: "40px",
-                          minWidth: "100px",
+                          minHeight: "32px",
+                          minWidth: "80px",
                         }}
                       >
                         {/* Field Content */}
-                        <div className="flex items-center justify-center h-full p-2 gap-2">
+                        <div className="flex items-center justify-center h-full p-1 gap-1">
                           {hasSignature ? (
                             <img 
                               src={signatures[field.id]} 
@@ -377,7 +237,7 @@ export function PdfSignaturePlacer({
                           ) : (
                             <>
                               <FieldIcon className={cn(
-                                "h-4 w-4",
+                                "h-3 w-3 flex-shrink-0",
                                 field.type === "candidate" ? "text-blue-600" : "text-emerald-600"
                               )} />
                               <span className={cn(
@@ -390,31 +250,17 @@ export function PdfSignaturePlacer({
                           )}
                         </div>
 
-                        {/* Drag Handle & Delete Button (Edit Mode Only) */}
+                        {/* Delete Button (Edit Mode Only) */}
                         {!readOnly && !hasSignature && (
-                          <>
-                            <div
-                              className={cn(
-                                "absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-8 rounded-l flex items-center justify-center cursor-grab active:cursor-grabbing",
-                                field.type === "candidate" ? "bg-blue-500" : "bg-emerald-500"
-                              )}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                handleFieldDragStart(field.id);
-                              }}
-                            >
-                              <GripVertical className="h-4 w-4 text-white" />
-                            </div>
-                            <button
-                              className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeField(field.id);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </>
+                          <button
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeField(field.id);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                         )}
                       </motion.div>
                     );
@@ -429,7 +275,7 @@ export function PdfSignaturePlacer({
       {/* Field List */}
       {signatureFields.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Signature Fields ({signatureFields.length})</Label>
+          <Label className="text-xs text-muted-foreground">AI-Placed Signature Fields ({signatureFields.length})</Label>
           <div className="flex flex-wrap gap-2">
             {signatureFields.map((field) => {
               const FieldIcon = getFieldIcon(field.type);
@@ -451,7 +297,7 @@ export function PdfSignaturePlacer({
                       onClick={() => removeField(field.id)}
                       className="ml-1 hover:text-destructive"
                     >
-                      ×
+                      <Trash2 className="h-3 w-3" />
                     </button>
                   )}
                 </Badge>
@@ -463,11 +309,9 @@ export function PdfSignaturePlacer({
 
       {/* Empty State */}
       {signatureFields.length === 0 && !readOnly && (
-        <div className="text-center p-6 bg-secondary/30 rounded-lg border border-dashed border-border">
-          <PenTool className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">
-            No signature fields placed yet. Use the buttons above to add signature fields.
-          </p>
+        <div className="text-center py-6 text-muted-foreground">
+          <p className="text-sm">No signature fields placed yet.</p>
+          <p className="text-xs mt-1">AI will automatically place fields when you upload a document.</p>
         </div>
       )}
     </div>

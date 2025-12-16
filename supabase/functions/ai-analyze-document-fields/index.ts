@@ -49,82 +49,79 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a document analysis assistant for hiring/employment documents. Analyze the document structure and suggest EXACTLY 4 signature/date field placements.
+            content: `You are a document analysis assistant for hiring/employment documents. You must return EXACTLY 4 signature/date fields positioned correctly.
 
-CRITICAL: You must return exactly 4 fields in this order:
-1. Candidate Signature - where the candidate/receiving party signs
-2. Candidate Date - where the candidate enters the signing date
-3. Employer Signature - where the employer/disclosing party signs  
-4. Employer Date - where the employer enters the signing date
+CRITICAL POSITIONING RULES:
+1. Signature fields go DIRECTLY TO THE RIGHT of "Signature" or "Signature:" labels - on the same horizontal line
+2. Date fields go DIRECTLY ON THE UNDERLINE after "Date:" labels
+3. Fields should NOT overlap with text - they go on the blank lines/spaces provided for writing
 
-For NDAs and contracts, look for these patterns:
-- "Receiving Party" or "Candidate" section usually appears FIRST (upper portion, y: 25-45%)
-- "Disclosing Party" or "Employer" section usually appears SECOND (lower portion, y: 55-80%)
-- Signature fields should be positioned TO THE RIGHT of "Signature" or "Signature:" labels (x: 35-60%)
-- Date fields should be positioned TO THE RIGHT of "Date" or "Date:" labels (x: 25-45%)
+For standard NDA/contract signature blocks:
+- "Receiving Party / Candidate" section is typically in the UPPER half (y: 15-35%)
+- "Disclosing Party / Employer" section is typically in the LOWER half (y: 45-75%)
 
-Return a JSON object:
+Return EXACTLY this JSON structure with 4 fields:
 {
-  "documentType": "nda" | "contract" | "offer_letter" | "agreement" | "unknown",
+  "documentType": "nda" | "contract" | "offer_letter" | "agreement",
   "suggestedFields": [
     {
       "type": "candidate",
       "label": "Candidate Signature",
       "page": 1,
-      "x": 35,
-      "y": 32,
-      "width": 30,
+      "x": 22,
+      "y": 18,
+      "width": 28,
       "height": 5
     },
     {
       "type": "candidate", 
       "label": "Candidate Date",
       "page": 1,
-      "x": 25,
-      "y": 40,
-      "width": 20,
+      "x": 12,
+      "y": 30,
+      "width": 18,
       "height": 4
     },
     {
       "type": "employer",
       "label": "Employer Signature", 
       "page": 1,
-      "x": 35,
-      "y": 58,
-      "width": 30,
+      "x": 22,
+      "y": 48,
+      "width": 28,
       "height": 5
     },
     {
       "type": "employer",
       "label": "Employer Date",
       "page": 1,
-      "x": 25,
-      "y": 66,
-      "width": 20,
+      "x": 12,
+      "y": 72,
+      "width": 18,
       "height": 4
     }
   ],
-  "confidence": "high" | "medium" | "low",
-  "reasoning": "Brief explanation of field placement logic"
+  "confidence": "high",
+  "reasoning": "Fields placed inline with signature/date labels"
 }
 
-Positioning rules:
-- x and y are percentages (0-100) from top-left of page
-- Candidate fields should be in the UPPER signature block (y: 25-45%)
-- Employer fields should be in the LOWER signature block (y: 55-80%)
-- Signature fields: width 30%, height 5%
-- Date fields: width 20%, height 4%
-- Position fields to align with where labels typically appear in standard documents`
+Positioning:
+- x and y are percentages (0-100) from top-left
+- x: 12-25% positions field to the right of typical left-aligned labels
+- Signature fields: width 28%, height 5%
+- Date fields: width 18%, height 4%`
           },
           {
             role: "user",
-            content: `Analyze this hiring document and place signature fields. Document has ${totalPages} page(s). URL: ${pdfUrl}
+            content: `Place signature fields for this hiring document. Document has ${totalPages} page(s). URL: ${pdfUrl}
 
-This is a hiring-related document (likely NDA, offer letter, or employment contract) that needs:
-- Candidate/Receiving Party signature and date
-- Employer/Disclosing Party signature and date
+This document needs 4 fields on page ${totalPages}:
+1. Candidate Signature - on the line next to "Signature" in candidate/receiving party section
+2. Candidate Date - on the underline after "Date:" in candidate section  
+3. Employer Signature - on the line next to "Signature" in employer/disclosing party section
+4. Employer Date - on the underline after "Date:" in employer section
 
-Place all 4 fields on page ${totalPages} where they would naturally align with signature blocks in a standard document layout.`
+Position each field on the actual blank line/space provided, not overlapping the labels.`
           }
         ],
         response_format: { type: "json_object" }
@@ -258,10 +255,10 @@ function getDefaultFields(totalPages: number): SignatureField[] {
       label: "Candidate Signature",
       required: true,
       type: "candidate",
-      x: 35,
-      y: 32,
+      x: 22,
+      y: 18,
       page: totalPages,
-      width: 30,
+      width: 28,
       height: 5,
     },
     {
@@ -269,10 +266,10 @@ function getDefaultFields(totalPages: number): SignatureField[] {
       label: "Candidate Date",
       required: true,
       type: "candidate",
-      x: 25,
-      y: 40,
+      x: 12,
+      y: 30,
       page: totalPages,
-      width: 20,
+      width: 18,
       height: 4,
     },
     {
@@ -280,10 +277,10 @@ function getDefaultFields(totalPages: number): SignatureField[] {
       label: "Employer Signature",
       required: true,
       type: "employer",
-      x: 35,
-      y: 58,
+      x: 22,
+      y: 48,
       page: totalPages,
-      width: 30,
+      width: 28,
       height: 5,
     },
     {
@@ -291,10 +288,10 @@ function getDefaultFields(totalPages: number): SignatureField[] {
       label: "Employer Date",
       required: true,
       type: "employer",
-      x: 25,
-      y: 66,
+      x: 12,
+      y: 72,
       page: totalPages,
-      width: 20,
+      width: 18,
       height: 4,
     },
   ];
