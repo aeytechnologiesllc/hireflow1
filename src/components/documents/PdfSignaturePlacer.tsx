@@ -1,27 +1,27 @@
 import { useState, useRef, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  PenTool, 
-  Trash2, 
-  User, 
-  Building2, 
+import {
+  PenTool,
+  Trash2,
+  User,
+  Building2,
   GripVertical,
   ZoomIn,
   ZoomOut,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 
-// Set up PDF.js worker - use cdnjs for reliability
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
-
+// Set up PDF.js worker (Vite-native, reliable for pdfjs-dist v5+)
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 export interface SignatureFieldWithPosition {
   id: string;
   label: string;
@@ -270,13 +270,13 @@ export function PdfSignaturePlacer({
           )}
 
           <Document
-            file={pdfUrl}
+            file={{ url: pdfUrl }}
+            options={{ withCredentials: false }}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}
           >
-            <div 
-              ref={pageContainerRef}
+            <div
               className={cn(
                 "relative",
                 placementMode && "cursor-crosshair"
