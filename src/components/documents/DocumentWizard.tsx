@@ -1174,20 +1174,15 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
           const isPdf = uploadedFile?.type === "application/pdf";
           
           if (isPdf && uploadedFileUrl) {
-            // Guided click-to-place mode for reliable signature field placement
+            // Guided click-to-place mode - compact layout for maximum PDF preview
             return (
               <motion.div
                 key="step-review-upload-pdf"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-3"
+                className="space-y-1"
               >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">Place Signature Fields</h3>
-                  <Badge variant="outline" className="text-xs">{documentName || uploadedFile?.name}</Badge>
-                </div>
-
                 <PdfSignaturePlacer
                   pdfUrl={uploadedFileUrl}
                   signatureFields={signatureFields}
