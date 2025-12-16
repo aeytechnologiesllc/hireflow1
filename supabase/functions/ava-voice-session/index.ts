@@ -205,7 +205,23 @@ ${planLabel === 'Enterprise' ? '- Note: User has full access including 500 voice
 This is the user's FIRST TIME using you! Give them a warm welcome and offer a platform tour:
 "Hey there! Welcome to HireFlow! I'm AVA, your AI hiring assistant. I noticed this is your first time chatting with me - how exciting! Would you like me to give you a quick tour of the platform? I can walk you through each section and show you around. Just say 'yes' or 'sure' and I'll take you on a tour!"
 
-If they say yes to the walkthrough, use the start_walkthrough tool to get the tour pages, then navigate to each one explaining what it does.
+=== WALKTHROUGH MODE (CRITICAL - FOLLOW EXACTLY) ===
+When user agrees to a walkthrough, you MUST follow this EXACT pattern for EVERY page:
+
+1. Call walkthrough_navigate with step=1 FIRST
+2. WAIT for the tool result
+3. Read the "whatToSay" from the result and speak EXACTLY that text - do NOT make up your own description
+4. After speaking, ask "Ready for the next one?" or "Want to see the next page?"
+5. When they say yes, call walkthrough_navigate with step=2
+6. Repeat: call tool → speak whatToSay → ask if ready → next step
+7. Continue until isLast is true, then say the completion message
+
+CRITICAL RULES:
+- You MUST call walkthrough_navigate BEFORE speaking about each page
+- NEVER describe a page without calling the tool first - the tool navigates the user there
+- Use EXACTLY the "whatToSay" text from the tool result, don't improvise
+- Go through ALL 7 pages: Dashboard, Jobs, Create Job, Applicants, Messages, Documents, Analytics
+- If user says no or wants to stop, that's fine - just end the tour gracefully
 ` : '';
 
       instructions = `You are AVA, a friendly and knowledgeable AI hiring assistant for ${profile?.company_name || 'the employer'}. You help ${profile?.full_name || 'the employer'} manage their hiring process through voice commands.
@@ -387,12 +403,14 @@ Be proactive! If you notice something helpful, mention it naturally like "Oh by 
         },
         {
           type: "function",
-          name: "start_walkthrough",
-          description: "Start a guided walkthrough/tour of the platform for first-time users. Returns a list of pages to show them.",
+          name: "walkthrough_navigate",
+          description: "Navigate to a specific step in the platform walkthrough tour. MUST be called BEFORE speaking about each page. The tool navigates the user to that page and returns what you should say about it.",
           parameters: {
             type: "object",
-            properties: {},
-            required: []
+            properties: {
+              step: { type: "number", description: "The step number to navigate to (1-7). Step 1 is Dashboard, 2 is Jobs, 3 is Create Job, 4 is Applicants, 5 is Messages, 6 is Documents, 7 is Analytics." }
+            },
+            required: ["step"]
           }
         },
         {

@@ -342,20 +342,40 @@ serve(async (req) => {
         break;
       }
 
-      case "start_walkthrough": {
-        // Returns list of pages to tour with descriptions
+      case "walkthrough_navigate": {
+        const { step } = parameters;
+        
+        const walkthroughPages = [
+          { route: "/dashboard", name: "Dashboard", description: "This is your dashboard. Here you get a quick overview of all your active jobs and recent applicants. You can see how many people have applied and click into any job to check on the pipeline." },
+          { route: "/jobs", name: "Jobs", description: "Here's where all your job postings live. You can see your active jobs, drafts, and closed positions. Click on any job to view its applicants or edit the details." },
+          { route: "/jobs/create", name: "Create Job", description: "This is where you create new job postings. You fill out the basics, then I'll generate a smart hiring workflow with phases like quizzes and video intros. And hey, you can actually create jobs just by talking to me!" },
+          { route: "/applicants", name: "Applicants", description: "All your applicants show up here. You can filter by job, see their status and scores, and drag them through the hiring phases. This is where you'll spend a lot of time reviewing candidates." },
+          { route: "/messages", name: "Messages", description: "Your messaging center for communicating with candidates. You can chat with anyone who's applied to your jobs, and I can send messages for you too, just ask!" },
+          { route: "/documents", name: "Documents", description: "Send and track hiring documents like offer letters and NDAs. The AI generates them based on the job and candidate info, they sign, you countersign, and there's a full audit trail for compliance." },
+          { route: "/analytics", name: "Analytics", description: "Check out your hiring analytics and insights here. See your funnel, where candidates drop off, and how your jobs are performing. Pretty useful for optimizing your process!" }
+        ];
+        
+        const currentStep = step || 1;
+        const pageIndex = currentStep - 1;
+        
+        if (pageIndex < 0 || pageIndex >= walkthroughPages.length) {
+          result = { 
+            completed: true, 
+            message: "That's the tour! You've seen all the main areas. Feel free to ask me anything or tell me what you'd like to do!" 
+          };
+          break;
+        }
+        
+        const page = walkthroughPages[pageIndex];
         result = {
-          action: "walkthrough",
-          pages: [
-            { route: "/dashboard", name: "Dashboard", description: "This is your dashboard where you see an overview of all your jobs and recent applicants" },
-            { route: "/jobs", name: "Jobs", description: "Here's where all your job postings live. You can see active, draft, and closed jobs" },
-            { route: "/jobs/create", name: "Create Job", description: "This is where you create new job postings - and I can help you do this by voice!" },
-            { route: "/applicants", name: "Applicants", description: "All your applicants appear here. You can filter by job, status, and phase" },
-            { route: "/messages", name: "Messages", description: "This is your messaging center for communicating with candidates" },
-            { route: "/documents", name: "Documents", description: "Send and track documents like offer letters and NDAs here" },
-            { route: "/analytics", name: "Analytics", description: "View hiring analytics and insights about your recruitment funnel" }
-          ],
-          success: true
+          action: "walkthrough_step",
+          route: page.route,
+          step: currentStep,
+          totalSteps: walkthroughPages.length,
+          pageName: page.name,
+          whatToSay: page.description,
+          nextStep: currentStep + 1,
+          isLast: currentStep === walkthroughPages.length
         };
         break;
       }
