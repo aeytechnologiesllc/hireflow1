@@ -41,7 +41,7 @@ interface ApplicationDetails {
 }
 
 type Mode = "select" | "record" | "upload";
-type RecordingState = "intro" | "recording" | "preview" | "submitting";
+type RecordingState = "intro" | "camera_preview" | "recording" | "preview" | "submitting";
 
 export default function VideoIntroPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
@@ -118,6 +118,13 @@ export default function VideoIntroPhase() {
     };
   }, [recordedUrl, uploadedPreviewUrl]);
 
+  // Connect stream to video element after it renders
+  useEffect(() => {
+    if (streamRef.current && videoRef.current && hasPermissions && recordingState === "camera_preview") {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [hasPermissions, recordingState]);
+
   const requestPermissions = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -125,12 +132,8 @@ export default function VideoIntroPhase() {
         audio: true,
       });
       streamRef.current = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      
       setHasPermissions(true);
+      setRecordingState("camera_preview");
       return true;
     } catch (error) {
       console.error("Error accessing camera/mic:", error);
@@ -141,12 +144,11 @@ export default function VideoIntroPhase() {
     }
   };
 
-  const startRecording = async () => {
-    if (!hasPermissions) {
-      const granted = await requestPermissions();
-      if (!granted) return;
-    }
+  const startCameraPreview = async () => {
+    await requestPermissions();
+  };
 
+  const startRecording = () => {
     if (!streamRef.current) return;
 
     chunksRef.current = [];
@@ -605,18 +607,20 @@ export default function VideoIntroPhase() {
               >
                 {/* Video Area */}
                 <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
-                  {recordingState === "intro" && !hasPermissions && (
+                  {/* Intro state - no permissions yet */}
+                  {recordingState === "intro" && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-muted/20 to-background/80">
                       <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
                         <Camera className="h-10 w-10 text-primary" />
                       </div>
-                      <p className="text-muted-foreground text-center">
-                        Click "Start Recording" to begin
+                      <p className="text-muted-foreground text-center px-4">
+                        Click below to enable your camera and microphone
                       </p>
                     </div>
                   )}
                   
-                  {(recordingState === "intro" || recordingState === "recording") && hasPermissions && (
+                  {/* Camera preview and recording states - show video feed */}
+                  {(recordingState === "camera_preview" || recordingState === "recording") && (
                     <video
                       ref={videoRef}
                       autoPlay
@@ -626,6 +630,17 @@ export default function VideoIntroPhase() {
                     />
                   )}
 
+                  {/* Camera preview indicator */}
+                  {recordingState === "camera_preview" && (
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
+                      <Badge className="bg-emerald-500/90 text-white border-0">
+                        Camera Ready
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* Recording indicator */}
                   {recordingState === "recording" && (
                     <div className="absolute top-4 left-4 flex items-center gap-2">
                       <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
@@ -639,7 +654,14 @@ export default function VideoIntroPhase() {
                 {/* Actions */}
                 <div className="flex justify-center gap-4">
                   {recordingState === "intro" && (
-                    <Button onClick={startRecording} size="lg" className="gap-2 px-8">
+                    <Button onClick={startCameraPreview} size="lg" className="gap-2 px-8">
+                      <Camera className="h-5 w-5" />
+                      Enable Camera
+                    </Button>
+                  )}
+                  
+                  {recordingState === "camera_preview" && (
+                    <Button onClick={startRecording} size="lg" className="gap-2 px-8 bg-red-600 hover:bg-red-700">
                       <Play className="h-5 w-5" />
                       Start Recording
                     </Button>
