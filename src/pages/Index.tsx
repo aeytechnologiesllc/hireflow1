@@ -217,7 +217,7 @@ export default function Index() {
                 <img
                   src={avaOrbLogo} 
                   alt="AVA AI" 
-                  className="relative w-14 h-14 object-contain"
+                  className="relative w-14 h-14 object-contain ava-orb-glow"
                 />
               </motion.div>
               <motion.div 
@@ -372,7 +372,7 @@ export default function Index() {
               <motion.img
                 src={avaOrbLogo}
                 alt="AVA AI"
-                className="relative w-full h-full object-contain"
+                className="relative w-full h-full object-contain ava-orb-glow"
                 animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               />
