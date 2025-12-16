@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { 
   ArrowLeft, 
   Video, 
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { compressVideo, shouldCompress, formatFileSize as formatFileSizeUtil, CompressionProgress } from "@/utils/videoCompression";
 
 interface ApplicationDetails {
   id: string;
@@ -63,6 +65,13 @@ export default function VideoIntroPhase() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Compression state
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState<CompressionProgress | null>(null);
+  const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
+  const [originalFileSize, setOriginalFileSize] = useState<number>(0);
+  const compressionAbortRef = useRef<AbortController | null>(null);
   
   // Common state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -213,8 +222,15 @@ export default function VideoIntroPhase() {
     if (uploadedPreviewUrl) {
       URL.revokeObjectURL(uploadedPreviewUrl);
     }
+    if (compressionAbortRef.current) {
+      compressionAbortRef.current.abort();
+    }
     setUploadedFile(null);
     setUploadedPreviewUrl(null);
+    setCompressedBlob(null);
+    setCompressionProgress(null);
+    setIsCompressing(false);
+    setOriginalFileSize(0);
   };
 
   const goBackToSelect = () => {
@@ -238,7 +254,7 @@ export default function VideoIntroPhase() {
 
   // File upload handlers
   const validateFile = (file: File): boolean => {
-    const maxSize = 100 * 1024 * 1024; // 100MB
+    const maxSize = 500 * 1024 * 1024; // 500MB max input (will compress if needed)
     const allowedTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
     
     if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
@@ -250,7 +266,7 @@ export default function VideoIntroPhase() {
     
     if (file.size > maxSize) {
       toast.error("File too large", {
-        description: "Maximum file size is 100MB",
+        description: "Maximum file size is 500MB",
       });
       return false;
     }
@@ -258,11 +274,45 @@ export default function VideoIntroPhase() {
     return true;
   };
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     if (!validateFile(file)) return;
     
     setUploadedFile(file);
     setUploadedPreviewUrl(URL.createObjectURL(file));
+    setOriginalFileSize(file.size);
+    setCompressedBlob(null);
+    
+    // Check if compression is needed (files > 50MB)
+    if (shouldCompress(file)) {
+      setIsCompressing(true);
+      compressionAbortRef.current = new AbortController();
+      
+      try {
+        const result = await compressVideo(
+          file,
+          (progress) => setCompressionProgress(progress),
+          compressionAbortRef.current.signal
+        );
+        
+        setCompressedBlob(result.blob);
+        setUploadedPreviewUrl(URL.createObjectURL(result.blob));
+        
+        toast.success("Video compressed successfully!", {
+          description: `${formatFileSizeUtil(result.originalSize)} → ${formatFileSizeUtil(result.compressedSize)}`,
+        });
+      } catch (error: any) {
+        if (error.message !== "Compression cancelled") {
+          console.error("Compression failed:", error);
+          toast.error("Compression failed", {
+            description: "Unable to compress video. Please try a smaller file.",
+          });
+          resetUpload();
+        }
+      } finally {
+        setIsCompressing(false);
+        setCompressionProgress(null);
+      }
+    }
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -293,7 +343,8 @@ export default function VideoIntroPhase() {
   };
 
   const handleSubmit = async () => {
-    const videoToUpload = recordedBlob || uploadedFile;
+    // Use compressed blob if available, otherwise original file
+    const videoToUpload = recordedBlob || compressedBlob || uploadedFile;
     if (!videoToUpload || !application || !user) return;
     
     setIsSubmitting(true);
@@ -301,8 +352,11 @@ export default function VideoIntroPhase() {
     
     try {
       const isRecorded = !!recordedBlob;
-      const extension = isRecorded ? "webm" : uploadedFile?.name.split('.').pop() || "mp4";
-      const mimeType = isRecorded ? "video/webm" : uploadedFile?.type || "video/mp4";
+      const isCompressed = !!compressedBlob && !isRecorded;
+      
+      // Compressed files are always MP4, recorded are WebM, uploaded keep original extension
+      const extension = isRecorded ? "webm" : isCompressed ? "mp4" : uploadedFile?.name.split('.').pop() || "mp4";
+      const mimeType = isRecorded ? "video/webm" : isCompressed ? "video/mp4" : uploadedFile?.type || "video/mp4";
       const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.${extension}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -453,8 +507,8 @@ export default function VideoIntroPhase() {
     );
   }
 
-  // Preview state for both modes
-  const hasPreview = (mode === "record" && recordedUrl) || (mode === "upload" && uploadedPreviewUrl);
+  // Preview state for both modes (exclude compressing state)
+  const hasPreview = (mode === "record" && recordedUrl) || (mode === "upload" && uploadedPreviewUrl && !isCompressing);
   const previewUrl = mode === "record" ? recordedUrl : uploadedPreviewUrl;
 
   return (
@@ -564,7 +618,7 @@ export default function VideoIntroPhase() {
                         <FileVideo className="h-3.5 w-3.5" />
                         <span>MP4, WebM, MOV</span>
                         <span className="text-border">•</span>
-                        <span>Max 100MB</span>
+                        <span>Max 500MB</span>
                       </div>
                     </div>
                   </motion.button>
@@ -678,7 +732,7 @@ export default function VideoIntroPhase() {
             )}
 
             {/* Upload Mode */}
-            {mode === "upload" && !hasPreview && (
+            {mode === "upload" && !hasPreview && !isCompressing && (
               <motion.div
                 key="upload"
                 initial={{ opacity: 0, y: 20 }}
@@ -729,8 +783,64 @@ export default function VideoIntroPhase() {
                       MP4, WebM, MOV, AVI, MKV
                     </span>
                     <span className="text-border">•</span>
-                    <span>Max 100MB</span>
+                    <span>Max 500MB (auto-compressed)</span>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Compression Progress Overlay */}
+            {mode === "upload" && isCompressing && (
+              <motion.div
+                key="compressing"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div className="relative aspect-video rounded-xl border border-border/50 bg-gradient-to-br from-card to-muted/30 flex flex-col items-center justify-center gap-6 p-8">
+                  {/* Animated loader */}
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                    </div>
+                    <div className="absolute -inset-2 rounded-full border-2 border-primary/20 animate-ping" />
+                  </div>
+                  
+                  <div className="text-center space-y-2">
+                    <p className="text-foreground font-semibold text-lg">
+                      {compressionProgress?.message || "Compressing your video..."}
+                    </p>
+                    <p className="text-muted-foreground text-sm">
+                      Original: {formatFileSize(originalFileSize)}
+                    </p>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="w-full max-w-xs space-y-2">
+                    <Progress value={compressionProgress?.progress || 0} className="h-2" />
+                    <p className="text-center text-sm text-muted-foreground">
+                      {Math.round(compressionProgress?.progress || 0)}%
+                    </p>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    This may take a minute for larger videos
+                  </p>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      compressionAbortRef.current?.abort();
+                      resetUpload();
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
                 </div>
               </motion.div>
             )}
@@ -765,7 +875,20 @@ export default function VideoIntroPhase() {
                         <p className="text-foreground font-medium text-sm truncate max-w-[200px] sm:max-w-none">
                           {uploadedFile.name}
                         </p>
-                        <p className="text-muted-foreground text-xs">{formatFileSize(uploadedFile.size)}</p>
+                        <div className="flex items-center gap-2 text-xs">
+                          {compressedBlob ? (
+                            <>
+                              <span className="text-muted-foreground line-through">{formatFileSize(originalFileSize)}</span>
+                              <span className="text-primary">→</span>
+                              <span className="text-emerald-500 font-medium">{formatFileSize(compressedBlob.size)}</span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                Compressed
+                              </Badge>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">{formatFileSize(uploadedFile.size)}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <Button variant="ghost" size="icon" onClick={resetUpload} className="text-muted-foreground hover:text-foreground">
