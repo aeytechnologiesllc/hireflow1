@@ -54,7 +54,11 @@ if (typeof window === 'undefined') {
                         headers: newHeaders,
                     });
                 })
-                .catch((e) => console.error(e))
+                .catch((e) => {
+                    console.error("coi-serviceworker fetch failed", e);
+                    // IMPORTANT: respondWith must always resolve to a Response.
+                    return Response.error();
+                })
         );
     });
 } else {
