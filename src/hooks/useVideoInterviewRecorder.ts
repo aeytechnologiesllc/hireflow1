@@ -284,15 +284,25 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+        console.log('stopRecording: MediaRecorder inactive or null');
         setState(s => ({ ...s, isRecording: false }));
         resolve(null);
         return;
       }
 
+      console.log('stopRecording: Stopping MediaRecorder, chunks collected:', recordedChunksRef.current.length);
+
       const isAudio = state.isAudioOnly;
       mediaRecorderRef.current.onstop = () => {
         const mimeType = isAudio ? 'audio/webm' : 'video/webm';
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        console.log('stopRecording: Blob created', {
+          size: blob.size,
+          sizeKB: Math.round(blob.size / 1024),
+          type: blob.type,
+          chunks: recordedChunksRef.current.length,
+          estimatedDuration: `~${Math.round(blob.size / 50000)}s`
+        });
         setState(s => ({ ...s, isRecording: false }));
         resolve(blob);
       };
