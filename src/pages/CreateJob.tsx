@@ -189,7 +189,7 @@ const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; d
   sales_simulation: { icon: Bot, label: "Sales Conversation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
   chat_interview: { icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview" },
-  voice_interview: { icon: Mic, label: "Voice Interview with Ava", description: "Voice-based AI interview", hasConfig: true },
+  voice_interview: { icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true },
 };
 
 const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
@@ -675,17 +675,21 @@ export default function CreateJob() {
       config
     };
     
-    // Ensure chat_interview and voice_interview are always at the end (voice_interview takes priority if both exist)
+    // Ensure chat_interview is always at the end of configurable workflow
+    // voice_interview (Ava Interview) goes after Review phase - handled separately in phase rendering
     setWorkflowSteps(prev => {
-      const interviewTypes = ['chat_interview', 'voice_interview'];
+      const interviewTypes = ['chat_interview'];  // voice_interview handled separately after Review
       const withoutInterviews = prev.filter(s => !interviewTypes.includes(s.type));
       const existingInterviews = prev.filter(s => interviewTypes.includes(s.type));
       
       if (interviewTypes.includes(type)) {
-        // Adding an interview type - put at the end
+        // Adding chat_interview - put at the end
         return [...withoutInterviews, ...existingInterviews.filter(s => s.type !== type), newStep];
+      } else if (type === 'voice_interview') {
+        // voice_interview can be added anywhere since it's handled specially after Review
+        return [...prev, newStep];
       } else if (existingInterviews.length > 0) {
-        // Adding another step while interviews exist - keep interviews at end
+        // Adding another step while chat_interview exists - keep it at end
         return [...withoutInterviews, newStep, ...existingInterviews];
       } else {
         // No interviews exist - just append normally
