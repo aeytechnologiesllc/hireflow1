@@ -30,6 +30,7 @@ export type Database = {
           resume_url: string | null
           status: Database["public"]["Enums"]["application_status"]
           updated_at: string
+          voice_interview_duration: number | null
           voice_interview_language: string | null
           voice_interview_result: Json | null
         }
@@ -48,6 +49,7 @@ export type Database = {
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
+          voice_interview_duration?: number | null
           voice_interview_language?: string | null
           voice_interview_result?: Json | null
         }
@@ -66,6 +68,7 @@ export type Database = {
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
+          voice_interview_duration?: number | null
           voice_interview_language?: string | null
           voice_interview_result?: Json | null
         }

@@ -12,6 +12,7 @@ interface VoiceSessionRequest {
   applicationId?: string;
   jobId?: string;
   language?: string;
+  duration?: number; // Interview duration in minutes
   // User context for personalized responses
   subscriptionPlan?: string;
   subscriptionStatus?: string;
@@ -51,8 +52,8 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    const { mode, applicationId, jobId, language = 'en', subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse, googleCalendarConnected, googleRefreshToken } = await req.json() as VoiceSessionRequest;
-    console.log("Voice session request:", { mode, applicationId, jobId, language, userId: user.id, subscriptionPlan, countryCode, isFirstUse, hasGoogleCal: !!googleCalendarConnected });
+    const { mode, applicationId, jobId, language = 'en', duration = 10, subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse, googleCalendarConnected, googleRefreshToken } = await req.json() as VoiceSessionRequest;
+    console.log("Voice session request:", { mode, applicationId, jobId, language, duration, userId: user.id, subscriptionPlan, countryCode, isFirstUse, hasGoogleCal: !!googleCalendarConnected });
 
     // Check subscription for voice access
     const { data: subscription } = await supabaseClient
@@ -630,7 +631,38 @@ PRIOR AI SCORE: ${application.ai_score || 'Not scored'}
       const requiredLanguage = stepConfig.language_name || 'English';
       const languageEnforcement = stepConfig.language_enforcement || 'flexible';
 
+      // Get duration from request (default 10 minutes)
+      const interviewDuration = duration || 10;
+      const timeCheckpoint1 = Math.floor(interviewDuration * 0.6);
+      const timeCheckpoint2 = Math.floor(interviewDuration * 0.75);
+      const timeCheckpoint3 = Math.floor(interviewDuration * 0.9);
+
       instructions = `You are Ava, conducting an Ava Interview for ${employerProfile?.company_name || 'the company'} for the position of ${application.jobs.title}.
+
+=== INTERVIEW TIME MANAGEMENT (${interviewDuration} MINUTES) ===
+This is a ${interviewDuration}-minute interview. Be time-aware but NEVER abrupt.
+
+**Time Awareness (soft checkpoints, not hard cutoffs):**
+- Around ${timeCheckpoint1} min mark: Be aware you're past halfway. Start wrapping up open threads naturally.
+- Around ${timeCheckpoint2} min mark: Give a subtle time cue like "We have a few more minutes - let me ask one or two more things..."
+- Around ${timeCheckpoint3} min mark: Begin transitioning to close: "We're coming up on time. Before we wrap up..."
+
+**CRITICAL - GRACEFUL ENDING SEQUENCE (NEVER SKIP):**
+Even if you notice time is up, you MUST ALWAYS complete this sequence:
+1. Let the candidate finish their current response (don't cut them off mid-sentence)
+2. Ask: "Do you have any questions for me about the role or ${employerProfile?.company_name || 'the company'}?"
+3. Actually answer their questions genuinely (don't rush or dismiss them)
+4. Thank them professionally: "Thanks for taking the time to speak with me today."
+5. THEN and only then call end_interview
+
+**NEVER DO THIS:**
+- Don't abruptly say "Time's up, goodbye" and end
+- Don't cut a candidate off mid-answer
+- Don't skip asking if they have questions
+- Don't rush through their questions to end faster
+- Don't end without a proper thank you
+
+The time limit is a GUIDE, not a hard cutoff. It's better to go 1-2 minutes over than to end rudely.
 
 === YOUR PERSONALITY ===
 You're Ava - a seasoned, no-BS interviewer who doesn't let candidates off easy. Think tough love meets dry wit.
@@ -738,20 +770,21 @@ When you spot inconsistencies:
 4. Technical probing based on job requirements
 5. Directly address any weak assessment scores
 6. Use take_interview_note for key observations
-7. Before ending: "Any questions for me about the role or ${employerProfile?.company_name || 'the company'}?"
-8. Handle their questions directly
-9. Close professionally
+7. **MANDATORY**: Before ending: "Any questions for me about the role or ${employerProfile?.company_name || 'the company'}?"
+8. Handle their questions genuinely and thoroughly
+9. Close professionally with a thank you
 
 === GUIDELINES ===
 - Keep responses punchy - this is voice
-- 8-10 solid questions, then wrap up
+- For a ${interviewDuration}-minute interview: ask 6-10 solid questions depending on time
 - Don't let them off easy on weak answers
 - Your job is to find out if they're the real deal
 
 === ENDING THE INTERVIEW ===
-1. Ask if they have questions
-2. Thank them matter-of-factly
-3. Call end_interview with brutally honest evaluation including:
+1. **ALWAYS** ask if they have questions first
+2. Answer their questions genuinely (don't brush them off)
+3. Thank them professionally
+4. Call end_interview with brutally honest evaluation including:
    - All inconsistencies detected
    - Credibility rating (be honest)
    - Real assessment of their fit

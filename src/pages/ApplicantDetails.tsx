@@ -32,6 +32,7 @@ import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
 import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
+import { AvaInterviewConfigDialog } from "@/components/AvaInterviewConfigDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -290,6 +291,11 @@ export default function ApplicantDetails() {
   const [phaseToReset, setPhaseToReset] = useState<{ id: string; title: string; type: string } | null>(null);
   const [showSalesAnalysisDialog, setShowSalesAnalysisDialog] = useState(false);
   const [salesAnalysisData, setSalesAnalysisData] = useState<any>(null);
+  const [showAvaInterviewConfig, setShowAvaInterviewConfig] = useState(false);
+  const [pendingAvaInterview, setPendingAvaInterview] = useState<{
+    newIndex: number;
+    newPhase: { id: string; title: string; type: string };
+  } | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -542,8 +548,16 @@ export default function ApplicantDetails() {
         return;
       }
       
-      // Moving forward - execute immediately
+      // Moving forward - check if voice_interview phase
       console.log("[Slider Debug] Moving forward from", currentIndex, "to", nearestIndex);
+      
+      if (newPhase.type === "voice_interview") {
+        // Show Ava Interview config dialog instead of executing immediately
+        setPendingAvaInterview({ newIndex: nearestIndex, newPhase });
+        setShowAvaInterviewConfig(true);
+        return;
+      }
+      
       await executePhaseChange(nearestIndex, newPhase, false);
     }
     
@@ -2582,6 +2596,56 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
         open={showSalesAnalysisDialog}
         onOpenChange={setShowSalesAnalysisDialog}
         data={salesAnalysisData || {}}
+      />
+
+      {/* Ava Interview Config Dialog */}
+      <AvaInterviewConfigDialog
+        open={showAvaInterviewConfig}
+        onOpenChange={(open) => {
+          setShowAvaInterviewConfig(open);
+          if (!open) {
+            setPendingAvaInterview(null);
+            // Reset slider position if cancelled
+            const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
+            setDragPosition(snapPercentage);
+          }
+        }}
+        onConfirm={async (duration) => {
+          if (!pendingAvaInterview || !application) return;
+          
+          // Get language from job workflow config
+          const workflowSteps = (application.jobs as any)?.workflow_steps as any[] || [];
+          const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
+          const language = voiceStep?.config?.language_name || 'English';
+          
+          try {
+            // Update application with duration and advance to phase
+            await updateApplication.mutateAsync({
+              id: application.id,
+              phase: pendingAvaInterview.newPhase.id,
+              voice_interview_duration: duration,
+              voice_interview_language: language.toLowerCase().substring(0, 2),
+            });
+            
+            toast.success(`Ava Interview configured - ${duration} minutes`);
+            queryClient.invalidateQueries({ queryKey: ["application", id] });
+            
+            // Snap to new position
+            const snapPercentage = (pendingAvaInterview.newIndex / (phases.length - 1)) * 100;
+            setDragPosition(snapPercentage);
+          } catch (error) {
+            toast.error("Failed to configure interview");
+          }
+          
+          setShowAvaInterviewConfig(false);
+          setPendingAvaInterview(null);
+        }}
+        candidateName={application?.profiles?.full_name || "this candidate"}
+        language={(() => {
+          const workflowSteps = (application?.jobs as any)?.workflow_steps as any[] || [];
+          const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
+          return voiceStep?.config?.language_name || 'English';
+        })()}
       />
     </div>
   );

@@ -8,6 +8,7 @@ interface UseAvaVoiceOptions {
   applicationId?: string;
   jobId?: string;
   language?: string;
+  duration?: number; // Interview duration in minutes (default 10)
   // User context for personalized AVA responses
   subscriptionPlan?: string;
   subscriptionStatus?: string;
@@ -73,6 +74,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           applicationId: options.applicationId,
           jobId: options.jobId,
           language: options.language || 'en',
+          duration: options.duration || 10,
           // Pass user context for personalized responses
           subscriptionPlan: options.subscriptionPlan,
           subscriptionStatus: options.subscriptionStatus,
