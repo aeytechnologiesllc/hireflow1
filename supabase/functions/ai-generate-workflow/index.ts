@@ -125,10 +125,20 @@ Choose appropriate steps based on the job role:
 - chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
 - sales_simulation: For sales, business development, and account management roles - tests pitching and objection handling (config: {"product": "enterprise solution"})
 
-⚠️ CRITICAL: ALWAYS include "chat_interview" as the FINAL step ⚠️
-- chat_interview: MUST be the LAST step in every workflow (config: {"focus": "behavioral"})
-- The AI Interview with AVA is the culminating assessment where AVA has access to all candidate data from previous phases
-- Place chat_interview AFTER all other workflow steps
+⚠️ CRITICAL: ALWAYS include EXACTLY ONE final interview step ⚠️
+
+**Choose ONE of these as the FINAL step:**
+- chat_interview: Text-based AI interview (default for most roles) (config: {"focus": "behavioral"})
+- voice_interview: Voice AI interview with Ava (ENTERPRISE ONLY - recommended for senior/executive roles, sales leadership, and customer-facing management positions) (config: {"focus": "behavioral"})
+
+**When to use voice_interview (instead of chat_interview):**
+- Senior/Executive positions (Director, VP, C-level)
+- Sales leadership roles (Sales Manager, Account Executive)
+- Customer-facing management (Customer Success Manager, Support Lead)
+- Roles requiring strong verbal communication
+
+The final interview is the culminating assessment where Ava has access to ALL candidate data from previous phases.
+Place the interview AFTER all other workflow steps.
 
 Random Seed: ${randomSeed}
 

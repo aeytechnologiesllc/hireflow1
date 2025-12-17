@@ -66,6 +66,7 @@ const stepTypeIcons: Record<string, any> = {
   chat_simulation: MessageSquare,
   chat_interview: MessageSquare,
   sales_simulation: MessageSquare,
+  voice_interview: Users,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
@@ -978,6 +979,9 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
       }
       return parsedNotes.salesSimulationResult;
     }
+    if (stepType === "voice_interview") {
+      return application?.voice_interview_result;
+    }
     return parsedNotes[stepId];
   };
 
@@ -1060,6 +1064,7 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
     sales_simulation: "Sales Simulation",
     portfolio_upload: "Portfolio",
     quiz: "Quiz",
+    voice_interview: "Voice Interview with Ava",
   };
 
   // Get data for a specific badge/step
@@ -2160,7 +2165,139 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                         </div>
                       )}
 
-                      {!["quiz", "typing_test", "video_intro", "video_message", "chat_simulation", "chat_interview", "sales_simulation", "portfolio_upload"].includes(dialogData.type) && (
+                      {dialogData.type === "voice_interview" && dialogData.content && (
+                        <div className="space-y-4">
+                          {/* Score Summary */}
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-primary">{dialogData.content.overall_score || "N/A"}</p>
+                              <p className="text-xs text-muted-foreground">/100</p>
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-medium text-foreground">
+                                  Recommendation: <span className={`font-bold ${
+                                    dialogData.content.recommendation === "strong_hire" ? "text-success" :
+                                    dialogData.content.recommendation === "hire" ? "text-success" :
+                                    dialogData.content.recommendation === "maybe" ? "text-warning" : "text-destructive"
+                                  }`}>{dialogData.content.recommendation?.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase()) || "N/A"}</span>
+                                </p>
+                                {/* Credibility Rating Badge */}
+                                {dialogData.content.credibility_rating && (
+                                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    dialogData.content.credibility_rating === "high" ? "bg-success/20 text-success" :
+                                    dialogData.content.credibility_rating === "medium" ? "bg-warning/20 text-warning" : "bg-destructive/20 text-destructive"
+                                  }`}>
+                                    {dialogData.content.credibility_rating === "high" ? (
+                                      <ShieldCheck className="h-3 w-3" />
+                                    ) : dialogData.content.credibility_rating === "medium" ? (
+                                      <Shield className="h-3 w-3" />
+                                    ) : (
+                                      <ShieldAlert className="h-3 w-3" />
+                                    )}
+                                    {dialogData.content.credibility_rating.charAt(0).toUpperCase() + dialogData.content.credibility_rating.slice(1)} Credibility
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">{dialogData.content.summary}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Score Breakdown */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className="text-xl font-bold text-foreground">{dialogData.content.communication_score || "N/A"}</p>
+                              <p className="text-xs text-muted-foreground">Communication</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className="text-xl font-bold text-foreground">{dialogData.content.technical_score || "N/A"}</p>
+                              <p className="text-xs text-muted-foreground">Technical</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className="text-xl font-bold text-foreground">{dialogData.content.culture_fit_score || "N/A"}</p>
+                              <p className="text-xs text-muted-foreground">Culture Fit</p>
+                            </div>
+                          </div>
+                          
+                          {/* Red Flags / Inconsistencies Section */}
+                          {dialogData.content.inconsistencies?.length > 0 && (
+                            <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+                              <h4 className="text-sm font-semibold text-destructive mb-3 flex items-center gap-2">
+                                <ShieldAlert className="h-4 w-4" />
+                                Red Flags Detected ({dialogData.content.inconsistencies.length})
+                              </h4>
+                              <div className="space-y-3">
+                                {dialogData.content.inconsistencies.map((item: { claim: string; evidence: string; severity?: string }, i: number) => (
+                                  <div key={i} className="p-3 bg-background rounded-lg border border-destructive/10">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant={item.severity === "major" ? "destructive" : item.severity === "moderate" ? "outline" : "secondary"} className="text-xs">
+                                          {item.severity || "flagged"}
+                                        </Badge>
+                                      </div>
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Claim:</span>
+                                        <p className="text-sm text-foreground">{item.claim}</p>
+                                      </div>
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Evidence:</span>
+                                        <p className="text-sm text-foreground">{item.evidence}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Strengths */}
+                          {dialogData.content.strengths?.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-success mb-2">Key Strengths</h4>
+                              <ul className="space-y-1">
+                                {dialogData.content.strengths.map((s: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                    <span className="text-success mt-0.5">•</span> {s}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {/* Concerns */}
+                          {dialogData.content.concerns?.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-orange-500 mb-2">Concerns</h4>
+                              <ul className="space-y-1">
+                                {dialogData.content.concerns.map((s: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                    <span className="text-orange-500 mt-0.5">•</span> {s}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {/* Interview Notes */}
+                          {dialogData.content.interview_notes?.length > 0 && (
+                            <div className="border-t border-border pt-4">
+                              <h4 className="text-sm font-semibold text-muted-foreground mb-3">Interview Notes</h4>
+                              <div className="space-y-2">
+                                {dialogData.content.interview_notes.map((note: { note: string; category?: string }, i: number) => (
+                                  <div key={i} className="p-2 bg-muted/30 rounded-lg flex items-start gap-2">
+                                    <Badge variant="outline" className="text-xs shrink-0">
+                                      {note.category || "note"}
+                                    </Badge>
+                                    <p className="text-sm text-muted-foreground">{note.note}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!["quiz", "typing_test", "video_intro", "video_message", "chat_simulation", "chat_interview", "sales_simulation", "portfolio_upload", "voice_interview"].includes(dialogData.type) && (
                         <div className="p-4 bg-muted/50 rounded-lg">
                           <pre className="text-sm whitespace-pre-wrap">
                             {typeof dialogData.content === "object" 

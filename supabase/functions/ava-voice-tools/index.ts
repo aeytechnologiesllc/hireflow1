@@ -413,14 +413,37 @@ serve(async (req) => {
           throw new Error("Application ID required for interview tools");
         }
 
+        // Merge any previously flagged inconsistencies with final evaluation
+        const { data: currentApp } = await supabaseClient
+          .from("applications")
+          .select("notes")
+          .eq("id", applicationId)
+          .single();
+
+        const currentNotes = typeof currentApp?.notes === 'string' 
+          ? JSON.parse(currentApp?.notes || '{}') 
+          : (currentApp?.notes || {});
+        
+        // Combine flagged inconsistencies with final evaluation inconsistencies
+        const allInconsistencies = [
+          ...(currentNotes.voiceInterviewInconsistencies || []),
+          ...(parameters.inconsistencies || [])
+        ];
+
+        const evaluationWithFlags = {
+          ...parameters,
+          inconsistencies: allInconsistencies,
+          interview_notes: currentNotes.voiceInterviewNotes || []
+        };
+
         // Store interview results
         const { error } = await supabaseClient
           .from("applications")
           .update({
-            voice_interview_result: parameters,
+            voice_interview_result: evaluationWithFlags,
             phase_ai_analysis: JSON.stringify({
               type: 'voice_interview',
-              ...parameters,
+              ...evaluationWithFlags,
               completed_at: new Date().toISOString()
             }),
             updated_at: new Date().toISOString()
@@ -429,7 +452,69 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        result = { success: true, evaluation: parameters };
+        result = { success: true, evaluation: evaluationWithFlags };
+        break;
+      }
+
+      case "flag_inconsistency": {
+        // Store inconsistency in application notes for later review
+        if (!applicationId) throw new Error("Application ID required");
+        
+        const { data: app } = await supabaseClient
+          .from("applications")
+          .select("notes")
+          .eq("id", applicationId)
+          .single();
+        
+        const currentNotes = typeof app?.notes === 'string' ? JSON.parse(app?.notes || '{}') : (app?.notes || {});
+        const inconsistencies = currentNotes.voiceInterviewInconsistencies || [];
+        inconsistencies.push({
+          ...parameters,
+          flagged_at: new Date().toISOString()
+        });
+        
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            notes: JSON.stringify({ ...currentNotes, voiceInterviewInconsistencies: inconsistencies }),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", applicationId);
+        
+        result = { 
+          success: true, 
+          message: "Inconsistency flagged", 
+          follow_up: parameters.follow_up_question 
+        };
+        break;
+      }
+
+      case "take_interview_note": {
+        // Store interview note
+        if (!applicationId) throw new Error("Application ID required");
+        
+        const { data: app } = await supabaseClient
+          .from("applications")
+          .select("notes")
+          .eq("id", applicationId)
+          .single();
+        
+        const currentNotes = typeof app?.notes === 'string' ? JSON.parse(app?.notes || '{}') : (app?.notes || {});
+        const interviewNotes = currentNotes.voiceInterviewNotes || [];
+        interviewNotes.push({
+          ...parameters,
+          noted_at: new Date().toISOString()
+        });
+        
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            notes: JSON.stringify({ ...currentNotes, voiceInterviewNotes: interviewNotes }),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", applicationId);
+        
+        result = { success: true, message: "Note recorded" };
         break;
       }
 
