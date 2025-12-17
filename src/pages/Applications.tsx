@@ -78,7 +78,10 @@ function getPhaseType(phase: string, workflowSteps?: any[]): string {
   if (phase === "chat_simulation") return "chat_simulation";
   if (phase === "chat_interview") return "chat_interview";
   if (phase === "sales_simulation") return "sales_simulation";
-  if (phase.includes("quiz") || phase.startsWith("step")) return "quiz";
+  if (phase === "voice_interview") return "voice_interview";
+  if (phase === "portfolio_upload") return "portfolio_upload";
+  // Only treat as quiz if phase explicitly contains "quiz" - removed startsWith("step") which incorrectly caught voice_interview
+  if (phase.includes("quiz")) return "quiz";
   return phase;
 }
  
