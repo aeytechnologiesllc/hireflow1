@@ -220,6 +220,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                     options.onInterviewEnd?.(toolResult.evaluation);
                   }
 
+                  // Handle flag_inconsistency - Ava may want to ask a follow-up
+                  if (event.name === 'flag_inconsistency' && toolResult?.follow_up) {
+                    console.log('Inconsistency flagged, follow-up:', toolResult.follow_up);
+                  }
+
+                  // Handle take_interview_note - just acknowledge
+                  if (event.name === 'take_interview_note') {
+                    console.log('Interview note recorded');
+                  }
+
                   // Send tool result back to model
                   if (dcRef.current?.readyState === 'open') {
                     dcRef.current.send(JSON.stringify({
