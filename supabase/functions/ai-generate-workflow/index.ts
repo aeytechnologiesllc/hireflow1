@@ -79,7 +79,34 @@ serve(async (req) => {
     const config = difficultyConfig[difficulty];
     const randomSeed = Date.now() + Math.random().toString(36).substring(7);
 
-    const prompt = `You are AVA, an expert AI hiring assistant. Generate a comprehensive hiring workflow for this job.
+    // Detect creative/technical roles that require portfolio
+    const creativeKeywords = [
+      'designer', 'design', 'creative', 'artist', 'illustrator', 
+      'ui', 'ux', 'graphic', 'visual', 'animator', 'motion',
+      'photographer', 'videographer', 'content creator', 'editor',
+      'developer', 'engineer', 'programmer', 'architect', 'frontend',
+      'backend', 'fullstack', 'full-stack', 'software', 'web developer',
+      'portfolio', 'creative director', '3d', 'cad', 'drafter',
+      'art director', 'brand', 'marketing designer', 'product designer',
+      'game designer', 'level designer', 'character artist', 'concept artist'
+    ];
+
+    const titleLower = title.toLowerCase();
+    const descLower = description.toLowerCase();
+    const isCreativeRole = creativeKeywords.some(kw => 
+      titleLower.includes(kw) || descLower.includes(kw)
+    );
+
+    console.log(`Role detection - Title: "${title}", isCreativeRole: ${isCreativeRole}`);
+
+    const portfolioInstruction = isCreativeRole 
+      ? `\n\n⚠️⚠️⚠️ MANDATORY PORTFOLIO REQUIREMENT ⚠️⚠️⚠️
+This is a CREATIVE/TECHNICAL role (detected from job title/description).
+You MUST include "portfolio_upload" as one of the workflow_steps.
+This is NON-NEGOTIABLE for this type of position.`
+      : '';
+
+    const prompt = `You are AVA, an expert AI hiring assistant. Generate a comprehensive hiring workflow for this job.${portfolioInstruction}
 
 ⚠️⚠️⚠️ CRITICAL - QUESTION COUNT RANGE ENFORCEMENT ⚠️⚠️⚠️
 The user selected ${difficulty.toUpperCase()} difficulty.
