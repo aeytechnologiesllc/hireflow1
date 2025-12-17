@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import { 
   ArrowLeft, FileText, MessageSquare, Sparkles, 
   XCircle, GripHorizontal, Clock, RefreshCw, 
-  FileCheck, ClipboardList, Video, Keyboard, 
+  FileCheck, ClipboardList, Video, Keyboard, Mic,
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
   HelpCircle, Move, Zap, AlertCircle, Download
@@ -2299,7 +2299,11 @@ Voice Interview with AVA Results:
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                                <Video className="h-4 w-4 text-primary" />
+                                {application.voice_interview_video_enabled === false ? (
+                                  <Mic className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Video className="h-4 w-4 text-primary" />
+                                )}
                                 Interview Recording
                               </h4>
                               {application.voice_interview_recording_url && (
@@ -2316,22 +2320,47 @@ Voice Interview with AVA Results:
                             </div>
                             {application.voice_interview_recording_url ? (
                               <div className="rounded-lg overflow-hidden border border-border bg-black">
-                                <video
-                                  src={application.voice_interview_recording_url}
-                                  controls
-                                  preload="metadata"
-                                  playsInline
-                                  crossOrigin="anonymous"
-                                  className="w-full max-h-[300px]"
-                                >
-                                  <source src={application.voice_interview_recording_url} type="video/webm" />
-                                  Your browser does not support video playback.
-                                </video>
+                                {/* Check if this is an audio-only recording */}
+                                {application.voice_interview_video_enabled === false ? (
+                                  // AUDIO-ONLY: Use audio element with custom styling
+                                  <div className="p-6 flex flex-col items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                                      <Mic className="h-8 w-8 text-primary" />
+                                    </div>
+                                    <audio
+                                      src={application.voice_interview_recording_url}
+                                      controls
+                                      preload="metadata"
+                                      crossOrigin="anonymous"
+                                      className="w-full"
+                                    >
+                                      <source src={application.voice_interview_recording_url} type="audio/webm" />
+                                      Your browser does not support audio playback.
+                                    </audio>
+                                  </div>
+                                ) : (
+                                  // VIDEO: Use video element
+                                  <video
+                                    src={application.voice_interview_recording_url}
+                                    controls
+                                    preload="metadata"
+                                    playsInline
+                                    crossOrigin="anonymous"
+                                    className="w-full max-h-[300px]"
+                                  >
+                                    <source src={application.voice_interview_recording_url} type="video/webm" />
+                                    Your browser does not support video playback.
+                                  </video>
+                                )}
                               </div>
                             ) : (
                               <div className="p-4 bg-muted/30 rounded-lg text-center">
-                                <Video className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                                <p className="text-sm text-muted-foreground">No video recording available</p>
+                                {application.voice_interview_video_enabled === false ? (
+                                  <Mic className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                                ) : (
+                                  <Video className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                                )}
+                                <p className="text-sm text-muted-foreground">No recording available</p>
                                 <p className="text-xs text-muted-foreground/70 mt-1">Recording may have failed or wasn't enabled</p>
                               </div>
                             )}

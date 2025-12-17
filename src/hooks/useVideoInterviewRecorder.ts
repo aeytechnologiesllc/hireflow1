@@ -159,6 +159,12 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       return null;
     }
 
+    console.log('[Audio Mixing] Setting up audio mixing', {
+      hasAvaElement: !!avaAudioElement,
+      hasSrcObject: !!avaAudioElement?.srcObject,
+      srcObjectType: avaAudioElement?.srcObject?.constructor?.name
+    });
+
     try {
       // Create audio context for mixing
       audioContextRef.current = new AudioContext({ sampleRate: 48000 });
@@ -175,39 +181,49 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       micGain.gain.value = 1.0;
       micSource.connect(micGain);
       micGain.connect(destination);
+      console.log('[Audio Mixing] Candidate mic connected to mixer');
 
-      // Add Ava's audio if available
-      if (avaAudioElement && avaAudioElement.srcObject) {
-        try {
-          const avaSource = ctx.createMediaElementSource(avaAudioElement);
+      // Add Ava's audio if available - use MediaStreamSource directly for WebRTC
+      if (avaAudioElement && avaAudioElement.srcObject instanceof MediaStream) {
+        const avaStream = avaAudioElement.srcObject;
+        const avaAudioTracks = avaStream.getAudioTracks();
+        
+        console.log('[Audio Mixing] Ava WebRTC stream found', {
+          audioTracks: avaAudioTracks.length,
+          trackLabels: avaAudioTracks.map(t => t.label)
+        });
+        
+        if (avaAudioTracks.length > 0) {
+          const avaSource = ctx.createMediaStreamSource(avaStream);
           const avaGain = ctx.createGain();
           avaGain.gain.value = 1.0;
           avaSource.connect(avaGain);
           avaGain.connect(destination);
-          // Also connect to speakers so candidate hears Ava
-          avaSource.connect(ctx.destination);
-        } catch (err) {
-          // Ava audio element might already be connected, capture from stream instead
-          console.log('Using Ava stream directly for mixing');
-          if (avaAudioElement.srcObject instanceof MediaStream) {
-            const avaStreamSource = ctx.createMediaStreamSource(avaAudioElement.srcObject);
-            const avaGain = ctx.createGain();
-            avaGain.gain.value = 1.0;
-            avaStreamSource.connect(avaGain);
-            avaGain.connect(destination);
-          }
+          console.log('[Audio Mixing] Ava audio connected to recording mixer');
         }
+      } else {
+        console.log('[Audio Mixing] No Ava audio element or srcObject available');
       }
 
-      // Create combined stream with video + mixed audio
+      // Create combined stream with video (if available) + mixed audio
       const videoTrack = cameraStreamRef.current.getVideoTracks()[0];
       const mixedAudioTrack = destination.stream.getAudioTracks()[0];
 
-      combinedStreamRef.current = new MediaStream([videoTrack, mixedAudioTrack]);
+      // For audio-only mode, we might not have a video track
+      if (videoTrack) {
+        combinedStreamRef.current = new MediaStream([videoTrack, mixedAudioTrack]);
+      } else {
+        combinedStreamRef.current = new MediaStream([mixedAudioTrack]);
+      }
+
+      console.log('[Audio Mixing] Combined stream created', {
+        videoTracks: combinedStreamRef.current.getVideoTracks().length,
+        audioTracks: combinedStreamRef.current.getAudioTracks().length
+      });
 
       return combinedStreamRef.current;
     } catch (err) {
-      console.error('Error setting up audio mixing:', err);
+      console.error('[Audio Mixing] Error setting up audio mixing:', err);
       // Fallback to just camera stream without Ava audio mixing
       combinedStreamRef.current = cameraStreamRef.current;
       return cameraStreamRef.current;
