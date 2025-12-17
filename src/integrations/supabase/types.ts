@@ -35,6 +35,7 @@ export type Database = {
           voice_interview_language_rule: string | null
           voice_interview_recording_url: string | null
           voice_interview_result: Json | null
+          voice_interview_transcript: Json | null
           voice_interview_video_enabled: boolean | null
         }
         Insert: {
@@ -57,6 +58,7 @@ export type Database = {
           voice_interview_language_rule?: string | null
           voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
+          voice_interview_transcript?: Json | null
           voice_interview_video_enabled?: boolean | null
         }
         Update: {
@@ -79,6 +81,7 @@ export type Database = {
           voice_interview_language_rule?: string | null
           voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
+          voice_interview_transcript?: Json | null
           voice_interview_video_enabled?: boolean | null
         }
         Relationships: [
