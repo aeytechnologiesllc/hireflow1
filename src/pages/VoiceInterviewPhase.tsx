@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2 } from "lucide-react";
+import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
@@ -39,11 +39,13 @@ export default function VoiceInterviewPhase() {
   const [duration, setDuration] = useState(10);
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
+  const [showCompletionScreen, setShowCompletionScreen] = useState(false);
 
-  // Refs for tracking current streaming message
+  // Refs for tracking current streaming message and auto-scroll
   const currentMessageIdRef = useRef<string | null>(null);
   const currentMessageRoleRef = useRef<'user' | 'assistant' | null>(null);
   const messageCounterRef = useRef(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     const timestamp = Date.now();
@@ -97,6 +99,11 @@ export default function VoiceInterviewPhase() {
     });
   }, []);
 
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   const handleInterviewEnd = useCallback(async (evaluation: any) => {
     setInterviewResult(evaluation);
     
@@ -112,19 +119,16 @@ export default function VoiceInterviewPhase() {
 
       if (error) throw error;
 
-      toast.success("Interview completed successfully!");
+      // Show completion screen instead of toast + redirect
+      setShowCompletionScreen(true);
       
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(applicationId!).catch(console.error);
-      
-      setTimeout(() => {
-        navigate(`/applications/${applicationId}`);
-      }, 2000);
     } catch (error) {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
     }
-  }, [applicationId, navigate]);
+  }, [applicationId]);
 
   const {
     isConnected,
@@ -257,6 +261,7 @@ export default function VoiceInterviewPhase() {
                 <li>Find a quiet place with minimal background noise</li>
                 <li>Ensure your microphone is working properly</li>
                 <li>Speak clearly and take your time with responses</li>
+                <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
                 <li>The interview will last approximately <strong>{duration} minutes</strong></li>
                 <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
               </ul>
@@ -370,9 +375,40 @@ export default function VoiceInterviewPhase() {
                     The conversation will appear here...
                   </p>
                 )}
+                {/* Auto-scroll anchor */}
+                <div ref={messagesEndRef} />
               </ScrollArea>
             </CardContent>
           </Card>
+
+          {/* Completion Screen */}
+          {showCompletionScreen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50"
+            >
+              <Card className="border-primary/20 bg-card/95 backdrop-blur max-w-md mx-4">
+                <CardContent className="py-12 text-center space-y-6">
+                  <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
+                    <CheckCircle className="h-10 w-10 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
+                    <p className="text-muted-foreground max-w-md mx-auto">
+                      Thank you for speaking with Ava. We will review your interview and get back to you soon.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={() => navigate(`/applications/${applicationId}`)}
+                    className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                  >
+                    Return to Applications
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
       )}
     </div>
