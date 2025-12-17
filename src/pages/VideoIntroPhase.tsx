@@ -16,9 +16,7 @@ import {
   RotateCcw,
   CheckCircle,
   Loader2,
-  Camera,
-  Mic,
-  AlertCircle
+  Camera
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,21 +44,19 @@ export default function VideoIntroPhase() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Recording state
   const [recordingState, setRecordingState] = useState<RecordingState>("intro");
-  const [hasPermissions, setHasPermissions] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch application details
   const { data: application, isLoading } = useQuery({
     queryKey: ["video-intro-application", id],
     queryFn: async () => {
@@ -69,81 +65,56 @@ export default function VideoIntroPhase() {
         .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
         .eq("id", id!)
         .single();
-
       if (error) throw error;
       return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user,
   });
 
-  // Get video intro config
   const videoConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
       maxDuration: videoStep?.config?.maxDuration || 60,
-      prompt: videoStep?.config?.prompt || "Record a brief 60-second video introducing yourself. Share your name, a bit about your background, why you're interested in this role, and what makes you a great fit.",
+      prompt: videoStep?.config?.prompt || "Record a brief 60-second video introducing yourself.",
     };
   })();
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (recordedUrl) {
-        URL.revokeObjectURL(recordedUrl);
-      }
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (recordedUrl) URL.revokeObjectURL(recordedUrl);
     };
   }, [recordedUrl]);
 
-  // Connect stream to video element after it renders
+  // Connect stream to video
   useEffect(() => {
-    if (streamRef.current && videoRef.current && hasPermissions && recordingState === "camera_preview") {
+    if (streamRef.current && videoRef.current && recordingState === "camera_preview") {
       videoRef.current.srcObject = streamRef.current;
     }
-  }, [hasPermissions, recordingState]);
+  }, [recordingState]);
 
-  const requestPermissions = async () => {
+  const enableCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
-      setHasPermissions(true);
       setRecordingState("camera_preview");
-      return true;
     } catch (error) {
-      console.error("Error accessing camera/mic:", error);
-      toast.error("Unable to access camera or microphone", {
-        description: "Please grant permissions and try again.",
-      });
-      return false;
+      console.error("Camera access error:", error);
+      toast.error("Unable to access camera or microphone");
     }
-  };
-
-  const startCameraPreview = async () => {
-    await requestPermissions();
   };
 
   const startRecording = () => {
     if (!streamRef.current) return;
-
-    chunksRef.current = [];
     
-    const mediaRecorder = new MediaRecorder(streamRef.current, {
-      mimeType: "video/webm",
-    });
+    chunksRef.current = [];
+    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType: "video/webm" });
     
     mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunksRef.current.push(e.data);
-      }
+      if (e.data.size > 0) chunksRef.current.push(e.data);
     };
     
     mediaRecorder.onstop = () => {
@@ -170,26 +141,17 @@ export default function VideoIntroPhase() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
+    mediaRecorderRef.current?.state !== "inactive" && mediaRecorderRef.current?.stop();
+    timerRef.current && clearInterval(timerRef.current);
+    streamRef.current?.getTracks().forEach(track => track.stop());
   };
 
-  const resetRecording = async () => {
-    if (recordedUrl) {
-      URL.revokeObjectURL(recordedUrl);
-    }
+  const resetRecording = () => {
+    recordedUrl && URL.revokeObjectURL(recordedUrl);
     setRecordedBlob(null);
     setRecordedUrl(null);
     setRecordingTime(0);
     setRecordingState("intro");
-    setHasPermissions(false);
   };
 
   const formatTime = (seconds: number) => {
@@ -205,122 +167,76 @@ export default function VideoIntroPhase() {
     setRecordingState("submitting");
     
     try {
+      // 1. Upload video
       const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
-      
-      // Step 1: Upload the video
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(fileName, recordedBlob, {
-          contentType: "video/webm",
-          cacheControl: "3600",
-        });
+        .upload(fileName, recordedBlob, { contentType: "video/webm" });
 
-      // Check both error AND that we got valid upload data
-      if (uploadError || !uploadData?.path) {
-        throw new Error(uploadError?.message || "Upload failed - no file path returned");
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Step 2: Get the public URL
-      const { data: urlData } = supabase.storage
-        .from("videos")
-        .getPublicUrl(fileName);
-
+      // 2. Get public URL
+      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(fileName);
       const videoUrl = urlData.publicUrl;
 
-      // Step 3: Trust SDK response - upload succeeded if we got here
-      console.log("Video uploaded successfully:", uploadData.path, "URL:", videoUrl);
-
-      // Step 4: Only update database AFTER file is verified
+      // 3. Update database
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
-      
-      const passed = true;
-      const score = 100;
-      const duration = recordingTime;
-      
-      // Get the actual step type from workflow
       const workflowSteps = application.jobs?.workflow_steps as any[] | null;
       const currentStep = workflowSteps?.find((s: any) => s.id === stepId);
       const stepType = currentStep?.type || "video_intro";
-      
+
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
           type: stepType,
-          duration,
+          duration: recordingTime,
           recordedAt: new Date().toISOString(),
           completed: true,
-          passed,
-          score,
+          passed: true,
+          score: 100,
           videoUrl,
           uploadMethod: "recorded",
         },
         videoIntroResult: {
-          duration,
+          duration: recordingTime,
           completed: true,
-          passed,
-          score,
+          passed: true,
+          score: 100,
           videoUrl,
           uploadMethod: "recorded",
         },
         videoIntroUrl: videoUrl,
       };
 
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
-      
-      const allPhases = [
-        { id: "application", type: "application" },
-        ...(workflowSteps || []).map((step: any) => ({ id: step.id, type: step.type })),
-        { id: "review", type: "review" },
-        { id: "interview", type: "interview" },
-        { id: "hired", type: "hired" },
-      ];
-      
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
-      }
-      
-      let newPhase = application.phase;
-      const newStatus = application.status;
-
-      // Step 5: Update database
       const { error: dbError } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
-          status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: `Video intro: ${formatTime(duration)} duration. COMPLETED. Video URL: ${videoUrl}`,
+          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
         })
         .eq("id", id!);
 
-      if (dbError) throw new Error(`Database update failed: ${dbError.message}`);
-
-      // Step 6: Only show success and navigate AFTER everything succeeded
-      if (isAutoMode) {
-        toast.success("Video introduction submitted!", {
-          description: "Great job! You have advanced to the next phase.",
-        });
-      } else {
-        toast.success("Video introduction submitted!", {
-          description: "Your video has been recorded. The employer will review your submission.",
-        });
+      if (dbError) {
+        throw new Error(`Database update failed: ${dbError.message}`);
       }
+
+      // 4. Success
+      const isAutoMode = application.jobs?.processing_mode !== "manual";
+      toast.success("Video submitted!", {
+        description: isAutoMode 
+          ? "Great job! You have advanced to the next phase." 
+          : "Your video has been recorded. The employer will review it.",
+      });
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       navigate(`/applications/${id}`);
       
     } catch (error) {
-      console.error("Error submitting video:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
-      toast.error("Video upload failed", {
-        description: errorMessage.includes("verification") 
-          ? "The video couldn't be verified. Please try recording again."
-          : errorMessage.includes("Database")
-          ? "Video uploaded but failed to save. Please try again."
-          : "Please check your connection and try again.",
+      console.error("Submit error:", error);
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
       });
       setRecordingState("preview");
     } finally {
@@ -373,21 +289,14 @@ export default function VideoIntroPhase() {
     );
   }
 
-  const hasPreview = !!recordedUrl;
-
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
-          className="gap-2"
-        >
+        <Button variant="outline" onClick={() => navigate(`/applications/${id}`)} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           Back to Application
         </Button>
-        
         <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
           <Video className="h-4 w-4" />
           Video Introduction
@@ -401,10 +310,9 @@ export default function VideoIntroPhase() {
             <Video className="h-5 w-5 text-primary" />
             Record Your Video Introduction
           </CardTitle>
-          <p className="text-muted-foreground">
-            For: {application.jobs?.title}
-          </p>
+          <p className="text-muted-foreground">For: {application.jobs?.title}</p>
         </CardHeader>
+        
         <CardContent className="p-6 space-y-6">
           {/* Prompt */}
           <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl p-5 border border-primary/20">
@@ -413,19 +321,17 @@ export default function VideoIntroPhase() {
           </div>
 
           <AnimatePresence mode="wait">
-            {/* Recording Flow */}
-            {!hasPreview && (
+            {/* Recording States */}
+            {recordingState !== "preview" && recordingState !== "submitting" && (
               <motion.div
                 key="record"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
                 {/* Video Area */}
                 <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
-                  {/* Intro state - no permissions yet */}
                   {recordingState === "intro" && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-muted/20 to-background/80">
                       <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
@@ -437,28 +343,17 @@ export default function VideoIntroPhase() {
                     </div>
                   )}
                   
-                  {/* Camera preview and recording states - show video feed */}
                   {(recordingState === "camera_preview" || recordingState === "recording") && (
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
+                    <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                   )}
 
-                  {/* Camera preview indicator */}
                   {recordingState === "camera_preview" && (
                     <div className="absolute top-4 left-4 flex items-center gap-2">
                       <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                      <Badge className="bg-emerald-500/90 text-white border-0">
-                        Camera Ready
-                      </Badge>
+                      <Badge className="bg-emerald-500/90 text-white border-0">Camera Ready</Badge>
                     </div>
                   )}
 
-                  {/* Recording indicator */}
                   {recordingState === "recording" && (
                     <div className="absolute top-4 left-4 flex items-center gap-2">
                       <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
@@ -472,7 +367,7 @@ export default function VideoIntroPhase() {
                 {/* Actions */}
                 <div className="flex justify-center gap-4">
                   {recordingState === "intro" && (
-                    <Button onClick={startCameraPreview} size="lg" className="gap-2 px-8">
+                    <Button onClick={enableCamera} size="lg" className="gap-2 px-8">
                       <Camera className="h-5 w-5" />
                       Enable Camera
                     </Button>
@@ -492,94 +387,75 @@ export default function VideoIntroPhase() {
                     </Button>
                   )}
                 </div>
-
-                {/* Tips */}
-                <div className="bg-muted/30 rounded-xl p-5 space-y-3">
-                  <h4 className="font-medium text-foreground text-sm">Tips for a great video:</h4>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Camera className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span>Find a well-lit area with a clean background</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Mic className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span>Speak clearly and maintain eye contact</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Video className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span>Keep it focused and professional</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <AlertCircle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
-                      <span>Maximum {formatTime(videoConfig.maxDuration)} duration</span>
-                    </div>
-                  </div>
-                </div>
               </motion.div>
             )}
 
-            {/* Preview Mode */}
-            {hasPreview && (
+            {/* Preview State */}
+            {recordingState === "preview" && recordedUrl && (
               <motion.div
                 key="preview"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                {/* Preview Video */}
                 <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
-                  <video
-                    src={recordedUrl!}
-                    controls
-                    className="w-full h-full object-contain"
-                  />
-                  
+                  <video ref={previewRef} src={recordedUrl} controls className="w-full h-full object-cover" />
                   <div className="absolute top-4 left-4">
-                    <Badge className="bg-emerald-500/90 text-white border-0 gap-1">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Recording Complete
+                    <Badge className="bg-primary/90 text-white border-0 gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      {formatTime(recordingTime)} recorded
                     </Badge>
                   </div>
                 </div>
 
-                {/* Recording Info */}
-                <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Video className="h-4 w-4" />
-                    Duration: {formatTime(recordingTime)}
-                  </span>
-                </div>
-
-                {/* Actions */}
                 <div className="flex justify-center gap-4">
-                  <Button variant="outline" onClick={resetRecording} className="gap-2">
-                    <RotateCcw className="h-4 w-4" />
-                    Record Again
+                  <Button onClick={resetRecording} variant="outline" size="lg" className="gap-2 px-6">
+                    <RotateCcw className="h-5 w-5" />
+                    Re-record
                   </Button>
-                  
-                  <Button 
-                    onClick={handleSubmit} 
-                    disabled={isSubmitting}
-                    className="gap-2 px-8"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4" />
-                        Submit Video
-                      </>
-                    )}
+                  <Button onClick={handleSubmit} size="lg" className="gap-2 px-8 bg-emerald-600 hover:bg-emerald-700">
+                    <CheckCircle className="h-5 w-5" />
+                    Submit Video
                   </Button>
                 </div>
               </motion.div>
             )}
+
+            {/* Submitting State */}
+            {recordingState === "submitting" && (
+              <motion.div
+                key="submitting"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center justify-center py-16 gap-4"
+              >
+                <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                <p className="text-foreground font-medium">Uploading your video...</p>
+                <p className="text-muted-foreground text-sm">This may take a moment</p>
+              </motion.div>
+            )}
           </AnimatePresence>
+
+          {/* Tips */}
+          {recordingState !== "submitting" && (
+            <div className="bg-muted/30 rounded-xl p-5 space-y-3">
+              <h4 className="font-medium text-foreground text-sm">Tips for a great video:</h4>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  "Find good lighting (face a window)",
+                  "Choose a quiet location",
+                  "Look at the camera, not yourself",
+                  "Speak clearly and naturally",
+                ].map((tip, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <span>{tip}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
