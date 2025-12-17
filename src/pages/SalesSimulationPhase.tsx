@@ -146,6 +146,15 @@ export default function SalesSimulationPhase() {
     };
   })();
 
+  // Pre-select scenario on mount so we can show preview
+  useEffect(() => {
+    if (!currentScenario && salesConfig.scenarios.length > 0) {
+      const scenarios = salesConfig.scenarios;
+      const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+      setCurrentScenario(randomScenario);
+    }
+  }, [salesConfig.scenarios]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -334,13 +343,11 @@ export default function SalesSimulationPhase() {
   };
 
   const startSales = async () => {
-    const scenarios = salesConfig.scenarios;
-    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-    setCurrentScenario(randomScenario);
+    if (!currentScenario) return;
     setState("selling");
     
     setTimeout(async () => {
-      await streamProspectResponseWithScenario("start", randomScenario);
+      await streamProspectResponseWithScenario("start", currentScenario);
       inputRef.current?.focus();
     }, 100);
   };
@@ -714,13 +721,50 @@ export default function SalesSimulationPhase() {
         <CardContent className="space-y-4">
           {state === "intro" && (
             <div className="space-y-6">
+              {/* Meeting Briefing Card */}
+              {currentScenario && (
+                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-lg p-6 space-y-4">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-green-500" />
+                    Your Meeting Briefing
+                  </h3>
+                  
+                  <div className="grid gap-3">
+                    <div className="flex items-start gap-3">
+                      <User className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Meeting With</p>
+                        <p className="text-sm font-medium text-foreground">{currentScenario.prospectName}</p>
+                        <p className="text-xs text-muted-foreground">{currentScenario.prospectRole}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <Building className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Company</p>
+                        <p className="text-sm font-medium text-foreground">{currentScenario.prospectCompany}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <TrendingUp className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">You're Selling</p>
+                        <p className="text-sm font-medium text-foreground">{currentScenario.productService}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2 pt-3 border-t border-green-500/10">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Situation</p>
+                      <p className="text-sm text-muted-foreground">{currentScenario.scenario}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                <h3 className="font-semibold text-foreground">About This Assessment</h3>
-                <p className="text-muted-foreground text-sm">
-                  You're about to enter a simulated sales meeting with a potential client. They have a real business challenge, and it's your job to understand their needs, address any concerns, and show how you can help.
-                </p>
-                
-                <h4 className="font-medium text-foreground text-sm mt-4">What We're Looking For:</h4>
+                <h3 className="font-semibold text-foreground">What We're Looking For</h3>
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
                     <User className="h-4 w-4 mt-0.5 text-green-500" />
@@ -746,7 +790,7 @@ export default function SalesSimulationPhase() {
               </div>
               
               <div className="text-center">
-                <Button onClick={startSales} size="lg" className="gap-2 bg-green-600 hover:bg-green-700">
+                <Button onClick={startSales} size="lg" className="gap-2 bg-green-600 hover:bg-green-700" disabled={!currentScenario}>
                   <TrendingUp className="h-5 w-5" />
                   Start Meeting
                 </Button>
