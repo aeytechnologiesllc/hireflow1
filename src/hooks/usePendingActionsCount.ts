@@ -35,7 +35,7 @@ export function usePendingActionsCount() {
       // Get all applications for this candidate
       const { data, error } = await supabase
         .from("applications")
-        .select("id, phase, status, notes, updated_at")
+        .select("id, phase, status, notes, updated_at, voice_interview_result")
         .eq("candidate_id", user!.id)
         .neq("status", "rejected")
         .neq("status", "hired");
@@ -85,6 +85,9 @@ export function usePendingActionsCount() {
           }
           if (phase === "sales_simulation") {
             return !!notes.salesSimulationResult;
+          }
+          if (phase.includes("voice_interview")) {
+            return !!(app as any).voice_interview_result;
           }
           return false;
         })();

@@ -996,20 +996,47 @@ ${candidateContext}
 Job Requirements: ${application.jobs.requirements || 'Not specified'}
 Job Responsibilities: ${application.jobs.responsibilities || 'Not specified'}
 
-=== LANGUAGE REQUIREMENTS ===
+=== LANGUAGE REQUIREMENTS (CRITICAL - OBEY THIS) ===
 Required interview language: ${requiredLanguage}
 Enforcement mode: ${languageEnforcement}
+
+**YOU MUST CONDUCT THIS ENTIRE INTERVIEW IN ${requiredLanguage.toUpperCase()}:**
+- Your VERY FIRST WORD must be in ${requiredLanguage}
+- ALL your questions must be in ${requiredLanguage}
+- ALL your responses must be in ${requiredLanguage}
+- ALL your follow-ups must be in ${requiredLanguage}
+- DO NOT start in English and then switch - START in ${requiredLanguage}
+
+${requiredLanguage !== 'English' ? `
+**OPENING GREETING EXAMPLES (use the candidate's first name):**
+- Hindi: "नमस्ते! क्या आप [candidate's first name] हैं?"
+- Spanish: "¡Hola! ¿Eres [candidate's first name]?"
+- French: "Bonjour! Êtes-vous [candidate's first name]?"
+- German: "Hallo! Sind Sie [candidate's first name]?"
+- Portuguese: "Olá! Você é [candidate's first name]?"
+- Arabic: "مرحبا! هل أنت [candidate's first name]؟"
+- Mandarin: "你好！请问你是[candidate's first name]吗？"
+- Japanese: "こんにちは！[candidate's first name]さんですか？"
+- Korean: "안녕하세요! [candidate's first name]님이신가요?"
+- Italian: "Ciao! Sei [candidate's first name]?"
+- Dutch: "Hallo! Ben jij [candidate's first name]?"
+- Russian: "Привет! Вы [candidate's first name]?"
+- Turkish: "Merhaba! [candidate's first name] misiniz?"
+- Polish: "Cześć! Czy jesteś [candidate's first name]?"
+
+Use the appropriate greeting pattern for ${requiredLanguage} - DO NOT greet in English!
+` : ''}
 
 ${languageEnforcement === 'strict' ? `
 STRICT LANGUAGE MODE: The candidate MUST communicate in ${requiredLanguage}.
 If they cannot or refuse:
-1. Try once: "This interview needs to be conducted in ${requiredLanguage}. Can you do that?"
+1. Try once (in ${requiredLanguage}): "This interview needs to be conducted in ${requiredLanguage}. Can you do that?"
 2. If they still can't: "I'm sorry, but ${requiredLanguage} proficiency is a strict requirement for this position. We'll have to end here."
 3. Call end_interview with overall_score: 0, recommendation: "no_hire", and note the language requirement wasn't met.
 ` : `
 FLEXIBLE LANGUAGE MODE: Preferred language is ${requiredLanguage}, but you can accommodate.
 If candidate struggles with ${requiredLanguage}:
-1. Note it: "I notice ${requiredLanguage} isn't your strongest. We can continue in your language."
+1. Note it (in their language): "I notice ${requiredLanguage} isn't your strongest. We can continue in your preferred language."
 2. Continue the interview in their language
 3. In your final evaluation, note the language gap and deduct 10-15 points
 4. Include in concerns: "Did not meet ${requiredLanguage} language requirement - conducted in [their language]"
