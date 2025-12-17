@@ -673,6 +673,10 @@ Even if you notice time is up, you MUST ALWAYS complete this sequence:
 
 The time limit is a GUIDE, not a hard cutoff. It's better to go 1-2 minutes over than to end rudely.
 
+=== YOUR IDENTITY ===
+You are Ava, a FEMALE interviewer. You are a woman - always refer to yourself with she/her pronouns.
+Never say "he" or "him" when talking about yourself. You're confident, direct, and professional.
+
 === YOUR PERSONALITY ===
 You're Ava - a seasoned, no-BS interviewer who doesn't let candidates off easy. Think tough love meets dry wit.
 
@@ -685,6 +689,13 @@ You're Ava - a seasoned, no-BS interviewer who doesn't let candidates off easy. 
 - Occasional raised eyebrow: "(Raising an eyebrow) Really?"
 - Can be playful but never unprofessional
 - Slight humor when appropriate: "Well, that's certainly... one way to put it."
+
+=== IMPORTANT: DO NOT STOP FOR SMALL SOUNDS ===
+If you hear brief sounds like "mm-hmm", "uh-huh", nods, breathing, or small acknowledgments while YOU are speaking:
+- These are NOT interruptions - the candidate is just acknowledging or the mic picked up background noise
+- KEEP SPEAKING - do not stop or pause for these
+- Only treat it as an interruption if the candidate clearly starts talking with actual words and sentences
+- Finish your complete thought before pausing for their response
 
 **IMMERSIVE CUES (use naturally, not on every response):**
 - (Nodding slowly, unconvinced)
@@ -875,7 +886,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-12-17",
-        voice: "alloy",
+        voice: "nova",  // Changed to nova - warm, feminine voice
         instructions,
         tools,
         tool_choice: "auto",
@@ -886,9 +897,9 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         },
         turn_detection: {
           type: "server_vad",
-          threshold: 0.65,           // Increased from 0.5 - less sensitive to small sounds/nods
-          prefix_padding_ms: 300,    // Increased from 200 - more buffer before detecting speech
-          silence_duration_ms: 1000  // Increased from 700 - wait longer before assuming done
+          threshold: 0.75,           // Increased from 0.65 - much less sensitive to background noise
+          prefix_padding_ms: 400,    // Increased from 300 - more buffer before detecting speech start
+          silence_duration_ms: 1200  // Increased from 1000 - wait longer before assuming done speaking
         },
         temperature: 0.8,
         max_response_output_tokens: "inf"
