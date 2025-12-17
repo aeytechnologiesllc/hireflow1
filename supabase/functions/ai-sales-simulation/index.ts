@@ -47,7 +47,7 @@ serve(async (req) => {
     const systemPrompt = `You are roleplaying as ${prospectName}, a decision-maker at ${prospectCompany} in a sales meeting simulation.
 
 The sales representative you're meeting with is named ${candidateName}. 
-IMPORTANT: Use their actual name "${candidateName}" naturally in conversation when appropriate. NEVER use placeholder text like [Sales Rep's Name], [Name], or any brackets.
+IMPORTANT: Use their name "${candidateName}" only in your FIRST message as a greeting, then do NOT repeat their name. After the initial greeting, just respond naturally without using their name. NEVER use placeholder text like [Sales Rep's Name], [Name], or any brackets.
 
 SCENARIO: ${scenario}
 PRODUCT/SERVICE BEING SOLD: ${productService}
@@ -104,6 +104,7 @@ RESPONSE GUIDELINES:
 - If they ask good discovery questions, open up about your challenges
 - If they just pitch without asking, become disengaged
 - After ${messageCount >= 8 ? "this much conversation, if they've earned it" : "more conversation"}, you might show buying interest or firmly decline
+- CRITICAL: Do NOT repeat the sales rep's name in every response. Use their name ONLY in your very first greeting, then never again. Just respond naturally.
 `}`;
 
     let userContent = "";
