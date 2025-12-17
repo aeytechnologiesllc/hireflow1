@@ -26,7 +26,7 @@ import {
   FileCheck, ClipboardList, Video, Keyboard, 
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
-  HelpCircle, Move, Zap, AlertCircle
+  HelpCircle, Move, Zap, AlertCircle, Download
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
@@ -2068,6 +2068,106 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                         </div>
                       )}
                       
+                      {/* Portfolio Upload Preview */}
+                      {dialogData.type === "portfolio_upload" && (
+                        <div className="space-y-4">
+                          {/* File Grid */}
+                          {dialogData.content.files && dialogData.content.files.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {dialogData.content.files.map((file: { url: string; name: string; type: string }, index: number) => {
+                                const isImage = file.type?.startsWith("image/");
+                                return (
+                                  <div key={index} className="relative group rounded-lg border border-border overflow-hidden bg-muted/30">
+                                    {isImage ? (
+                                      <img 
+                                        src={file.url} 
+                                        alt={file.name}
+                                        className="w-full h-24 object-cover cursor-pointer hover:opacity-80 transition"
+                                        onClick={() => window.open(file.url, '_blank')}
+                                      />
+                                    ) : (
+                                      <div 
+                                        className="w-full h-24 flex items-center justify-center cursor-pointer hover:bg-muted/50 transition"
+                                        onClick={() => window.open(file.url, '_blank')}
+                                      >
+                                        <FileText className="h-10 w-10 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="p-2 flex items-center justify-between gap-1 bg-background/80">
+                                      <p className="text-xs truncate flex-1" title={file.name}>{file.name}</p>
+                                      <a 
+                                        href={file.url} 
+                                        download={file.name}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-muted-foreground hover:text-foreground transition shrink-0"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          
+                          {/* AI Analysis Section */}
+                          {dialogData.content.aiAnalysis && (
+                            <div className="space-y-3 border-t border-border pt-4">
+                              {/* Score Breakdown */}
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="p-2 bg-muted/50 rounded text-center">
+                                  <p className="text-lg font-bold">{dialogData.content.aiAnalysis.relevance?.score || 0}%</p>
+                                  <p className="text-xs text-muted-foreground">Relevance</p>
+                                </div>
+                                <div className="p-2 bg-muted/50 rounded text-center">
+                                  <p className="text-lg font-bold">{dialogData.content.aiAnalysis.quality?.score || 0}%</p>
+                                  <p className="text-xs text-muted-foreground">Quality</p>
+                                </div>
+                                <div className="p-2 bg-muted/50 rounded text-center">
+                                  <p className="text-lg font-bold">{dialogData.content.aiAnalysis.creativity?.score || 0}%</p>
+                                  <p className="text-xs text-muted-foreground">Creativity</p>
+                                </div>
+                              </div>
+                              
+                              {/* Summary */}
+                              {dialogData.content.aiAnalysis.summary && (
+                                <p className="text-sm text-muted-foreground">{dialogData.content.aiAnalysis.summary}</p>
+                              )}
+                              
+                              {/* Strengths */}
+                              {dialogData.content.aiAnalysis.strengths && dialogData.content.aiAnalysis.strengths.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-medium text-emerald-400 mb-1">Strengths</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    {dialogData.content.aiAnalysis.strengths.map((s: string, i: number) => (
+                                      <li key={i} className="flex items-start gap-2">
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                                        <span>{s}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {/* Areas for Improvement */}
+                              {dialogData.content.aiAnalysis.areasForImprovement && dialogData.content.aiAnalysis.areasForImprovement.length > 0 && (
+                                <div>
+                                  <h4 className="text-sm font-medium text-amber-400 mb-1">Areas for Improvement</h4>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    {dialogData.content.aiAnalysis.areasForImprovement.map((s: string, i: number) => (
+                                      <li key={i} className="flex items-start gap-2">
+                                        <AlertCircle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                                        <span>{s}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {!["quiz", "typing_test", "video_intro", "video_message", "chat_simulation", "chat_interview", "sales_simulation", "portfolio_upload"].includes(dialogData.type) && (
                         <div className="p-4 bg-muted/50 rounded-lg">
                           <pre className="text-sm whitespace-pre-wrap">
