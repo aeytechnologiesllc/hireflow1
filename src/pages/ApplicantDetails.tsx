@@ -2697,24 +2697,21 @@ Voice Interview with AVA Results:
             setDragPosition(snapPercentage);
           }
         }}
-        onConfirm={async (duration) => {
+        onConfirm={async (config) => {
           if (!pendingAvaInterview || !application) return;
           
-          // Get language from job workflow config
-          const workflowSteps = (application.jobs as any)?.workflow_steps as any[] || [];
-          const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
-          const language = voiceStep?.config?.language_name || 'English';
-          
           try {
-            // Update application with duration and advance to phase
+            // Update application with all config and advance to phase
             await updateApplication.mutateAsync({
               id: application.id,
               phase: pendingAvaInterview.newPhase.id,
-              voice_interview_duration: duration,
-              voice_interview_language: language.toLowerCase().substring(0, 2),
+              voice_interview_duration: config.duration,
+              voice_interview_language: config.language,
+              voice_interview_language_rule: config.languageRule,
+              voice_interview_video_enabled: config.videoEnabled,
             });
             
-            toast.success(`Ava Interview configured - ${duration} minutes`);
+            toast.success(`Ava Interview configured - ${config.duration} minutes, ${config.videoEnabled ? 'video' : 'audio only'}`);
             queryClient.invalidateQueries({ queryKey: ["application", id] });
             
             // Snap to new position

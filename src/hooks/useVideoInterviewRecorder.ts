@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UseVideoInterviewRecorderOptions {
   applicationId: string;
+  audioOnly?: boolean;
 }
 
 interface VideoRecorderState {
@@ -15,9 +16,10 @@ interface VideoRecorderState {
   error: string | null;
   recordingUrl: string | null;
   micLevels: number[];
+  isAudioOnly: boolean;
 }
 
-export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRecorderOptions) {
+export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: UseVideoInterviewRecorderOptions) {
   const [state, setState] = useState<VideoRecorderState>({
     hasCamera: false,
     hasMicrophone: false,
@@ -28,6 +30,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
     error: null,
     recordingUrl: null,
     micLevels: [0, 0, 0, 0, 0],
+    isAudioOnly: audioOnly,
   });
 
   // Refs for media streams and recording
@@ -43,45 +46,12 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
   const micMonitorContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Request camera and microphone permissions, return preview stream
-  const requestPermissions = useCallback(async (): Promise<MediaStream | null> => {
-    try {
-      // Request camera + mic
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user',
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+  // Update isAudioOnly if prop changes
+  useEffect(() => {
+    setState(s => ({ ...s, isAudioOnly: audioOnly }));
+  }, [audioOnly]);
 
-      cameraStreamRef.current = stream;
-
-      setState(s => ({
-        ...s,
-        hasCamera: stream.getVideoTracks().length > 0,
-        hasMicrophone: stream.getAudioTracks().length > 0,
-        isPermissionGranted: true,
-        error: null,
-      }));
-
-      // Start mic level monitoring
-      startMicMonitoring(stream);
-
-      return stream;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to access camera/microphone';
-      setState(s => ({ ...s, error: message, isPermissionGranted: false }));
-      return null;
-    }
-  }, []);
-
-  // Start monitoring microphone levels
+  // Start monitoring microphone levels (defined first to avoid hoisting issues)
   const startMicMonitoring = useCallback((stream: MediaStream) => {
     try {
       micMonitorContextRef.current = new AudioContext();
@@ -116,6 +86,57 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       console.error('Error starting mic monitoring:', err);
     }
   }, []);
+
+  // Request camera and microphone permissions, return preview stream
+  const requestPermissions = useCallback(async (): Promise<MediaStream | null> => {
+    // Read from state to get current value
+    const isAudioOnlyMode = state.isAudioOnly;
+    
+    try {
+      // Request camera + mic (or just mic for audio-only)
+      const constraints: MediaStreamConstraints = isAudioOnlyMode 
+        ? {
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          }
+        : {
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user',
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      cameraStreamRef.current = stream;
+
+      setState(s => ({
+        ...s,
+        hasCamera: !isAudioOnlyMode && stream.getVideoTracks().length > 0,
+        hasMicrophone: stream.getAudioTracks().length > 0,
+        isPermissionGranted: true,
+        error: null,
+      }));
+
+      // Start mic level monitoring
+      startMicMonitoring(stream);
+
+      return stream;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to access camera/microphone';
+      setState(s => ({ ...s, error: message, isPermissionGranted: false }));
+      return null;
+    }
+  }, [state.isAudioOnly, startMicMonitoring]);
 
   // Stop mic monitoring
   const stopMicMonitoring = useCallback(() => {
@@ -196,7 +217,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
   // Start recording
   const startRecording = useCallback((avaAudioElement: HTMLAudioElement | null) => {
     if (!cameraStreamRef.current) {
-      setState(s => ({ ...s, error: 'No camera stream available' }));
+      setState(s => ({ ...s, error: 'No media stream available' }));
       return false;
     }
 
@@ -207,18 +228,34 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       // Clear previous chunks
       recordedChunksRef.current = [];
 
-      // Create MediaRecorder with WebM format
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-        ? 'video/webm;codecs=vp8,opus'
-        : 'video/webm';
+      // Determine mime type based on audio-only mode
+      let mimeType: string;
+      if (state.isAudioOnly) {
+        // Audio-only: use webm with opus codec
+        mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm';
+      } else {
+        // Video: use webm with video codecs
+        mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+          ? 'video/webm;codecs=vp9,opus'
+          : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+          ? 'video/webm;codecs=vp8,opus'
+          : 'video/webm';
+      }
 
-      mediaRecorderRef.current = new MediaRecorder(streamToRecord, {
-        mimeType,
-        videoBitsPerSecond: 1500000, // 1.5 Mbps
-        audioBitsPerSecond: 128000, // 128 kbps
-      });
+      const recorderOptions: MediaRecorderOptions = state.isAudioOnly
+        ? {
+            mimeType,
+            audioBitsPerSecond: 128000, // 128 kbps
+          }
+        : {
+            mimeType,
+            videoBitsPerSecond: 1500000, // 1.5 Mbps
+            audioBitsPerSecond: 128000, // 128 kbps
+          };
+
+      mediaRecorderRef.current = new MediaRecorder(streamToRecord, recorderOptions);
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -241,7 +278,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       setState(s => ({ ...s, error: message }));
       return false;
     }
-  }, [setupAudioMixing]);
+  }, [setupAudioMixing, state.isAudioOnly]);
 
   // Stop recording and return blob
   const stopRecording = useCallback((): Promise<Blob | null> => {
@@ -252,15 +289,17 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
         return;
       }
 
+      const isAudio = state.isAudioOnly;
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const mimeType = isAudio ? 'audio/webm' : 'video/webm';
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         setState(s => ({ ...s, isRecording: false }));
         resolve(blob);
       };
 
       mediaRecorderRef.current.stop();
     });
-  }, []);
+  }, [state.isAudioOnly]);
 
   // Upload recording to Supabase Storage
   const uploadRecording = useCallback(async (blob: Blob): Promise<string | null> => {
@@ -272,7 +311,9 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
     setState(s => ({ ...s, isUploading: true, uploadProgress: 0 }));
 
     try {
-      const fileName = `${applicationId}/interview-${Date.now()}.webm`;
+      const extension = state.isAudioOnly ? 'webm' : 'webm';
+      const contentType = state.isAudioOnly ? 'audio/webm' : 'video/webm';
+      const fileName = `${applicationId}/interview-${Date.now()}.${extension}`;
 
       // Upload to storage
       const { data, error } = await supabase.storage
@@ -280,7 +321,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
         .upload(fileName, blob, {
           cacheControl: '3600',
           upsert: false,
-          contentType: 'video/webm',
+          contentType,
         });
 
       if (error) throw error;
@@ -315,7 +356,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       setState(s => ({ ...s, isUploading: false, error: message }));
       return null;
     }
-  }, [applicationId]);
+  }, [applicationId, state.isAudioOnly]);
 
   // Cleanup all resources
   const cleanup = useCallback(() => {
@@ -351,6 +392,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       error: null,
       recordingUrl: null,
       micLevels: [0, 0, 0, 0, 0],
+      isAudioOnly: audioOnly,
     });
   }, [stopMicMonitoring]);
 
