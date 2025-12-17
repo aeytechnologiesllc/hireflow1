@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export interface EvaluationResult {
+  score: number | null;
+  passed: boolean;
+  analysis: string | null;
+}
+
 /**
  * Triggers AVA comprehensive analysis for an application in the background.
  * This function fetches all available phase data and runs ai-analyze to update ai_analysis and ai_score.
@@ -179,5 +185,50 @@ Portfolio Upload:
     console.log("[triggerAvaAnalysis] Analysis completed successfully for application:", applicationId);
   } catch (error) {
     console.error("[triggerAvaAnalysis] Unexpected error:", error);
+  }
+}
+
+/**
+ * Evaluates a phase submission and returns the result.
+ * Used for Autopilot mode to show evaluation screen to candidates.
+ * Returns the score and whether the candidate passed based on the passing score.
+ */
+export async function evaluatePhaseSubmission(
+  applicationId: string,
+  phaseScore: number,
+  passingScore: number = 60
+): Promise<EvaluationResult> {
+  try {
+    console.log("[evaluatePhaseSubmission] Evaluating application:", applicationId, "Score:", phaseScore, "Passing:", passingScore);
+    
+    // Run the full analysis
+    await triggerAvaAnalysis(applicationId);
+    
+    // Fetch the updated analysis
+    const { data: application, error } = await supabase
+      .from("applications")
+      .select("ai_analysis, ai_score")
+      .eq("id", applicationId)
+      .single();
+    
+    if (error) {
+      console.error("[evaluatePhaseSubmission] Error fetching analysis:", error);
+    }
+    
+    const passed = phaseScore >= passingScore;
+    
+    return {
+      score: phaseScore,
+      passed,
+      analysis: application?.ai_analysis || null,
+    };
+  } catch (error) {
+    console.error("[evaluatePhaseSubmission] Error:", error);
+    // Return based on provided score even if analysis fails
+    return {
+      score: phaseScore,
+      passed: phaseScore >= passingScore,
+      analysis: null,
+    };
   }
 }

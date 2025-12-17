@@ -87,7 +87,7 @@ You MUST generate a number of quiz questions strictly BETWEEN ${config.quizMin} 
 
 Job Title: ${title}
 Description: ${description}
-Company: ${company || 'Not specified'}
+Company: ${company || 'Not provided - DO NOT include company name in any questions'}
 Employment Type: ${employment_type || 'Full-time'}
 Location: ${location || 'Not specified'}
 Screening Difficulty: ${difficulty.toUpperCase()} (${config.description})
@@ -103,8 +103,10 @@ Generate ${config.questionCount} essential application questions including:
 
 ${difficulty === 'medium' || difficulty === 'hard' || difficulty === 'intense' ? `
 Add motivation questions like:
-- "Why are you interested in this position?" (type: "textarea")
+- "Why are you interested in this ${title} position${company ? ` at ${company}` : ''}?" (type: "textarea")
 - "What makes you the ideal candidate?" (type: "textarea")
+
+⚠️ CRITICAL: If company name is "Not provided" or not specified above, do NOT use placeholder text like "[Company Name]", "Placeholder", or brackets in questions. Simply omit the company name entirely from questions.
 ` : ''}
 
 **PHASE 2: Timed Quiz (${config.quizMin}-${config.quizMax} questions)**

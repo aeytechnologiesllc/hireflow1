@@ -828,6 +828,10 @@ Resume URL: ${resumeUrl || "Not provided"}
                     onChange={(e) => setCoverLetter(e.target.value)}
                     placeholder="Tell us why you're a great fit for this role..."
                     className="min-h-[150px]"
+                    onPaste={(e) => { e.preventDefault(); toast.error("Copying and pasting is not allowed"); }}
+                    onCopy={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
                   />
                 </div>
 

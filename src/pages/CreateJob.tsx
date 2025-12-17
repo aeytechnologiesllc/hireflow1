@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -278,6 +279,7 @@ export default function CreateJob() {
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
   const { role } = useAuth();
+  const { data: profile } = useProfile();
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
@@ -508,7 +510,7 @@ export default function CreateJob() {
         body: {
           title: formData.title,
           description: formData.description,
-          company: formData.department,
+          company: profile?.company_name || null,
           employment_type: formData.job_type,
           location: formData.location,
           difficulty: workflowDifficulty,
