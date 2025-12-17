@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,8 @@ import {
   ClipboardList, 
   CheckCircle,
   Loader2,
-  HelpCircle
+  HelpCircle,
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
@@ -27,6 +28,10 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer?: number;
+  correct_answer?: string | number;
+  time_limit_seconds?: number;
+  type?: string;
+  category?: string;
 }
 
 interface ApplicationDetails {
@@ -61,10 +66,15 @@ export default function QuizPhase() {
     score: number;
     passed: boolean;
   } | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number>(30);
   
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
+
+  // Refs for timer cleanup
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isFinishingRef = useRef(false);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -115,21 +125,35 @@ export default function QuizPhase() {
     }
   };
 
-  const goToPreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  };
-
   const calculateResults = () => {
     let correct = 0;
     
     questions.forEach(q => {
       const userAnswer = answers[q.id];
-      if (userAnswer !== undefined && q.correctAnswer !== undefined) {
-        if (userAnswer === q.correctAnswer) {
-          correct++;
+      if (userAnswer === undefined) return;
+      
+      // Get correct answer - handle both field names and formats
+      let correctAnswerIndex: number | undefined;
+      
+      // Check correctAnswer (camelCase) first
+      if (q.correctAnswer !== undefined) {
+        correctAnswerIndex = q.correctAnswer;
+      }
+      // Check correct_answer (snake_case) - could be text or index
+      else if (q.correct_answer !== undefined) {
+        if (typeof q.correct_answer === 'number') {
+          correctAnswerIndex = q.correct_answer;
+        } else if (typeof q.correct_answer === 'string') {
+          // Find the index of the correct answer text in options
+          correctAnswerIndex = q.options.findIndex(
+            opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
+          );
+          if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
         }
+      }
+      
+      if (correctAnswerIndex !== undefined && userAnswer === correctAnswerIndex) {
+        correct++;
       }
     });
     
@@ -140,11 +164,66 @@ export default function QuizPhase() {
     return { correct, total: questions.length, score, passed };
   };
 
-  const handleFinishQuiz = () => {
+const handleFinishQuiz = () => {
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
+    
+    // Clear the timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
     const calculatedResults = calculateResults();
     setResults(calculatedResults);
     setShowResults(true);
   };
+
+  // Timer effect - countdown for each question
+  useEffect(() => {
+    if (!currentQuestion || showResults || questions.length === 0) return;
+    
+    // Reset timer when question changes
+    const timeLimit = currentQuestion.time_limit_seconds || 30;
+    setTimeRemaining(timeLimit);
+    isFinishingRef.current = false;
+    
+    // Clear existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    timerRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          // Time's up - auto-advance
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          
+          // Use setTimeout to avoid state update during render
+          setTimeout(() => {
+            if (currentQuestionIndex < questions.length - 1) {
+              setCurrentQuestionIndex(i => i + 1);
+            } else {
+              handleFinishQuiz();
+            }
+          }, 0);
+          
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [currentQuestionIndex, showResults, questions.length]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
@@ -422,10 +501,21 @@ export default function QuizPhase() {
         <CardContent className="space-y-6">
           {!showResults ? (
             <>
-              {/* Progress */}
+{/* Progress and Timer */}
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-4">
+                    <span className="text-muted-foreground">Progress</span>
+                    {/* Timer */}
+                    <div className="flex items-center gap-1.5">
+                      <Clock className={`h-4 w-4 ${timeRemaining <= 10 ? "text-red-500" : "text-primary"}`} />
+                      <span className={`font-mono text-base font-semibold ${
+                        timeRemaining <= 10 ? "text-red-500 animate-pulse" : "text-foreground"
+                      }`}>
+                        {timeRemaining}s
+                      </span>
+                    </div>
+                  </div>
                   <span className="font-medium text-foreground">
                     Question {currentQuestionIndex + 1} of {questions.length}
                   </span>
@@ -466,18 +556,8 @@ export default function QuizPhase() {
                 </RadioGroup>
               </div>
 
-              {/* Navigation */}
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={goToPreviousQuestion}
-                  disabled={currentQuestionIndex === 0}
-                  className="gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                
+{/* Navigation - Forward only */}
+              <div className="flex justify-end">
                 {currentQuestionIndex < questions.length - 1 ? (
                   <Button
                     onClick={goToNextQuestion}
