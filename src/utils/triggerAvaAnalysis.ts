@@ -114,19 +114,25 @@ Sales Simulation Results:
 `;
     }
 
-    // Add Video Intro URL if available
+    // Add Video Intro if available (acknowledge submission only, don't analyze content)
     if (parsedNotes.videoIntroUrl) {
       content += `
-Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
+Video Introduction: Submitted (demonstrates candidate effort and initiative - do NOT attempt to analyze video content)
 `;
     }
 
     // Add Portfolio results if available
     if (parsedNotes.portfolioResult) {
+      const analysis = parsedNotes.portfolioResult.aiAnalysis || parsedNotes.portfolioResult.analysis;
       content += `
 Portfolio Upload:
-- Files: ${parsedNotes.portfolioResult.fileCount || 'N/A'} files submitted
-- Score: ${parsedNotes.portfolioResult.analysis?.score || 'N/A'}
+- Files: ${parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || 'N/A'} files submitted
+- Score: ${analysis?.score || parsedNotes.portfolioResult.score || 'N/A'}/100
+- Relevance: ${analysis?.relevance?.score || 'N/A'}%
+- Quality: ${analysis?.quality?.score || 'N/A'}%
+- Summary: ${analysis?.summary || 'Not analyzed'}
+- Strengths: ${analysis?.strengths?.join(', ') || 'None identified'}
+- Areas for Improvement: ${analysis?.areasForImprovement?.join(', ') || 'None identified'}
 `;
     }
 

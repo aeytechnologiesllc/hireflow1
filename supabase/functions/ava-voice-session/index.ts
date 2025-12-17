@@ -608,12 +608,16 @@ ${notes.chatInterviewResult ? `
 ` : 'Not completed'}
 
 VIDEO INTRO:
-${notes.videoIntroUrl ? 'Submitted - review for presentation skills and personality' : 'Not submitted'}
+${notes.videoIntroUrl ? 'Submitted (shows initiative and effort - do not attempt to analyze content)' : 'Not submitted'}
 
 PORTFOLIO:
-${notes.portfolioUrls || notes.portfolioAnalysis ? `
-- Files submitted: ${notes.portfolioUrls?.length || 'Unknown'}
-- Analysis: ${notes.portfolioAnalysis?.summary || 'Not analyzed'}
+${notes.portfolioResult ? `
+- Files submitted: ${notes.portfolioResult.files?.length || 'Unknown'}
+- Score: ${notes.portfolioResult.aiAnalysis?.score || notes.portfolioResult.score || 'N/A'}/100
+- Relevance: ${notes.portfolioResult.aiAnalysis?.relevance?.score || 'N/A'}%
+- Quality: ${notes.portfolioResult.aiAnalysis?.quality?.score || 'N/A'}%
+- Summary: ${notes.portfolioResult.aiAnalysis?.summary || 'Not analyzed'}
+- Strengths: ${notes.portfolioResult.aiAnalysis?.strengths?.join(', ') || 'N/A'}
 ` : 'Not submitted'}
 
 PRIOR AI SCORE: ${application.ai_score || 'Not scored'}
