@@ -2276,12 +2276,25 @@ Voice Interview with AVA Results:
                       {dialogData.type === "voice_interview" && dialogData.content && (
                         <div className="space-y-4">
                           {/* Video Recording Playback */}
-                          {application.voice_interview_recording_url && (
-                            <div className="space-y-2">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
                               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                                 <Video className="h-4 w-4 text-primary" />
                                 Interview Recording
                               </h4>
+                              {application.voice_interview_recording_url && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(application.voice_interview_recording_url!, '_blank')}
+                                  className="gap-2"
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Download
+                                </Button>
+                              )}
+                            </div>
+                            {application.voice_interview_recording_url ? (
                               <div className="rounded-lg overflow-hidden border border-border bg-black">
                                 <video
                                   src={application.voice_interview_recording_url}
@@ -2295,8 +2308,14 @@ Voice Interview with AVA Results:
                                   Your browser does not support video playback.
                                 </video>
                               </div>
-                            </div>
-                          )}
+                            ) : (
+                              <div className="p-4 bg-muted/30 rounded-lg text-center">
+                                <Video className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                                <p className="text-sm text-muted-foreground">No video recording available</p>
+                                <p className="text-xs text-muted-foreground/70 mt-1">Recording may have failed or wasn't enabled</p>
+                              </div>
+                            )}
+                          </div>
 
                           {/* Score Summary */}
                           <div className="flex items-center gap-4 mb-4">
