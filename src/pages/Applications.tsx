@@ -47,13 +47,16 @@ const statusLabels: Record<string, string> = {
 };
 
 // Map phase types to icons and action labels
-const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string }> = {
-  quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment" },
-  typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test" },
-  video_intro: { icon: Video, label: "Record Video Intro", description: "Record your video introduction" },
-  chat_simulation: { icon: MessageSquare, label: "Start Chat Simulation", description: "Begin customer support simulation" },
-  chat_interview: { icon: Users, label: "Start AI Interview", description: "Ready for your AI interview" },
-  sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation" },
+const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
+  quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment", route: "quiz" },
+  typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test", route: "typing-test" },
+  video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
+  video_message: { icon: Video, label: "Record Video", description: "Record your video message", route: "video-intro" },
+  chat_simulation: { icon: MessageSquare, label: "Start Chat Sim", description: "Begin customer support simulation", route: "chat-simulation" },
+  chat_interview: { icon: Users, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
+  sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation", route: "sales-simulation" },
+  voice_interview: { icon: Mic, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
+  portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio-upload" },
 };
 
 interface ApplicationCardProps {
@@ -194,13 +197,27 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                 )}
               </div>
 
-              {/* Action Indicator - Clean and focused */}
+              {/* Action Indicator - Clickable button to jump to phase */}
               <div className="flex items-center gap-3">
                 {hasActionRequired && actionConfig && (
-                  <Badge className="bg-primary text-primary-foreground gap-2 px-4 py-1.5 text-sm font-medium animate-pulse hover:bg-primary/90 transition-colors">
+                  <Button
+                    size="sm"
+                    className="bg-primary text-primary-foreground gap-2 px-4 py-1.5 text-sm font-medium animate-pulse hover:bg-primary/90 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Build the route based on phase type
+                      const stepId = phase; // Use the actual phase ID for step-based routes
+                      const route = actionConfig.route;
+                      if (["quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio-upload"].includes(route)) {
+                        navigate(`/applications/${application.id}/${route}/${stepId}`);
+                      } else {
+                        navigate(`/applications/${application.id}/${route}`);
+                      }
+                    }}
+                  >
                     <actionConfig.icon className="h-4 w-4" />
                     {actionConfig.label}
-                  </Badge>
+                  </Button>
                 )}
                 {isPendingReview && (
                   <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
