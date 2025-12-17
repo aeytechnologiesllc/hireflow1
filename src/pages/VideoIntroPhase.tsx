@@ -66,6 +66,7 @@ export default function VideoIntroPhase() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadedVideoDuration, setUploadedVideoDuration] = useState<number>(0);
   
   // Compression state
   const [isCompressing, setIsCompressing] = useState(false);
@@ -78,6 +79,7 @@ export default function VideoIntroPhase() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const uploadedVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -232,6 +234,7 @@ export default function VideoIntroPhase() {
     setCompressionProgress(null);
     setIsCompressing(false);
     setOriginalFileSize(0);
+    setUploadedVideoDuration(0);
   };
 
   const goBackToSelect = () => {
@@ -416,12 +419,18 @@ export default function VideoIntroPhase() {
       
       const passed = true;
       const score = 100;
-      const duration = isRecorded ? recordingTime : 0;
+      // Use actual duration: recordingTime for recorded, uploadedVideoDuration for uploaded
+      const duration = isRecorded ? recordingTime : uploadedVideoDuration;
+      
+      // Get the actual step type from workflow
+      const workflowSteps = application.jobs?.workflow_steps as any[] | null;
+      const currentStep = workflowSteps?.find((s: any) => s.id === stepId);
+      const stepType = currentStep?.type || "video_intro";
       
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
-          type: "video_intro",
+          type: stepType, // Use actual type from workflow
           duration,
           recordedAt: new Date().toISOString(),
           completed: true,
@@ -443,10 +452,10 @@ export default function VideoIntroPhase() {
 
       const isAutoMode = application.jobs?.processing_mode !== "manual";
       
-      const workflowSteps = application.jobs?.workflow_steps || [];
+      // Reuse workflowSteps from above
       const allPhases = [
         { id: "application", type: "application" },
-        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
+        ...(workflowSteps || []).map((step: any) => ({ id: step.id, type: step.type })),
         { id: "review", type: "review" },
         { id: "interview", type: "interview" },
         { id: "hired", type: "hired" },
@@ -895,9 +904,16 @@ export default function VideoIntroPhase() {
                 {/* Video Preview */}
                 <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
                   <video
+                    ref={mode === "upload" ? uploadedVideoRef : undefined}
                     src={previewUrl!}
                     controls
                     className="w-full h-full object-contain"
+                    onLoadedMetadata={(e) => {
+                      if (mode === "upload") {
+                        const duration = Math.floor(e.currentTarget.duration);
+                        setUploadedVideoDuration(duration);
+                      }
+                    }}
                   />
                 </div>
 
@@ -934,11 +950,11 @@ export default function VideoIntroPhase() {
                   </div>
                 )}
 
-                {/* Recording duration for recorded videos */}
-                {mode === "record" && recordingTime > 0 && (
+                {/* Duration display for both record and upload modes */}
+                {((mode === "record" && recordingTime > 0) || (mode === "upload" && uploadedVideoDuration > 0)) && (
                   <div className="flex items-center justify-center gap-2 text-muted-foreground">
                     <Video className="h-4 w-4" />
-                    <span>Duration: {formatTime(recordingTime)}</span>
+                    <span>Duration: {formatTime(mode === "record" ? recordingTime : uploadedVideoDuration)}</span>
                   </div>
                 )}
 

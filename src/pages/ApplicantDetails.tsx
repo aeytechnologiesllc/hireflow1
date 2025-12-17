@@ -485,11 +485,26 @@ export default function ApplicantDetails() {
     const nearestIndex = Math.round(dragPosition / stepSize);
     const newPhase = phases[nearestIndex];
     
-    if (newPhase && newPhase.id !== application.phase) {
+    // Debug logging to troubleshoot slider issues
+    console.log("[Slider Debug]", {
+      dragPosition,
+      nearestIndex,
+      newPhase: newPhase?.id,
+      currentPhase: application.phase,
+      effectivePhaseIndex,
+      phasesCount: phases.length,
+      canManagePipeline,
+    });
+    
+    // Check if the phase actually changed (comparing by index rather than just phase ID)
+    const isPhaseChange = nearestIndex !== effectivePhaseIndex;
+    
+    if (newPhase && isPhaseChange) {
       const currentIndex = effectivePhaseIndex;
       
       // Check if moving backward (resetting phases)
       if (nearestIndex < currentIndex) {
+        console.log("[Slider Debug] Moving backward from", currentIndex, "to", nearestIndex);
         // Get phases that will be reset
         const phasesToReset = phases.slice(nearestIndex + 1, currentIndex + 1);
         setPendingPhaseChange({
@@ -503,6 +518,7 @@ export default function ApplicantDetails() {
       }
       
       // Moving forward - execute immediately
+      console.log("[Slider Debug] Moving forward from", currentIndex, "to", nearestIndex);
       await executePhaseChange(nearestIndex, newPhase, false);
     }
     
@@ -938,6 +954,18 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
     return badges;
   })();
 
+  // Standardized display titles for phase types
+  const typeDisplayTitles: Record<string, string> = {
+    video_intro: "Video Intro",
+    video_message: "Video Intro",
+    typing_test: "Typing Test",
+    chat_simulation: "Chat Simulation",
+    chat_interview: "Interview",
+    sales_simulation: "Sales Simulation",
+    portfolio_upload: "Portfolio",
+    quiz: "Quiz",
+  };
+
   // Get data for a specific badge/step
   const getBadgeDialogContent = (badgeId: string, badgeType: string) => {
     if (badgeId === "application") {
@@ -956,8 +984,10 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
     }
     
     const stepData = getStepSubmissionData(badgeId, badgeType);
+    // Use standardized display title based on type, fallback to badge title
+    const displayTitle = typeDisplayTitles[badgeType] || workflowBadges.find(b => b.id === badgeId)?.title || badgeId;
     return {
-      title: workflowBadges.find(b => b.id === badgeId)?.title || badgeId,
+      title: displayTitle,
       content: stepData,
       type: badgeType,
     };
