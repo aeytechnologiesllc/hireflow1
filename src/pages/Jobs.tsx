@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus,
   Search,
   Filter,
   Briefcase,
@@ -22,6 +21,7 @@ import {
   Zap,
   Hand,
 } from "lucide-react";
+import avaOrb from "@/assets/ava-orb.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -282,10 +282,13 @@ export default function Jobs() {
           <p className="text-muted-foreground mt-1">Manage your job listings and track applications</p>
         </div>
         {canCreateJobs && (
-          <Button className="gap-2" asChild>
+          <Button 
+            className="gap-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300" 
+            asChild
+          >
             <Link to="/jobs/create">
-              <Plus className="h-4 w-4" />
-              Create New Job
+              <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]" />
+              Create with Ava
             </Link>
           </Button>
         )}
@@ -368,10 +371,13 @@ export default function Jobs() {
                 Create your first job posting to start receiving applications.
               </p>
               {canCreateJobs && (
-                <Button className="gap-2" asChild>
+                <Button 
+                  className="gap-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300" 
+                  asChild
+                >
                   <Link to="/jobs/create">
-                    <Plus className="h-4 w-4" />
-                    Create New Job
+                    <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]" />
+                    Create with Ava
                   </Link>
                 </Button>
               )}
