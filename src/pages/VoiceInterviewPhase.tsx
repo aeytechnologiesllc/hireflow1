@@ -317,13 +317,15 @@ export default function VoiceInterviewPhase() {
                         ? "Connecting..."
                         : isConnected
                         ? isSpeaking
-                          ? "Speaking..."
+                          ? "Ava is speaking..."
                           : "Listening..."
                         : "Disconnected"}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {isConnected
-                        ? "Speak naturally"
+                        ? isSpeaking
+                          ? "Please wait for her to finish"
+                          : "Speak naturally"
                         : "Click to reconnect"}
                     </p>
                   </div>
