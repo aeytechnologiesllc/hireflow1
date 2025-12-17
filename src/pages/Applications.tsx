@@ -105,6 +105,8 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
     if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;
     if (phaseType === "chat_interview") return !!notes.chatInterviewResult;
     if (phaseType === "sales_simulation") return !!notes.salesSimulationResult;
+    // Voice interview result is stored in a dedicated column, not notes JSON
+    if (phaseType === "voice_interview") return !!application.voice_interview_result;
     return false;
   })();
   
@@ -219,7 +221,13 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                     {actionConfig.label}
                   </Button>
                 )}
-                {isPendingReview && (
+                {isPendingReview && phaseType === "voice_interview" && (
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1.5 px-3 py-1">
+                    <Mic className="h-3.5 w-3.5" />
+                    Interview Complete - Under Review
+                  </Badge>
+                )}
+                {isPendingReview && phaseType !== "voice_interview" && (
                   <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
                     <Clock className="h-3.5 w-3.5" />
                     Awaiting Review
