@@ -708,9 +708,11 @@ export default function ApplicantDetails() {
         delete updatedNotes.salesSimulationResult;
       }
       if (phaseType === "quiz") {
+        // Delete all possible quiz data formats
+        delete updatedNotes.quiz;
+        delete updatedNotes.quizResult;
         if (updatedNotes.quizAnswers) {
           delete updatedNotes.quizAnswers[phaseId];
-          // Also try deleting 'quiz' key for older data format
           delete updatedNotes.quizAnswers['quiz'];
           if (Object.keys(updatedNotes.quizAnswers).length === 0) {
             delete updatedNotes.quizAnswers;
