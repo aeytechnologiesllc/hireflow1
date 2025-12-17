@@ -274,13 +274,28 @@ const handleFinishQuiz = () => {
 
       // Build the full phases list to find the next phase
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const allPhases = [
+      const quizQuestions = application.jobs?.quiz_questions as any[] | undefined;
+      
+      const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
-        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type, title: step.title || step.type })),
+      ];
+      
+      // Add quiz phase if quiz_questions exist (before workflow steps)
+      if (quizQuestions && quizQuestions.length > 0) {
+        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
+      }
+      
+      // Add workflow steps
+      workflowSteps.forEach((step: any) => {
+        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
+      });
+      
+      // Add final phases
+      allPhases.push(
         { id: "review", type: "review", title: "Review" },
         { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" },
-      ];
+        { id: "hired", type: "hired", title: "Hired" }
+      );
       
       // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);

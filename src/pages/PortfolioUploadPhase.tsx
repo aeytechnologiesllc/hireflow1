@@ -260,13 +260,28 @@ export default function PortfolioUploadPhase() {
       const isAutoMode = application.jobs?.processing_mode !== "manual";
       
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const allPhases = [
+      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
+      
+      const allPhases: { id: string; type: string }[] = [
         { id: "application", type: "application" },
-        ...workflowSteps.map((step: any) => ({ id: step.id, type: step.type })),
+      ];
+      
+      // Add quiz phase if quiz_questions exist
+      if (quizQuestions && quizQuestions.length > 0) {
+        allPhases.push({ id: "quiz", type: "quiz" });
+      }
+      
+      // Add workflow steps
+      workflowSteps.forEach((step: any) => {
+        allPhases.push({ id: step.id, type: step.type });
+      });
+      
+      // Add final phases
+      allPhases.push(
         { id: "review", type: "review" },
         { id: "interview", type: "interview" },
-        { id: "hired", type: "hired" },
-      ];
+        { id: "hired", type: "hired" }
+      );
       
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
