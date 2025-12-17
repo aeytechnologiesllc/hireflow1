@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -106,7 +106,8 @@ export default function SalesSimulationPhase() {
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -155,10 +156,9 @@ export default function SalesSimulationPhase() {
     }
   }, [salesConfig.scenarios]);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Log anti-cheat violation
@@ -237,7 +237,12 @@ export default function SalesSimulationPhase() {
       e.preventDefault();
       logViolation('screenshot_attempt', 'User pressed PrintScreen');
     }
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    handleKeyDown(e);
     if (e.key === "Enter" && !e.shiftKey && state === "selling") {
+      e.preventDefault();
       sendMessage();
     }
   };
@@ -246,6 +251,9 @@ export default function SalesSimulationPhase() {
     if (!currentScenario) return;
     
     setIsTyping(true);
+    
+    // Add typing delay for more natural feel (1.5 seconds)
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     try {
       const response = await fetch(SALES_URL, {
@@ -354,6 +362,9 @@ export default function SalesSimulationPhase() {
 
   const streamProspectResponseWithScenario = async (mode: "start", scenario: SalesScenario) => {
     setIsTyping(true);
+    
+    // Add typing delay for more natural feel (1.5 seconds)
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     try {
       const response = await fetch(SALES_URL, {
@@ -869,22 +880,32 @@ export default function SalesSimulationPhase() {
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
               </ScrollArea>
 
               {/* Input Area */}
               {state === "selling" && (
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-end">
+                  <Textarea
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Make your pitch..."
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                    placeholder="Make your pitch... (Press Enter to send)"
+                    onKeyDown={handleTextareaKeyDown}
+                    onCopy={preventCopy}
+                    onPaste={preventPaste}
+                    onContextMenu={preventContextMenu}
                     disabled={isTyping}
+                    rows={3}
+                    className="resize-none min-h-[80px] bg-background/50"
                   />
-                  <Button onClick={sendMessage} disabled={!inputValue.trim() || isTyping} className="bg-green-600 hover:bg-green-700">
-                    <Send className="h-4 w-4" />
+                  <Button 
+                    onClick={sendMessage} 
+                    disabled={!inputValue.trim() || isTyping} 
+                    className="h-[80px] px-4 bg-green-600 hover:bg-green-700"
+                  >
+                    <Send className="h-5 w-5" />
                   </Button>
                 </div>
               )}
