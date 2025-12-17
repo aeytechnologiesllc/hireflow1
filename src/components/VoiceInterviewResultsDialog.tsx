@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { MediaPlayer } from "@/components/MediaPlayer";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
 } from "recharts";
@@ -243,17 +244,10 @@ Date: ${new Date().toLocaleDateString()}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {videoEnabled ? (
-                      <video
-                        src={recordingUrl}
-                        controls
-                        preload="metadata"
-                        crossOrigin="anonymous"
-                        className="w-full max-h-[200px] rounded-lg"
-                      />
-                    ) : (
-                      <audio src={recordingUrl} controls className="w-full" crossOrigin="anonymous" />
-                    )}
+                    <MediaPlayer 
+                      src={recordingUrl} 
+                      type={videoEnabled ? "video" : "audio"} 
+                    />
                   </CardContent>
                 </Card>
               )}
