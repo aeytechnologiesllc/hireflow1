@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle } from "lucide-react";
+import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
@@ -40,6 +40,18 @@ export default function VoiceInterviewPhase() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
+
+  // Mic test states
+  const [showMicTest, setShowMicTest] = useState(false);
+  const [micTestPassed, setMicTestPassed] = useState(false);
+  const [testAudioLevels, setTestAudioLevels] = useState([8, 8, 8, 8, 8]);
+  const [testStream, setTestStream] = useState<MediaStream | null>(null);
+  const testAnalyserRef = useRef<AnalyserNode | null>(null);
+  const testAnimationRef = useRef<number | null>(null);
+
+  // Interview timer states
+  const [interviewStartTime, setInterviewStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Refs for tracking current streaming message and auto-scroll
   const currentMessageIdRef = useRef<string | null>(null);
@@ -134,6 +146,8 @@ export default function VoiceInterviewPhase() {
     isConnected,
     isConnecting,
     isSpeaking,
+    audioLevels,
+    connectionQuality,
     connect,
     disconnect,
     sendTextMessage,
@@ -146,9 +160,70 @@ export default function VoiceInterviewPhase() {
     onInterviewEnd: handleInterviewEnd,
   });
 
+  // Interview timer effect - must be after useAvaVoice hook
+  useEffect(() => {
+    if (!isConnected || !interviewStartTime) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - interviewStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isConnected, interviewStartTime]);
+
   useEffect(() => {
     loadApplicationData();
   }, [applicationId]);
+
+  // Start mic test
+  const startMicTest = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setTestStream(stream);
+      setShowMicTest(true);
+
+      // Set up audio analyser for test
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 32;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      testAnalyserRef.current = analyser;
+
+      // Update audio levels
+      const updateLevels = () => {
+        if (!testAnalyserRef.current) return;
+        const dataArray = new Uint8Array(testAnalyserRef.current.frequencyBinCount);
+        testAnalyserRef.current.getByteFrequencyData(dataArray);
+        const bands = [0, 2, 4, 6, 8];
+        const levels = bands.map(i => {
+          const value = dataArray[i] || 0;
+          return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
+        });
+        setTestAudioLevels(levels);
+        testAnimationRef.current = requestAnimationFrame(updateLevels);
+      };
+      updateLevels();
+    } catch (error) {
+      toast.error("Could not access microphone. Please grant permission.");
+    }
+  };
+
+  // Stop mic test
+  const stopMicTest = () => {
+    if (testAnimationRef.current) {
+      cancelAnimationFrame(testAnimationRef.current);
+    }
+    testStream?.getTracks().forEach(track => track.stop());
+    testAnalyserRef.current = null;
+    setTestStream(null);
+  };
+
+  // Confirm mic works
+  const confirmMicWorks = () => {
+    stopMicTest();
+    setMicTestPassed(true);
+    setShowMicTest(false);
+    toast.success("Microphone test passed!");
+  };
 
   const loadApplicationData = async () => {
     if (!applicationId) return;
@@ -211,11 +286,71 @@ export default function VoiceInterviewPhase() {
   const startInterview = async () => {
     if (!job || !applicationId) return;
     setInterviewStarted(true);
+    setInterviewStartTime(Date.now());
     await connect();
   };
 
   const endInterview = () => {
     sendTextMessage("I would like to end the interview now.");
+  };
+
+  // Download transcript
+  const downloadTranscript = () => {
+    const lines = messages.map(m => {
+      const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `[${time}] ${m.role === 'user' ? 'Candidate' : 'Ava'}: ${m.content}`;
+    }).join('\n\n');
+
+    const header = `Voice Interview Transcript
+Date: ${new Date().toLocaleDateString()}
+Position: ${job?.title || 'Unknown'}
+Company: ${job?.company_name || 'Unknown'}
+Duration: ${formatTime(elapsedSeconds)}
+
+---
+
+`;
+
+    const blob = new Blob([header + lines], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `interview-transcript-${applicationId}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Format time for display
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Calculate timer colors
+  const totalSeconds = duration * 60;
+  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+  const percentUsed = (elapsedSeconds / totalSeconds) * 100;
+  const timerColor = percentUsed > 90 ? 'text-red-400' : percentUsed > 80 ? 'text-amber-400' : 'text-muted-foreground';
+  const timerPulse = percentUsed > 90;
+
+  // Connection quality indicator
+  const getConnectionIcon = () => {
+    switch (connectionQuality) {
+      case 'excellent': return <Wifi className="h-4 w-4 text-green-400" />;
+      case 'good': return <Wifi className="h-4 w-4 text-yellow-400" />;
+      case 'poor': return <WifiOff className="h-4 w-4 text-red-400" />;
+      default: return <Wifi className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getConnectionLabel = () => {
+    switch (connectionQuality) {
+      case 'excellent': return 'Strong';
+      case 'good': return 'Good';
+      case 'poor': return 'Weak';
+      default: return '...';
+    }
   };
 
   if (loading) {
@@ -247,70 +382,169 @@ export default function VoiceInterviewPhase() {
 
       {!interviewStarted ? (
         /* Pre-interview instructions */
-        <Card className="border-border bg-card/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Volume2 className="h-5 w-5 text-primary" />
-              Before You Begin
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 text-muted-foreground">
-              <p>You're about to have a voice conversation with our professional interviewer.</p>
-              <ul className="list-disc list-inside space-y-2">
-                <li>Find a quiet place with minimal background noise</li>
-                <li>Ensure your microphone is working properly</li>
-                <li>Speak clearly and take your time with responses</li>
-                <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
-                <li>The interview will last approximately <strong>{duration} minutes</strong></li>
-                <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
-              </ul>
-            </div>
+        <div className="space-y-4">
+          <Card className="border-border bg-card/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Volume2 className="h-5 w-5 text-primary" />
+                Before You Begin
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3 text-muted-foreground">
+                <p>You're about to have a voice conversation with our professional interviewer.</p>
+                <ul className="list-disc list-inside space-y-2">
+                  <li>Find a quiet place with minimal background noise</li>
+                  <li>Ensure your microphone is working properly</li>
+                  <li>Speak clearly and take your time with responses</li>
+                  <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
+                  <li>The interview will last approximately <strong>{duration} minutes</strong></li>
+                  <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
+                </ul>
+              </div>
 
-            <div className="pt-4">
-              <Button
-                onClick={startInterview}
-                className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
-                size="lg"
-              >
-                <Phone className="h-5 w-5" />
-                Start Voice Interview
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              {/* Mic Test Section */}
+              {!micTestPassed && !showMicTest && (
+                <div className="pt-4 border-t border-border">
+                  <Button
+                    onClick={startMicTest}
+                    variant="outline"
+                    className="w-full gap-2"
+                  >
+                    <Mic className="h-5 w-5" />
+                    Test Your Microphone
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Recommended before starting the interview
+                  </p>
+                </div>
+              )}
+
+              {/* Mic Test UI */}
+              {showMicTest && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="pt-4 border-t border-border"
+                >
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="py-6 text-center space-y-4">
+                      <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
+                        <Mic className="h-8 w-8 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-foreground">Microphone Test</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Say something to check your mic is working
+                      </p>
+                      
+                      {/* Audio visualization bars */}
+                      <div className="flex justify-center items-end gap-1 h-10">
+                        {testAudioLevels.map((level, i) => (
+                          <motion.div
+                            key={i}
+                            className="w-2 rounded-full bg-gradient-to-t from-primary to-teal-400"
+                            animate={{ height: level }}
+                            transition={{ duration: 0.1 }}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2 justify-center pt-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            stopMicTest();
+                            setShowMicTest(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={confirmMicWorks}
+                          className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          My Mic Works
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* Mic Test Passed */}
+              {micTestPassed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center gap-2 text-sm text-green-400 pt-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Microphone test passed
+                </motion.div>
+              )}
+
+              <div className="pt-4">
+                <Button
+                  onClick={startInterview}
+                  className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                  size="lg"
+                >
+                  <Phone className="h-5 w-5" />
+                  Start Voice Interview
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         /* Active interview UI */
         <div className="space-y-4">
-          {/* Connection status */}
+          {/* Connection status with timer */}
           <Card className="border-border bg-card/50">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {/* Animated orb */}
-                  <motion.div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      isConnected
-                        ? "bg-gradient-to-r from-primary to-teal-400"
-                        : "bg-muted"
-                    }`}
-                    animate={
-                      isSpeaking
-                        ? { scale: [1, 1.2, 1], opacity: [1, 0.8, 1] }
-                        : isConnected
-                        ? { scale: [1, 1.05, 1] }
-                        : {}
-                    }
-                    transition={{ duration: 1, repeat: Infinity }}
-                  >
-                    {isConnecting ? (
-                      <Loader2 className="h-6 w-6 animate-spin text-white" />
-                    ) : isConnected ? (
-                      <Mic className="h-6 w-6 text-white" />
-                    ) : (
-                      <MicOff className="h-6 w-6 text-muted-foreground" />
+                  {/* Animated orb with audio visualization */}
+                  <div className="relative">
+                    <motion.div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        isConnected
+                          ? "bg-gradient-to-r from-primary to-teal-400"
+                          : "bg-muted"
+                      }`}
+                      animate={
+                        isSpeaking
+                          ? { scale: [1, 1.2, 1], opacity: [1, 0.8, 1] }
+                          : isConnected
+                          ? { scale: [1, 1.05, 1] }
+                          : {}
+                      }
+                      transition={{ duration: 1, repeat: Infinity }}
+                    >
+                      {isConnecting ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-white" />
+                      ) : isConnected ? (
+                        <Mic className="h-6 w-6 text-white" />
+                      ) : (
+                        <MicOff className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </motion.div>
+                    
+                    {/* Audio level bars around orb */}
+                    {isConnected && (
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-end gap-0.5">
+                        {audioLevels.map((level, i) => (
+                          <motion.div
+                            key={i}
+                            className={`w-1 rounded-full ${isSpeaking ? 'bg-primary' : 'bg-white/60'}`}
+                            animate={{ height: Math.max(3, level / 4) }}
+                            transition={{ duration: 0.1 }}
+                          />
+                        ))}
+                      </div>
                     )}
-                  </motion.div>
+                  </div>
                   <div>
                     <p className="font-medium text-foreground">
                       {isConnecting
@@ -330,15 +564,37 @@ export default function VoiceInterviewPhase() {
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="destructive"
-                  onClick={endInterview}
-                  disabled={!isConnected}
-                  className="gap-2"
-                >
-                  <PhoneOff className="h-4 w-4" />
-                  End Interview
-                </Button>
+
+                {/* Right side: Timer and controls */}
+                <div className="flex items-center gap-4">
+                  {/* Connection quality */}
+                  {isConnected && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {getConnectionIcon()}
+                      <span className="text-muted-foreground">{getConnectionLabel()}</span>
+                    </div>
+                  )}
+
+                  {/* Timer */}
+                  {isConnected && (
+                    <div className={`flex items-center gap-1.5 ${timerColor} ${timerPulse ? 'animate-pulse' : ''}`}>
+                      <Clock className="h-4 w-4" />
+                      <span className="font-mono text-sm font-medium">
+                        {formatTime(elapsedSeconds)} / {formatTime(totalSeconds)}
+                      </span>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="destructive"
+                    onClick={endInterview}
+                    disabled={!isConnected}
+                    className="gap-2"
+                  >
+                    <PhoneOff className="h-4 w-4" />
+                    End Interview
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -367,6 +623,10 @@ export default function VoiceInterviewPhase() {
                             : "bg-muted text-foreground"
                         }`}
                       >
+                        {/* Timestamp */}
+                        <p className="text-[10px] opacity-60 mb-1">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </p>
                         <p className="text-sm">{msg.content}</p>
                       </div>
                     </motion.div>
@@ -400,13 +660,26 @@ export default function VoiceInterviewPhase() {
                     <p className="text-muted-foreground max-w-md mx-auto">
                       Thank you for speaking with Ava. We will review your interview and get back to you soon.
                     </p>
+                    <p className="text-sm text-muted-foreground">
+                      Duration: {formatTime(elapsedSeconds)}
+                    </p>
                   </div>
-                  <Button 
-                    onClick={() => navigate(`/applications/${applicationId}`)}
-                    className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
-                  >
-                    Return to Applications
-                  </Button>
+                  <div className="flex gap-3 justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={downloadTranscript}
+                      className="gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Transcript
+                    </Button>
+                    <Button 
+                      onClick={() => navigate(`/applications/${applicationId}`)}
+                      className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                    >
+                      Return to Applications
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
