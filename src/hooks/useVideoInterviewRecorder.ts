@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UseVideoInterviewRecorderOptions {
@@ -14,6 +14,7 @@ interface VideoRecorderState {
   uploadProgress: number;
   error: string | null;
   recordingUrl: string | null;
+  micLevels: number[];
 }
 
 export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRecorderOptions) {
@@ -26,6 +27,7 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
     uploadProgress: 0,
     error: null,
     recordingUrl: null,
+    micLevels: [0, 0, 0, 0, 0],
   });
 
   // Refs for media streams and recording
@@ -35,6 +37,11 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
   const combinedStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  
+  // Refs for mic level monitoring
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const micMonitorContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Request camera and microphone permissions, return preview stream
   const requestPermissions = useCallback(async (): Promise<MediaStream | null> => {
@@ -63,12 +70,65 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
         error: null,
       }));
 
+      // Start mic level monitoring
+      startMicMonitoring(stream);
+
       return stream;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to access camera/microphone';
       setState(s => ({ ...s, error: message, isPermissionGranted: false }));
       return null;
     }
+  }, []);
+
+  // Start monitoring microphone levels
+  const startMicMonitoring = useCallback((stream: MediaStream) => {
+    try {
+      micMonitorContextRef.current = new AudioContext();
+      const ctx = micMonitorContextRef.current;
+      
+      const source = ctx.createMediaStreamSource(stream);
+      micAnalyserRef.current = ctx.createAnalyser();
+      micAnalyserRef.current.fftSize = 32;
+      micAnalyserRef.current.smoothingTimeConstant = 0.5;
+      source.connect(micAnalyserRef.current);
+      
+      const dataArray = new Uint8Array(micAnalyserRef.current.frequencyBinCount);
+      
+      const updateLevels = () => {
+        if (!micAnalyserRef.current) return;
+        
+        micAnalyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Get 5 levels from frequency data
+        const step = Math.floor(dataArray.length / 5);
+        const levels = [0, 1, 2, 3, 4].map(i => {
+          const value = dataArray[i * step] || 0;
+          return Math.min(100, (value / 255) * 100);
+        });
+        
+        setState(s => ({ ...s, micLevels: levels }));
+        animationFrameRef.current = requestAnimationFrame(updateLevels);
+      };
+      
+      updateLevels();
+    } catch (err) {
+      console.error('Error starting mic monitoring:', err);
+    }
+  }, []);
+
+  // Stop mic monitoring
+  const stopMicMonitoring = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    micAnalyserRef.current = null;
+    if (micMonitorContextRef.current && micMonitorContextRef.current.state !== 'closed') {
+      micMonitorContextRef.current.close();
+      micMonitorContextRef.current = null;
+    }
+    setState(s => ({ ...s, micLevels: [0, 0, 0, 0, 0] }));
   }, []);
 
   // Setup audio mixing with Ava's audio stream
@@ -259,6 +319,9 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
 
   // Cleanup all resources
   const cleanup = useCallback(() => {
+    // Stop mic monitoring
+    stopMicMonitoring();
+    
     // Stop recording if active
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -287,8 +350,9 @@ export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRe
       uploadProgress: 0,
       error: null,
       recordingUrl: null,
+      micLevels: [0, 0, 0, 0, 0],
     });
-  }, []);
+  }, [stopMicMonitoring]);
 
   // Get preview stream (for displaying video before/during recording)
   const getPreviewStream = useCallback(() => {
