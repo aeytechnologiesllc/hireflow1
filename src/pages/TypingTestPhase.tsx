@@ -21,7 +21,8 @@ import {
   RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
-import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
+import { EvaluationScreen } from "@/components/EvaluationScreen";
 
 // Sample typing test paragraphs
 const typingTexts = [
@@ -74,6 +75,10 @@ export default function TypingTestPhase() {
     score: number;
     passed: boolean;
   } | null>(null);
+  
+  // Evaluation screen state for autopilot mode
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
+  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -208,6 +213,14 @@ export default function TypingTestPhase() {
   const handleSubmit = async () => {
     if (!results || !application) return;
     
+    const isAutoMode = application.jobs?.processing_mode !== "manual";
+    const passingScore = application.jobs?.passing_score || 60;
+    
+    // For autopilot mode, show evaluation screen
+    if (isAutoMode) {
+      setEvaluationState("evaluating");
+    }
+    
     setIsSubmitting(true);
     try {
       // Parse existing notes or start fresh
@@ -232,21 +245,17 @@ export default function TypingTestPhase() {
         },
       };
 
-      // Determine next phase based on processing mode
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
-      const passingScore = application.jobs?.passing_score || 60;
-      
       // Build the full phases list to find the next phase
       const workflowSteps = application.jobs?.workflow_steps || [];
       const allPhases = [
-        { id: "application", type: "application" },
-        ...workflowSteps.map((step) => ({ id: step.id, type: step.type })),
-        { id: "review", type: "review" },
-        { id: "interview", type: "interview" },
-        { id: "hired", type: "hired" },
+        { id: "application", type: "application", title: "Application" },
+        ...workflowSteps.map((step) => ({ id: step.id, type: step.type, title: step.title || step.type })),
+        { id: "review", type: "review", title: "Review" },
+        { id: "interview", type: "interview", title: "Interview" },
+        { id: "hired", type: "hired", title: "Hired" },
       ];
       
-      // Find current step index - fall back to current application phase if needed
+      // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
         currentIndex = allPhases.findIndex(
@@ -262,22 +271,16 @@ export default function TypingTestPhase() {
           // Advance to next phase
           if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
             newPhase = allPhases[currentIndex + 1].id;
+            // Store next phase info for evaluation screen
+            setNextPhaseInfo({
+              id: allPhases[currentIndex + 1].id,
+              title: allPhases[currentIndex + 1].title,
+            });
           }
-          toast.success("Typing test submitted successfully!", {
-            description: "Great job! You passed and advanced to the next phase.",
-          });
         } else {
           // Failed - reject the application
           newStatus = "rejected";
-          toast.error("Typing test not passed", {
-            description: `You scored ${results.score}% but needed ${passingScore}% to pass.`,
-          });
         }
-      } else {
-        // Manual mode - just save results, employer will review
-        toast.success("Typing test submitted successfully!", {
-          description: "Your results have been recorded. The employer will review your submission.",
-        });
       }
 
       const { error } = await supabase
@@ -295,16 +298,56 @@ export default function TypingTestPhase() {
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Trigger AVA analysis in background (fire-and-forget)
-      triggerAvaAnalysis(id!).catch(console.error);
-
-      navigate(`/applications/${id}`);
+      if (isAutoMode) {
+        // Run evaluation and show result screen
+        await evaluatePhaseSubmission(id!, results.score, passingScore);
+        setEvaluationState(results.passed ? "passed" : "failed");
+      } else {
+        // Manual mode - toast and navigate
+        toast.success("Typing test submitted successfully!", {
+          description: "Your results have been recorded. The employer will review your submission.",
+        });
+        navigate(`/applications/${id}`);
+      }
     } catch (error) {
       console.error("Error submitting typing test:", error);
       toast.error("Failed to submit typing test");
+      setEvaluationState(null);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handlers for evaluation screen
+  const handleStartNextPhase = () => {
+    if (!nextPhaseInfo || !application) return;
+    
+    const workflowSteps = application.jobs?.workflow_steps || [];
+    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
+    
+    if (nextStep) {
+      const phaseRoutes: Record<string, string> = {
+        typing_test: "typing-test",
+        video_intro: "video-intro",
+        video_message: "video-intro",
+        portfolio_upload: "portfolio",
+        chat_simulation: "chat-simulation",
+        chat_interview: "chat-interview",
+        sales_simulation: "sales-simulation",
+        voice_interview: "voice-interview",
+        quiz: "quiz",
+      };
+      const route = phaseRoutes[nextStep.type] || nextStep.type;
+      navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
+    } else if (nextPhaseInfo.id === "review") {
+      navigate(`/applications/${id}`);
+    } else {
+      navigate(`/applications/${id}`);
+    }
+  };
+
+  const handleDoLater = () => {
+    navigate(`/applications/${id}`);
   };
 
   const resetTest = () => {
@@ -367,6 +410,20 @@ export default function TypingTestPhase() {
 
   const isAutoMode = application.jobs?.processing_mode !== "manual";
   const passingScore = application.jobs?.passing_score || 60;
+
+  // Show evaluation screen for autopilot mode
+  if (evaluationState) {
+    return (
+      <EvaluationScreen
+        state={evaluationState}
+        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
+        onDoLater={handleDoLater}
+        nextPhaseName={nextPhaseInfo?.title}
+        score={results?.score}
+        passingScore={passingScore}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
