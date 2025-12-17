@@ -38,6 +38,7 @@ export default function VoiceInterviewPhase() {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [language, setLanguage] = useState("en");
   const [duration, setDuration] = useState(10);
+  const [videoEnabled, setVideoEnabled] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
@@ -57,7 +58,7 @@ export default function VoiceInterviewPhase() {
   const messageCounterRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Video recording hook
+  // Video recording hook - audioOnly = true means no video
   const {
     isPermissionGranted,
     isRecording,
@@ -65,13 +66,14 @@ export default function VoiceInterviewPhase() {
     uploadProgress,
     error: videoError,
     micLevels,
+    isAudioOnly,
     requestPermissions,
     startRecording,
     stopRecording,
     uploadRecording,
     cleanup: cleanupVideo,
     getPreviewStream,
-  } = useVideoInterviewRecorder({ applicationId: applicationId || '' });
+  } = useVideoInterviewRecorder({ applicationId: applicationId || '', audioOnly: !videoEnabled });
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     const timestamp = Date.now();
@@ -134,13 +136,18 @@ export default function VoiceInterviewPhase() {
     setInterviewResult(evaluation);
     
     try {
-      // Stop video recording and upload
-      if (isRecording) {
-        const blob = await stopRecording();
-        if (blob) {
-          console.log('Recording stopped, uploading...', blob.size, 'bytes');
-          await uploadRecording(blob);
+      // Stop video recording and upload - always try to stop, don't check isRecording state
+      // (it may be stale in the closure)
+      const blob = await stopRecording();
+      if (blob && blob.size > 0) {
+        console.log('Recording stopped, uploading...', blob.size, 'bytes');
+        const url = await uploadRecording(blob);
+        if (!url) {
+          console.error('Failed to upload recording');
+          toast.error("Video upload failed, but interview results were saved");
         }
+      } else {
+        console.log('No recording blob available or empty');
       }
 
       // Save result to database
@@ -163,7 +170,7 @@ export default function VoiceInterviewPhase() {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
     }
-  }, [applicationId, isRecording, stopRecording, uploadRecording]);
+  }, [applicationId, stopRecording, uploadRecording]);
 
   const {
     isConnected,
@@ -281,6 +288,7 @@ export default function VoiceInterviewPhase() {
       setCandidateName(candidateProfile?.full_name || "Candidate");
       setLanguage(app.voice_interview_language || "en");
       setDuration(app.voice_interview_duration || 10);
+      setVideoEnabled(app.voice_interview_video_enabled !== false); // Default to true if not set
     } catch (error) {
       console.error("Error loading application:", error);
       toast.error("Failed to load interview data");

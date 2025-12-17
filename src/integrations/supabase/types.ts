@@ -32,8 +32,10 @@ export type Database = {
           updated_at: string
           voice_interview_duration: number | null
           voice_interview_language: string | null
+          voice_interview_language_rule: string | null
           voice_interview_recording_url: string | null
           voice_interview_result: Json | null
+          voice_interview_video_enabled: boolean | null
         }
         Insert: {
           ai_analysis?: string | null
@@ -52,8 +54,10 @@ export type Database = {
           updated_at?: string
           voice_interview_duration?: number | null
           voice_interview_language?: string | null
+          voice_interview_language_rule?: string | null
           voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
+          voice_interview_video_enabled?: boolean | null
         }
         Update: {
           ai_analysis?: string | null
@@ -72,8 +76,10 @@ export type Database = {
           updated_at?: string
           voice_interview_duration?: number | null
           voice_interview_language?: string | null
+          voice_interview_language_rule?: string | null
           voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
+          voice_interview_video_enabled?: boolean | null
         }
         Relationships: [
           {

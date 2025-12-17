@@ -643,12 +643,24 @@ ${notes.portfolioResult ? `
 PRIOR AI SCORE: ${application.ai_score || 'Not scored'}
 `;
 
-      // Get step config for language settings
+      // Get language settings from application (set by employer via wizard) or fallback to workflow config
       const workflowSteps = (application.jobs as any)?.workflow_steps as any[] || [];
       const voiceInterviewStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
       const stepConfig = voiceInterviewStep?.config || {};
-      const requiredLanguage = stepConfig.language_name || 'English';
-      const languageEnforcement = stepConfig.language_enforcement || 'flexible';
+      
+      // Language settings - prioritize application-level settings (from wizard) over workflow config
+      const languageCode = (application as any).voice_interview_language || 'en';
+      const languageMap: Record<string, string> = {
+        'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+        'pt': 'Portuguese', 'hi': 'Hindi', 'ar': 'Arabic', 'zh': 'Mandarin',
+        'ja': 'Japanese', 'ko': 'Korean', 'it': 'Italian', 'nl': 'Dutch',
+        'ru': 'Russian', 'tr': 'Turkish', 'pl': 'Polish'
+      };
+      const requiredLanguage = languageMap[languageCode] || stepConfig.language_name || 'English';
+      
+      // Language enforcement rule: 'hard' = strict (end interview), 'soft' = flexible (deduct points)
+      const languageRule = (application as any).voice_interview_language_rule || 'soft';
+      const languageEnforcement = languageRule === 'hard' ? 'strict' : 'flexible';
 
       // Get duration from request (default 10 minutes)
       const interviewDuration = duration || 10;
