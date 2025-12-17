@@ -362,8 +362,11 @@ export default function ApplicantDetails() {
         });
       }
       
-      // Add workflow steps
-      workflowSteps.forEach(step => {
+      // Extract voice_interview step (goes after Review)
+      const voiceInterviewStep = workflowSteps.find(s => s.type === 'voice_interview');
+      
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      workflowSteps.filter(s => s.type !== 'voice_interview').forEach(step => {
         allPhases.push({
           id: step.id,
           title: step.title.length > 12 ? step.title.substring(0, 10) + "..." : step.title,
@@ -372,13 +375,24 @@ export default function ApplicantDetails() {
         });
       });
       
-      // Add final phases - only include Review in Autopilot mode
+      // Add Review phase - only in Autopilot mode
       const isAutoPilotMode = application?.jobs?.processing_mode === "auto";
       if (isAutoPilotMode) {
         allPhases.push(
           { id: "review", title: "Review", icon: Eye, type: "review" }
         );
       }
+      
+      // Add Ava Interview AFTER review if it exists in workflow
+      if (voiceInterviewStep) {
+        allPhases.push({
+          id: voiceInterviewStep.id,
+          title: "Ava Interview",
+          icon: stepTypeIcons.voice_interview || Users,
+          type: "voice_interview",
+        });
+      }
+      
       allPhases.push(
         { id: "interview", title: "Interview", icon: Users, type: "interview" },
         { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }

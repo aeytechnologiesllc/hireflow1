@@ -82,7 +82,7 @@ const phaseActionMessages: Record<string, { buttonText: string; description: str
   chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
   sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
   portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
-  voice_interview: { buttonText: "Start Voice Interview", description: "Have a voice conversation with Ava" },
+  voice_interview: { buttonText: "Start Ava Interview", description: "Have a voice conversation with Ava" },
 };
 
 export default function CandidateApplicationDetail() {
@@ -163,8 +163,12 @@ export default function CandidateApplicationDetail() {
       });
     }
 
+    // Extract voice_interview step (goes after Review)
+    const voiceInterviewStep = workflowSteps?.find(s => s.type === 'voice_interview');
+    
     if (workflowSteps && workflowSteps.length > 0) {
-      workflowSteps.forEach((step) => {
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      workflowSteps.filter(s => s.type !== 'voice_interview').forEach((step) => {
         allPhases.push({
           id: step.id,
           title: step.title,
@@ -174,13 +178,24 @@ export default function CandidateApplicationDetail() {
       });
     }
 
-    // Add final phases - only include Review in Autopilot mode
+    // Add Review phase - only in Autopilot mode
     const isAutoPilotMode = application?.jobs?.processing_mode === "auto";
     if (isAutoPilotMode) {
       allPhases.push(
         { id: "review", title: "Final Review", icon: Eye, type: "review" }
       );
     }
+    
+    // Add Ava Interview AFTER review if it exists in workflow
+    if (voiceInterviewStep) {
+      allPhases.push({
+        id: voiceInterviewStep.id,
+        title: "Ava Interview",
+        icon: Mic,
+        type: "voice_interview",
+      });
+    }
+    
     allPhases.push(
       { id: "interview", title: "Interview", icon: Users, type: "interview" },
       { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }

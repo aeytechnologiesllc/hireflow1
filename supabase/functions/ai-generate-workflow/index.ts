@@ -129,18 +129,15 @@ Choose appropriate steps based on the job role:
 
 ⚠️ CRITICAL: ALWAYS include EXACTLY ONE final interview step ⚠️
 
-**Choose ONE of these as the FINAL step:**
-- chat_interview: Text-based AI interview (default for most roles) (config: {"focus": "behavioral"})
-- voice_interview: Voice AI interview with Ava (ENTERPRISE ONLY - recommended for senior/executive roles, sales leadership, and customer-facing management positions) (config: {"focus": "behavioral", "language": "en", "language_name": "English", "language_enforcement": "flexible"})
+**The FINAL step MUST be:**
+- chat_interview: Text-based interview with Ava (config: {"focus": "behavioral"})
 
-**When to use voice_interview (instead of chat_interview):**
-- Senior/Executive positions (Director, VP, C-level)
-- Sales leadership roles (Sales Manager, Account Executive)
-- Customer-facing management (Customer Success Manager, Support Lead)
-- Roles requiring strong verbal communication
+NOTE: "Ava Interview" (voice_interview) is a PREMIUM post-review feature that employers can optionally add. 
+It is NOT included in the generated workflow_steps - employers manually add it if they want it.
+Ava Interview appears AFTER the Review phase, allowing employers to selectively interview candidates who pass review.
 
-The final interview is the culminating assessment where Ava has access to ALL candidate data from previous phases.
-Place the interview AFTER all other workflow steps.
+The chat_interview is the culminating assessment where Ava has access to ALL candidate data from previous phases.
+Place chat_interview AFTER all other workflow steps.
 
 Random Seed: ${randomSeed}
 
@@ -154,13 +151,13 @@ Return ONLY valid JSON:
   ],
   "workflow_steps": [
     {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}},
-    {"id": "stepFinal", "type": "chat_interview", "title": "Interview with Ava", "description": "Final interview with our AI", "required": true, "config": {"focus": "behavioral"}}
+    {"id": "stepFinal", "type": "chat_interview", "title": "Interview with Ava", "description": "Final interview with Ava", "required": true, "config": {"focus": "behavioral"}}
   ]
 }
 
 IMPORTANT: 
-- The workflow_steps array MUST end with a chat_interview OR voice_interview step. This is mandatory.
-- If using voice_interview, include language config: {"focus": "behavioral", "language": "en", "language_name": "English", "language_enforcement": "flexible"}`;
+- The workflow_steps array MUST end with chat_interview. This is mandatory.
+- Do NOT include voice_interview in workflow_steps - it's a premium post-review feature added manually by employers.`;
 
     console.log("Generating workflow for:", title, "with difficulty:", difficulty);
 
