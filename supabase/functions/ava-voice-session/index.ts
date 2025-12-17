@@ -1170,7 +1170,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
           type: "server_vad",
           threshold: 0.6,            // Balanced - not too sensitive, not too deaf
           prefix_padding_ms: 600,    // More buffer before detecting speech start - prevents cutting off
-          silence_duration_ms: 1500  // Wait longer before assuming done speaking
+          silence_duration_ms: 2500  // Longer wait (2.5s) - gives candidate time to think before assuming done
         },
         temperature: 0.85,  // Slightly more expressive
         max_response_output_tokens: "inf"
