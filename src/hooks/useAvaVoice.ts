@@ -207,7 +207,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
         switch (event.type) {
           case 'response.audio.delta':
-            // Handle audio chunk
+            // Handle audio chunk - let AudioQueue callback control isSpeaking state
             if (event.delta) {
               const binaryString = atob(event.delta);
               const bytes = new Uint8Array(binaryString.length);
@@ -216,11 +216,13 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               }
               audioQueueRef.current?.addToQueue(bytes);
             }
-            setState(s => ({ ...s, isSpeaking: true, isProcessing: false }));
+            // Only clear processing, AudioQueue callback handles isSpeaking
+            setState(s => ({ ...s, isProcessing: false }));
             break;
 
           case 'response.audio.done':
-            setState(s => ({ ...s, isSpeaking: false }));
+            // Don't set isSpeaking here - AudioQueue callback handles when playback actually finishes
+            console.log('Audio done event received, waiting for queue to finish playback');
             break;
 
           case 'response.audio_transcript.delta':
@@ -268,48 +270,83 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   
                   // Check for interview end
                   if (event.name === 'end_interview' && toolResult?.evaluation) {
-                    console.log('Interview ended, calling onInterviewEnd and disconnecting...');
-                    options.onInterviewEnd?.(toolResult.evaluation);
+                    console.log('Interview ending, waiting for Ava to finish speaking...');
                     
-                    // Auto-disconnect after interview ends - use setTimeout to let callback complete first
-                    setTimeout(() => {
-                      console.log('Auto-disconnecting Ava after interview end...');
+                    // Wait for audio queue to finish playing before triggering end
+                    const waitForAudioComplete = (): Promise<void> => {
+                      return new Promise((resolve) => {
+                        let checkCount = 0;
+                        const maxChecks = 100; // 10 seconds max wait
+                        
+                        const checkInterval = setInterval(() => {
+                          checkCount++;
+                          const queueLength = audioQueueRef.current?.length || 0;
+                          
+                          console.log(`Waiting for audio... Queue length: ${queueLength}, Check: ${checkCount}`);
+                          
+                          // Check if audio queue is empty and not playing
+                          if (queueLength === 0) {
+                            // Give a small buffer after queue empties to ensure playback finished
+                            setTimeout(() => {
+                              clearInterval(checkInterval);
+                              resolve();
+                            }, 500);
+                            clearInterval(checkInterval);
+                          } else if (checkCount >= maxChecks) {
+                            // Timeout after 10 seconds to prevent infinite wait
+                            console.log('Audio wait timeout, proceeding with interview end');
+                            clearInterval(checkInterval);
+                            resolve();
+                          }
+                        }, 100); // Check every 100ms
+                      });
+                    };
+                    
+                    // Wait for Ava to finish, then trigger end
+                    waitForAudioComplete().then(() => {
+                      console.log('Ava finished speaking, triggering interview end...');
+                      options.onInterviewEnd?.(toolResult.evaluation);
                       
-                      // Close data channel
-                      dcRef.current?.close();
-                      dcRef.current = null;
-                      
-                      // Close peer connection
-                      pcRef.current?.close();
-                      pcRef.current = null;
-                      
-                      // Stop mic stream
-                      micStreamRef.current?.getTracks().forEach(track => track.stop());
-                      micStreamRef.current = null;
-                      
-                      // Clean up audio
-                      audioElRef.current = null;
-                      audioQueueRef.current?.clear();
-                      
-                      // Stop monitoring
-                      if (connectionQualityIntervalRef.current) {
-                        clearInterval(connectionQualityIntervalRef.current);
-                        connectionQualityIntervalRef.current = null;
-                      }
-                      if (animationFrameRef.current) {
-                        cancelAnimationFrame(animationFrameRef.current);
-                        animationFrameRef.current = null;
-                      }
-                      
-                      // Update state to disconnected
-                      setState(s => ({
-                        ...s,
-                        isConnected: false,
-                        isSpeaking: false,
-                        isListening: false,
-                        isProcessing: false,
-                      }));
-                    }, 100);
+                      // Auto-disconnect after callback completes
+                      setTimeout(() => {
+                        console.log('Auto-disconnecting Ava after interview end...');
+                        
+                        // Close data channel
+                        dcRef.current?.close();
+                        dcRef.current = null;
+                        
+                        // Close peer connection
+                        pcRef.current?.close();
+                        pcRef.current = null;
+                        
+                        // Stop mic stream
+                        micStreamRef.current?.getTracks().forEach(track => track.stop());
+                        micStreamRef.current = null;
+                        
+                        // Clean up audio
+                        audioElRef.current = null;
+                        audioQueueRef.current?.clear();
+                        
+                        // Stop monitoring
+                        if (connectionQualityIntervalRef.current) {
+                          clearInterval(connectionQualityIntervalRef.current);
+                          connectionQualityIntervalRef.current = null;
+                        }
+                        if (animationFrameRef.current) {
+                          cancelAnimationFrame(animationFrameRef.current);
+                          animationFrameRef.current = null;
+                        }
+                        
+                        // Update state to disconnected
+                        setState(s => ({
+                          ...s,
+                          isConnected: false,
+                          isSpeaking: false,
+                          isListening: false,
+                          isProcessing: false,
+                        }));
+                      }, 100);
+                    });
                   }
 
                   // Handle flag_inconsistency - Ava may want to ask a follow-up

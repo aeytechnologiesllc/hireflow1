@@ -304,16 +304,21 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
   // Upload recording to Supabase Storage
   const uploadRecording = useCallback(async (blob: Blob): Promise<string | null> => {
     if (!applicationId) {
+      console.error('Upload failed: No application ID provided');
       setState(s => ({ ...s, error: 'No application ID provided' }));
       return null;
     }
 
+    console.log('Starting upload process...', { applicationId, blobSize: blob.size, blobType: blob.type });
     setState(s => ({ ...s, isUploading: true, uploadProgress: 0 }));
 
     try {
       const extension = state.isAudioOnly ? 'webm' : 'webm';
       const contentType = state.isAudioOnly ? 'audio/webm' : 'video/webm';
       const fileName = `${applicationId}/interview-${Date.now()}.${extension}`;
+
+      console.log('Step 1: Uploading to storage...', { fileName, contentType });
+      setState(s => ({ ...s, uploadProgress: 20 }));
 
       // Upload to storage
       const { data, error } = await supabase.storage
@@ -324,24 +329,40 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
           contentType,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Storage upload failed:', error);
+        throw error;
+      }
+      console.log('Step 1 complete: Storage upload succeeded', data);
+      setState(s => ({ ...s, uploadProgress: 50 }));
 
+      console.log('Step 2: Creating signed URL...');
       // Get signed URL (private bucket)
       const { data: urlData, error: urlError } = await supabase.storage
         .from('voice-interview-recordings')
         .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year expiry
 
-      if (urlError) throw urlError;
+      if (urlError) {
+        console.error('Signed URL creation failed:', urlError);
+        throw urlError;
+      }
+      console.log('Step 2 complete: Signed URL created');
+      setState(s => ({ ...s, uploadProgress: 75 }));
 
       const recordingUrl = urlData.signedUrl;
 
+      console.log('Step 3: Updating database with recording URL...');
       // Update application with recording URL
       const { error: updateError } = await supabase
         .from('applications')
         .update({ voice_interview_recording_url: recordingUrl })
         .eq('id', applicationId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Database update failed:', updateError);
+        throw updateError;
+      }
+      console.log('Step 3 complete: Database updated successfully');
 
       setState(s => ({
         ...s,
@@ -350,9 +371,11 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         recordingUrl,
       }));
 
+      console.log('Upload process completed successfully!');
       return recordingUrl;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload recording';
+      console.error('Upload process failed:', err);
       setState(s => ({ ...s, isUploading: false, error: message }));
       return null;
     }
