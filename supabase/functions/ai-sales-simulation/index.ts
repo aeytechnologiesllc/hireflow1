@@ -18,6 +18,7 @@ interface SalesSimulationRequest {
   prospectCompany: string;
   productService: string;
   jobTitle?: string;
+  candidateName?: string;
   messages?: ChatMessage[];
   salesRepMessage?: string;
   messageCount?: number;
@@ -30,9 +31,9 @@ serve(async (req) => {
 
   try {
     const request: SalesSimulationRequest = await req.json();
-    const { mode, scenario, prospectName, prospectCompany, productService, jobTitle, messages = [], salesRepMessage, messageCount = 0 } = request;
+    const { mode, scenario, prospectName, prospectCompany, productService, jobTitle, candidateName = "the sales representative", messages = [], salesRepMessage, messageCount = 0 } = request;
 
-    console.log("Sales simulation request:", { mode, scenario, prospectName, messageCount });
+    console.log("Sales simulation request:", { mode, scenario, prospectName, candidateName, messageCount });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -43,7 +44,10 @@ serve(async (req) => {
       );
     }
 
-    const systemPrompt = `You are roleplaying as ${prospectName}, a decision-maker at ${prospectCompany} in a sales simulation.
+    const systemPrompt = `You are roleplaying as ${prospectName}, a decision-maker at ${prospectCompany} in a sales meeting simulation.
+
+The sales representative you're meeting with is named ${candidateName}. 
+IMPORTANT: Use their actual name "${candidateName}" naturally in conversation when appropriate. NEVER use placeholder text like [Sales Rep's Name], [Name], or any brackets.
 
 SCENARIO: ${scenario}
 PRODUCT/SERVICE BEING SOLD: ${productService}
@@ -105,7 +109,7 @@ RESPONSE GUIDELINES:
     let userContent = "";
     
     if (mode === "start") {
-      userContent = "The sales call/meeting is starting. Greet the sales rep briefly and set expectations for the call. You're busy but willing to listen.";
+      userContent = `The sales meeting is starting. Greet ${candidateName} briefly and set expectations for the call. You're busy but willing to listen. Remember to use their actual name naturally - never use brackets or placeholders.`;
     } else if (mode === "respond") {
       userContent = `The sales rep just said: "${salesRepMessage}"
       
