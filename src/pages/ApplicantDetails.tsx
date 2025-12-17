@@ -570,6 +570,7 @@ export default function ApplicantDetails() {
           }
           if (phase.type === "video_intro" || phase.type === "video_message") {
             delete updatedNotes.videoIntroUrl;
+            delete updatedNotes.videoIntroResult;
             // Also delete stepId-based storage for video_message
             delete updatedNotes[phase.id];
           }
