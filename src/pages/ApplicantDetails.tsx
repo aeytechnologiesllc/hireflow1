@@ -31,6 +31,7 @@ import {
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
+import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -286,6 +287,8 @@ export default function ApplicantDetails() {
   } | null>(null);
   const [showResetPhaseDialog, setShowResetPhaseDialog] = useState(false);
   const [phaseToReset, setPhaseToReset] = useState<{ id: string; title: string; type: string } | null>(null);
+  const [showSalesAnalysisDialog, setShowSalesAnalysisDialog] = useState(false);
+  const [salesAnalysisData, setSalesAnalysisData] = useState<any>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -1964,107 +1967,96 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                       
                       {dialogData.type === "sales_simulation" && (
                         <div className="space-y-4">
-                          {/* Evaluation Summary */}
-                          {dialogData.content.evaluation && (
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-4 mb-4">
-                                <div className="text-center">
-                                  <p className="text-3xl font-bold text-primary">{dialogData.content.evaluation.score || dialogData.content.score || "N/A"}</p>
-                                  <p className="text-xs text-muted-foreground">/100</p>
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-foreground">
-                                    Would Buy: <span className={`${
-                                      dialogData.content.evaluation.wouldBuy === "yes" ? "text-success" :
-                                      dialogData.content.evaluation.wouldBuy === "maybe" ? "text-warning" : "text-destructive"
-                                    }`}>
-                                      {dialogData.content.evaluation.wouldBuy === "yes" ? "Yes" :
-                                       dialogData.content.evaluation.wouldBuy === "maybe" ? "Maybe" : "No"}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-4 gap-2">
-                                <div className="p-2 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.discovery || "N/A"}%</p>
-                                  <p className="text-xs text-muted-foreground">Discovery</p>
-                                </div>
-                                <div className="p-2 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.objectionHandling || "N/A"}%</p>
-                                  <p className="text-xs text-muted-foreground">Objections</p>
-                                </div>
-                                <div className="p-2 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.valueProposition || "N/A"}%</p>
-                                  <p className="text-xs text-muted-foreground">Value Prop</p>
-                                </div>
-                                <div className="p-2 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-lg font-bold text-foreground">{dialogData.content.evaluation.closingSkills || "N/A"}%</p>
-                                  <p className="text-xs text-muted-foreground">Closing</p>
-                                </div>
-                              </div>
-                              
-                              {dialogData.content.evaluation.strengths?.length > 0 && (
-                                <div>
-                                  <h4 className="text-sm font-semibold text-success mb-2">Strengths</h4>
-                                  <ul className="space-y-1">
-                                    {dialogData.content.evaluation.strengths.map((s: string, i: number) => (
-                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                        <span className="text-success mt-0.5">•</span> {s}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              
-                              {dialogData.content.evaluation.improvements?.length > 0 && (
-                                <div>
-                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Areas for Improvement</h4>
-                                  <ul className="space-y-1">
-                                    {dialogData.content.evaluation.improvements.map((s: string, i: number) => (
-                                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                        <span className="text-orange-500 mt-0.5">•</span> {s}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                          {/* Compact Summary */}
+                          <div className="flex items-center gap-6 p-4 bg-muted/30 rounded-lg border border-border">
+                            <div className="text-center">
+                              <p className={`text-3xl font-bold ${
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 70 ? "text-emerald-500" :
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 50 ? "text-amber-500" : 
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) !== undefined ? "text-red-400" : "text-muted-foreground"
+                              }`}>
+                                {dialogData.content.evaluation?.score ?? dialogData.content.score ?? "N/A"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">/100</p>
                             </div>
-                          )}
+                            <div className="h-12 w-px bg-border" />
+                            <div className="flex-1">
+                              <p className="text-sm text-muted-foreground mb-1">Would Buy</p>
+                              <p className={`font-semibold ${
+                                dialogData.content.evaluation?.wouldBuy === "yes" ? "text-emerald-500" :
+                                dialogData.content.evaluation?.wouldBuy === "maybe" ? "text-amber-500" : "text-red-400"
+                              }`}>
+                                {dialogData.content.evaluation?.wouldBuy === "yes" ? "Yes" :
+                                 dialogData.content.evaluation?.wouldBuy === "maybe" ? "Maybe" : "No"}
+                              </p>
+                            </div>
+                            {dialogData.content.antiCheatLog?.totalViolations > 0 && (
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                {dialogData.content.antiCheatLog.totalViolations} violations
+                              </Badge>
+                            )}
+                          </div>
                           
-                          {/* Chat Messages */}
-                          <div className="border-t border-border pt-4">
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-3">Sales Conversation</h4>
-                            <div className="space-y-3 max-h-60 overflow-y-auto">
-                              {dialogData.content.messages?.map((msg: any, index: number) => (
-                                <div key={index} className={`flex ${msg.role === "salesRep" || msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                                  <div className={`p-3 rounded-lg max-w-[80%] ${
-                                    msg.role === "salesRep" || msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                                  }`}>
-                                    <p className="text-sm">{msg.content}</p>
-                                  </div>
-                                </div>
-                              ))}
+                          {/* Category Scores Preview */}
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="p-2 bg-muted/50 rounded-lg text-center">
+                              <p className={`text-lg font-bold ${
+                                (dialogData.content.evaluation?.discovery ?? null) !== null 
+                                  ? (dialogData.content.evaluation.discovery >= 70 ? "text-emerald-500" : 
+                                     dialogData.content.evaluation.discovery >= 50 ? "text-amber-500" : "text-red-400")
+                                  : "text-muted-foreground"
+                              }`}>
+                                {dialogData.content.evaluation?.discovery ?? "N/A"}{dialogData.content.evaluation?.discovery !== undefined && "%"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Discovery</p>
+                            </div>
+                            <div className="p-2 bg-muted/50 rounded-lg text-center">
+                              <p className={`text-lg font-bold ${
+                                (dialogData.content.evaluation?.objectionHandling ?? null) !== null 
+                                  ? (dialogData.content.evaluation.objectionHandling >= 70 ? "text-emerald-500" : 
+                                     dialogData.content.evaluation.objectionHandling >= 50 ? "text-amber-500" : "text-red-400")
+                                  : "text-muted-foreground"
+                              }`}>
+                                {dialogData.content.evaluation?.objectionHandling ?? "N/A"}{dialogData.content.evaluation?.objectionHandling !== undefined && "%"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Objections</p>
+                            </div>
+                            <div className="p-2 bg-muted/50 rounded-lg text-center">
+                              <p className={`text-lg font-bold ${
+                                (dialogData.content.evaluation?.valueProposition ?? null) !== null 
+                                  ? (dialogData.content.evaluation.valueProposition >= 70 ? "text-emerald-500" : 
+                                     dialogData.content.evaluation.valueProposition >= 50 ? "text-amber-500" : "text-red-400")
+                                  : "text-muted-foreground"
+                              }`}>
+                                {dialogData.content.evaluation?.valueProposition ?? "N/A"}{dialogData.content.evaluation?.valueProposition !== undefined && "%"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Value Prop</p>
+                            </div>
+                            <div className="p-2 bg-muted/50 rounded-lg text-center">
+                              <p className={`text-lg font-bold ${
+                                (dialogData.content.evaluation?.closingSkills ?? null) !== null 
+                                  ? (dialogData.content.evaluation.closingSkills >= 70 ? "text-emerald-500" : 
+                                     dialogData.content.evaluation.closingSkills >= 50 ? "text-amber-500" : "text-red-400")
+                                  : "text-muted-foreground"
+                              }`}>
+                                {dialogData.content.evaluation?.closingSkills ?? "N/A"}{dialogData.content.evaluation?.closingSkills !== undefined && "%"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Closing</p>
                             </div>
                           </div>
                           
-                          {/* Anti-cheat Summary */}
-                          {dialogData.content.antiCheatLog && dialogData.content.antiCheatLog.totalViolations > 0 && (
-                            <div className="border-t border-border pt-4">
-                              <h4 className="text-sm font-semibold text-destructive mb-2 flex items-center gap-2">
-                                <AlertTriangle className="h-4 w-4" />
-                                Anti-Cheat Violations ({dialogData.content.antiCheatLog.totalViolations})
-                              </h4>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="p-2 bg-destructive/10 rounded">
-                                  Tab Switches: {dialogData.content.antiCheatLog.tabSwitches}
-                                </div>
-                                <div className="p-2 bg-destructive/10 rounded">
-                                  Copy/Paste: {(dialogData.content.antiCheatLog.copyAttempts || 0) + (dialogData.content.antiCheatLog.pasteAttempts || 0)}
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          {/* View Full Analysis Button */}
+                          <Button
+                            className="w-full"
+                            onClick={() => {
+                              setSalesAnalysisData(dialogData.content);
+                              setShowSalesAnalysisDialog(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Full Analysis
+                          </Button>
                         </div>
                       )}
                       
@@ -2397,6 +2389,13 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
         candidateName={application?.profiles?.full_name || "Candidate"}
         applicationId={application?.id || ""}
         jobTitle={application?.jobs?.title || "Position"}
+      />
+
+      {/* Sales Analysis Dialog */}
+      <SalesAnalysisDialog
+        open={showSalesAnalysisDialog}
+        onOpenChange={setShowSalesAnalysisDialog}
+        data={salesAnalysisData || {}}
       />
     </div>
   );
