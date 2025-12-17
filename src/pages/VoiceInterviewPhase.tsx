@@ -107,10 +107,10 @@ export default function VoiceInterviewPhase() {
       
       // Same role - check if we have a current streaming message
       if (currentMessageIdRef.current && currentMessageRoleRef.current === role) {
-        // Append to existing message
+        // Append to existing message with space
         return prev.map(m => 
           m.id === currentMessageIdRef.current 
-            ? { ...m, content: m.content + cleanText } 
+            ? { ...m, content: m.content + ' ' + cleanText } 
             : m
         );
       }
