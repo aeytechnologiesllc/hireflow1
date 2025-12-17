@@ -235,6 +235,34 @@ export default function VideoIntroPhase() {
       
     } catch (error) {
       console.error("Submit error:", error);
+      
+      // Verify if the upload actually succeeded despite the error
+      try {
+        const { data: checkData } = await supabase
+          .from("applications")
+          .select("notes")
+          .eq("id", id!)
+          .single();
+        
+        if (checkData?.notes) {
+          const checkNotes = JSON.parse(checkData.notes);
+          if (checkNotes[stepId!]?.videoUrl || checkNotes.videoIntroUrl) {
+            // Actually succeeded! Navigate to success
+            const isAutoMode = application.jobs?.processing_mode !== "manual";
+            toast.success("Video submitted!", {
+              description: isAutoMode 
+                ? "Great job! You have advanced to the next phase." 
+                : "Your video has been recorded. The employer will review it.",
+            });
+            queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+            navigate(`/applications/${id}`);
+            return;
+          }
+        }
+      } catch {
+        // Verification failed, show original error
+      }
+      
       toast.error("Upload failed", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
