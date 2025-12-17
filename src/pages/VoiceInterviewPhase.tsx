@@ -169,6 +169,7 @@ export default function VoiceInterviewPhase() {
     isConnected,
     isConnecting,
     isSpeaking,
+    isProcessing,
     audioLevels,
     connectionQuality,
     connect,
@@ -627,16 +628,34 @@ Duration: ${formatTime(elapsedSeconds)}
                         : isConnected
                         ? isSpeaking
                           ? "Ava is speaking..."
+                          : isProcessing
+                          ? "Ava is thinking..."
                           : "Listening..."
                         : "Disconnected"}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {isConnected
-                        ? isSpeaking
-                          ? "Please wait for her to finish"
-                          : "Speak naturally"
-                        : "Click to reconnect"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {isConnected
+                          ? isSpeaking
+                            ? "Please wait for her to finish"
+                            : isProcessing
+                            ? "Preparing response..."
+                            : "Speak naturally"
+                          : "Click to reconnect"}
+                      </p>
+                      {/* Thinking indicator dots */}
+                      {isConnected && isProcessing && !isSpeaking && (
+                        <motion.div
+                          className="flex gap-1"
+                          animate={{ opacity: [0.4, 1, 0.4] }}
+                          transition={{ duration: 1.2, repeat: Infinity }}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        </motion.div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

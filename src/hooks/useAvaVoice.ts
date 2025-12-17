@@ -28,6 +28,7 @@ interface AvaVoiceState {
   isConnecting: boolean;
   isSpeaking: boolean;
   isListening: boolean;
+  isProcessing: boolean; // True when waiting for AVA's response after user stops speaking
   error: string | null;
   audioLevels: number[]; // 5 values for audio bars visualization
   connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
@@ -40,6 +41,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isConnecting: false,
     isSpeaking: false,
     isListening: false,
+    isProcessing: false,
     error: null,
     audioLevels: [8, 8, 8, 8, 8],
     connectionQuality: 'unknown',
@@ -214,7 +216,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               }
               audioQueueRef.current?.addToQueue(bytes);
             }
-            setState(s => ({ ...s, isSpeaking: true }));
+            setState(s => ({ ...s, isSpeaking: true, isProcessing: false }));
             break;
 
           case 'response.audio.done':
@@ -299,11 +301,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
             break;
 
           case 'input_audio_buffer.speech_started':
-            setState(s => ({ ...s, isListening: true }));
+            setState(s => ({ ...s, isListening: true, isProcessing: false }));
             break;
 
           case 'input_audio_buffer.speech_stopped':
-            setState(s => ({ ...s, isListening: false }));
+            setState(s => ({ ...s, isListening: false, isProcessing: true }));
             break;
 
           case 'error':
@@ -400,6 +402,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       isConnecting: false,
       isSpeaking: false,
       isListening: false,
+      isProcessing: false,
       error: null,
       audioLevels: [8, 8, 8, 8, 8],
       connectionQuality: 'unknown',
