@@ -199,7 +199,7 @@ export default function VideoIntroPhase() {
   };
 
   const handleSubmit = async () => {
-    if (!recordedBlob || !application || !user) return;
+    if (!recordedBlob || !application || !user || isSubmitting) return;
     
     setIsSubmitting(true);
     setRecordingState("submitting");
@@ -227,26 +227,8 @@ export default function VideoIntroPhase() {
 
       const videoUrl = urlData.publicUrl;
 
-      // Step 3: Verify the file is actually accessible before updating database
-      try {
-        const verifyResponse = await fetch(videoUrl, { method: 'HEAD' });
-        if (!verifyResponse.ok) {
-          throw new Error(`Upload verification failed - file not accessible (status: ${verifyResponse.status})`);
-        }
-      } catch (verifyError) {
-        // If HEAD request fails, try a GET request with range to verify
-        try {
-          const rangeResponse = await fetch(videoUrl, { 
-            method: 'GET',
-            headers: { 'Range': 'bytes=0-0' }
-          });
-          if (!rangeResponse.ok && rangeResponse.status !== 206) {
-            throw new Error("Upload verification failed - file not accessible after upload");
-          }
-        } catch {
-          throw new Error("Upload verification failed - file not accessible after upload");
-        }
-      }
+      // Step 3: Trust SDK response - upload succeeded if we got here
+      console.log("Video uploaded successfully:", uploadData.path, "URL:", videoUrl);
 
       // Step 4: Only update database AFTER file is verified
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
