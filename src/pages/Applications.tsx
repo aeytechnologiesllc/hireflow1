@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2
+  Users, Mic, Trash2, Download, Sparkles, PartyPopper
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -157,10 +157,23 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
               </div>
-              {/* Only show status badges for terminal states */}
-              {(application.status === "hired" || application.status === "rejected" || application.status === "offered") && (
+              {/* Status badges with special styling */}
+              {application.status === "hired" && (
+                <Badge className="bg-success/20 text-success border-success/30 gap-1.5 animate-pulse">
+                  <PartyPopper className="h-3.5 w-3.5" />
+                  {statusLabels[application.status]}
+                </Badge>
+              )}
+              {application.status === "rejected" && (
+                <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5">
+                  <Download className="h-3.5 w-3.5" />
+                  Get Feedback Report
+                </Badge>
+              )}
+              {application.status === "offered" && (
                 <Badge className={statusColors[application.status]}>
-                  {statusLabels[application.status] || application.status}
+                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  {statusLabels[application.status]}
                 </Badge>
               )}
             </div>
