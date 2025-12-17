@@ -28,7 +28,8 @@ import {
   Briefcase,
   Calendar,
   AlertCircle,
-  Hand
+  Hand,
+  Mic
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -57,6 +58,7 @@ const stepTypeIcons: Record<string, any> = {
   chat_interview: Users,
   sales_simulation: Briefcase,
   portfolio_upload: FileCheck,
+  voice_interview: Mic,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
@@ -80,6 +82,7 @@ const phaseActionMessages: Record<string, { buttonText: string; description: str
   chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
   sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
   portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
+  voice_interview: { buttonText: "Start Voice Interview", description: "Have a voice conversation with Ava" },
 };
 
 export default function CandidateApplicationDetail() {
@@ -295,6 +298,9 @@ export default function CandidateApplicationDetail() {
         break;
       case "portfolio_upload":
         navigate(`/applications/${id}/portfolio/${phaseId}`);
+        break;
+      case "voice_interview":
+        navigate(`/applications/${id}/voice-interview/${phaseId}`);
         break;
       default:
         toast.info("This phase type is not yet implemented");
