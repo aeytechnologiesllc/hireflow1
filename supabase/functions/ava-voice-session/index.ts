@@ -1183,7 +1183,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         },
         turn_detection: {
           type: "server_vad",
-          threshold: 0.6,            // Balanced - not too sensitive, not too deaf
+          threshold: 0.75,           // Higher threshold - ignore small sounds like "uh-huh" acknowledgments
           prefix_padding_ms: 600,    // More buffer before detecting speech start - prevents cutting off
           silence_duration_ms: 2500  // Longer wait (2.5s) - gives candidate time to think before assuming done
         },

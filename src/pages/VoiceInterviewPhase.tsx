@@ -433,16 +433,16 @@ Duration: ${formatTime(elapsedSeconds)}
                 <p>You're about to have a voice conversation with our professional interviewer.</p>
                 <ul className="list-disc list-inside space-y-2">
                   <li>Find a quiet place with minimal background noise</li>
-                  <li>Ensure your camera and microphone are working properly</li>
+                  <li>Ensure your {videoEnabled ? 'camera and microphone are' : 'microphone is'} working properly</li>
                   <li>Speak clearly and take your time with responses</li>
                   <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
                   <li>The interview will last approximately <strong>{duration} minutes</strong></li>
-                  <li>Your interview will be <strong>video recorded</strong> for review</li>
+                  <li>Your interview will be <strong>{videoEnabled ? 'video' : 'audio'} recorded</strong> for review</li>
                   <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
                 </ul>
               </div>
 
-              {/* Camera Test Section */}
+              {/* Camera/Microphone Test Section */}
               {!cameraTestPassed && !cameraEnabled && (
                 <div className="pt-4 border-t border-border">
                   <Button
@@ -450,8 +450,8 @@ Duration: ${formatTime(elapsedSeconds)}
                     variant="outline"
                     className="w-full gap-2"
                   >
-                    <Camera className="h-5 w-5" />
-                    Enable Camera & Microphone
+                    {videoEnabled ? <Camera className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    {videoEnabled ? 'Enable Camera & Microphone' : 'Enable Microphone'}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     Required before starting the interview
@@ -459,7 +459,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 </div>
               )}
 
-              {/* Camera Preview UI */}
+              {/* Camera/Microphone Preview UI */}
               {cameraEnabled && !cameraTestPassed && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -468,29 +468,32 @@ Duration: ${formatTime(elapsedSeconds)}
                 >
                   <Card className="border-primary/20 bg-primary/5">
                     <CardContent className="py-6 space-y-4">
-                      <div className="relative aspect-video max-w-md mx-auto rounded-lg overflow-hidden bg-black">
-                        <video
-                          ref={videoPreviewRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover mirror"
-                          style={{ transform: 'scaleX(-1)' }}
-                        />
-                        <Badge className="absolute top-2 left-2 bg-green-500 text-white">
-                          <Video className="h-3 w-3 mr-1" />
-                          Camera Ready
-                        </Badge>
-                      </div>
+                      {/* Only show video preview if video is enabled */}
+                      {videoEnabled && (
+                        <div className="relative aspect-video max-w-md mx-auto rounded-lg overflow-hidden bg-black">
+                          <video
+                            ref={videoPreviewRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover mirror"
+                            style={{ transform: 'scaleX(-1)' }}
+                          />
+                          <Badge className="absolute top-2 left-2 bg-green-500 text-white">
+                            <Video className="h-3 w-3 mr-1" />
+                            Camera Ready
+                          </Badge>
+                        </div>
+                      )}
                       
-                      {/* Mic Level Indicator */}
-                      <div className="flex items-center justify-center gap-2">
-                        <Mic className="h-4 w-4 text-muted-foreground" />
-                        <div className="flex items-end gap-0.5 h-6">
+                      {/* Mic Level Indicator - larger for audio-only mode */}
+                      <div className={`flex items-center justify-center gap-2 ${!videoEnabled ? 'py-8' : ''}`}>
+                        <Mic className={`${videoEnabled ? 'h-4 w-4' : 'h-6 w-6'} text-muted-foreground`} />
+                        <div className={`flex items-end gap-0.5 ${videoEnabled ? 'h-6' : 'h-12'}`}>
                           {micLevels.map((level, i) => (
                             <motion.div
                               key={i}
-                              className={`w-1.5 rounded-full ${level > 15 ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+                              className={`${videoEnabled ? 'w-1.5' : 'w-2'} rounded-full ${level > 15 ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
                               animate={{ height: Math.max(4, level / 4 + 4) }}
                               transition={{ duration: 0.05 }}
                             />
@@ -502,9 +505,13 @@ Duration: ${formatTime(elapsedSeconds)}
                       </div>
                       
                       <div className="text-center space-y-2">
-                        <h3 className="font-semibold text-foreground">Camera & Mic Test</h3>
+                        <h3 className="font-semibold text-foreground">
+                          {videoEnabled ? 'Camera & Mic Test' : 'Microphone Test'}
+                        </h3>
                         <p className="text-sm text-muted-foreground">
-                          Check that you can see yourself and speak to test your microphone
+                          {videoEnabled 
+                            ? 'Check that you can see yourself and speak to test your microphone'
+                            : 'Speak to test your microphone is working properly'}
                         </p>
                       </div>
 
@@ -535,7 +542,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 </motion.div>
               )}
 
-              {/* Camera Test Passed */}
+              {/* Camera/Mic Test Passed */}
               {cameraTestPassed && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -543,7 +550,7 @@ Duration: ${formatTime(elapsedSeconds)}
                   className="flex items-center gap-2 text-sm text-green-400 pt-2"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Camera & microphone ready
+                  {videoEnabled ? 'Camera & microphone ready' : 'Microphone ready'}
                 </motion.div>
               )}
 
@@ -559,7 +566,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 </Button>
                 {!cameraTestPassed && (
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    Please enable your camera first
+                    Please enable your {videoEnabled ? 'camera' : 'microphone'} first
                   </p>
                 )}
               </div>
@@ -569,25 +576,47 @@ Duration: ${formatTime(elapsedSeconds)}
       ) : (
         /* Active interview UI */
         <div className="space-y-4">
-          {/* Video preview during interview */}
+          {/* Recording indicator - conditional based on mode */}
           <div className="relative">
-            {/* Small video preview in corner */}
-            <div className="fixed bottom-24 right-6 z-40 w-48 aspect-video rounded-lg overflow-hidden shadow-2xl border-2 border-primary/30 bg-black">
-              <video
-                ref={videoPreviewRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }}
-              />
-              {isRecording && (
-                <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">REC</span>
+            {videoEnabled ? (
+              /* Video mode: Small video preview in corner */
+              <div className="fixed bottom-24 right-6 z-40 w-48 aspect-video rounded-lg overflow-hidden shadow-2xl border-2 border-primary/30 bg-black">
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                {isRecording && (
+                  <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">REC</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Audio-only mode: Audio visualizer orb */
+              <div className="fixed bottom-24 right-6 z-40 w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-2xl border-2 border-primary/30 bg-black/90">
+                <div className="flex items-end gap-0.5 h-8">
+                  {micLevels.map((level, i) => (
+                    <motion.div
+                      key={i}
+                      className="w-1.5 rounded-full bg-primary"
+                      animate={{ height: Math.max(4, level / 3) }}
+                      transition={{ duration: 0.05 }}
+                    />
+                  ))}
                 </div>
-              )}
-            </div>
+                {isRecording && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-[10px] font-medium text-white">REC</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Connection status with timer */}
