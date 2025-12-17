@@ -81,12 +81,14 @@ Typing Test Results:
 `;
     }
 
-    // Add Quiz answers if available
-    if (parsedNotes.quizResult) {
+    // Add Quiz answers if available (check multiple formats)
+    const quizData = parsedNotes.quizResult || parsedNotes.quiz;
+    if (quizData) {
       content += `
 Quiz Performance:
-- Score: ${parsedNotes.quizResult.score || 'N/A'}%
-- Correct: ${parsedNotes.quizResult.correct || 'N/A'}/${parsedNotes.quizResult.total || 'N/A'}
+- Score: ${quizData.score || quizData.percentage || 'N/A'}%
+- Correct: ${quizData.correct || 'N/A'}/${quizData.total || 'N/A'}
+- Passed: ${quizData.passed ? 'Yes' : 'No'}
 `;
     }
 
@@ -142,6 +144,23 @@ Portfolio Upload:
 `;
     }
 
+    // Add Voice Interview results if available (stored as separate column)
+    if (application.voice_interview_result) {
+      const vr = application.voice_interview_result as any;
+      content += `
+Voice Interview with AVA Results:
+- Overall Score: ${vr.overall_score || 'N/A'}/100
+- Recommendation: ${vr.recommendation || 'N/A'}
+- Technical Score: ${vr.technical_score || 'N/A'}/100
+- Communication Score: ${vr.communication_score || 'N/A'}/100
+- Culture Fit Score: ${vr.culture_fit_score || 'N/A'}/100
+- Credibility Rating: ${vr.credibility_rating || 'N/A'}
+- Summary: ${vr.summary || 'Not provided'}
+- Concerns: ${vr.concerns?.join(', ') || 'None noted'}
+- Inconsistencies Found: ${vr.inconsistencies?.length > 0 ? vr.inconsistencies.map((i: any) => `${i.claim} vs ${i.evidence}`).join('; ') : 'None'}
+`;
+    }
+
     console.log("[triggerAvaAnalysis] Calling ai-analyze edge function");
 
     // Call the AI analysis edge function
@@ -164,16 +183,19 @@ Portfolio Upload:
       return;
     }
 
-    // Extract score from analysis
+    // Extract score from analysis - but only use it if no existing score
     const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    const newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    
+    // Preserve existing score - AVA stands by her original assessment
+    const existingScore = application.ai_score;
 
     // Update the application with AI analysis
     const { error: updateError } = await supabase
       .from("applications")
       .update({
         ai_analysis: data.analysis,
-        ai_score: score && score >= 0 && score <= 100 ? score : null,
+        ai_score: existingScore ?? (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
       })
       .eq("id", applicationId);
 
