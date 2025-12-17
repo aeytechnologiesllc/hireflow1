@@ -1142,7 +1142,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         {
           type: "function",
           name: "end_interview",
-          description: "End the interview and provide comprehensive evaluation including any inconsistencies detected",
+          description: "End the interview and provide comprehensive evaluation with detailed breakdown for employer analysis",
           parameters: {
             type: "object",
             properties: {
@@ -1150,8 +1150,76 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
               communication_score: { type: "number", description: "Communication skills score 0-100" },
               technical_score: { type: "number", description: "Technical competence score 0-100" },
               culture_fit_score: { type: "number", description: "Culture fit score 0-100" },
+              problem_solving_score: { type: "number", description: "Problem solving ability score 0-100" },
+              adaptability_score: { type: "number", description: "Adaptability and flexibility score 0-100" },
+              leadership_potential_score: { type: "number", description: "Leadership potential score 0-100" },
               recommendation: { type: "string", enum: ["strong_hire", "hire", "maybe", "no_hire"], description: "Hiring recommendation" },
-              summary: { type: "string", description: "Brief interview summary" },
+              summary: { type: "string", description: "Brief one-liner interview summary" },
+              executive_summary: { type: "string", description: "2-3 sentence executive summary for quick employer scanning" },
+              soft_skills: {
+                type: "object",
+                properties: {
+                  empathy: { type: "number", description: "Empathy score 0-100" },
+                  confidence: { type: "number", description: "Confidence score 0-100" },
+                  articulation: { type: "number", description: "Articulation clarity score 0-100" },
+                  active_listening: { type: "number", description: "Active listening score 0-100" },
+                  enthusiasm: { type: "number", description: "Enthusiasm and energy score 0-100" },
+                  professionalism: { type: "number", description: "Professionalism score 0-100" }
+                },
+                description: "Soft skills radar chart data"
+              },
+              communication_metrics: {
+                type: "object",
+                properties: {
+                  avg_response_time_seconds: { type: "number", description: "Average seconds to respond to questions" },
+                  filler_word_frequency: { type: "string", enum: ["low", "medium", "high"], description: "Frequency of filler words (um, uh, like)" },
+                  clarity_score: { type: "number", description: "Response clarity score 0-100" },
+                  vocabulary_richness: { type: "number", description: "Vocabulary sophistication score 0-100" },
+                  brevity_vs_detail: { type: "string", enum: ["too_brief", "balanced", "too_verbose"], description: "Response length balance" }
+                },
+                description: "Communication quality metrics"
+              },
+              question_breakdown: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    question: { type: "string", description: "The question asked" },
+                    question_type: { type: "string", enum: ["technical", "behavioral", "cultural", "situational"], description: "Type of question" },
+                    response_quality: { type: "number", description: "Response quality score 1-10" },
+                    key_points_covered: { type: "array", items: { type: "string" }, description: "Key points the candidate covered" },
+                    missed_opportunities: { type: "array", items: { type: "string" }, description: "Points they should have mentioned but didn't" },
+                    notable_quote: { type: "string", description: "Memorable quote from their response" },
+                    timestamp_seconds: { type: "number", description: "When this question was asked (seconds from start)" }
+                  }
+                },
+                description: "Question-by-question breakdown"
+              },
+              suggested_followups: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    question: { type: "string", description: "Suggested follow-up question for human interviewer" },
+                    reason: { type: "string", description: "Why this should be asked" },
+                    priority: { type: "string", enum: ["high", "medium", "low"], description: "Priority level" }
+                  }
+                },
+                description: "Suggested follow-up questions for human interviewer"
+              },
+              highlights: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    timestamp_seconds: { type: "number", description: "When this moment occurred" },
+                    type: { type: "string", enum: ["strong_answer", "red_flag", "impressive_moment", "needs_clarification"], description: "Type of highlight" },
+                    description: { type: "string", description: "What happened" },
+                    quote: { type: "string", description: "Notable quote if applicable" }
+                  }
+                },
+                description: "Key moments from the interview"
+              },
               strengths: { type: "array", items: { type: "string" }, description: "Candidate strengths observed" },
               concerns: { type: "array", items: { type: "string" }, description: "Areas of concern" },
               inconsistencies: {
@@ -1161,14 +1229,15 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
                   properties: {
                     claim: { type: "string", description: "What the candidate claimed" },
                     evidence: { type: "string", description: "The contradicting evidence from their assessments" },
-                    severity: { type: "string", enum: ["minor", "moderate", "major"] }
+                    severity: { type: "string", enum: ["minor", "moderate", "major"] },
+                    follow_up_needed: { type: "boolean", description: "Whether this needs follow-up in human interview" }
                   }
                 },
                 description: "Inconsistencies detected during interview"
               },
               credibility_rating: { type: "string", enum: ["high", "medium", "low"], description: "Overall credibility assessment" }
             },
-            required: ["overall_score", "recommendation", "summary", "credibility_rating"]
+            required: ["overall_score", "recommendation", "summary", "executive_summary", "credibility_rating", "soft_skills", "question_breakdown"]
           }
         },
         {
@@ -1194,7 +1263,8 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
             type: "object",
             properties: {
               note: { type: "string", description: "The observation or note" },
-              category: { type: "string", enum: ["strength", "concern", "clarification_needed", "notable_response"] }
+              category: { type: "string", enum: ["strength", "concern", "clarification_needed", "notable_response"] },
+              timestamp_seconds: { type: "number", description: "When this was noted (seconds from interview start)" }
             },
             required: ["note"]
           }

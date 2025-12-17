@@ -160,11 +160,20 @@ export default function VoiceInterviewPhase() {
       // STOP CAMERA after recording is handled
       cleanupVideo();
 
-      // Save result to database
+      // Build full timestamped transcript for employer download
+      const transcript = messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        formatted_time: new Date(m.timestamp).toISOString()
+      }));
+
+      // Save result AND transcript to database
       const { error } = await supabase
         .from("applications")
         .update({
           voice_interview_result: evaluation,
+          voice_interview_transcript: transcript,
           phase_ai_analysis: evaluation.summary,
         })
         .eq("id", applicationId);
@@ -179,7 +188,7 @@ export default function VoiceInterviewPhase() {
       // Still cleanup camera on error too
       cleanupVideo();
     }
-  }, [applicationId, stopRecording, uploadRecording, cleanupVideo]);
+  }, [applicationId, messages, stopRecording, uploadRecording, cleanupVideo]);
 
   const {
     isConnected,
@@ -856,14 +865,6 @@ Duration: ${formatTime(elapsedSeconds)}
                         </p>
                       </div>
                       <div className="flex gap-3 justify-center">
-                        <Button
-                          variant="outline"
-                          onClick={downloadTranscript}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          Download Transcript
-                        </Button>
                         <Button 
                           onClick={() => navigate(`/applications/${applicationId}`)}
                           className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
