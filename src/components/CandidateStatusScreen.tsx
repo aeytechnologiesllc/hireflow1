@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
+import { usePerformanceReport } from "@/hooks/usePerformanceReport";
+import type { Tables } from "@/integrations/supabase/types";
+
+type ApplicationData = Tables<"applications"> & {
+  jobs: Tables<"jobs"> | null;
+};
 
 interface InterviewDetails {
   scheduledAt?: string;
@@ -29,6 +35,9 @@ interface CandidateStatusScreenProps {
   onClose: () => void;
   onDownloadReport?: () => void;
   isGeneratingReport?: boolean;
+  // New prop for direct application data (used in phase components)
+  applicationData?: ApplicationData;
+  candidateId?: string;
 }
 
 export function CandidateStatusScreen({
@@ -38,8 +47,23 @@ export function CandidateStatusScreen({
   interviewDetails,
   onClose,
   onDownloadReport,
-  isGeneratingReport = false,
+  isGeneratingReport: externalIsGenerating = false,
+  applicationData,
+  candidateId,
 }: CandidateStatusScreenProps) {
+  const { downloadReport, isGenerating: hookIsGenerating } = usePerformanceReport();
+  
+  // Use hook's loading state if we're using applicationData, otherwise use external
+  const isGeneratingReport = applicationData ? hookIsGenerating : externalIsGenerating;
+  
+  // Handle report download - use hook if applicationData provided, otherwise use callback
+  const handleDownloadReport = () => {
+    if (applicationData) {
+      downloadReport(applicationData, candidateId);
+    } else if (onDownloadReport) {
+      onDownloadReport();
+    }
+  };
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
@@ -178,7 +202,7 @@ export function CandidateStatusScreen({
                 >
                   <Button
                     size="lg"
-                    onClick={onDownloadReport}
+                    onClick={handleDownloadReport}
                     disabled={isGeneratingReport}
                     className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
                   >

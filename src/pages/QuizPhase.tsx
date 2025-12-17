@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 
 interface QuizQuestion {
   id: string;
@@ -471,6 +472,20 @@ const handleFinishQuiz = () => {
 
   // Show evaluation screen for autopilot mode
   if (evaluationState) {
+    // Show CandidateStatusScreen for failed state
+    if (evaluationState === "failed") {
+      return (
+        <CandidateStatusScreen
+          state="rejected"
+          jobTitle={application?.jobs?.title}
+          applicationData={application as any}
+          candidateId={user?.id}
+          onClose={() => navigate(`/applications/${id}`)}
+        />
+      );
+    }
+    
+    // Show EvaluationScreen for passed/evaluating states
     return (
       <EvaluationScreen
         state={evaluationState}

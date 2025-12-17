@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 
 interface Message {
   id: string;
@@ -98,7 +99,7 @@ export default function SalesSimulationPhase() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed">("intro");
+  const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed" | "rejected">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -106,6 +107,7 @@ export default function SalesSimulationPhase() {
   const [currentScenario, setCurrentScenario] = useState<SalesScenario | null>(null);
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
+  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -629,8 +631,10 @@ export default function SalesSimulationPhase() {
           });
         } else {
           newStatus = "rejected";
-          toast.error("Sales simulation not passed", {
-            description: `You scored ${evaluation.score}% but needed ${passingScore}% to pass.`,
+          // Store app data for rejection screen
+          setRejectedAppData({
+            ...application,
+            status: "rejected",
           });
         }
       } else {
@@ -657,8 +661,13 @@ export default function SalesSimulationPhase() {
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(id!).catch(console.error);
 
-      setState("completed");
-      setTimeout(() => navigate(`/applications/${id}`), 2000);
+      // Show rejection screen for failed autopilot, otherwise complete
+      if (isAutoMode && !passed) {
+        setState("rejected");
+      } else {
+        setState("completed");
+        setTimeout(() => navigate(`/applications/${id}`), 2000);
+      }
 
     } catch (error) {
       console.error("Error submitting sales simulation:", error);
@@ -717,6 +726,19 @@ export default function SalesSimulationPhase() {
   }
 
   const canEndSales = messages.filter(m => m.role === "salesRep").length >= salesConfig.minMessages;
+
+  // Show rejection screen for autopilot mode failure
+  if (state === "rejected" && rejectedAppData) {
+    return (
+      <CandidateStatusScreen
+        state="rejected"
+        jobTitle={application?.jobs?.title}
+        applicationData={rejectedAppData}
+        candidateId={user?.id}
+        onClose={() => navigate(`/applications/${id}`)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
