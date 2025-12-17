@@ -1688,16 +1688,19 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                                   <video 
                                     src={videoUrl} 
                                     controls 
-                                    preload="metadata"
+                                    preload="auto"
                                     playsInline
-                                    className="w-full"
+                                    crossOrigin="anonymous"
+                                    className="w-full max-h-[400px] bg-black"
                                     onError={(e) => {
                                       const target = e.currentTarget;
                                       target.style.display = 'none';
                                       const fallback = target.nextElementSibling;
                                       if (fallback) (fallback as HTMLElement).style.display = 'block';
                                     }}
-                                  />
+                                  >
+                                    <source src={videoUrl} type="video/webm" />
+                                  </video>
                                   <div className="text-center py-8 text-muted-foreground space-y-3 hidden">
                                     <AlertCircle className="h-12 w-12 mx-auto mb-3 text-destructive/50" />
                                     <p>Video could not be loaded</p>
