@@ -479,7 +479,14 @@ export default function ApplicantDetails() {
       const currentPhase = phases[effectivePhaseIndex];
       const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
       const isLastPhase = effectivePhaseIndex === phases.length - 1;
-      const awaitingReview = isComplete && !isLastPhase && isManualMode;
+      
+      // Show halfway position after Ava Interview completes in Autopilot mode
+      const isVoiceInterviewCompleted = 
+        currentPhase?.type === "voice_interview" && 
+        !!application?.voice_interview_result;
+      
+      // Await review in Manual mode for any phase, OR in Autopilot after Ava Interview
+      const awaitingReview = isComplete && !isLastPhase && (isManualMode || isVoiceInterviewCompleted);
       
       setIsAwaitingReview(awaitingReview);
       
