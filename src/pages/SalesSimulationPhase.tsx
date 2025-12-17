@@ -705,7 +705,7 @@ export default function SalesSimulationPhase() {
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
                     <Building className="h-4 w-4 mt-0.5 text-green-500" />
-                    <span>You'll meet with an AI prospect who has a real business problem</span>
+                    <span>You'll meet with a prospect who has a real business problem</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <User className="h-4 w-4 mt-0.5 text-green-500" />
