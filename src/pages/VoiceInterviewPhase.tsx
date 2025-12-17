@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface Message {
   role: "user" | "assistant";
@@ -65,6 +66,9 @@ export default function VoiceInterviewPhase() {
       if (error) throw error;
 
       toast.success("Interview completed successfully!");
+      
+      // Trigger AVA analysis in background (fire-and-forget)
+      triggerAvaAnalysis(applicationId!).catch(console.error);
       
       setTimeout(() => {
         navigate(`/applications/${applicationId}`);
