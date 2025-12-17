@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 
 interface Message {
   id: string;
@@ -84,7 +85,7 @@ export default function ChatSimulationPhase() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed">("intro");
+  const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed" | "rejected">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -94,6 +95,7 @@ export default function ChatSimulationPhase() {
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [isResolved, setIsResolved] = useState(false);
   const [completionCountdown, setCompletionCountdown] = useState<number | null>(null);
+  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -615,8 +617,10 @@ export default function ChatSimulationPhase() {
           });
         } else {
           newStatus = "rejected";
-          toast.error("Chat simulation not passed", {
-            description: `You scored ${evaluation.score}% but needed ${passingScore}% to pass.`,
+          // Store app data for rejection screen
+          setRejectedAppData({
+            ...application,
+            status: "rejected",
           });
         }
       } else {
@@ -643,8 +647,13 @@ export default function ChatSimulationPhase() {
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(id!).catch(console.error);
 
-      setState("completed");
-      setTimeout(() => navigate(`/applications/${id}`), 2000);
+      // Show rejection screen for failed autopilot, otherwise complete
+      if (isAutoMode && !passed) {
+        setState("rejected");
+      } else {
+        setState("completed");
+        setTimeout(() => navigate(`/applications/${id}`), 2000);
+      }
 
     } catch (error) {
       console.error("Error submitting chat:", error);
@@ -703,6 +712,19 @@ export default function ChatSimulationPhase() {
   }
 
   const canEndChat = messages.filter(m => m.role === "agent").length >= chatConfig.minMessages;
+
+  // Show rejection screen for autopilot mode failure
+  if (state === "rejected" && rejectedAppData) {
+    return (
+      <CandidateStatusScreen
+        state="rejected"
+        jobTitle={application?.jobs?.title}
+        applicationData={rejectedAppData}
+        candidateId={user?.id}
+        onClose={() => navigate(`/applications/${id}`)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">

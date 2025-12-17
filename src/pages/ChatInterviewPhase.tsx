@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 
 interface Message {
   id: string;
@@ -71,17 +72,18 @@ export default function ChatInterviewPhase() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed">("intro");
+  const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed" | "rejected">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0); // Track elapsed seconds for live clock
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [autoEndTriggered, setAutoEndTriggered] = useState(false);
+  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -608,8 +610,10 @@ export default function ChatInterviewPhase() {
           });
         } else {
           newStatus = "rejected";
-          toast.error("Interview not passed", {
-            description: `You scored ${evaluation.score}% but needed ${passingScore}% to pass.`,
+          // Store app data for rejection screen
+          setRejectedAppData({
+            ...application,
+            status: "rejected",
           });
         }
       } else {
@@ -636,8 +640,13 @@ export default function ChatInterviewPhase() {
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(id!).catch(console.error);
 
-      setState("completed");
-      setTimeout(() => navigate(`/applications/${id}`), 2000);
+      // Show rejection screen for failed autopilot, otherwise complete
+      if (isAutoMode && !passed) {
+        setState("rejected");
+      } else {
+        setState("completed");
+        setTimeout(() => navigate(`/applications/${id}`), 2000);
+      }
       
     } catch (error) {
       console.error("Error submitting interview:", error);
@@ -739,6 +748,19 @@ export default function ChatInterviewPhase() {
 
   const minQuestions = 5;
   const canEndInterview = questionCount >= minQuestions;
+
+  // Show rejection screen for autopilot mode failure
+  if (state === "rejected" && rejectedAppData) {
+    return (
+      <CandidateStatusScreen
+        state="rejected"
+        jobTitle={application?.jobs?.title}
+        applicationData={rejectedAppData}
+        candidateId={user?.id}
+        onClose={() => navigate(`/applications/${id}`)}
+      />
+    );
+  }
 
   return (
     <div 
