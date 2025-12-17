@@ -30,6 +30,7 @@ interface AvaVoiceState {
   isListening: boolean;
   error: string | null;
   audioLevels: number[]; // 5 values for audio bars visualization
+  connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
 }
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
@@ -41,6 +42,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isListening: false,
     error: null,
     audioLevels: [8, 8, 8, 8, 8],
+    connectionQuality: 'unknown',
   });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -52,12 +54,44 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const connectionQualityIntervalRef = useRef<number | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       disconnect();
     };
+  }, []);
+
+  // Monitor connection quality periodically
+  const startConnectionQualityMonitoring = useCallback(() => {
+    if (connectionQualityIntervalRef.current) {
+      clearInterval(connectionQualityIntervalRef.current);
+    }
+
+    connectionQualityIntervalRef.current = window.setInterval(async () => {
+      if (!pcRef.current || pcRef.current.connectionState !== 'connected') return;
+
+      try {
+        const stats = await pcRef.current.getStats();
+        let quality: 'excellent' | 'good' | 'poor' = 'excellent';
+
+        stats.forEach((report) => {
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            const rtt = report.currentRoundTripTime * 1000; // Convert to ms
+            if (rtt > 300) {
+              quality = 'poor';
+            } else if (rtt > 150) {
+              quality = 'good';
+            }
+          }
+        });
+
+        setState(s => ({ ...s, connectionQuality: quality }));
+      } catch (err) {
+        console.error('Error checking connection quality:', err);
+      }
+    }, 3000); // Check every 3 seconds
   }, []);
 
   const connect = useCallback(async () => {
@@ -149,7 +183,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       
       dcRef.current.addEventListener('open', () => {
         console.log('Data channel opened');
-        setState(s => ({ ...s, isConnected: true, isConnecting: false, isListening: true }));
+        setState(s => ({ ...s, isConnected: true, isConnecting: false, isListening: true, connectionQuality: 'excellent' }));
+        
+        // Start monitoring connection quality
+        startConnectionQualityMonitoring();
         
         // For interview mode, trigger AVA to start speaking first
         if (options.mode === 'interview') {
@@ -318,9 +355,15 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
         description: message,
       });
     }
-  }, [options, toast]);
+  }, [options, toast, startConnectionQualityMonitoring]);
 
   const disconnect = useCallback(() => {
+    // Stop connection quality monitoring
+    if (connectionQualityIntervalRef.current) {
+      clearInterval(connectionQualityIntervalRef.current);
+      connectionQualityIntervalRef.current = null;
+    }
+
     // Stop animation frame
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -359,6 +402,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       isListening: false,
       error: null,
       audioLevels: [8, 8, 8, 8, 8],
+      connectionQuality: 'unknown',
     });
   }, []);
 
