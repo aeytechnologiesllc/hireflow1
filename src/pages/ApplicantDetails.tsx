@@ -637,6 +637,9 @@ export default function ApplicantDetails() {
         // Determine if we're resetting to application phase (clear ai_score and resume)
         const isResetToApplication = newPhase.type === "application" || newPhase.id === "application";
         
+        // Check if any voice_interview phases are being reset
+        const isResettingVoiceInterview = phasesToReset.some((p: any) => p.type === "voice_interview");
+        
         // If resetting to application, also clear the application answers so candidate can re-submit
         if (isResetToApplication) {
           delete updatedNotes.applicationAnswers;
@@ -651,6 +654,8 @@ export default function ApplicantDetails() {
           ai_score: null, // Always clear AI score when resetting phases
           resume_url: isResetToApplication ? null : application.resume_url, // Clear resume if resetting to application
           cover_letter: isResetToApplication ? null : application.cover_letter, // Clear cover letter if resetting to application
+          voice_interview_result: isResettingVoiceInterview ? null : application.voice_interview_result,
+          voice_interview_recording_url: isResettingVoiceInterview ? null : application.voice_interview_recording_url,
           status: newPhase.type === "interview" ? "interview" : 
                   newPhase.type === "hired" ? "hired" : 
                   "reviewing",
@@ -782,9 +787,10 @@ export default function ApplicantDetails() {
         phase_ai_analysis: null, // Clear phase analysis
       };
       
-      // Clear voice interview result if resetting that phase
+      // Clear voice interview result and recording if resetting that phase
       if (phaseType === "voice_interview") {
         updatePayload.voice_interview_result = null;
+        updatePayload.voice_interview_recording_url = null;
       }
       
       await updateApplication.mutateAsync(updatePayload);
