@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 
 interface ApplicationDetails {
   id: string;
@@ -356,7 +357,6 @@ export default function PortfolioUploadPhase() {
 
   // Show already submitted view
   if (existingResult) {
-    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
