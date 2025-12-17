@@ -1017,6 +1017,7 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
   // Build badge data from workflow steps
   const workflowBadges = (() => {
     const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
+    const quizQuestions = job?.quiz_questions as any[] | undefined;
     const badges: { id: string; title: string; type: string; hasData: boolean; score?: number; icon: any }[] = [];
     
     // Application badge (always present)
@@ -1038,6 +1039,19 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
         hasData: !!resumeUrl,
         score: application.ai_score || undefined,
         icon: FileText,
+      });
+    }
+    
+    // Quiz badge (if quiz_questions exist)
+    if (quizQuestions && quizQuestions.length > 0) {
+      const quizData = parsedNotes.quiz || parsedNotes.quizResult || parsedNotes.quizAnswers;
+      badges.push({
+        id: "quiz",
+        title: "Quiz",
+        type: "quiz",
+        hasData: !!quizData,
+        score: quizData?.score,
+        icon: ClipboardList,
       });
     }
     
@@ -1086,6 +1100,14 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
         title: "Resume",
         content: resumeUrl,
         type: "resume",
+      };
+    }
+    if (badgeId === "quiz") {
+      const quizData = parsedNotes.quiz || parsedNotes.quizResult || parsedNotes.quizAnswers;
+      return {
+        title: "Quiz",
+        content: quizData,
+        type: "quiz",
       };
     }
     
