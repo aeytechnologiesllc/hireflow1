@@ -345,10 +345,19 @@ export default function VideoIntroPhase() {
           return;
         }
         
-        toast.error("Compression failed", {
-          description: "Unable to compress video. Please try a smaller file or record directly.",
+        // For any compression failure, offer to upload without compression if file is small enough
+        const storageLimitMB = 100;
+        if (file.size > storageLimitMB * 1024 * 1024) {
+          toast.error("File too large for upload", {
+            description: `Compression failed and file exceeds ${storageLimitMB}MB. Please try a smaller file or record directly.`,
+          });
+          resetUpload();
+          return;
+        }
+        // Allow upload without compression for smaller files
+        toast.warning("Compression failed", {
+          description: "Your video will be uploaded without compression.",
         });
-        resetUpload();
       } finally {
         setIsCompressing(false);
         setCompressionProgress(null);
