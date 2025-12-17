@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,8 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { CandidatePerformanceReport } from "@/components/CandidatePerformanceReport";
 import { useProfile } from "@/hooks/useProfile";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { generatePerformanceReport } from "@/utils/generatePerformanceReport";
 
 interface WorkflowStep {
   id: string;
@@ -94,6 +96,12 @@ export default function CandidateApplicationDetail() {
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
+  
+  // Status screen state
+  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | null>(null);
+  const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const previousStatusRef = useRef<string | null>(null);
 
   // Fetch application with job details
   const { data: application, isLoading, refetch } = useQuery({
@@ -111,6 +119,25 @@ export default function CandidateApplicationDetail() {
     enabled: !!id && !!user,
   });
 
+  // Fetch interview details when needed
+  const fetchInterviewDetails = async (applicationId: string) => {
+    const { data } = await supabase
+      .from("interviews")
+      .select("*")
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (data) {
+      setInterviewDetails({
+        scheduledAt: data.scheduled_at,
+        meetingLink: data.meeting_link || undefined,
+        durationMinutes: data.duration_minutes || undefined,
+      });
+    }
+  };
+
   // Subscribe to real-time updates for this application
   useEffect(() => {
     if (!id) return;
@@ -127,13 +154,27 @@ export default function CandidateApplicationDetail() {
         },
         (payload) => {
           console.log("Application updated:", payload);
-          refetch();
-          
-          // Show toast notification for phase changes
+          const newStatus = payload.new.status as string;
+          const oldStatus = payload.old?.status as string;
           const newPhase = payload.new.phase;
           const oldPhase = payload.old?.phase;
           
-          if (newPhase !== oldPhase) {
+          refetch();
+          
+          // Detect status changes and show appropriate screen
+          if (newStatus !== oldStatus) {
+            if (newStatus === "rejected") {
+              setStatusScreen("rejected");
+            } else if (newStatus === "hired") {
+              setStatusScreen("hired");
+            } else if (newStatus === "interview") {
+              fetchInterviewDetails(id);
+              setStatusScreen("interview_scheduled");
+            }
+          }
+          
+          // Show toast notification for phase changes (if not showing status screen)
+          if (newPhase !== oldPhase && newStatus === oldStatus) {
             toast.success(`You've been advanced to the ${newPhase} phase!`, {
               description: "Check your next steps below.",
             });
@@ -146,6 +187,49 @@ export default function CandidateApplicationDetail() {
       supabase.removeChannel(channel);
     };
   }, [id, refetch]);
+
+  // Check on initial load if status changed recently (within last 30 seconds)
+  useEffect(() => {
+    if (!application || previousStatusRef.current === application.status) return;
+    
+    const updatedAt = new Date(application.updated_at);
+    const now = new Date();
+    const timeDiff = now.getTime() - updatedAt.getTime();
+    const isRecent = timeDiff < 30000; // 30 seconds
+    
+    // Only show screen if this is first load and status change was recent
+    if (previousStatusRef.current === null && isRecent) {
+      if (application.status === "rejected") {
+        setStatusScreen("rejected");
+      } else if (application.status === "hired") {
+        setStatusScreen("hired");
+      } else if (application.status === "interview") {
+        fetchInterviewDetails(application.id);
+        setStatusScreen("interview_scheduled");
+      }
+    }
+    
+    previousStatusRef.current = application.status;
+  }, [application]);
+
+  // Handle report download from status screen
+  const handleDownloadReport = async () => {
+    if (!application || !profile) return;
+    
+    setIsGeneratingReport(true);
+    try {
+      await generatePerformanceReport(application, {
+        full_name: profile.full_name || "Candidate",
+        email: profile.email || user?.email || ""
+      });
+      toast.success("Performance report downloaded!");
+    } catch (error) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
 
   // Build phases from workflow
   const phases = (() => {
@@ -377,8 +461,20 @@ export default function CandidateApplicationDetail() {
   const isHired = applicationStatus === "hired";
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <>
+      {/* Status Screen Overlay */}
+      <CandidateStatusScreen
+        state={statusScreen}
+        jobTitle={job?.title}
+        companyName={job?.department}
+        interviewDetails={interviewDetails || undefined}
+        onClose={() => setStatusScreen(null)}
+        onDownloadReport={handleDownloadReport}
+        isGeneratingReport={isGeneratingReport}
+      />
+
+      <div className="space-y-6">
+        {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={() => navigate("/applications")} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -625,6 +721,7 @@ export default function CandidateApplicationDetail() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </>
   );
 }
