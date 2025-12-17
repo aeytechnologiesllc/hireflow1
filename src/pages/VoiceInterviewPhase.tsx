@@ -135,6 +135,9 @@ export default function VoiceInterviewPhase() {
   const handleInterviewEnd = useCallback(async (evaluation: any) => {
     setInterviewResult(evaluation);
     
+    // Show completion screen IMMEDIATELY so user sees upload progress
+    setShowCompletionScreen(true);
+    
     try {
       // Stop video recording and upload - always try to stop, don't check isRecording state
       // (it may be stale in the closure)
@@ -160,15 +163,13 @@ export default function VoiceInterviewPhase() {
         .eq("id", applicationId);
 
       if (error) throw error;
-
-      // Show completion screen instead of toast + redirect
-      setShowCompletionScreen(true);
       
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(applicationId!).catch(console.error);
     } catch (error) {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
+      // Still show completion screen even on error so user knows interview ended
     }
   }, [applicationId, stopRecording, uploadRecording]);
 
