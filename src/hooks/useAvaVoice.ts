@@ -148,6 +148,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       dcRef.current.addEventListener('open', () => {
         console.log('Data channel opened');
         setState(s => ({ ...s, isConnected: true, isConnecting: false, isListening: true }));
+        
+        // For interview mode, trigger AVA to start speaking first
+        if (options.mode === 'interview') {
+          setTimeout(() => {
+            if (dcRef.current?.readyState === 'open') {
+              console.log('Triggering AVA to start interview');
+              dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+            }
+          }, 500); // Small delay to ensure connection is stable
+        }
       });
 
       dcRef.current.addEventListener('message', async (e) => {
