@@ -360,8 +360,8 @@ export default function CandidateApplicationDetail() {
         hasPhaseData = !!notes[phase.id];
       }
       
-      if (hasPhaseData && isManualMode) {
-        return "pending"; // Submitted, waiting for employer review
+      if (hasPhaseData) {
+        return "pending"; // Submitted, waiting for review (both Autopilot and Manual modes)
       }
       
       return "awaiting_action"; // Needs to complete this phase
