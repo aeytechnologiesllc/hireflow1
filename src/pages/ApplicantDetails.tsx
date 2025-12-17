@@ -859,12 +859,14 @@ Typing Test Results:
 `;
       }
 
-      // Add Quiz answers if available
-      if (parsedNotes.quizAnswers) {
-        const quizData = Object.values(parsedNotes.quizAnswers);
+      // Add Quiz answers if available (check multiple formats)
+      const quizData = parsedNotes.quizResult || parsedNotes.quiz;
+      if (quizData) {
         content += `
 Quiz Performance:
-${quizData.map((q: any) => `- Score: ${q.score || q.percentage || 'N/A'}%`).join('\n')}
+- Score: ${quizData.score || quizData.percentage || 'N/A'}%
+- Correct: ${quizData.correct || 'N/A'}/${quizData.total || 'N/A'}
+- Passed: ${quizData.passed ? 'Yes' : 'No'}
 `;
       }
 
@@ -898,7 +900,33 @@ Sales Simulation Results:
       // Add Video Intro URL if available
       if (parsedNotes.videoIntroUrl) {
         content += `
-Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
+Video Introduction: Submitted (demonstrates candidate effort and initiative)
+`;
+      }
+
+      // Add Portfolio results if available
+      if (parsedNotes.portfolioResult) {
+        const analysis = parsedNotes.portfolioResult.aiAnalysis || parsedNotes.portfolioResult.analysis;
+        content += `
+Portfolio Upload:
+- Files: ${parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || 'N/A'} files submitted
+- Score: ${analysis?.score || parsedNotes.portfolioResult.score || 'N/A'}/100
+`;
+      }
+
+      // Add Voice Interview results if available (stored as separate column)
+      if (application.voice_interview_result) {
+        const vr = application.voice_interview_result as any;
+        content += `
+Voice Interview with AVA Results:
+- Overall Score: ${vr.overall_score || 'N/A'}/100
+- Recommendation: ${vr.recommendation || 'N/A'}
+- Technical Score: ${vr.technical_score || 'N/A'}/100
+- Communication Score: ${vr.communication_score || 'N/A'}/100
+- Culture Fit Score: ${vr.culture_fit_score || 'N/A'}/100
+- Credibility Rating: ${vr.credibility_rating || 'N/A'}
+- Summary: ${vr.summary || 'Not provided'}
+- Concerns: ${vr.concerns?.join(', ') || 'None noted'}
 `;
       }
 
@@ -918,13 +946,17 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
 
       if (error) throw error;
 
+      // Extract score from analysis - but only use if no existing score
       const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-      const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+      const newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+      
+      // Preserve existing score - AVA stands by her original assessment
+      const existingScore = application.ai_score;
 
       await updateApplication.mutateAsync({
         id: application.id,
         ai_analysis: data.analysis,
-        ai_score: score && score >= 0 && score <= 100 ? score : null,
+        ai_score: existingScore ?? (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
       });
 
       queryClient.invalidateQueries({ queryKey: ["application", id] });
@@ -1482,7 +1514,7 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                     Typing Test
                   </Badge>
                 )}
-                {parsedNotes.quizAnswers && Object.keys(parsedNotes.quizAnswers).length > 0 && (
+                {(parsedNotes.quizResult || parsedNotes.quiz || (parsedNotes.quizAnswers && Object.keys(parsedNotes.quizAnswers).length > 0)) && (
                   <Badge variant="outline" className="text-xs">
                     <CheckCircle className="h-3 w-3 mr-1 text-success" />
                     Quiz
@@ -1516,6 +1548,12 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                   <Badge variant="outline" className="text-xs">
                     <CheckCircle className="h-3 w-3 mr-1 text-success" />
                     Video Intro
+                  </Badge>
+                )}
+                {application.voice_interview_result && (
+                  <Badge variant="outline" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
+                    Voice Interview
                   </Badge>
                 )}
               </div>
