@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 
 interface Message {
   id: string;
@@ -690,7 +691,6 @@ export default function SalesSimulationPhase() {
 
   // Show already submitted view if phase was completed
   if (existingResult) {
-    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}

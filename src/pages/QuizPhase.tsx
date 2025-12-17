@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 
 interface QuizQuestion {
   id: string;
@@ -418,7 +419,6 @@ const handleFinishQuiz = () => {
 
   // Show already submitted view if phase was completed
   if (existingResult) {
-    const { PhaseAlreadySubmitted } = require("@/components/PhaseAlreadySubmitted");
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
