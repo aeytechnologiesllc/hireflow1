@@ -2330,9 +2330,22 @@ Voice Interview with AVA Results:
                                     <audio
                                       src={application.voice_interview_recording_url}
                                       controls
-                                      preload="metadata"
+                                      preload="auto"
                                       crossOrigin="anonymous"
                                       className="w-full"
+                                      onLoadedMetadata={(e) => {
+                                        // Fix WebM duration metadata issue
+                                        const audio = e.currentTarget;
+                                        if (!isFinite(audio.duration) || audio.duration === 0) {
+                                          audio.currentTime = 1e101;
+                                          audio.addEventListener('timeupdate', function handler() {
+                                            if (isFinite(audio.duration)) {
+                                              audio.currentTime = 0;
+                                              audio.removeEventListener('timeupdate', handler);
+                                            }
+                                          });
+                                        }
+                                      }}
                                     >
                                       <source src={application.voice_interview_recording_url} type="audio/webm" />
                                       Your browser does not support audio playback.
