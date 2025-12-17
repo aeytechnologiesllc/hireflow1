@@ -36,6 +36,7 @@ export default function VoiceInterviewPhase() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [language, setLanguage] = useState("en");
+  const [duration, setDuration] = useState(10);
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
 
@@ -136,6 +137,7 @@ export default function VoiceInterviewPhase() {
     mode: "interview",
     applicationId,
     language,
+    duration,
     onTranscript: handleTranscript,
     onInterviewEnd: handleInterviewEnd,
   });
@@ -193,6 +195,7 @@ export default function VoiceInterviewPhase() {
       });
       setCandidateName(candidateProfile?.full_name || "Candidate");
       setLanguage(app.voice_interview_language || "en");
+      setDuration(app.voice_interview_duration || 10);
     } catch (error) {
       console.error("Error loading application:", error);
       toast.error("Failed to load interview data");
@@ -254,7 +257,7 @@ export default function VoiceInterviewPhase() {
                 <li>Find a quiet place with minimal background noise</li>
                 <li>Ensure your microphone is working properly</li>
                 <li>Speak clearly and take your time with responses</li>
-                <li>The interview will last approximately 10-15 minutes</li>
+                <li>The interview will last approximately <strong>{duration} minutes</strong></li>
                 <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
               </ul>
             </div>
