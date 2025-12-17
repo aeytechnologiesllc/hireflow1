@@ -268,7 +268,48 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   
                   // Check for interview end
                   if (event.name === 'end_interview' && toolResult?.evaluation) {
+                    console.log('Interview ended, calling onInterviewEnd and disconnecting...');
                     options.onInterviewEnd?.(toolResult.evaluation);
+                    
+                    // Auto-disconnect after interview ends - use setTimeout to let callback complete first
+                    setTimeout(() => {
+                      console.log('Auto-disconnecting Ava after interview end...');
+                      
+                      // Close data channel
+                      dcRef.current?.close();
+                      dcRef.current = null;
+                      
+                      // Close peer connection
+                      pcRef.current?.close();
+                      pcRef.current = null;
+                      
+                      // Stop mic stream
+                      micStreamRef.current?.getTracks().forEach(track => track.stop());
+                      micStreamRef.current = null;
+                      
+                      // Clean up audio
+                      audioElRef.current = null;
+                      audioQueueRef.current?.clear();
+                      
+                      // Stop monitoring
+                      if (connectionQualityIntervalRef.current) {
+                        clearInterval(connectionQualityIntervalRef.current);
+                        connectionQualityIntervalRef.current = null;
+                      }
+                      if (animationFrameRef.current) {
+                        cancelAnimationFrame(animationFrameRef.current);
+                        animationFrameRef.current = null;
+                      }
+                      
+                      // Update state to disconnected
+                      setState(s => ({
+                        ...s,
+                        isConnected: false,
+                        isSpeaking: false,
+                        isListening: false,
+                        isProcessing: false,
+                      }));
+                    }, 100);
                   }
 
                   // Handle flag_inconsistency - Ava may want to ask a follow-up
