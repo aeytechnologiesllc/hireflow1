@@ -213,7 +213,8 @@ export default function VoiceInterviewPhase() {
     }
   };
 
-  // Attach stream to video element after it mounts
+  // Attach stream to video element after it mounts or when interview starts
+  // (interview UI has a different video element that needs the stream re-attached)
   useEffect(() => {
     if (cameraEnabled && videoPreviewRef.current && isPermissionGranted) {
       const stream = getPreviewStream();
@@ -221,7 +222,7 @@ export default function VoiceInterviewPhase() {
         videoPreviewRef.current.srcObject = stream;
       }
     }
-  }, [cameraEnabled, isPermissionGranted, getPreviewStream]);
+  }, [cameraEnabled, isPermissionGranted, getPreviewStream, interviewStarted]);
 
   // Confirm camera works
   const confirmCameraWorks = () => {
