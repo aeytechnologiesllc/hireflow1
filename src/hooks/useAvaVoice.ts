@@ -429,10 +429,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     options.onTranscript?.(text, 'user');
   }, [options, toast]);
 
+  // Expose audio element for video recording mixing
+  const getAvaAudioElement = useCallback(() => {
+    return audioElRef.current;
+  }, []);
+
   return {
     ...state,
     connect,
     disconnect,
     sendTextMessage,
+    getAvaAudioElement,
   };
 }

@@ -2268,6 +2268,29 @@ Voice Interview with AVA Results:
 
                       {dialogData.type === "voice_interview" && dialogData.content && (
                         <div className="space-y-4">
+                          {/* Video Recording Playback */}
+                          {application.voice_interview_recording_url && (
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <Video className="h-4 w-4 text-primary" />
+                                Interview Recording
+                              </h4>
+                              <div className="rounded-lg overflow-hidden border border-border bg-black">
+                                <video
+                                  src={application.voice_interview_recording_url}
+                                  controls
+                                  preload="metadata"
+                                  playsInline
+                                  crossOrigin="anonymous"
+                                  className="w-full max-h-[300px]"
+                                >
+                                  <source src={application.voice_interview_recording_url} type="video/webm" />
+                                  Your browser does not support video playback.
+                                </video>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Score Summary */}
                           <div className="flex items-center gap-4 mb-4">
                             <div className="text-center">

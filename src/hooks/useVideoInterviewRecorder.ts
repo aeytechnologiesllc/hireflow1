@@ -1,0 +1,307 @@
+import { useState, useRef, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface UseVideoInterviewRecorderOptions {
+  applicationId: string;
+}
+
+interface VideoRecorderState {
+  hasCamera: boolean;
+  hasMicrophone: boolean;
+  isPermissionGranted: boolean;
+  isRecording: boolean;
+  isUploading: boolean;
+  uploadProgress: number;
+  error: string | null;
+  recordingUrl: string | null;
+}
+
+export function useVideoInterviewRecorder({ applicationId }: UseVideoInterviewRecorderOptions) {
+  const [state, setState] = useState<VideoRecorderState>({
+    hasCamera: false,
+    hasMicrophone: false,
+    isPermissionGranted: false,
+    isRecording: false,
+    isUploading: false,
+    uploadProgress: 0,
+    error: null,
+    recordingUrl: null,
+  });
+
+  // Refs for media streams and recording
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const combinedStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+
+  // Request camera and microphone permissions, return preview stream
+  const requestPermissions = useCallback(async (): Promise<MediaStream | null> => {
+    try {
+      // Request camera + mic
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user',
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      cameraStreamRef.current = stream;
+
+      setState(s => ({
+        ...s,
+        hasCamera: stream.getVideoTracks().length > 0,
+        hasMicrophone: stream.getAudioTracks().length > 0,
+        isPermissionGranted: true,
+        error: null,
+      }));
+
+      return stream;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to access camera/microphone';
+      setState(s => ({ ...s, error: message, isPermissionGranted: false }));
+      return null;
+    }
+  }, []);
+
+  // Setup audio mixing with Ava's audio stream
+  const setupAudioMixing = useCallback((avaAudioElement: HTMLAudioElement | null) => {
+    if (!cameraStreamRef.current) {
+      console.error('No camera stream available for audio mixing');
+      return null;
+    }
+
+    try {
+      // Create audio context for mixing
+      audioContextRef.current = new AudioContext({ sampleRate: 48000 });
+      const ctx = audioContextRef.current;
+
+      // Create destination for mixed audio
+      audioDestinationRef.current = ctx.createMediaStreamDestination();
+      const destination = audioDestinationRef.current;
+
+      // Add candidate's microphone audio
+      const micStream = cameraStreamRef.current;
+      const micSource = ctx.createMediaStreamSource(micStream);
+      const micGain = ctx.createGain();
+      micGain.gain.value = 1.0;
+      micSource.connect(micGain);
+      micGain.connect(destination);
+
+      // Add Ava's audio if available
+      if (avaAudioElement && avaAudioElement.srcObject) {
+        try {
+          const avaSource = ctx.createMediaElementSource(avaAudioElement);
+          const avaGain = ctx.createGain();
+          avaGain.gain.value = 1.0;
+          avaSource.connect(avaGain);
+          avaGain.connect(destination);
+          // Also connect to speakers so candidate hears Ava
+          avaSource.connect(ctx.destination);
+        } catch (err) {
+          // Ava audio element might already be connected, capture from stream instead
+          console.log('Using Ava stream directly for mixing');
+          if (avaAudioElement.srcObject instanceof MediaStream) {
+            const avaStreamSource = ctx.createMediaStreamSource(avaAudioElement.srcObject);
+            const avaGain = ctx.createGain();
+            avaGain.gain.value = 1.0;
+            avaStreamSource.connect(avaGain);
+            avaGain.connect(destination);
+          }
+        }
+      }
+
+      // Create combined stream with video + mixed audio
+      const videoTrack = cameraStreamRef.current.getVideoTracks()[0];
+      const mixedAudioTrack = destination.stream.getAudioTracks()[0];
+
+      combinedStreamRef.current = new MediaStream([videoTrack, mixedAudioTrack]);
+
+      return combinedStreamRef.current;
+    } catch (err) {
+      console.error('Error setting up audio mixing:', err);
+      // Fallback to just camera stream without Ava audio mixing
+      combinedStreamRef.current = cameraStreamRef.current;
+      return cameraStreamRef.current;
+    }
+  }, []);
+
+  // Start recording
+  const startRecording = useCallback((avaAudioElement: HTMLAudioElement | null) => {
+    if (!cameraStreamRef.current) {
+      setState(s => ({ ...s, error: 'No camera stream available' }));
+      return false;
+    }
+
+    try {
+      // Setup audio mixing
+      const streamToRecord = setupAudioMixing(avaAudioElement) || cameraStreamRef.current;
+
+      // Clear previous chunks
+      recordedChunksRef.current = [];
+
+      // Create MediaRecorder with WebM format
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm';
+
+      mediaRecorderRef.current = new MediaRecorder(streamToRecord, {
+        mimeType,
+        videoBitsPerSecond: 1500000, // 1.5 Mbps
+        audioBitsPerSecond: 128000, // 128 kbps
+      });
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setState(s => ({ ...s, error: 'Recording error occurred', isRecording: false }));
+      };
+
+      // Start recording with 1 second chunks
+      mediaRecorderRef.current.start(1000);
+      setState(s => ({ ...s, isRecording: true, error: null }));
+
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start recording';
+      setState(s => ({ ...s, error: message }));
+      return false;
+    }
+  }, [setupAudioMixing]);
+
+  // Stop recording and return blob
+  const stopRecording = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+        setState(s => ({ ...s, isRecording: false }));
+        resolve(null);
+        return;
+      }
+
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        setState(s => ({ ...s, isRecording: false }));
+        resolve(blob);
+      };
+
+      mediaRecorderRef.current.stop();
+    });
+  }, []);
+
+  // Upload recording to Supabase Storage
+  const uploadRecording = useCallback(async (blob: Blob): Promise<string | null> => {
+    if (!applicationId) {
+      setState(s => ({ ...s, error: 'No application ID provided' }));
+      return null;
+    }
+
+    setState(s => ({ ...s, isUploading: true, uploadProgress: 0 }));
+
+    try {
+      const fileName = `${applicationId}/interview-${Date.now()}.webm`;
+
+      // Upload to storage
+      const { data, error } = await supabase.storage
+        .from('voice-interview-recordings')
+        .upload(fileName, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: 'video/webm',
+        });
+
+      if (error) throw error;
+
+      // Get signed URL (private bucket)
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('voice-interview-recordings')
+        .createSignedUrl(fileName, 60 * 60 * 24 * 365); // 1 year expiry
+
+      if (urlError) throw urlError;
+
+      const recordingUrl = urlData.signedUrl;
+
+      // Update application with recording URL
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({ voice_interview_recording_url: recordingUrl })
+        .eq('id', applicationId);
+
+      if (updateError) throw updateError;
+
+      setState(s => ({
+        ...s,
+        isUploading: false,
+        uploadProgress: 100,
+        recordingUrl,
+      }));
+
+      return recordingUrl;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload recording';
+      setState(s => ({ ...s, isUploading: false, error: message }));
+      return null;
+    }
+  }, [applicationId]);
+
+  // Cleanup all resources
+  const cleanup = useCallback(() => {
+    // Stop recording if active
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    // Stop camera stream
+    cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+    cameraStreamRef.current = null;
+
+    // Close audio context
+    audioContextRef.current?.close();
+    audioContextRef.current = null;
+
+    // Clear refs
+    combinedStreamRef.current = null;
+    audioDestinationRef.current = null;
+    mediaRecorderRef.current = null;
+    recordedChunksRef.current = [];
+
+    setState({
+      hasCamera: false,
+      hasMicrophone: false,
+      isPermissionGranted: false,
+      isRecording: false,
+      isUploading: false,
+      uploadProgress: 0,
+      error: null,
+      recordingUrl: null,
+    });
+  }, []);
+
+  // Get preview stream (for displaying video before/during recording)
+  const getPreviewStream = useCallback(() => {
+    return cameraStreamRef.current;
+  }, []);
+
+  return {
+    ...state,
+    requestPermissions,
+    startRecording,
+    stopRecording,
+    uploadRecording,
+    cleanup,
+    getPreviewStream,
+  };
+}

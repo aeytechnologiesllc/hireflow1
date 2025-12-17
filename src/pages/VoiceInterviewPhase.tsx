@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
+import { useVideoInterviewRecorder } from "@/hooks/useVideoInterviewRecorder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff } from "lucide-react";
+import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff, Video, VideoOff, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
@@ -41,13 +42,10 @@ export default function VoiceInterviewPhase() {
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
 
-  // Mic test states
-  const [showMicTest, setShowMicTest] = useState(false);
-  const [micTestPassed, setMicTestPassed] = useState(false);
-  const [testAudioLevels, setTestAudioLevels] = useState([8, 8, 8, 8, 8]);
-  const [testStream, setTestStream] = useState<MediaStream | null>(null);
-  const testAnalyserRef = useRef<AnalyserNode | null>(null);
-  const testAnimationRef = useRef<number | null>(null);
+  // Camera/video states
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraTestPassed, setCameraTestPassed] = useState(false);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
   // Interview timer states
   const [interviewStartTime, setInterviewStartTime] = useState<number | null>(null);
@@ -58,6 +56,21 @@ export default function VoiceInterviewPhase() {
   const currentMessageRoleRef = useRef<'user' | 'assistant' | null>(null);
   const messageCounterRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Video recording hook
+  const {
+    isPermissionGranted,
+    isRecording,
+    isUploading,
+    uploadProgress,
+    error: videoError,
+    requestPermissions,
+    startRecording,
+    stopRecording,
+    uploadRecording,
+    cleanup: cleanupVideo,
+    getPreviewStream,
+  } = useVideoInterviewRecorder({ applicationId: applicationId || '' });
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
     const timestamp = Date.now();
@@ -120,6 +133,15 @@ export default function VoiceInterviewPhase() {
     setInterviewResult(evaluation);
     
     try {
+      // Stop video recording and upload
+      if (isRecording) {
+        const blob = await stopRecording();
+        if (blob) {
+          console.log('Recording stopped, uploading...', blob.size, 'bytes');
+          await uploadRecording(blob);
+        }
+      }
+
       // Save result to database
       const { error } = await supabase
         .from("applications")
@@ -140,7 +162,7 @@ export default function VoiceInterviewPhase() {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
     }
-  }, [applicationId]);
+  }, [applicationId, isRecording, stopRecording, uploadRecording]);
 
   const {
     isConnected,
@@ -151,6 +173,7 @@ export default function VoiceInterviewPhase() {
     connect,
     disconnect,
     sendTextMessage,
+    getAvaAudioElement,
   } = useAvaVoice({
     mode: "interview",
     applicationId,
@@ -173,56 +196,26 @@ export default function VoiceInterviewPhase() {
     loadApplicationData();
   }, [applicationId]);
 
-  // Start mic test
-  const startMicTest = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setTestStream(stream);
-      setShowMicTest(true);
+  // Cleanup video on unmount
+  useEffect(() => {
+    return () => {
+      cleanupVideo();
+    };
+  }, [cleanupVideo]);
 
-      // Set up audio analyser for test
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 32;
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      testAnalyserRef.current = analyser;
-
-      // Update audio levels
-      const updateLevels = () => {
-        if (!testAnalyserRef.current) return;
-        const dataArray = new Uint8Array(testAnalyserRef.current.frequencyBinCount);
-        testAnalyserRef.current.getByteFrequencyData(dataArray);
-        const bands = [0, 2, 4, 6, 8];
-        const levels = bands.map(i => {
-          const value = dataArray[i] || 0;
-          return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
-        });
-        setTestAudioLevels(levels);
-        testAnimationRef.current = requestAnimationFrame(updateLevels);
-      };
-      updateLevels();
-    } catch (error) {
-      toast.error("Could not access microphone. Please grant permission.");
+  // Enable camera and microphone
+  const enableCamera = async () => {
+    const stream = await requestPermissions();
+    if (stream && videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = stream;
+      setCameraEnabled(true);
     }
   };
 
-  // Stop mic test
-  const stopMicTest = () => {
-    if (testAnimationRef.current) {
-      cancelAnimationFrame(testAnimationRef.current);
-    }
-    testStream?.getTracks().forEach(track => track.stop());
-    testAnalyserRef.current = null;
-    setTestStream(null);
-  };
-
-  // Confirm mic works
-  const confirmMicWorks = () => {
-    stopMicTest();
-    setMicTestPassed(true);
-    setShowMicTest(false);
-    toast.success("Microphone test passed!");
+  // Confirm camera works
+  const confirmCameraWorks = () => {
+    setCameraTestPassed(true);
+    toast.success("Camera & microphone ready!");
   };
 
   const loadApplicationData = async () => {
@@ -287,8 +280,26 @@ export default function VoiceInterviewPhase() {
     if (!job || !applicationId) return;
     setInterviewStarted(true);
     setInterviewStartTime(Date.now());
+    
+    // Start voice connection
     await connect();
+    
+    // Start video recording after connection established
+    // We'll start recording once connected via useEffect
   };
+
+  // Start recording when connected
+  useEffect(() => {
+    if (isConnected && interviewStarted && cameraTestPassed && !isRecording) {
+      const avaAudioEl = getAvaAudioElement();
+      const started = startRecording(avaAudioEl);
+      if (started) {
+        console.log('Video recording started');
+      } else {
+        console.warn('Failed to start video recording');
+      }
+    }
+  }, [isConnected, interviewStarted, cameraTestPassed, isRecording, startRecording, getAvaAudioElement]);
 
   const endInterview = () => {
     sendTextMessage("I would like to end the interview now.");
@@ -395,76 +406,83 @@ Duration: ${formatTime(elapsedSeconds)}
                 <p>You're about to have a voice conversation with our professional interviewer.</p>
                 <ul className="list-disc list-inside space-y-2">
                   <li>Find a quiet place with minimal background noise</li>
-                  <li>Ensure your microphone is working properly</li>
+                  <li>Ensure your camera and microphone are working properly</li>
                   <li>Speak clearly and take your time with responses</li>
                   <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
                   <li>The interview will last approximately <strong>{duration} minutes</strong></li>
+                  <li>Your interview will be <strong>video recorded</strong> for review</li>
                   <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
                 </ul>
               </div>
 
-              {/* Mic Test Section */}
-              {!micTestPassed && !showMicTest && (
+              {/* Camera Test Section */}
+              {!cameraTestPassed && !cameraEnabled && (
                 <div className="pt-4 border-t border-border">
                   <Button
-                    onClick={startMicTest}
+                    onClick={enableCamera}
                     variant="outline"
                     className="w-full gap-2"
                   >
-                    <Mic className="h-5 w-5" />
-                    Test Your Microphone
+                    <Camera className="h-5 w-5" />
+                    Enable Camera & Microphone
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    Recommended before starting the interview
+                    Required before starting the interview
                   </p>
                 </div>
               )}
 
-              {/* Mic Test UI */}
-              {showMicTest && (
+              {/* Camera Preview UI */}
+              {cameraEnabled && !cameraTestPassed && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="pt-4 border-t border-border"
                 >
                   <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="py-6 text-center space-y-4">
-                      <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
-                        <Mic className="h-8 w-8 text-white" />
+                    <CardContent className="py-6 space-y-4">
+                      <div className="relative aspect-video max-w-md mx-auto rounded-lg overflow-hidden bg-black">
+                        <video
+                          ref={videoPreviewRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover mirror"
+                          style={{ transform: 'scaleX(-1)' }}
+                        />
+                        <Badge className="absolute top-2 left-2 bg-green-500 text-white">
+                          <Video className="h-3 w-3 mr-1" />
+                          Camera Ready
+                        </Badge>
                       </div>
-                      <h3 className="font-semibold text-foreground">Microphone Test</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Say something to check your mic is working
-                      </p>
                       
-                      {/* Audio visualization bars */}
-                      <div className="flex justify-center items-end gap-1 h-10">
-                        {testAudioLevels.map((level, i) => (
-                          <motion.div
-                            key={i}
-                            className="w-2 rounded-full bg-gradient-to-t from-primary to-teal-400"
-                            animate={{ height: level }}
-                            transition={{ duration: 0.1 }}
-                          />
-                        ))}
+                      <div className="text-center space-y-2">
+                        <h3 className="font-semibold text-foreground">Camera & Mic Test</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Check that you can see yourself and that you're in a well-lit area
+                        </p>
                       </div>
+
+                      {videoError && (
+                        <p className="text-sm text-red-400 text-center">{videoError}</p>
+                      )}
 
                       <div className="flex gap-2 justify-center pt-2">
                         <Button
                           variant="outline"
                           onClick={() => {
-                            stopMicTest();
-                            setShowMicTest(false);
+                            cleanupVideo();
+                            setCameraEnabled(false);
                           }}
                         >
                           Cancel
                         </Button>
                         <Button
-                          onClick={confirmMicWorks}
+                          onClick={confirmCameraWorks}
                           className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
-                          My Mic Works
+                          My Setup Works
                         </Button>
                       </div>
                     </CardContent>
@@ -472,15 +490,15 @@ Duration: ${formatTime(elapsedSeconds)}
                 </motion.div>
               )}
 
-              {/* Mic Test Passed */}
-              {micTestPassed && (
+              {/* Camera Test Passed */}
+              {cameraTestPassed && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="flex items-center gap-2 text-sm text-green-400 pt-2"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Microphone test passed
+                  Camera & microphone ready
                 </motion.div>
               )}
 
@@ -489,10 +507,16 @@ Duration: ${formatTime(elapsedSeconds)}
                   onClick={startInterview}
                   className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
                   size="lg"
+                  disabled={!cameraTestPassed}
                 >
                   <Phone className="h-5 w-5" />
                   Start Voice Interview
                 </Button>
+                {!cameraTestPassed && (
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Please enable your camera first
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -500,6 +524,27 @@ Duration: ${formatTime(elapsedSeconds)}
       ) : (
         /* Active interview UI */
         <div className="space-y-4">
+          {/* Video preview during interview */}
+          <div className="relative">
+            {/* Small video preview in corner */}
+            <div className="fixed bottom-24 right-6 z-40 w-48 aspect-video rounded-lg overflow-hidden shadow-2xl border-2 border-primary/30 bg-black">
+              <video
+                ref={videoPreviewRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
+              />
+              {isRecording && (
+                <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">REC</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Connection status with timer */}
           <Card className="border-border bg-card/50">
             <CardContent className="py-4">
@@ -652,34 +697,56 @@ Duration: ${formatTime(elapsedSeconds)}
             >
               <Card className="border-primary/20 bg-card/95 backdrop-blur max-w-md mx-4">
                 <CardContent className="py-12 text-center space-y-6">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
-                    <CheckCircle className="h-10 w-10 text-white" />
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
-                    <p className="text-muted-foreground max-w-md mx-auto">
-                      Thank you for speaking with Ava. We will review your interview and get back to you soon.
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Duration: {formatTime(elapsedSeconds)}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 justify-center">
-                    <Button
-                      variant="outline"
-                      onClick={downloadTranscript}
-                      className="gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download Transcript
-                    </Button>
-                    <Button 
-                      onClick={() => navigate(`/applications/${applicationId}`)}
-                      className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
-                    >
-                      Return to Applications
-                    </Button>
-                  </div>
+                  {isUploading ? (
+                    <>
+                      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary/20 to-teal-400/20 flex items-center justify-center">
+                        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-xl font-bold text-foreground">Uploading Recording...</h2>
+                        <p className="text-muted-foreground">
+                          Please wait while we save your interview
+                        </p>
+                        <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mt-4">
+                          <div 
+                            className="bg-gradient-to-r from-primary to-teal-400 h-2 rounded-full transition-all"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
+                        <CheckCircle className="h-10 w-10 text-white" />
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
+                        <p className="text-muted-foreground max-w-md mx-auto">
+                          Thank you for speaking with Ava. We will review your interview and get back to you soon.
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Duration: {formatTime(elapsedSeconds)}
+                        </p>
+                      </div>
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          variant="outline"
+                          onClick={downloadTranscript}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Transcript
+                        </Button>
+                        <Button 
+                          onClick={() => navigate(`/applications/${applicationId}`)}
+                          className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                        >
+                          Return to Applications
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

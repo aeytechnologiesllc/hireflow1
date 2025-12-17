@@ -32,6 +32,7 @@ export type Database = {
           updated_at: string
           voice_interview_duration: number | null
           voice_interview_language: string | null
+          voice_interview_recording_url: string | null
           voice_interview_result: Json | null
         }
         Insert: {
@@ -51,6 +52,7 @@ export type Database = {
           updated_at?: string
           voice_interview_duration?: number | null
           voice_interview_language?: string | null
+          voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
         }
         Update: {
@@ -70,6 +72,7 @@ export type Database = {
           updated_at?: string
           voice_interview_duration?: number | null
           voice_interview_language?: string | null
+          voice_interview_recording_url?: string | null
           voice_interview_result?: Json | null
         }
         Relationships: [
