@@ -488,6 +488,20 @@ export default function ApplicantDetails() {
       // Await review in Manual mode for any phase, OR in Autopilot after Ava Interview
       const awaitingReview = isComplete && !isLastPhase && (isManualMode || isVoiceInterviewCompleted);
       
+      // Debug logging for slider position issues
+      console.log('[Slider Position Debug]', {
+        currentPhase: currentPhase?.id,
+        phaseType: currentPhase?.type,
+        isComplete,
+        isLastPhase,
+        isManualMode,
+        isVoiceInterviewCompleted,
+        awaitingReview,
+        hasVoiceResult: !!application?.voice_interview_result,
+        effectivePhaseIndex,
+        phasesCount: phases.length
+      });
+      
       setIsAwaitingReview(awaitingReview);
       
       // Add 0.5 offset if awaiting review (halfway to next phase)
