@@ -207,7 +207,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
         switch (event.type) {
           case 'response.audio.delta':
-            // Handle audio chunk - let AudioQueue callback control isSpeaking state
+            // Handle audio chunk
             if (event.delta) {
               const binaryString = atob(event.delta);
               const bytes = new Uint8Array(binaryString.length);
@@ -216,13 +216,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               }
               audioQueueRef.current?.addToQueue(bytes);
             }
-            // Only clear processing, AudioQueue callback handles isSpeaking
-            setState(s => ({ ...s, isProcessing: false }));
+            // Set isSpeaking TRUE when receiving audio - WebRTC plays directly
+            setState(s => ({ ...s, isSpeaking: true, isProcessing: false }));
             break;
 
           case 'response.audio.done':
-            // Don't set isSpeaking here - AudioQueue callback handles when playback actually finishes
-            console.log('Audio done event received, waiting for queue to finish playback');
+            // Give buffer for audio playback to finish, then set isSpeaking false
+            console.log('Audio done event received, setting isSpeaking false after buffer');
+            setTimeout(() => {
+              setState(s => ({ ...s, isSpeaking: false }));
+            }, 300);
             break;
 
           case 'response.audio_transcript.delta':

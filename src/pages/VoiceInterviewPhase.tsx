@@ -153,6 +153,9 @@ export default function VoiceInterviewPhase() {
         console.log('No recording blob available or empty');
       }
 
+      // STOP CAMERA after recording is handled
+      cleanupVideo();
+
       // Save result to database
       const { error } = await supabase
         .from("applications")
@@ -169,9 +172,10 @@ export default function VoiceInterviewPhase() {
     } catch (error) {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
-      // Still show completion screen even on error so user knows interview ended
+      // Still cleanup camera on error too
+      cleanupVideo();
     }
-  }, [applicationId, stopRecording, uploadRecording]);
+  }, [applicationId, stopRecording, uploadRecording, cleanupVideo]);
 
   const {
     isConnected,
