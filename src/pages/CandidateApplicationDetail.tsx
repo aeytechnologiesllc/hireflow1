@@ -237,7 +237,9 @@ export default function CandidateApplicationDetail() {
       } else if (phase.type === "quiz") {
         hasPhaseData = !!(notes.quizAnswers?.[phase.id] || notes.quizAnswers);
       } else if (phase.type === "video_intro" || phase.type === "video_message") {
-        hasPhaseData = !!notes.videoIntroUrl;
+        // Check both legacy videoIntroUrl and stepId-based storage
+        const stepData = notes[phase.id];
+        hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
       } else if (phase.type === "portfolio_upload") {
         hasPhaseData = !!notes.portfolioResult;
       } else {
