@@ -76,15 +76,19 @@ export default function VoiceInterviewPhase() {
   } = useVideoInterviewRecorder({ applicationId: applicationId || '', audioOnly: !videoEnabled });
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
+    // Ignore empty or whitespace-only transcripts
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    
     const timestamp = Date.now();
     
     setMessages(prev => {
       // If role changed from the current streaming message, mark it complete and start new
       if (currentMessageRoleRef.current && currentMessageRoleRef.current !== role) {
-        // Mark the previous message as complete
+        // Mark previous message as complete and filter out empty messages
         const updatedPrev = prev.map(m => 
           m.id === currentMessageIdRef.current ? { ...m, isComplete: true } : m
-        );
+        ).filter(m => m.content.trim().length > 0);
         
         // Start a new message
         messageCounterRef.current += 1;
@@ -95,7 +99,7 @@ export default function VoiceInterviewPhase() {
         return [...updatedPrev, { 
           id: newId, 
           role, 
-          content: text, 
+          content: cleanText, 
           timestamp, 
           isComplete: false 
         }];
@@ -106,7 +110,7 @@ export default function VoiceInterviewPhase() {
         // Append to existing message
         return prev.map(m => 
           m.id === currentMessageIdRef.current 
-            ? { ...m, content: m.content + text } 
+            ? { ...m, content: m.content + cleanText } 
             : m
         );
       }
@@ -120,7 +124,7 @@ export default function VoiceInterviewPhase() {
       return [...prev, { 
         id: newId, 
         role, 
-        content: text, 
+        content: cleanText, 
         timestamp, 
         isComplete: false 
       }];

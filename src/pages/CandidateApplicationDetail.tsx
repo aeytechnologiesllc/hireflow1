@@ -266,6 +266,9 @@ export default function CandidateApplicationDetail() {
         hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
       } else if (phase.type === "portfolio_upload") {
         hasPhaseData = !!notes.portfolioResult;
+      } else if (phase.type === "voice_interview") {
+        // Voice interview results are stored in dedicated column, not notes
+        hasPhaseData = !!application?.voice_interview_result;
       } else {
         hasPhaseData = !!notes[phase.id];
       }
