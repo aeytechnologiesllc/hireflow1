@@ -119,7 +119,19 @@ export default function SalesSimulationPhase() {
         .single();
 
       if (error) throw error;
-      return data as ApplicationDetails;
+      
+      // Get candidate profile name
+      let candidateName: string | null = null;
+      if (data?.candidate_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", data.candidate_id)
+          .single();
+        candidateName = profile?.full_name || null;
+      }
+      
+      return { ...data, candidateName } as ApplicationDetails & { candidateName: string | null };
     },
     enabled: !!id && !!user,
   });
@@ -240,6 +252,7 @@ export default function SalesSimulationPhase() {
           prospectCompany: currentScenario.prospectCompany,
           productService: currentScenario.productService,
           jobTitle: application?.jobs?.title || "",
+          candidateName: application?.candidateName || "the sales representative",
           messages: messages.map(m => ({ 
             role: m.role === "salesRep" ? "user" : "assistant", 
             content: m.content 
@@ -349,6 +362,7 @@ export default function SalesSimulationPhase() {
           prospectCompany: scenario.prospectCompany,
           productService: scenario.productService,
           jobTitle: application?.jobs?.title || "",
+          candidateName: application?.candidateName || "the sales representative",
           messages: [],
           messageCount: 0,
         }),
@@ -682,7 +696,7 @@ export default function SalesSimulationPhase() {
         
         <Badge className="bg-green-500/20 text-green-500 border-green-500/30 gap-1">
           <TrendingUp className="h-4 w-4" />
-          Sales Simulation
+          Sales Conversation
         </Badge>
       </div>
 
@@ -691,7 +705,7 @@ export default function SalesSimulationPhase() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-green-500" />
-            Sales Pitch Simulation
+            Client Meeting
           </CardTitle>
           <p className="text-muted-foreground">
             For: {application.jobs?.title}
@@ -701,31 +715,40 @@ export default function SalesSimulationPhase() {
           {state === "intro" && (
             <div className="space-y-6">
               <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                <h3 className="font-semibold text-foreground">How This Works</h3>
+                <h3 className="font-semibold text-foreground">About This Assessment</h3>
+                <p className="text-muted-foreground text-sm">
+                  You're about to enter a simulated sales meeting with a potential client. They have a real business challenge, and it's your job to understand their needs, address any concerns, and show how you can help.
+                </p>
+                
+                <h4 className="font-medium text-foreground text-sm mt-4">What We're Looking For:</h4>
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
-                    <Building className="h-4 w-4 mt-0.5 text-green-500" />
-                    <span>You'll meet with a prospect who has a real business problem</span>
+                    <User className="h-4 w-4 mt-0.5 text-green-500" />
+                    <span><strong>Discovery Skills</strong> — How well you uncover the client's needs and challenges</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <User className="h-4 w-4 mt-0.5 text-green-500" />
-                    <span>Discover their needs, handle objections, and pitch your solution</span>
+                    <Building className="h-4 w-4 mt-0.5 text-green-500" />
+                    <span><strong>Objection Handling</strong> — How you respond when the client pushes back or raises concerns</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Briefcase className="h-4 w-4 mt-0.5 text-green-500" />
-                    <span>The prospect will react realistically - they may push back or show interest</span>
+                    <span><strong>Value Proposition</strong> — How clearly you communicate the benefits of your solution</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle className="h-4 w-4 mt-0.5 text-green-500" />
-                    <span>Complete at least {salesConfig.minMessages} responses to end the call</span>
+                    <span><strong>Rapport Building</strong> — How naturally you connect with the client</span>
                   </li>
                 </ul>
+                
+                <p className="text-muted-foreground text-xs mt-4 italic">
+                  Complete at least {salesConfig.minMessages} responses before ending the meeting.
+                </p>
               </div>
               
               <div className="text-center">
                 <Button onClick={startSales} size="lg" className="gap-2 bg-green-600 hover:bg-green-700">
                   <TrendingUp className="h-5 w-5" />
-                  Start Sales Call
+                  Start Meeting
                 </Button>
               </div>
             </div>
