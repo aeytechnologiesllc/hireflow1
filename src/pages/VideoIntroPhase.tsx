@@ -207,6 +207,7 @@ export default function VideoIntroPhase() {
     try {
       const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
       
+      // Step 1: Upload the video
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("videos")
         .upload(fileName, recordedBlob, {
@@ -214,14 +215,40 @@ export default function VideoIntroPhase() {
           cacheControl: "3600",
         });
 
-      if (uploadError) throw uploadError;
+      // Check both error AND that we got valid upload data
+      if (uploadError || !uploadData?.path) {
+        throw new Error(uploadError?.message || "Upload failed - no file path returned");
+      }
 
+      // Step 2: Get the public URL
       const { data: urlData } = supabase.storage
         .from("videos")
         .getPublicUrl(fileName);
 
       const videoUrl = urlData.publicUrl;
 
+      // Step 3: Verify the file is actually accessible before updating database
+      try {
+        const verifyResponse = await fetch(videoUrl, { method: 'HEAD' });
+        if (!verifyResponse.ok) {
+          throw new Error(`Upload verification failed - file not accessible (status: ${verifyResponse.status})`);
+        }
+      } catch (verifyError) {
+        // If HEAD request fails, try a GET request with range to verify
+        try {
+          const rangeResponse = await fetch(videoUrl, { 
+            method: 'GET',
+            headers: { 'Range': 'bytes=0-0' }
+          });
+          if (!rangeResponse.ok && rangeResponse.status !== 206) {
+            throw new Error("Upload verification failed - file not accessible after upload");
+          }
+        } catch {
+          throw new Error("Upload verification failed - file not accessible after upload");
+        }
+      }
+
+      // Step 4: Only update database AFTER file is verified
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
       const passed = true;
@@ -276,20 +303,8 @@ export default function VideoIntroPhase() {
       let newPhase = application.phase;
       const newStatus = application.status;
 
-      if (isAutoMode) {
-        if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-          newPhase = allPhases[currentIndex + 1].id;
-        }
-        toast.success("Video introduction submitted!", {
-          description: "Great job! You have advanced to the next phase.",
-        });
-      } else {
-        toast.success("Video introduction submitted!", {
-          description: "Your video has been recorded. The employer will review your submission.",
-        });
-      }
-
-      const { error } = await supabase
+      // Step 5: Update database
+      const { error: dbError } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
@@ -299,14 +314,32 @@ export default function VideoIntroPhase() {
         })
         .eq("id", id!);
 
-      if (error) throw error;
+      if (dbError) throw new Error(`Database update failed: ${dbError.message}`);
+
+      // Step 6: Only show success and navigate AFTER everything succeeded
+      if (isAutoMode) {
+        toast.success("Video introduction submitted!", {
+          description: "Great job! You have advanced to the next phase.",
+        });
+      } else {
+        toast.success("Video introduction submitted!", {
+          description: "Your video has been recorded. The employer will review your submission.",
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-
       navigate(`/applications/${id}`);
+      
     } catch (error) {
       console.error("Error submitting video:", error);
-      toast.error("Failed to upload video");
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
+      toast.error("Video upload failed", {
+        description: errorMessage.includes("verification") 
+          ? "The video couldn't be verified. Please try recording again."
+          : errorMessage.includes("Database")
+          ? "Video uploaded but failed to save. Please try again."
+          : "Please check your connection and try again.",
+      });
       setRecordingState("preview");
     } finally {
       setIsSubmitting(false);
