@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -13,8 +13,11 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface Message {
+  id: string;
   role: "user" | "assistant";
   content: string;
+  timestamp: number;
+  isComplete: boolean;
 }
 
 interface JobDetails {
@@ -36,17 +39,60 @@ export default function VoiceInterviewPhase() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
 
+  // Refs for tracking current streaming message
+  const currentMessageIdRef = useRef<string | null>(null);
+  const currentMessageRoleRef = useRef<'user' | 'assistant' | null>(null);
+  const messageCounterRef = useRef(0);
+
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
+    const timestamp = Date.now();
+    
     setMessages(prev => {
-      const lastMsg = prev[prev.length - 1];
-      if (lastMsg?.role === role) {
+      // If role changed from the current streaming message, mark it complete and start new
+      if (currentMessageRoleRef.current && currentMessageRoleRef.current !== role) {
+        // Mark the previous message as complete
+        const updatedPrev = prev.map(m => 
+          m.id === currentMessageIdRef.current ? { ...m, isComplete: true } : m
+        );
+        
+        // Start a new message
+        messageCounterRef.current += 1;
+        const newId = `msg-${messageCounterRef.current}-${timestamp}`;
+        currentMessageIdRef.current = newId;
+        currentMessageRoleRef.current = role;
+        
+        return [...updatedPrev, { 
+          id: newId, 
+          role, 
+          content: text, 
+          timestamp, 
+          isComplete: false 
+        }];
+      }
+      
+      // Same role - check if we have a current streaming message
+      if (currentMessageIdRef.current && currentMessageRoleRef.current === role) {
         // Append to existing message
-        return prev.map((m, i) => 
-          i === prev.length - 1 ? { ...m, content: m.content + text } : m
+        return prev.map(m => 
+          m.id === currentMessageIdRef.current 
+            ? { ...m, content: m.content + text } 
+            : m
         );
       }
-      // New message
-      return [...prev, { role, content: text }];
+      
+      // No current message - start a new one
+      messageCounterRef.current += 1;
+      const newId = `msg-${messageCounterRef.current}-${timestamp}`;
+      currentMessageIdRef.current = newId;
+      currentMessageRoleRef.current = role;
+      
+      return [...prev, { 
+        id: newId, 
+        role, 
+        content: text, 
+        timestamp, 
+        isComplete: false 
+      }];
     });
   }, []);
 

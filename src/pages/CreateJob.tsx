@@ -180,13 +180,16 @@ const DIFFICULTY_OPTIONS = [
   { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-red-500", borderColor: "border-red-500", bgColor: "bg-red-500/10", shadowColor: "shadow-red-500/20" },
 ];
 
-const STEP_TYPE_INFO = {
+import { Mic } from "lucide-react";
+
+const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean }> = {
   typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
   video_message: { icon: Video, label: "Video Message", description: "Record a video introduction" },
   chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
-  sales_simulation: { icon: Bot, label: "Sales Simulation", description: "Sales pitch roleplay" },
+  sales_simulation: { icon: Bot, label: "Sales Conversation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
-  chat_interview: { icon: MessageSquare, label: "AI Interview with AVA", description: "AI-powered interview" },
+  chat_interview: { icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview" },
+  voice_interview: { icon: Mic, label: "Voice Interview with Ava", description: "Voice-based AI interview", hasConfig: true },
 };
 
 const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
@@ -198,6 +201,29 @@ const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
   select: HelpCircle,
   number: Target,
 };
+
+const VOICE_INTERVIEW_LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "ar", label: "Arabic" },
+  { value: "zh", label: "Mandarin Chinese" },
+  { value: "hi", label: "Hindi" },
+  { value: "pt", label: "Portuguese" },
+  { value: "ur", label: "Urdu" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "it", label: "Italian" },
+  { value: "ru", label: "Russian" },
+  { value: "nl", label: "Dutch" },
+  { value: "pl", label: "Polish" },
+  { value: "tr", label: "Turkish" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "th", label: "Thai" },
+  { value: "id", label: "Indonesian" },
+  { value: "ms", label: "Malay" },
+];
 
 const CURRENCIES = [
   { value: "USD", label: "USD ($) - US Dollar" },
@@ -635,32 +661,53 @@ export default function CreateJob() {
     const stepInfo = STEP_TYPE_INFO[type as keyof typeof STEP_TYPE_INFO];
     if (!stepInfo) return;
     
+    // Default config for voice_interview
+    const config: Record<string, unknown> = type === 'voice_interview' 
+      ? { language: 'en', language_name: 'English', language_enforcement: 'flexible' }
+      : {};
+    
     const newStep: WorkflowStep = {
       id: `step_${Date.now()}`,
       type,
       title: stepInfo.label,
       description: stepInfo.description,
       required: true,
-      config: {}
+      config
     };
     
-    // Ensure chat_interview is always at the end
+    // Ensure chat_interview and voice_interview are always at the end (voice_interview takes priority if both exist)
     setWorkflowSteps(prev => {
-      const withoutChatInterview = prev.filter(s => s.type !== 'chat_interview');
-      const chatInterviewStep = prev.find(s => s.type === 'chat_interview');
+      const interviewTypes = ['chat_interview', 'voice_interview'];
+      const withoutInterviews = prev.filter(s => !interviewTypes.includes(s.type));
+      const existingInterviews = prev.filter(s => interviewTypes.includes(s.type));
       
-      if (type === 'chat_interview') {
-        // Adding chat_interview - just append it at the end
-        return [...withoutChatInterview, newStep];
-      } else if (chatInterviewStep) {
-        // Adding another step while chat_interview exists - keep chat_interview at end
-        return [...withoutChatInterview, newStep, chatInterviewStep];
+      if (interviewTypes.includes(type)) {
+        // Adding an interview type - put at the end
+        return [...withoutInterviews, ...existingInterviews.filter(s => s.type !== type), newStep];
+      } else if (existingInterviews.length > 0) {
+        // Adding another step while interviews exist - keep interviews at end
+        return [...withoutInterviews, newStep, ...existingInterviews];
       } else {
-        // No chat_interview exists - just append normally
+        // No interviews exist - just append normally
         return [...prev, newStep];
       }
     });
     toast.success(`${stepInfo.label} added to workflow`);
+  };
+
+  const updateWorkflowStepConfig = (stepId: string, configKey: string, value: unknown) => {
+    setWorkflowSteps(prev => prev.map(step => {
+      if (step.id === stepId) {
+        return {
+          ...step,
+          config: {
+            ...step.config,
+            [configKey]: value
+          }
+        };
+      }
+      return step;
+    }));
   };
 
   if (role !== "employer") {
@@ -1781,28 +1828,92 @@ export default function CreateJob() {
                           {workflowSteps.map((step) => {
                             const stepInfo = STEP_TYPE_INFO[step.type as keyof typeof STEP_TYPE_INFO];
                             const Icon = stepInfo?.icon || FileText;
+                            const isVoiceInterview = step.type === 'voice_interview';
                             return (
                               <div
                                 key={step.id}
-                                className="flex items-center justify-between p-4 rounded-lg border border-border bg-secondary/30"
+                                className="p-4 rounded-lg border border-border bg-secondary/30"
                               >
-                                <div className="flex items-center gap-4">
-                                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                    <Icon className="h-5 w-5 text-primary" />
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                      <Icon className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium">{step.title}</div>
+                                      <div className="text-sm text-muted-foreground">{step.description}</div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <div className="font-medium">{step.title}</div>
-                                    <div className="text-sm text-muted-foreground">{step.description}</div>
-                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive"
+                                    onClick={() => deleteStep(step.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive"
-                                  onClick={() => deleteStep(step.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                
+                                {/* Voice Interview Language Config */}
+                                {isVoiceInterview && (
+                                  <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label className="text-xs text-muted-foreground">Interview Language</Label>
+                                        <Select
+                                          value={(step.config?.language as string) || 'en'}
+                                          onValueChange={(value) => {
+                                            const langName = VOICE_INTERVIEW_LANGUAGES.find(l => l.value === value)?.label || 'English';
+                                            updateWorkflowStepConfig(step.id, 'language', value);
+                                            updateWorkflowStepConfig(step.id, 'language_name', langName);
+                                          }}
+                                        >
+                                          <SelectTrigger className="bg-background">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {VOICE_INTERVIEW_LANGUAGES.map(lang => (
+                                              <SelectItem key={lang.value} value={lang.value}>
+                                                {lang.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-xs text-muted-foreground">Enforcement Mode</Label>
+                                        <Select
+                                          value={(step.config?.language_enforcement as string) || 'flexible'}
+                                          onValueChange={(value) => updateWorkflowStepConfig(step.id, 'language_enforcement', value)}
+                                        >
+                                          <SelectTrigger className="bg-background">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="flexible">
+                                              <div className="flex flex-col">
+                                                <span>Flexible</span>
+                                                <span className="text-xs text-muted-foreground">Deduct points if different</span>
+                                              </div>
+                                            </SelectItem>
+                                            <SelectItem value="strict">
+                                              <div className="flex flex-col">
+                                                <span>Strict</span>
+                                                <span className="text-xs text-muted-foreground">End interview if not met</span>
+                                              </div>
+                                            </SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {(step.config?.language_enforcement as string) === 'strict' 
+                                        ? `Interview will end if candidate cannot communicate in ${(step.config?.language_name as string) || 'English'}`
+                                        : `Interview continues in candidate's language if needed, with points deducted`
+                                      }
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
