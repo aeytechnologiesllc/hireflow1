@@ -64,6 +64,7 @@ export default function VoiceInterviewPhase() {
     isUploading,
     uploadProgress,
     error: videoError,
+    micLevels,
     requestPermissions,
     startRecording,
     stopRecording,
@@ -466,10 +467,28 @@ Duration: ${formatTime(elapsedSeconds)}
                         </Badge>
                       </div>
                       
+                      {/* Mic Level Indicator */}
+                      <div className="flex items-center justify-center gap-2">
+                        <Mic className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-end gap-0.5 h-6">
+                          {micLevels.map((level, i) => (
+                            <motion.div
+                              key={i}
+                              className={`w-1.5 rounded-full ${level > 15 ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+                              animate={{ height: Math.max(4, level / 4 + 4) }}
+                              transition={{ duration: 0.05 }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {micLevels.some(l => l > 15) ? "Mic working!" : "Speak to test mic"}
+                        </span>
+                      </div>
+                      
                       <div className="text-center space-y-2">
                         <h3 className="font-semibold text-foreground">Camera & Mic Test</h3>
                         <p className="text-sm text-muted-foreground">
-                          Check that you can see yourself and that you're in a well-lit area
+                          Check that you can see yourself and speak to test your microphone
                         </p>
                       </div>
 
