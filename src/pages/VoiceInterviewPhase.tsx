@@ -206,11 +206,21 @@ export default function VoiceInterviewPhase() {
   // Enable camera and microphone
   const enableCamera = async () => {
     const stream = await requestPermissions();
-    if (stream && videoPreviewRef.current) {
-      videoPreviewRef.current.srcObject = stream;
+    if (stream) {
+      // Set enabled first - this will cause video element to render
       setCameraEnabled(true);
     }
   };
+
+  // Attach stream to video element after it mounts
+  useEffect(() => {
+    if (cameraEnabled && videoPreviewRef.current && isPermissionGranted) {
+      const stream = getPreviewStream();
+      if (stream) {
+        videoPreviewRef.current.srcObject = stream;
+      }
+    }
+  }, [cameraEnabled, isPermissionGranted, getPreviewStream]);
 
   // Confirm camera works
   const confirmCameraWorks = () => {
