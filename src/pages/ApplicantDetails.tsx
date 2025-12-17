@@ -372,9 +372,14 @@ export default function ApplicantDetails() {
         });
       });
       
-      // Add final phases
+      // Add final phases - only include Review in Autopilot mode
+      const isAutoPilotMode = application?.jobs?.processing_mode === "auto";
+      if (isAutoPilotMode) {
+        allPhases.push(
+          { id: "review", title: "Review", icon: Eye, type: "review" }
+        );
+      }
       allPhases.push(
-        { id: "review", title: "Review", icon: Eye, type: "review" },
         { id: "interview", title: "Interview", icon: Users, type: "interview" },
         { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }
       );
