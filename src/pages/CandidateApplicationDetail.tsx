@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { CandidatePerformanceReport } from "@/components/CandidatePerformanceReport";
+import { useProfile } from "@/hooks/useProfile";
 
 interface WorkflowStep {
   id: string;
@@ -89,6 +91,7 @@ export default function CandidateApplicationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
 
@@ -414,20 +417,29 @@ export default function CandidateApplicationDetail() {
         </CardContent>
       </Card>
 
-      {/* Application Status */}
+      {/* Application Status - Rejected with Performance Report */}
       {isRejected && (
-        <Card className="bg-destructive/10 border-destructive/40">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-destructive">Application Rejected</h3>
-              <p className="text-sm text-muted-foreground">
-                Based on your latest assessment results, this application has been closed. You can still
-                review your previous phases, but no further steps are required.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card className="bg-destructive/10 border-destructive/40">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-destructive">Application Closed</h3>
+                <p className="text-sm text-muted-foreground">
+                  Based on your latest assessment results, this application has been closed. You can still
+                  review your previous phases, but no further steps are required.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Performance Report Download */}
+          <CandidatePerformanceReport
+            application={application}
+            candidateName={profile?.full_name || null}
+            candidateEmail={profile?.email || user?.email || ""}
+          />
+        </div>
       )}
 
       {isHired && (
