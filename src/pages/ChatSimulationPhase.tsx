@@ -20,6 +20,7 @@ import {
   User
 } from "lucide-react";
 import { toast } from "sonner";
+import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface Message {
   id: string;
@@ -622,6 +623,9 @@ export default function ChatSimulationPhase() {
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+
+      // Trigger AVA analysis in background (fire-and-forget)
+      triggerAvaAnalysis(id!).catch(console.error);
 
       setState("completed");
       setTimeout(() => navigate(`/applications/${id}`), 2000);

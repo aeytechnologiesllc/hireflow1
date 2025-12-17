@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface ApplicationDetails {
   id: string;
@@ -231,6 +232,10 @@ export default function VideoIntroPhase() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+
+      // Trigger AVA analysis in background (fire-and-forget)
+      triggerAvaAnalysis(id!).catch(console.error);
+
       navigate(`/applications/${id}`);
       
     } catch (error) {
@@ -255,6 +260,10 @@ export default function VideoIntroPhase() {
                 : "Your video has been recorded. The employer will review it.",
             });
             queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+            
+            // Trigger AVA analysis in background (fire-and-forget)
+            triggerAvaAnalysis(id!).catch(console.error);
+
             navigate(`/applications/${id}`);
             return;
           }

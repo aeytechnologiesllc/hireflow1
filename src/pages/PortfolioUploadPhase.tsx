@@ -21,6 +21,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
+import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface ApplicationDetails {
   id: string;
@@ -304,6 +305,10 @@ export default function PortfolioUploadPhase() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+
+      // Trigger AVA analysis in background (fire-and-forget)
+      triggerAvaAnalysis(id!).catch(console.error);
+
       navigate(`/applications/${id}`);
     } catch (error) {
       console.error("Error submitting portfolio:", error);
