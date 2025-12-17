@@ -284,6 +284,8 @@ export default function ApplicantDetails() {
     newPhase: { id: string; title: string; type: string };
     phasesToReset: { id: string; title: string; type: string }[];
   } | null>(null);
+  const [showResetPhaseDialog, setShowResetPhaseDialog] = useState(false);
+  const [phaseToReset, setPhaseToReset] = useState<{ id: string; title: string; type: string } | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -671,6 +673,96 @@ export default function ApplicantDetails() {
     setDragPosition(snapPercentage);
   };
 
+  // Reset a single phase without affecting others
+  const handleResetSinglePhase = async () => {
+    if (!application || !phaseToReset) return;
+    
+    try {
+      let updatedNotes = { ...parsedNotes };
+      const phaseId = phaseToReset.id;
+      const phaseType = phaseToReset.type;
+      
+      // Clear step ID data
+      delete updatedNotes[phaseId];
+      
+      // Clear specific phase data based on type
+      if (phaseType === "typing_test") {
+        delete updatedNotes.typingTestResult;
+      }
+      if (phaseType === "chat_simulation") {
+        delete updatedNotes.chatSimulationResult;
+      }
+      if (phaseType === "chat_interview") {
+        delete updatedNotes.chatInterviewResult;
+      }
+      if (phaseType === "sales_simulation") {
+        delete updatedNotes.salesSimulationResult;
+      }
+      if (phaseType === "quiz") {
+        if (updatedNotes.quizAnswers) {
+          delete updatedNotes.quizAnswers[phaseId];
+          // Also try deleting 'quiz' key for older data format
+          delete updatedNotes.quizAnswers['quiz'];
+          if (Object.keys(updatedNotes.quizAnswers).length === 0) {
+            delete updatedNotes.quizAnswers;
+          }
+        }
+      }
+      if (phaseType === "video_intro" || phaseType === "video_message") {
+        delete updatedNotes.videoIntroUrl;
+        delete updatedNotes.videoIntroResult;
+      }
+      if (phaseType === "portfolio_upload") {
+        // Already deleted via updatedNotes[phaseId]
+      }
+      if (phaseType === "voice_interview") {
+        // Voice interview result is stored separately
+      }
+      
+      // Remove from employer-skipped list if it was there
+      if (updatedNotes.employerSkippedPhases) {
+        updatedNotes.employerSkippedPhases = updatedNotes.employerSkippedPhases.filter(
+          (id: string) => id !== phaseId
+        );
+        if (updatedNotes.employerSkippedPhases.length === 0) {
+          delete updatedNotes.employerSkippedPhases;
+        }
+      }
+      
+      // Build update payload
+      const updatePayload: any = {
+        id: application.id,
+        notes: JSON.stringify(updatedNotes),
+        phase_ai_analysis: null, // Clear phase analysis
+      };
+      
+      // Clear voice interview result if resetting that phase
+      if (phaseType === "voice_interview") {
+        updatePayload.voice_interview_result = null;
+      }
+      
+      await updateApplication.mutateAsync(updatePayload);
+      
+      // Create notification for candidate
+      await supabase.from("notifications").insert({
+        user_id: application.candidate_id,
+        type: "status_update",
+        title: "Phase Reset",
+        message: `You can now re-submit your ${phaseToReset.title}. Please complete it again.`,
+        link: `/applications/${application.id}`,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      toast.success(`${phaseToReset.title} has been reset. Candidate can now re-submit.`);
+      
+      setShowResetPhaseDialog(false);
+      setPhaseToReset(null);
+      setActiveBadgeDialog(null);
+    } catch (error) {
+      console.error("Error resetting phase:", error);
+      toast.error("Failed to reset phase");
+    }
+  };
 
   const handleReject = async () => {
     if (!application) return;
@@ -1990,6 +2082,27 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
                     </div>
                   )}
                 </ScrollArea>
+                
+                {/* Reset Phase Button - Only show if data exists and user can manage pipeline */}
+                {dialogData.content && canManagePipeline && badge && !["application", "resume"].includes(badge.id) && (
+                  <DialogFooter className="mt-4 pt-4 border-t border-border">
+                    <Button
+                      variant="outline"
+                      className="gap-2 text-warning border-warning/50 hover:bg-warning/10"
+                      onClick={() => {
+                        setPhaseToReset({
+                          id: badge.id,
+                          title: dialogData.title,
+                          type: badge.type,
+                        });
+                        setShowResetPhaseDialog(true);
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Allow Redo
+                    </Button>
+                  </DialogFooter>
+                )}
               </>
             );
           })()}
@@ -2032,6 +2145,40 @@ Video Introduction: Submitted (URL: ${parsedNotes.videoIntroUrl})
             <AlertDialogCancel onClick={handleCancelReset}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmReset} className="bg-warning text-warning-foreground hover:bg-warning/90">
               Reset & Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Single Phase Reset Confirmation Dialog */}
+      <AlertDialog open={showResetPhaseDialog} onOpenChange={setShowResetPhaseDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-warning" />
+              Allow Candidate to Redo {phaseToReset?.title}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                This will clear the candidate's submitted data for <strong>{phaseToReset?.title}</strong> and allow them to re-submit.
+              </p>
+              <p className="text-muted-foreground">
+                The candidate will be notified that they can redo this phase. Other phases will not be affected.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowResetPhaseDialog(false);
+              setPhaseToReset(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleResetSinglePhase} 
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+            >
+              Allow Redo
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
