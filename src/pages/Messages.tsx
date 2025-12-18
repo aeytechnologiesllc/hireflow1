@@ -400,45 +400,65 @@ export default function Messages() {
                   <Skeleton className="h-12 w-2/3" />
                 </div>
               ) : messages && messages.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {messages.map((message) => {
                     const isMine = message.sender_id === user?.id;
+                    const hasFile = message.file_url && message.file_name && message.file_type;
+                    const isImageFile = hasFile && (
+                      message.file_type?.startsWith("image/") || 
+                      /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(message.file_type || "")
+                    );
+                    const hasTextContent = message.content && !message.content.startsWith("Sent a file:");
+                    
                     return (
                       <div
                         key={message.id}
-                        className={cn("flex", isMine ? "justify-end" : "justify-start")}
+                        className={cn("flex flex-col", isMine ? "items-end" : "items-start")}
                       >
-                        <div
-                          className={cn(
-                            "max-w-[70%] rounded-lg px-4 py-2",
-                            isMine
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-secondary-foreground"
-                          )}
-                        >
-                          {/* File attachment */}
-                          {message.file_url && message.file_name && message.file_type && (
-                            <div className="mb-2">
-                              <FileMessage
-                                fileUrl={message.file_url}
-                                fileName={message.file_name}
-                                fileType={message.file_type}
-                                fileSize={message.file_size || undefined}
-                                isMine={isMine}
-                              />
-                            </div>
-                          )}
-                          {/* Text content - only show if not just "Sent a file:" */}
-                          {message.content && !message.content.startsWith("Sent a file:") && (
-                            <p className="text-sm">{message.content}</p>
-                          )}
-                          <p className={cn(
-                            "text-xs mt-1",
-                            isMine ? "text-primary-foreground/70" : "text-muted-foreground"
-                          )}>
-                            {format(new Date(message.created_at), "h:mm a")}
-                          </p>
-                        </div>
+                        {/* Image without bubble wrapper - iPhone style */}
+                        {hasFile && isImageFile && (
+                          <div className="max-w-[240px]">
+                            <FileMessage
+                              fileUrl={message.file_url!}
+                              fileName={message.file_name!}
+                              fileType={message.file_type!}
+                              fileSize={message.file_size || undefined}
+                              isMine={isMine}
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Non-image file with subtle styling */}
+                        {hasFile && !isImageFile && (
+                          <div className="max-w-[280px]">
+                            <FileMessage
+                              fileUrl={message.file_url!}
+                              fileName={message.file_name!}
+                              fileType={message.file_type!}
+                              fileSize={message.file_size || undefined}
+                              isMine={isMine}
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Text bubble - iPhone style */}
+                        {hasTextContent && (
+                          <div
+                            className={cn(
+                              "max-w-[70%] rounded-2xl px-3 py-1.5",
+                              isMine
+                                ? "bg-emerald-500 text-white"
+                                : "bg-secondary text-secondary-foreground"
+                            )}
+                          >
+                            <p className="text-sm leading-relaxed">{message.content}</p>
+                          </div>
+                        )}
+                        
+                        {/* Timestamp outside bubble - iPhone style */}
+                        <p className="text-[10px] text-muted-foreground mt-1 px-1">
+                          {format(new Date(message.created_at), "h:mm a")}
+                        </p>
                       </div>
                     );
                   })}
