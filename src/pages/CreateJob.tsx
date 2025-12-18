@@ -96,6 +96,7 @@ import {
 } from "@/components/ui/command";
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 import avaOrb from "@/assets/ava-orb.png";
+import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 
 // Premium Generation Step Component
 const GenerationStep = ({ label, delay, isActive }: { label: string; delay: number; isActive: boolean }) => {
@@ -348,6 +349,16 @@ export default function CreateJob() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [currencyOpen, setCurrencyOpen] = useState(false);
+  
+  // Published job dialog state
+  const [publishedJob, setPublishedJob] = useState<{
+    id: string;
+    title: string;
+    location?: string | null;
+    job_type?: string | null;
+    job_code?: string | null;
+  } | null>(null);
+  const [showPublishedDialog, setShowPublishedDialog] = useState(false);
 
   // Load existing job data for edit mode
   useEffect(() => {
@@ -600,12 +611,25 @@ export default function CreateJob() {
       if (isEditMode && id) {
         await updateJob.mutateAsync({ id, ...jobData });
         toast.success(status === "published" ? "Job updated and published!" : "Job updated");
+        navigate("/jobs");
       } else {
-        await createJob.mutateAsync(jobData);
-        toast.success(status === "published" ? "Job published successfully!" : "Job saved as draft");
+        const createdJob = await createJob.mutateAsync(jobData);
+        
+        if (status === "published" && createdJob) {
+          // Show the published dialog with job details
+          setPublishedJob({
+            id: createdJob.id,
+            title: createdJob.title,
+            location: createdJob.location,
+            job_type: createdJob.job_type,
+            job_code: createdJob.job_code,
+          });
+          setShowPublishedDialog(true);
+        } else {
+          toast.success("Job saved as draft");
+          navigate("/jobs");
+        }
       }
-      
-      navigate("/jobs");
     } catch (error) {
       console.error("Error saving job:", error);
       toast.error(isEditMode ? "Failed to update job" : "Failed to create job");
@@ -2303,6 +2327,16 @@ export default function CreateJob() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Job Published Success Dialog */}
+      <JobPublishedDialog
+        open={showPublishedDialog}
+        onClose={() => {
+          setShowPublishedDialog(false);
+          navigate("/jobs");
+        }}
+        job={publishedJob}
+      />
     </div>
   );
 }
