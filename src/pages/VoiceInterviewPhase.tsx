@@ -47,6 +47,7 @@ export default function VoiceInterviewPhase() {
   // Camera/video states
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraTestPassed, setCameraTestPassed] = useState(false);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null); // Shared mic stream
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
   // Interview timer states
@@ -217,6 +218,9 @@ export default function VoiceInterviewPhase() {
     applicationId,
     language,
     duration,
+    // Pass the shared mic stream so both WebRTC and video recorder use the same stream
+    // This ensures candidate audio is captured in the recording
+    externalMicStream: micStream,
     onTranscript: handleTranscript,
     onInterviewEnd: handleInterviewEnd,
   });
@@ -245,6 +249,8 @@ export default function VoiceInterviewPhase() {
   const enableCamera = async () => {
     const stream = await requestPermissions();
     if (stream) {
+      // Store the stream to share with voice hook
+      setMicStream(stream);
       // Set enabled first - this will cause video element to render
       setCameraEnabled(true);
     }

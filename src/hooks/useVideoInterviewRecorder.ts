@@ -197,6 +197,7 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
           trackLabel: micAudioTrack.label,
           trackEnabled: micAudioTrack.enabled,
           trackMuted: micAudioTrack.muted,
+          trackReadyState: micAudioTrack.readyState, // Should be 'live' - critical check!
           gainValue: micGain.gain.value
         });
       } else {

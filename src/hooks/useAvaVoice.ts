@@ -18,6 +18,9 @@ interface UseAvaVoiceOptions {
   // Google Calendar integration
   googleCalendarConnected?: boolean;
   googleRefreshToken?: string;
+  // External mic stream - when provided, use this instead of creating a new one
+  // This is critical for video recording to capture candidate audio
+  externalMicStream?: MediaStream | null;
   onTranscript?: (text: string, role: 'user' | 'assistant') => void;
   onToolCall?: (toolName: string, result: any) => void;
   onInterviewEnd?: (evaluation: any) => void;
@@ -221,8 +224,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // Stop analyser
     analyserRef.current = null;
 
-    // Stop mic stream
-    micStreamRef.current?.getTracks().forEach(track => track.stop());
+    // IMPORTANT: Only stop mic stream if we created it (not external)
+    // If externalMicStream was provided, the video recorder owns that stream
+    if (micStreamRef.current && !optionsRef.current.externalMicStream) {
+      console.log('[AvaVoice] Stopping internal mic stream');
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+    }
     micStreamRef.current = null;
 
     recorderRef.current?.stop();
@@ -248,8 +255,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const connectInternal = useCallback(async () => {
     setState(s => ({ ...s, isConnecting: true, error: null }));
 
-    // Request microphone permission
-    await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Check if we have an external mic stream to use
+    const externalStream = optionsRef.current.externalMicStream;
+    if (!externalStream) {
+      // Request microphone permission only if no external stream
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
 
     // Get session token from edge function
     const { data, error } = await supabase.functions.invoke('ava-voice-session', {
@@ -326,10 +337,28 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       }
     };
 
-    // Add local audio track
-    const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Add local audio track - use external stream if provided (critical for video recording)
+    let ms: MediaStream;
+    if (optionsRef.current.externalMicStream) {
+      ms = optionsRef.current.externalMicStream;
+      console.log('[AvaVoice] Using external mic stream for WebRTC (shared with video recorder)');
+    } else {
+      ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('[AvaVoice] Created new mic stream for WebRTC');
+    }
     micStreamRef.current = ms;
-    pcRef.current.addTrack(ms.getTracks()[0]);
+    
+    const audioTrack = ms.getAudioTracks()[0];
+    if (audioTrack) {
+      pcRef.current.addTrack(audioTrack);
+      console.log('[AvaVoice] Audio track added to peer connection', {
+        label: audioTrack.label,
+        enabled: audioTrack.enabled,
+        readyState: audioTrack.readyState
+      });
+    } else {
+      console.error('[AvaVoice] No audio track found on mic stream!');
+    }
 
     // Set up audio analyser for real-time voice visualization
     const analyserContext = new AudioContext();
