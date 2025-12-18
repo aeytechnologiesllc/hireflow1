@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isFuture } from "date-fns";
 import { 
   ArrowLeft, FileText, MessageSquare, Sparkles, 
   XCircle, GripHorizontal, Clock, RefreshCw, 
@@ -329,6 +329,24 @@ export default function ApplicantDetails() {
       return { ...app, profiles: profile, jobs: app.jobs } as ApplicationDetails;
     },
     enabled: !!id && !!user,
+  });
+
+  // Fetch scheduled interview for this application
+  const { data: scheduledInterview } = useQuery({
+    queryKey: ["interview", "application", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("application_id", id!)
+        .order("scheduled_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
   });
 
   // Real-time subscription for this application - syncs when AVA or external sources update it
@@ -1367,6 +1385,59 @@ Voice Interview with AVA Results:
           )}
         </div>
       </div>
+
+      {/* Scheduled Interview Card */}
+      {scheduledInterview && (
+        <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">Interview Scheduled</span>
+                    <Badge 
+                      variant="secondary"
+                      className={
+                        scheduledInterview.status === "scheduled" ? "bg-primary/20 text-primary" :
+                        scheduledInterview.status === "completed" ? "bg-success/20 text-success" :
+                        scheduledInterview.status === "cancelled" ? "bg-destructive/20 text-destructive" :
+                        "bg-muted"
+                      }
+                    >
+                      {scheduledInterview.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                    <span>{format(new Date(scheduledInterview.scheduled_at), "EEEE, MMMM d, yyyy")}</span>
+                    <span>•</span>
+                    <span>{format(new Date(scheduledInterview.scheduled_at), "h:mm a")}</span>
+                    {scheduledInterview.duration_minutes && (
+                      <>
+                        <span>•</span>
+                        <span>{scheduledInterview.duration_minutes} min</span>
+                      </>
+                    )}
+                    <span>•</span>
+                    <span className="capitalize">{scheduledInterview.interview_type || "Video"}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
+                <Button asChild className="gap-2">
+                  <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
+                    <Video className="h-4 w-4" />
+                    Join Meeting
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Candidate Journey */}
       <Card className="bg-card border-border overflow-hidden">

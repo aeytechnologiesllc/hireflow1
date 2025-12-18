@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview } from "@/hooks/useInterviews";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -76,6 +77,7 @@ export default function InterviewSchedulingWizard({
   const [isCreating, setIsCreating] = useState(false);
   const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
   const updateApplication = useUpdateApplication();
 
@@ -260,6 +262,10 @@ export default function InterviewSchedulingWizard({
         id: applicationId,
         status: "interview",
       });
+
+      // Invalidate interview queries so ApplicantDetails updates
+      queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
 
       toast.success("Interview scheduled successfully!", {
         description: meetingLink ? "Calendar invite and Meet link have been created." : undefined,
