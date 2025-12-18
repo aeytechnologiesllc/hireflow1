@@ -203,6 +203,7 @@ export default function VoiceInterviewPhase() {
     isListening,
     isProcessing,
     isStuck,
+    isEndingInterview,
     reconnectAttempts,
     error: voiceError,
     audioLevels,
@@ -604,7 +605,49 @@ Duration: ${formatTime(elapsedSeconds)}
         </div>
       ) : (
         /* Active interview UI */
-        <div className="space-y-4">
+        <div className="space-y-4 relative">
+          {/* Wrapping Up Interview Overlay - shows immediately when Ava triggers end */}
+          <AnimatePresence>
+            {isEndingInterview && !showCompletionScreen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-background/95 z-50 flex flex-col items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-center space-y-4"
+                >
+                  <div className="relative mx-auto w-16 h-16">
+                    <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Volume2 className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Wrapping Up Interview...
+                  </h2>
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                    Ava is finishing up. Your responses are being saved.
+                  </p>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="mt-6 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg max-w-sm mx-auto"
+                  >
+                    <div className="flex items-center gap-2 text-amber-400 text-sm">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <p>Please don't refresh or close this page</p>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           {/* Recording indicator - conditional based on mode */}
           <div className="relative">
             {videoEnabled ? (
