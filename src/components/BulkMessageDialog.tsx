@@ -16,6 +16,7 @@ import { MessageSquare, Loader2, Send } from "lucide-react";
 import { useSendMessage } from "@/hooks/useMessages";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+import { getApplicantDisplayName, getInitialsFromName } from "@/utils/getApplicantDisplayName";
 
 interface BulkMessageDialogProps {
   open: boolean;
@@ -62,12 +63,8 @@ export default function BulkMessageDialog({
     }
   };
 
-  const getInitials = (name?: string | null, email?: string | null) => {
-    if (name) {
-      return name.split(" ").map((n) => n[0]).join("").toUpperCase();
-    }
-    return email?.[0]?.toUpperCase() || "?";
-  };
+  const getDisplayName = (app: ApplicationWithCandidate) => 
+    getApplicantDisplayName(app.notes, app.profiles?.full_name, app.profiles?.email);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,11 +91,11 @@ export default function BulkMessageDialog({
                   >
                     <Avatar className="h-5 w-5">
                       <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
-                        {getInitials(app.profiles?.full_name, app.profiles?.email)}
+                        {getInitialsFromName(getDisplayName(app))}
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-foreground">
-                      {app.profiles?.full_name || app.profiles?.email || "Unknown"}
+                      {getDisplayName(app)}
                     </span>
                   </div>
                 ))}

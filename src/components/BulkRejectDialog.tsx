@@ -16,6 +16,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+import { getApplicantDisplayName, getInitialsFromName } from "@/utils/getApplicantDisplayName";
 
 interface BulkRejectDialogProps {
   open: boolean;
@@ -57,12 +58,8 @@ export default function BulkRejectDialog({
     }
   };
 
-  const getInitials = (name?: string | null, email?: string | null) => {
-    if (name) {
-      return name.split(" ").map((n) => n[0]).join("").toUpperCase();
-    }
-    return email?.[0]?.toUpperCase() || "?";
-  };
+  const getDisplayName = (app: ApplicationWithCandidate) => 
+    getApplicantDisplayName(app.notes, app.profiles?.full_name, app.profiles?.email);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,12 +83,12 @@ export default function BulkRejectDialog({
                   <div key={app.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {getInitials(app.profiles?.full_name, app.profiles?.email)}
+                        {getInitialsFromName(getDisplayName(app))}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {app.profiles?.full_name || "Unknown"}
+                        {getDisplayName(app)}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {app.jobs?.title}
