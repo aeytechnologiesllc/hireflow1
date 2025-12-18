@@ -29,10 +29,15 @@ interface AvaVoiceState {
   isSpeaking: boolean;
   isListening: boolean;
   isProcessing: boolean; // True when waiting for AVA's response after user stops speaking
+  isStuck: boolean; // True when Ava hasn't responded for too long
+  reconnectAttempts: number; // Track reconnection attempts
   error: string | null;
   audioLevels: number[]; // 5 values for audio bars visualization
   connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
 }
+
+const MAX_RECONNECT_ATTEMPTS = 3;
+const STUCK_TIMEOUT_MS = 30000; // 30 seconds
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
   const { toast } = useToast();
@@ -42,6 +47,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isSpeaking: false,
     isListening: false,
     isProcessing: false,
+    isStuck: false,
+    reconnectAttempts: 0,
     error: null,
     audioLevels: [8, 8, 8, 8, 8],
     connectionQuality: 'unknown',
@@ -57,13 +64,50 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const connectionQualityIntervalRef = useRef<number | null>(null);
+  
+  // New refs for stuck detection and reconnection
+  const processingTimeoutRef = useRef<number | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const reconnectAttemptsRef = useRef(0);
+  const isInterviewEndedRef = useRef(false);
+  const optionsRef = useRef(options);
+
+  // Keep options ref updated
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      clearProcessingTimeout();
       disconnect();
     };
   }, []);
+
+  // Clear processing timeout helper
+  const clearProcessingTimeout = useCallback(() => {
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
+    }
+    setState(s => ({ ...s, isStuck: false }));
+  }, []);
+
+  // Start processing timeout - detect when Ava is stuck
+  const startProcessingTimeout = useCallback(() => {
+    clearProcessingTimeout();
+    
+    processingTimeoutRef.current = window.setTimeout(() => {
+      console.warn('Ava response timeout - stuck detected');
+      setState(s => ({ ...s, isStuck: true }));
+      toast({
+        variant: 'destructive',
+        title: 'Ava is taking too long',
+        description: 'The connection may be experiencing issues. You can try to prompt Ava or reconnect.',
+      });
+    }, STUCK_TIMEOUT_MS);
+  }, [clearProcessingTimeout, toast]);
 
   // Monitor connection quality periodically
   const startConnectionQualityMonitoring = useCallback(() => {
@@ -96,353 +140,72 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }, 3000); // Check every 3 seconds
   }, []);
 
-  const connect = useCallback(async () => {
-    setState(s => ({ ...s, isConnecting: true, error: null }));
-
-    try {
-      // Request microphone permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Get session token from edge function
-      const { data, error } = await supabase.functions.invoke('ava-voice-session', {
-        body: {
-          mode: options.mode,
-          applicationId: options.applicationId,
-          jobId: options.jobId,
-          language: options.language || 'en',
-          duration: options.duration || 10,
-          // Pass user context for personalized responses
-          subscriptionPlan: options.subscriptionPlan,
-          subscriptionStatus: options.subscriptionStatus,
-          countryCode: options.countryCode,
-          voiceMinutesRemaining: options.voiceMinutesRemaining,
-          isFirstUse: options.isFirstUse,
-          // Google Calendar integration
-          googleCalendarConnected: options.googleCalendarConnected,
-          googleRefreshToken: options.googleRefreshToken,
-        },
-      });
-
-      if (error || !data?.client_secret?.value) {
-        throw new Error(data?.error || error?.message || 'Failed to get voice session');
-      }
-
-      const EPHEMERAL_KEY = data.client_secret.value;
-      console.log('Got ephemeral key, creating peer connection');
-
-      // Create audio context for playback
-      audioContextRef.current = new AudioContext({ sampleRate: 24000 });
-      audioQueueRef.current = new AudioQueue(
-        audioContextRef.current,
-        (playing) => setState(s => ({ ...s, isSpeaking: playing }))
-      );
-
-      // Create peer connection
-      pcRef.current = new RTCPeerConnection();
-
-      // Set up audio element for remote audio
-      audioElRef.current = document.createElement('audio');
-      audioElRef.current.autoplay = true;
-      pcRef.current.ontrack = (e) => {
-        if (audioElRef.current) {
-          audioElRef.current.srcObject = e.streams[0];
-        }
-      };
-
-      // Add local audio track
-      const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = ms;
-      pcRef.current.addTrack(ms.getTracks()[0]);
-
-      // Set up audio analyser for real-time voice visualization
-      const analyserContext = new AudioContext();
-      analyserRef.current = analyserContext.createAnalyser();
-      analyserRef.current.fftSize = 32;
-      const micSource = analyserContext.createMediaStreamSource(ms);
-      micSource.connect(analyserRef.current);
-
-      // Start animation loop for audio levels
-      const updateAudioLevels = () => {
-        if (!analyserRef.current) return;
-        
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        // Extract 5 bands and normalize to 8-32 pixel range
-        const bands = [0, 2, 4, 6, 8];
-        const levels = bands.map(i => {
-          const value = dataArray[i] || 0;
-          return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
-        });
-        
-        setState(s => ({ ...s, audioLevels: levels }));
-        animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
-      };
-      updateAudioLevels();
-
-      // Set up data channel for events
-      dcRef.current = pcRef.current.createDataChannel('oai-events');
+  // Handle connection lost - attempt auto-reconnect
+  const handleConnectionLost = useCallback(async () => {
+    // Don't attempt reconnect if interview already ended
+    if (isInterviewEndedRef.current) {
+      console.log('Interview ended, not attempting reconnection');
+      return;
+    }
+    
+    const attempts = reconnectAttemptsRef.current;
+    console.log(`Connection lost. Attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS}`);
+    
+    if (attempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttemptsRef.current += 1;
       
-      dcRef.current.addEventListener('open', () => {
-        console.log('Data channel opened');
-        setState(s => ({ ...s, isConnected: true, isConnecting: false, isListening: true, connectionQuality: 'excellent' }));
-        
-        // Start monitoring connection quality
-        startConnectionQualityMonitoring();
-        
-        // For interview mode, trigger AVA to start speaking first
-        if (options.mode === 'interview') {
-          setTimeout(() => {
-            if (dcRef.current?.readyState === 'open') {
-              console.log('Triggering AVA to start interview');
-              dcRef.current.send(JSON.stringify({ type: 'response.create' }));
-            }
-          }, 500); // Small delay to ensure connection is stable
-        }
+      setState(s => ({ 
+        ...s, 
+        isConnected: false, 
+        isConnecting: true,
+        reconnectAttempts: reconnectAttemptsRef.current,
+        error: `Connection lost. Reconnecting (attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS})...`
+      }));
+      
+      toast({
+        title: 'Connection Lost',
+        description: `Attempting to reconnect... (${attempts + 1}/${MAX_RECONNECT_ATTEMPTS})`,
       });
-
-      dcRef.current.addEventListener('message', async (e) => {
-        const event = JSON.parse(e.data);
-        console.log('Received event:', event.type);
-
-        switch (event.type) {
-          case 'response.audio.delta':
-            // Handle audio chunk
-            if (event.delta) {
-              const binaryString = atob(event.delta);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-              }
-              audioQueueRef.current?.addToQueue(bytes);
-            }
-            // Set isSpeaking TRUE immediately when first audio delta arrives
-            // This ensures "Ava is speaking" shows as soon as audio starts coming in
-            setState(s => ({ ...s, isSpeaking: true, isProcessing: false }));
-            break;
-
-          case 'response.audio.done':
-            // Give a longer buffer for WebRTC audio playback to finish
-            // Only set isSpeaking false after audio has actually finished playing
-            console.log('Audio done event received, setting isSpeaking false after buffer');
-            setTimeout(() => {
-              setState(s => ({ ...s, isSpeaking: false }));
-            }, 800);
-            break;
-
-          case 'response.audio_transcript.delta':
-            if (event.delta) {
-              options.onTranscript?.(event.delta, 'assistant');
-            }
-            break;
-
-          case 'conversation.item.input_audio_transcription.completed':
-            if (event.transcript) {
-              options.onTranscript?.(event.transcript, 'user');
-            }
-            break;
-
-          case 'response.function_call_arguments.done':
-            // Handle tool call
-            if (event.name && event.arguments) {
-              try {
-                const args = JSON.parse(event.arguments);
-                console.log('Tool call:', event.name, args);
-                
-                // For schedule_interview, inject Google Calendar tokens
-                if (event.name === 'schedule_interview') {
-                  const googleAccessToken = localStorage.getItem("google_access_token");
-                  const googleRefreshToken = localStorage.getItem("google_refresh_token");
-                  if (googleRefreshToken) {
-                    args.google_refresh_token = googleRefreshToken;
-                    args.google_access_token = googleAccessToken;
-                  }
-                }
-                
-                // Execute tool call via edge function
-                const { data: toolResult, error: toolError } = await supabase.functions.invoke('ava-voice-tools', {
-                  body: {
-                    tool_name: event.name,
-                    parameters: args,
-                    applicationId: options.applicationId,
-                  },
-                });
-
-                if (toolError) {
-                  console.error('Tool call error:', toolError);
-                } else {
-                  options.onToolCall?.(event.name, toolResult);
-                  
-                  // Check for interview end
-                  if (event.name === 'end_interview' && toolResult?.evaluation) {
-                    console.log('Interview ending, waiting for Ava to finish speaking...');
-                    
-                    // Wait for audio queue to finish playing before triggering end
-                    const waitForAudioComplete = (): Promise<void> => {
-                      return new Promise((resolve) => {
-                        let checkCount = 0;
-                        const maxChecks = 100; // 10 seconds max wait
-                        
-                        const checkInterval = setInterval(() => {
-                          checkCount++;
-                          const queueLength = audioQueueRef.current?.length || 0;
-                          
-                          console.log(`Waiting for audio... Queue length: ${queueLength}, Check: ${checkCount}`);
-                          
-                          // Check if audio queue is empty and not playing
-                          if (queueLength === 0) {
-                            // Give a small buffer after queue empties to ensure playback finished
-                            setTimeout(() => {
-                              clearInterval(checkInterval);
-                              resolve();
-                            }, 500);
-                            clearInterval(checkInterval);
-                          } else if (checkCount >= maxChecks) {
-                            // Timeout after 10 seconds to prevent infinite wait
-                            console.log('Audio wait timeout, proceeding with interview end');
-                            clearInterval(checkInterval);
-                            resolve();
-                          }
-                        }, 100); // Check every 100ms
-                      });
-                    };
-                    
-                    // Wait for Ava to finish, then trigger end
-                    waitForAudioComplete().then(() => {
-                      console.log('Ava finished speaking, triggering interview end...');
-                      options.onInterviewEnd?.(toolResult.evaluation);
-                      
-                      // Auto-disconnect after callback completes
-                      setTimeout(() => {
-                        console.log('Auto-disconnecting Ava after interview end...');
-                        
-                        // Close data channel
-                        dcRef.current?.close();
-                        dcRef.current = null;
-                        
-                        // Close peer connection
-                        pcRef.current?.close();
-                        pcRef.current = null;
-                        
-                        // Stop mic stream
-                        micStreamRef.current?.getTracks().forEach(track => track.stop());
-                        micStreamRef.current = null;
-                        
-                        // Clean up audio
-                        audioElRef.current = null;
-                        audioQueueRef.current?.clear();
-                        
-                        // Stop monitoring
-                        if (connectionQualityIntervalRef.current) {
-                          clearInterval(connectionQualityIntervalRef.current);
-                          connectionQualityIntervalRef.current = null;
-                        }
-                        if (animationFrameRef.current) {
-                          cancelAnimationFrame(animationFrameRef.current);
-                          animationFrameRef.current = null;
-                        }
-                        
-                        // Update state to disconnected
-                        setState(s => ({
-                          ...s,
-                          isConnected: false,
-                          isSpeaking: false,
-                          isListening: false,
-                          isProcessing: false,
-                        }));
-                      }, 100);
-                    });
-                  }
-
-                  // Handle flag_inconsistency - Ava may want to ask a follow-up
-                  if (event.name === 'flag_inconsistency' && toolResult?.follow_up) {
-                    console.log('Inconsistency flagged, follow-up:', toolResult.follow_up);
-                  }
-
-                  // Handle take_interview_note - just acknowledge
-                  if (event.name === 'take_interview_note') {
-                    console.log('Interview note recorded');
-                  }
-
-                  // Send tool result back to model
-                  if (dcRef.current?.readyState === 'open') {
-                    dcRef.current.send(JSON.stringify({
-                      type: 'conversation.item.create',
-                      item: {
-                        type: 'function_call_output',
-                        call_id: event.call_id,
-                        output: JSON.stringify(toolResult),
-                      }
-                    }));
-                    dcRef.current.send(JSON.stringify({ type: 'response.create' }));
-                  }
-                }
-              } catch (err) {
-                console.error('Tool call parse error:', err);
-              }
-            }
-            break;
-
-          case 'input_audio_buffer.speech_started':
-            setState(s => ({ ...s, isListening: true, isProcessing: false }));
-            break;
-
-          case 'input_audio_buffer.speech_stopped':
-            setState(s => ({ ...s, isListening: false, isProcessing: true }));
-            break;
-
-          case 'error':
-            console.error('Realtime API error:', event);
-            toast({
-              variant: 'destructive',
-              title: 'Voice Error',
-              description: event.error?.message || 'An error occurred',
-            });
-            break;
-        }
-      });
-
-      // Create and set local description
-      const offer = await pcRef.current.createOffer();
-      await pcRef.current.setLocalDescription(offer);
-
-      // Connect to OpenAI's Realtime API
-      const baseUrl = 'https://api.openai.com/v1/realtime';
-      const model = 'gpt-4o-realtime-preview-2024-12-17';
-      const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
-        method: 'POST',
-        body: offer.sdp,
-        headers: {
-          Authorization: `Bearer ${EPHEMERAL_KEY}`,
-          'Content-Type': 'application/sdp',
-        },
-      });
-
-      if (!sdpResponse.ok) {
-        throw new Error('Failed to connect to OpenAI Realtime API');
+      
+      // Clean up existing connection without resetting the state fully
+      cleanupConnection();
+      
+      // Wait before reconnecting
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Attempt reconnection
+      try {
+        await connectInternal();
+        reconnectAttemptsRef.current = 0;
+        setState(s => ({ ...s, reconnectAttempts: 0, error: null }));
+        toast({
+          title: 'Reconnected',
+          description: 'Voice connection restored.',
+        });
+      } catch (err) {
+        console.error('Reconnection failed:', err);
+        // Try again if under max attempts
+        handleConnectionLost();
       }
-
-      const answer = {
-        type: 'answer' as RTCSdpType,
-        sdp: await sdpResponse.text(),
-      };
-
-      await pcRef.current.setRemoteDescription(answer);
-      console.log('WebRTC connection established');
-
-    } catch (err) {
-      console.error('Connection error:', err);
-      const message = err instanceof Error ? err.message : 'Failed to connect';
-      setState(s => ({ ...s, isConnecting: false, error: message }));
+    } else {
+      // Max attempts reached
+      setState(s => ({ 
+        ...s, 
+        isConnected: false, 
+        isConnecting: false,
+        error: 'Connection lost. Please click "Retry Connection" to continue.'
+      }));
+      
       toast({
         variant: 'destructive',
         title: 'Connection Failed',
-        description: message,
+        description: 'Unable to reconnect automatically. Please try manually.',
       });
     }
-  }, [options, toast, startConnectionQualityMonitoring]);
+  }, [toast]);
 
-  const disconnect = useCallback(() => {
+  // Cleanup connection resources without full state reset
+  const cleanupConnection = useCallback(() => {
     // Stop connection quality monitoring
     if (connectionQualityIntervalRef.current) {
       clearInterval(connectionQualityIntervalRef.current);
@@ -479,6 +242,429 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     audioContextRef.current = null;
 
     resetAudioQueue();
+  }, []);
+
+  // Internal connect function used by both initial connect and reconnect
+  const connectInternal = useCallback(async () => {
+    setState(s => ({ ...s, isConnecting: true, error: null }));
+
+    // Request microphone permission
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Get session token from edge function
+    const { data, error } = await supabase.functions.invoke('ava-voice-session', {
+      body: {
+        mode: optionsRef.current.mode,
+        applicationId: optionsRef.current.applicationId,
+        jobId: optionsRef.current.jobId,
+        language: optionsRef.current.language || 'en',
+        duration: optionsRef.current.duration || 10,
+        // Pass user context for personalized responses
+        subscriptionPlan: optionsRef.current.subscriptionPlan,
+        subscriptionStatus: optionsRef.current.subscriptionStatus,
+        countryCode: optionsRef.current.countryCode,
+        voiceMinutesRemaining: optionsRef.current.voiceMinutesRemaining,
+        isFirstUse: optionsRef.current.isFirstUse,
+        // Google Calendar integration
+        googleCalendarConnected: optionsRef.current.googleCalendarConnected,
+        googleRefreshToken: optionsRef.current.googleRefreshToken,
+      },
+    });
+
+    if (error || !data?.client_secret?.value) {
+      throw new Error(data?.error || error?.message || 'Failed to get voice session');
+    }
+
+    const EPHEMERAL_KEY = data.client_secret.value;
+    console.log('Got ephemeral key, creating peer connection');
+
+    // Create audio context for playback
+    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    audioQueueRef.current = new AudioQueue(
+      audioContextRef.current,
+      (playing) => setState(s => ({ ...s, isSpeaking: playing }))
+    );
+
+    // Create peer connection
+    pcRef.current = new RTCPeerConnection();
+
+    // Monitor WebRTC connection state
+    pcRef.current.onconnectionstatechange = () => {
+      const connectionState = pcRef.current?.connectionState;
+      console.log('WebRTC connection state:', connectionState);
+      
+      if (connectionState === 'disconnected' || connectionState === 'failed') {
+        console.warn('WebRTC connection lost:', connectionState);
+        if (!isInterviewEndedRef.current) {
+          handleConnectionLost();
+        }
+      } else if (connectionState === 'connected') {
+        reconnectAttemptsRef.current = 0;
+        setState(s => ({ ...s, reconnectAttempts: 0 }));
+      }
+    };
+
+    // Monitor ICE connection state
+    pcRef.current.oniceconnectionstatechange = () => {
+      const iceState = pcRef.current?.iceConnectionState;
+      console.log('ICE connection state:', iceState);
+      
+      if (iceState === 'disconnected' || iceState === 'failed') {
+        console.warn('ICE connection issue:', iceState);
+        if (!isInterviewEndedRef.current) {
+          handleConnectionLost();
+        }
+      }
+    };
+
+    // Set up audio element for remote audio
+    audioElRef.current = document.createElement('audio');
+    audioElRef.current.autoplay = true;
+    pcRef.current.ontrack = (e) => {
+      if (audioElRef.current) {
+        audioElRef.current.srcObject = e.streams[0];
+      }
+    };
+
+    // Add local audio track
+    const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStreamRef.current = ms;
+    pcRef.current.addTrack(ms.getTracks()[0]);
+
+    // Set up audio analyser for real-time voice visualization
+    const analyserContext = new AudioContext();
+    analyserRef.current = analyserContext.createAnalyser();
+    analyserRef.current.fftSize = 32;
+    const micSource = analyserContext.createMediaStreamSource(ms);
+    micSource.connect(analyserRef.current);
+
+    // Start animation loop for audio levels
+    const updateAudioLevels = () => {
+      if (!analyserRef.current) return;
+      
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+      
+      // Extract 5 bands and normalize to 8-32 pixel range
+      const bands = [0, 2, 4, 6, 8];
+      const levels = bands.map(i => {
+        const value = dataArray[i] || 0;
+        return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
+      });
+      
+      setState(s => ({ ...s, audioLevels: levels }));
+      animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+    };
+    updateAudioLevels();
+
+    // Set up data channel for events
+    dcRef.current = pcRef.current.createDataChannel('oai-events');
+    
+    // Monitor data channel health
+    dcRef.current.addEventListener('close', () => {
+      console.warn('Data channel closed');
+      if (state.isConnected && !isInterviewEndedRef.current) {
+        handleConnectionLost();
+      }
+    });
+
+    dcRef.current.addEventListener('error', (e) => {
+      console.error('Data channel error:', e);
+      toast({
+        variant: 'destructive',
+        title: 'Connection Error',
+        description: 'Voice connection experienced an error.',
+      });
+      if (!isInterviewEndedRef.current) {
+        handleConnectionLost();
+      }
+    });
+
+    dcRef.current.addEventListener('open', () => {
+      console.log('Data channel opened');
+      lastActivityRef.current = Date.now();
+      setState(s => ({ 
+        ...s, 
+        isConnected: true, 
+        isConnecting: false, 
+        isListening: true, 
+        connectionQuality: 'excellent',
+        isStuck: false,
+        error: null 
+      }));
+      
+      // Start monitoring connection quality
+      startConnectionQualityMonitoring();
+      
+      // For interview mode, trigger AVA to start speaking first
+      if (optionsRef.current.mode === 'interview') {
+        setTimeout(() => {
+          if (dcRef.current?.readyState === 'open') {
+            console.log('Triggering AVA to start interview');
+            dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+            startProcessingTimeout();
+          }
+        }, 500); // Small delay to ensure connection is stable
+      }
+    });
+
+    dcRef.current.addEventListener('message', async (e) => {
+      const event = JSON.parse(e.data);
+      console.log('Received event:', event.type);
+      lastActivityRef.current = Date.now();
+
+      switch (event.type) {
+        case 'response.audio.delta':
+          // Clear stuck timeout - Ava is responding
+          clearProcessingTimeout();
+          
+          // Handle audio chunk
+          if (event.delta) {
+            const binaryString = atob(event.delta);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            audioQueueRef.current?.addToQueue(bytes);
+          }
+          // Set isSpeaking TRUE immediately when first audio delta arrives
+          setState(s => ({ ...s, isSpeaking: true, isProcessing: false, isStuck: false }));
+          break;
+
+        case 'response.audio.done':
+          // Give a longer buffer for WebRTC audio playback to finish
+          console.log('Audio done event received, setting isSpeaking false after buffer');
+          setTimeout(() => {
+            setState(s => ({ ...s, isSpeaking: false }));
+          }, 800);
+          break;
+
+        case 'response.audio_transcript.delta':
+          if (event.delta) {
+            optionsRef.current.onTranscript?.(event.delta, 'assistant');
+          }
+          break;
+
+        case 'conversation.item.input_audio_transcription.completed':
+          if (event.transcript) {
+            optionsRef.current.onTranscript?.(event.transcript, 'user');
+          }
+          break;
+
+        case 'response.function_call_arguments.done':
+          // Handle tool call
+          if (event.name && event.arguments) {
+            try {
+              const args = JSON.parse(event.arguments);
+              console.log('Tool call:', event.name, args);
+              
+              // For schedule_interview, inject Google Calendar tokens
+              if (event.name === 'schedule_interview') {
+                const googleAccessToken = localStorage.getItem("google_access_token");
+                const googleRefreshToken = localStorage.getItem("google_refresh_token");
+                if (googleRefreshToken) {
+                  args.google_refresh_token = googleRefreshToken;
+                  args.google_access_token = googleAccessToken;
+                }
+              }
+              
+              // Execute tool call via edge function
+              const { data: toolResult, error: toolError } = await supabase.functions.invoke('ava-voice-tools', {
+                body: {
+                  tool_name: event.name,
+                  parameters: args,
+                  applicationId: optionsRef.current.applicationId,
+                },
+              });
+
+              if (toolError) {
+                console.error('Tool call error:', toolError);
+              } else {
+                optionsRef.current.onToolCall?.(event.name, toolResult);
+                
+                // Check for interview end
+                if (event.name === 'end_interview' && toolResult?.evaluation) {
+                  console.log('Interview ending, waiting for Ava to finish speaking...');
+                  isInterviewEndedRef.current = true;
+                  clearProcessingTimeout();
+                  
+                  // Wait for audio queue to finish playing before triggering end
+                  const waitForAudioComplete = (): Promise<void> => {
+                    return new Promise((resolve) => {
+                      let checkCount = 0;
+                      const maxChecks = 100; // 10 seconds max wait
+                      
+                      const checkInterval = setInterval(() => {
+                        checkCount++;
+                        const queueLength = audioQueueRef.current?.length || 0;
+                        
+                        console.log(`Waiting for audio... Queue length: ${queueLength}, Check: ${checkCount}`);
+                        
+                        // Check if audio queue is empty and not playing
+                        if (queueLength === 0) {
+                          // Give a small buffer after queue empties to ensure playback finished
+                          setTimeout(() => {
+                            clearInterval(checkInterval);
+                            resolve();
+                          }, 500);
+                          clearInterval(checkInterval);
+                        } else if (checkCount >= maxChecks) {
+                          // Timeout after 10 seconds to prevent infinite wait
+                          console.log('Audio wait timeout, proceeding with interview end');
+                          clearInterval(checkInterval);
+                          resolve();
+                        }
+                      }, 100); // Check every 100ms
+                    });
+                  };
+                  
+                  // Wait for Ava to finish, then trigger end
+                  waitForAudioComplete().then(() => {
+                    console.log('Ava finished speaking, triggering interview end...');
+                    optionsRef.current.onInterviewEnd?.(toolResult.evaluation);
+                    
+                    // Auto-disconnect after callback completes
+                    setTimeout(() => {
+                      console.log('Auto-disconnecting Ava after interview end...');
+                      
+                      // Close data channel
+                      dcRef.current?.close();
+                      dcRef.current = null;
+                      
+                      // Close peer connection
+                      pcRef.current?.close();
+                      pcRef.current = null;
+                      
+                      // Stop mic stream
+                      micStreamRef.current?.getTracks().forEach(track => track.stop());
+                      micStreamRef.current = null;
+                      
+                      // Clean up audio
+                      audioElRef.current = null;
+                      audioQueueRef.current?.clear();
+                      
+                      // Stop monitoring
+                      if (connectionQualityIntervalRef.current) {
+                        clearInterval(connectionQualityIntervalRef.current);
+                        connectionQualityIntervalRef.current = null;
+                      }
+                      if (animationFrameRef.current) {
+                        cancelAnimationFrame(animationFrameRef.current);
+                        animationFrameRef.current = null;
+                      }
+                      
+                      // Update state to disconnected
+                      setState(s => ({
+                        ...s,
+                        isConnected: false,
+                        isSpeaking: false,
+                        isListening: false,
+                        isProcessing: false,
+                      }));
+                    }, 100);
+                  });
+                }
+
+                // Handle flag_inconsistency - Ava may want to ask a follow-up
+                if (event.name === 'flag_inconsistency' && toolResult?.follow_up) {
+                  console.log('Inconsistency flagged, follow-up:', toolResult.follow_up);
+                }
+
+                // Handle take_interview_note - just acknowledge
+                if (event.name === 'take_interview_note') {
+                  console.log('Interview note recorded');
+                }
+
+                // Send tool result back to model
+                if (dcRef.current?.readyState === 'open') {
+                  dcRef.current.send(JSON.stringify({
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'function_call_output',
+                      call_id: event.call_id,
+                      output: JSON.stringify(toolResult),
+                    }
+                  }));
+                  dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+                }
+              }
+            } catch (err) {
+              console.error('Tool call parse error:', err);
+            }
+          }
+          break;
+
+        case 'input_audio_buffer.speech_started':
+          clearProcessingTimeout();
+          setState(s => ({ ...s, isListening: true, isProcessing: false, isStuck: false }));
+          break;
+
+        case 'input_audio_buffer.speech_stopped':
+          setState(s => ({ ...s, isListening: false, isProcessing: true }));
+          startProcessingTimeout();
+          break;
+
+        case 'error':
+          console.error('Realtime API error:', event);
+          toast({
+            variant: 'destructive',
+            title: 'Voice Error',
+            description: event.error?.message || 'An error occurred',
+          });
+          break;
+      }
+    });
+
+    // Create and set local description
+    const offer = await pcRef.current.createOffer();
+    await pcRef.current.setLocalDescription(offer);
+
+    // Connect to OpenAI's Realtime API
+    const baseUrl = 'https://api.openai.com/v1/realtime';
+    const model = 'gpt-4o-realtime-preview-2024-12-17';
+    const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+      method: 'POST',
+      body: offer.sdp,
+      headers: {
+        Authorization: `Bearer ${EPHEMERAL_KEY}`,
+        'Content-Type': 'application/sdp',
+      },
+    });
+
+    if (!sdpResponse.ok) {
+      throw new Error('Failed to connect to OpenAI Realtime API');
+    }
+
+    const answer = {
+      type: 'answer' as RTCSdpType,
+      sdp: await sdpResponse.text(),
+    };
+
+    await pcRef.current.setRemoteDescription(answer);
+    console.log('WebRTC connection established');
+  }, [handleConnectionLost, startConnectionQualityMonitoring, startProcessingTimeout, clearProcessingTimeout, toast, state.isConnected]);
+
+  // Public connect function
+  const connect = useCallback(async () => {
+    try {
+      isInterviewEndedRef.current = false;
+      reconnectAttemptsRef.current = 0;
+      await connectInternal();
+    } catch (err) {
+      console.error('Connection error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to connect';
+      setState(s => ({ ...s, isConnecting: false, error: message }));
+      toast({
+        variant: 'destructive',
+        title: 'Connection Failed',
+        description: message,
+      });
+    }
+  }, [connectInternal, toast]);
+
+  const disconnect = useCallback(() => {
+    clearProcessingTimeout();
+    cleanupConnection();
 
     setState({
       isConnected: false,
@@ -486,11 +672,47 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       isSpeaking: false,
       isListening: false,
       isProcessing: false,
+      isStuck: false,
+      reconnectAttempts: 0,
       error: null,
       audioLevels: [8, 8, 8, 8, 8],
       connectionQuality: 'unknown',
     });
-  }, []);
+  }, [clearProcessingTimeout, cleanupConnection]);
+
+  // Manual retry connection
+  const retryConnection = useCallback(async () => {
+    console.log('Manual retry connection requested');
+    reconnectAttemptsRef.current = 0;
+    isInterviewEndedRef.current = false;
+    setState(s => ({ ...s, isStuck: false, error: null, reconnectAttempts: 0 }));
+    
+    cleanupConnection();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await connect();
+  }, [cleanupConnection, connect]);
+
+  // Nudge Ava when she seems stuck
+  const nudgeAva = useCallback(() => {
+    if (!dcRef.current || dcRef.current.readyState !== 'open') {
+      console.warn('Cannot nudge - data channel not ready');
+      return;
+    }
+    
+    console.log('Nudging Ava to continue...');
+    
+    // Send a response.create to prompt Ava
+    dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+    
+    setState(s => ({ ...s, isStuck: false }));
+    clearProcessingTimeout();
+    startProcessingTimeout();
+    
+    toast({
+      title: 'Prompting Ava',
+      description: 'Asking Ava to continue...',
+    });
+  }, [clearProcessingTimeout, startProcessingTimeout, toast]);
 
   const sendTextMessage = useCallback((text: string) => {
     if (!dcRef.current || dcRef.current.readyState !== 'open') {
@@ -512,8 +734,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }));
     dcRef.current.send(JSON.stringify({ type: 'response.create' }));
 
-    options.onTranscript?.(text, 'user');
-  }, [options, toast]);
+    optionsRef.current.onTranscript?.(text, 'user');
+  }, [toast]);
 
   // Expose audio element for video recording mixing
   const getAvaAudioElement = useCallback(() => {
@@ -526,5 +748,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     disconnect,
     sendTextMessage,
     getAvaAudioElement,
+    retryConnection,
+    nudgeAva,
   };
 }
