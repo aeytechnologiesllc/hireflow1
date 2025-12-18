@@ -43,9 +43,9 @@ export const staggerItem: Variants = {
 export const pulsingGlow = {
   animate: {
     boxShadow: [
-      "0 0 20px -5px hsla(160, 60%, 40%, 0.6)",
-      "0 0 35px -5px hsla(160, 60%, 50%, 0.8)",
-      "0 0 20px -5px hsla(160, 60%, 40%, 0.6)"
+      "0 0 25px 2px hsla(160, 60%, 45%, 0.6)",
+      "0 0 40px 5px hsla(160, 60%, 50%, 0.85)",
+      "0 0 25px 2px hsla(160, 60%, 45%, 0.6)"
     ]
   },
   transition: {
