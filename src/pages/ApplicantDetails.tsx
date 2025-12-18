@@ -1073,8 +1073,9 @@ Portfolio Upload:
       // Add Voice Interview results if available (stored as separate column)
       if (application.voice_interview_result) {
         const vr = application.voice_interview_result as any;
+        const interviewType = application.voice_interview_video_enabled !== false ? 'Video' : 'Voice';
         content += `
-Voice Interview with AVA Results:
+${interviewType} Interview with AVA Results:
 - Overall Score: ${vr.overall_score || 'N/A'}/100
 - Recommendation: ${vr.recommendation || 'N/A'}
 - Technical Score: ${vr.technical_score || 'N/A'}/100
@@ -1296,17 +1297,22 @@ Voice Interview with AVA Results:
     return badges;
   })();
 
-  // Standardized display titles for phase types
-  const typeDisplayTitles: Record<string, string> = {
-    video_intro: "Video Intro",
-    video_message: "Video Intro",
-    typing_test: "Typing Test",
-    chat_simulation: "Chat Simulation",
-    chat_interview: "Interview",
-    sales_simulation: "Sales Simulation",
-    portfolio_upload: "Portfolio",
-    quiz: "Quiz",
-    voice_interview: "Voice Interview with Ava",
+  // Standardized display titles for phase types - function to handle dynamic video/voice text
+  const getTypeDisplayTitle = (type: string): string => {
+    const titles: Record<string, string> = {
+      video_intro: "Video Intro",
+      video_message: "Video Intro",
+      typing_test: "Typing Test",
+      chat_simulation: "Chat Simulation",
+      chat_interview: "Interview",
+      sales_simulation: "Sales Simulation",
+      portfolio_upload: "Portfolio",
+      quiz: "Quiz",
+      voice_interview: application?.voice_interview_video_enabled !== false 
+        ? "Video Interview with Ava" 
+        : "Voice Interview with Ava",
+    };
+    return titles[type] || type;
   };
 
   // Get data for a specific badge/step
@@ -1336,7 +1342,7 @@ Voice Interview with AVA Results:
     
     const stepData = getStepSubmissionData(badgeId, badgeType);
     // Use standardized display title based on type, fallback to badge title
-    const displayTitle = typeDisplayTitles[badgeType] || workflowBadges.find(b => b.id === badgeId)?.title || badgeId;
+    const displayTitle = getTypeDisplayTitle(badgeType) || workflowBadges.find(b => b.id === badgeId)?.title || badgeId;
     return {
       title: displayTitle,
       content: stepData,

@@ -63,7 +63,7 @@ export function VoiceInterviewResultsDialog({
       return `[${time}] ${m.role === 'user' ? candidateName : 'Ava'}: ${m.content}`;
     }).join('\n\n');
 
-    const header = `Voice Interview Transcript
+    const header = `${videoEnabled ? 'Video' : 'Voice'} Interview Transcript
 Candidate: ${candidateName}
 Position: ${jobTitle}
 Date: ${new Date().toLocaleDateString()}
@@ -88,7 +88,7 @@ Date: ${new Date().toLocaleDateString()}
 
     // Header
     doc.setFontSize(18);
-    doc.text('Voice Interview Report', 20, yPos);
+    doc.text(`${videoEnabled ? 'Video' : 'Voice'} Interview Report`, 20, yPos);
     yPos += 15;
 
     // Candidate info

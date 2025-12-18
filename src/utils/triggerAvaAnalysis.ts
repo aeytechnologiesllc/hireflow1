@@ -147,8 +147,9 @@ Portfolio Upload:
     // Add Voice Interview results if available (stored as separate column)
     if (application.voice_interview_result) {
       const vr = application.voice_interview_result as any;
+      const interviewType = application.voice_interview_video_enabled !== false ? 'Video' : 'Voice';
       content += `
-Voice Interview with AVA Results:
+${interviewType} Interview with AVA Results:
 - Overall Score: ${vr.overall_score || 'N/A'}/100
 - Recommendation: ${vr.recommendation || 'N/A'}
 - Technical Score: ${vr.technical_score || 'N/A'}/100
