@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ChevronRight, 
@@ -25,26 +24,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateApplication } from "@/hooks/useApplications";
+import CountryCodeSelect from "@/components/CountryCodeSelect";
 import type { Tables, Json } from "@/integrations/supabase/types";
-
-// Country codes for phone input
-const countryCodes = [
-  { code: "+1", country: "US", flag: "🇺🇸" },
-  { code: "+1", country: "CA", flag: "🇨🇦" },
-  { code: "+44", country: "UK", flag: "🇬🇧" },
-  { code: "+49", country: "DE", flag: "🇩🇪" },
-  { code: "+33", country: "FR", flag: "🇫🇷" },
-  { code: "+81", country: "JP", flag: "🇯🇵" },
-  { code: "+86", country: "CN", flag: "🇨🇳" },
-  { code: "+91", country: "IN", flag: "🇮🇳" },
-  { code: "+61", country: "AU", flag: "🇦🇺" },
-  { code: "+55", country: "BR", flag: "🇧🇷" },
-  { code: "+52", country: "MX", flag: "🇲🇽" },
-  { code: "+34", country: "ES", flag: "🇪🇸" },
-  { code: "+39", country: "IT", flag: "🇮🇹" },
-  { code: "+31", country: "NL", flag: "🇳🇱" },
-  { code: "+82", country: "KR", flag: "🇰🇷" },
-];
 
 interface CandidateApplicationWizardProps {
   job: Tables<"jobs">;
@@ -585,24 +566,10 @@ Resume URL: ${resumeUrl || "Not provided"}
                     ) : question.type === "phone" ? (
                       <div className="space-y-1">
                         <div className="flex gap-2">
-                          <Select
+                          <CountryCodeSelect
                             value={phoneCountryCodes[question.id] || "+1"}
                             onValueChange={(value) => setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }))}
-                          >
-                            <SelectTrigger className="w-[120px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {countryCodes.map((cc) => (
-                                <SelectItem key={`${cc.code}-${cc.country}`} value={cc.code}>
-                                  <span className="flex items-center gap-2">
-                                    <span>{cc.flag}</span>
-                                    <span>{cc.code}</span>
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          />
                           <Input
                             type="tel"
                             value={answers[question.id] || ""}
