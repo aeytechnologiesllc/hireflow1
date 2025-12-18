@@ -118,6 +118,12 @@ export function usePendingActionsCount() {
           filter: `candidate_id=eq.${user.id}`,
         },
         () => {
+          // If user is currently on an application page (viewing/completing a phase),
+          // mark as seen BEFORE invalidating to prevent false notification badge
+          const currentPath = window.location.pathname;
+          if (currentPath.startsWith("/applications/")) {
+            localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+          }
           queryClient.invalidateQueries({ queryKey: ["pending-actions-count"] });
           queryClient.invalidateQueries({ queryKey: ["candidate-applications"] });
         }

@@ -216,16 +216,18 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               }
               audioQueueRef.current?.addToQueue(bytes);
             }
-            // Set isSpeaking TRUE when receiving audio - WebRTC plays directly
+            // Set isSpeaking TRUE immediately when first audio delta arrives
+            // This ensures "Ava is speaking" shows as soon as audio starts coming in
             setState(s => ({ ...s, isSpeaking: true, isProcessing: false }));
             break;
 
           case 'response.audio.done':
-            // Give buffer for audio playback to finish, then set isSpeaking false
+            // Give a longer buffer for WebRTC audio playback to finish
+            // Only set isSpeaking false after audio has actually finished playing
             console.log('Audio done event received, setting isSpeaking false after buffer');
             setTimeout(() => {
               setState(s => ({ ...s, isSpeaking: false }));
-            }, 300);
+            }, 800);
             break;
 
           case 'response.audio_transcript.delta':
