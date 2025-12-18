@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
-import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
+import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
 import { useJob } from "@/hooks/useJobs";
 import { useAIShortlist } from "@/hooks/useAIShortlist";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -20,6 +20,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
@@ -43,12 +53,13 @@ interface ApplicantCardProps {
   onStatusChange: (id: string, status: string) => void;
   onScheduleInterview: (application: ApplicationWithCandidate) => void;
   onNavigateToDetails: (id: string) => void;
+  onDeleteApplication: (application: ApplicationWithCandidate) => void;
   isSelectionMode: boolean;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
 }
 
-function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails, isSelectionMode, isSelected, onToggleSelect }: ApplicantCardProps) {
+function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails, onDeleteApplication, isSelectionMode, isSelected, onToggleSelect }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
   
@@ -166,6 +177,14 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
                     <XCircle className="h-4 w-4 mr-2" />
                     Reject
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={(e) => { e.stopPropagation(); onDeleteApplication(application); }} 
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Application
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -236,6 +255,10 @@ export default function Applicants() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkRejectDialogOpen, setBulkRejectDialogOpen] = useState(false);
   const [bulkMessageDialogOpen, setBulkMessageDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [applicationToDelete, setApplicationToDelete] = useState<ApplicationWithCandidate | null>(null);
+  
+  const deleteApplication = useDeleteApplication();
 
   // Permission checks
   const canManagePipeline = !isTeamMember || permissions?.canManagePipeline;
@@ -259,6 +282,24 @@ export default function Applicants() {
 
   const handleNavigateToDetails = (id: string) => {
     navigate(`/applicants/${id}`);
+  };
+
+  const handleDeleteClick = (application: ApplicationWithCandidate) => {
+    setApplicationToDelete(application);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!applicationToDelete) return;
+    
+    try {
+      await deleteApplication.mutateAsync(applicationToDelete.id);
+      toast.success("Application deleted successfully");
+      setDeleteDialogOpen(false);
+      setApplicationToDelete(null);
+    } catch (error) {
+      toast.error("Failed to delete application");
+    }
   };
 
   // Bulk action handlers
@@ -475,6 +516,7 @@ export default function Applicants() {
               onStatusChange={handleStatusChange}
               onScheduleInterview={handleScheduleInterview}
               onNavigateToDetails={handleNavigateToDetails}
+              onDeleteApplication={handleDeleteClick}
               isSelectionMode={isSelectionMode}
               isSelected={selectedIds.has(application.id)}
               onToggleSelect={handleToggleSelect}
@@ -538,6 +580,46 @@ export default function Applicants() {
         selectedApplications={selectedApplications}
         onSuccess={handleClearSelection}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Application
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3" asChild>
+              <div>
+                <p>
+                  Are you sure you want to delete the application from{" "}
+                  <strong>{applicationToDelete?.profiles?.full_name || "this candidate"}</strong>?
+                </p>
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm">
+                  <p className="font-medium text-destructive mb-1">⚠️ This will permanently delete:</p>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                    <li>The application and all submitted data</li>
+                    <li>All messages with this applicant</li>
+                    <li>All scheduled interviews</li>
+                    <li>All documents sent to this applicant</li>
+                  </ul>
+                </div>
+                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteApplication.isPending}
+            >
+              {deleteApplication.isPending ? "Deleting..." : "Delete Application"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
