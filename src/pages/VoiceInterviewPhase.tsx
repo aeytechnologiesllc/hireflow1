@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff, Video, VideoOff, Camera } from "lucide-react";
+import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff, Video, VideoOff, Camera, RefreshCw, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
@@ -201,12 +201,17 @@ export default function VoiceInterviewPhase() {
     isSpeaking,
     isListening,
     isProcessing,
+    isStuck,
+    reconnectAttempts,
+    error: voiceError,
     audioLevels,
     connectionQuality,
     connect,
     disconnect,
     sendTextMessage,
     getAvaAudioElement,
+    retryConnection,
+    nudgeAva,
   } = useAvaVoice({
     mode: "interview",
     applicationId,
@@ -781,6 +786,86 @@ Duration: ${formatTime(elapsedSeconds)}
                   </Button>
                 </div>
               </div>
+
+              {/* Stuck Detection UI */}
+              {isStuck && isConnected && (
+                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-amber-400 text-sm font-medium">
+                        Ava seems to be taking a while to respond
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This could be a connection issue. Try prompting Ava or reconnecting.
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={nudgeAva}
+                          className="gap-2 border-amber-500/30 hover:bg-amber-500/10"
+                        >
+                          <Volume2 className="h-4 w-4" />
+                          Prompt Ava
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={retryConnection}
+                          className="gap-2 border-amber-500/30 hover:bg-amber-500/10"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Reconnect
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Connection Error UI */}
+              {voiceError && !isConnected && !showCompletionScreen && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <WifiOff className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-red-400 text-sm font-medium">
+                        Connection Lost
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {voiceError}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={retryConnection}
+                        className="gap-2 mt-3 border-red-500/30 hover:bg-red-500/10"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Retry Connection
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Reconnection Progress */}
+              {isConnecting && reconnectAttempts > 0 && (
+                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                    <div>
+                      <p className="text-blue-400 text-sm font-medium">
+                        Reconnecting...
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Attempt {reconnectAttempts} of 3
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
