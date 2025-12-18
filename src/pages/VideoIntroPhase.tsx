@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { 
   ArrowLeft, 
   Video, 
@@ -50,6 +51,10 @@ export default function VideoIntroPhase() {
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Evaluation screen state for autopilot mode
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | null>(null);
+  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -167,6 +172,13 @@ export default function VideoIntroPhase() {
     setIsSubmitting(true);
     setRecordingState("submitting");
     
+    const isAutoMode = application.jobs?.processing_mode !== "manual";
+    
+    // Show evaluation screen immediately for autopilot mode
+    if (isAutoMode) {
+      setEvaluationState("evaluating");
+    }
+    
     try {
       // 1. Upload video
       const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
@@ -182,9 +194,51 @@ export default function VideoIntroPhase() {
       const { data: urlData } = supabase.storage.from("videos").getPublicUrl(fileName);
       const videoUrl = urlData.publicUrl;
 
-      // 3. Update database
+      // 3. Build phases list to determine next phase
+      const workflowSteps = application.jobs?.workflow_steps as any[] || [];
+      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
+      
+      const allPhases: { id: string; type: string; title: string }[] = [
+        { id: "application", type: "application", title: "Application" },
+      ];
+      
+      // Add quiz phase if quiz_questions exist
+      if (quizQuestions && quizQuestions.length > 0) {
+        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
+      }
+      
+      // Add workflow steps
+      workflowSteps.forEach((step: any) => {
+        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
+      });
+      
+      // Add final phases
+      allPhases.push(
+        { id: "review", type: "review", title: "Review" },
+        { id: "interview", type: "interview", title: "Interview" },
+        { id: "hired", type: "hired", title: "Hired" }
+      );
+      
+      // Find current step index
+      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
+      if (currentIndex === -1 && application.phase) {
+        currentIndex = allPhases.findIndex(
+          (p) => p.id === application.phase || p.type === application.phase
+        );
+      }
+
+      // Determine next phase (video always passes since it's completion-based)
+      let newPhase = application.phase;
+      if (isAutoMode && currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        newPhase = allPhases[currentIndex + 1].id;
+        setNextPhaseInfo({
+          id: allPhases[currentIndex + 1].id,
+          title: allPhases[currentIndex + 1].title,
+        });
+      }
+
+      // 4. Update database
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
-      const workflowSteps = application.jobs?.workflow_steps as any[] | null;
       const currentStep = workflowSteps?.find((s: any) => s.id === stepId);
       const stepType = currentStep?.type || "video_intro";
 
@@ -215,6 +269,7 @@ export default function VideoIntroPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
+          phase: newPhase,
           phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
         })
         .eq("id", id!);
@@ -223,20 +278,21 @@ export default function VideoIntroPhase() {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      // 4. Success
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
-      toast.success("Video submitted!", {
-        description: isAutoMode 
-          ? "Great job! You have advanced to the next phase." 
-          : "Your video has been recorded. The employer will review it.",
-      });
-
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
       // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(id!).catch(console.error);
 
-      navigate(`/applications/${id}`);
+      if (isAutoMode) {
+        // Show passed evaluation screen
+        setEvaluationState("passed");
+      } else {
+        // Manual mode - toast and navigate
+        toast.success("Video submitted!", {
+          description: "Your video has been recorded. The employer will review it.",
+        });
+        navigate(`/applications/${id}`);
+      }
       
     } catch (error) {
       console.error("Submit error:", error);
@@ -252,19 +308,18 @@ export default function VideoIntroPhase() {
         if (checkData?.notes) {
           const checkNotes = JSON.parse(checkData.notes);
           if (checkNotes[stepId!]?.videoUrl || checkNotes.videoIntroUrl) {
-            // Actually succeeded! Navigate to success
-            const isAutoMode = application.jobs?.processing_mode !== "manual";
-            toast.success("Video submitted!", {
-              description: isAutoMode 
-                ? "Great job! You have advanced to the next phase." 
-                : "Your video has been recorded. The employer will review it.",
-            });
+            // Actually succeeded!
             queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-            
-            // Trigger AVA analysis in background (fire-and-forget)
             triggerAvaAnalysis(id!).catch(console.error);
 
-            navigate(`/applications/${id}`);
+            if (isAutoMode) {
+              setEvaluationState("passed");
+            } else {
+              toast.success("Video submitted!", {
+                description: "Your video has been recorded. The employer will review it.",
+              });
+              navigate(`/applications/${id}`);
+            }
             return;
           }
         }
@@ -276,9 +331,42 @@ export default function VideoIntroPhase() {
         description: error instanceof Error ? error.message : "Please try again.",
       });
       setRecordingState("preview");
+      setEvaluationState(null);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handlers for evaluation screen
+  const handleStartNextPhase = () => {
+    if (!nextPhaseInfo || !application) return;
+    
+    const workflowSteps = application.jobs?.workflow_steps as any[] || [];
+    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    
+    if (nextStep) {
+      const phaseRoutes: Record<string, string> = {
+        typing_test: "typing-test",
+        video_intro: "video-intro",
+        video_message: "video-intro",
+        portfolio_upload: "portfolio",
+        chat_simulation: "chat-simulation",
+        chat_interview: "chat-interview",
+        sales_simulation: "sales-simulation",
+        voice_interview: "voice-interview",
+        quiz: "quiz",
+      };
+      const route = phaseRoutes[nextStep.type] || nextStep.type;
+      navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
+    } else if (nextPhaseInfo.id === "review") {
+      navigate(`/applications/${id}`);
+    } else {
+      navigate(`/applications/${id}`);
+    }
+  };
+
+  const handleDoLater = () => {
+    navigate(`/applications/${id}`);
   };
 
   // Check if already submitted
@@ -322,6 +410,20 @@ export default function VideoIntroPhase() {
         applicationId={id!}
         phaseName="Video Introduction"
         isManualMode={application.jobs?.processing_mode === "manual"}
+      />
+    );
+  }
+
+  // Show evaluation screen for autopilot mode
+  if (evaluationState) {
+    return (
+      <EvaluationScreen
+        state={evaluationState}
+        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
+        onDoLater={handleDoLater}
+        nextPhaseName={nextPhaseInfo?.title}
+        score={100}
+        passingScore={application?.jobs?.passing_score || 60}
       />
     );
   }
