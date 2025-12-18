@@ -304,12 +304,15 @@ export type Database = {
           ai_feedback: string | null
           ai_questions: string[] | null
           application_id: string
+          candidate_note: string | null
+          candidate_response: string | null
           created_at: string
           duration_minutes: number | null
           id: string
           interview_type: string | null
           meeting_link: string | null
           notes: string | null
+          proposed_times: Json | null
           scheduled_at: string
           status: Database["public"]["Enums"]["interview_status"]
           updated_at: string
@@ -318,12 +321,15 @@ export type Database = {
           ai_feedback?: string | null
           ai_questions?: string[] | null
           application_id: string
+          candidate_note?: string | null
+          candidate_response?: string | null
           created_at?: string
           duration_minutes?: number | null
           id?: string
           interview_type?: string | null
           meeting_link?: string | null
           notes?: string | null
+          proposed_times?: Json | null
           scheduled_at: string
           status?: Database["public"]["Enums"]["interview_status"]
           updated_at?: string
@@ -332,12 +338,15 @@ export type Database = {
           ai_feedback?: string | null
           ai_questions?: string[] | null
           application_id?: string
+          candidate_note?: string | null
+          candidate_response?: string | null
           created_at?: string
           duration_minutes?: number | null
           id?: string
           interview_type?: string | null
           meeting_link?: string | null
           notes?: string | null
+          proposed_times?: Json | null
           scheduled_at?: string
           status?: Database["public"]["Enums"]["interview_status"]
           updated_at?: string
