@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2 } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
-import AvaVoiceButton from "./AvaVoiceButton";
+
 import OnboardingWizard from "./subscription/OnboardingWizard";
 import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
@@ -135,9 +135,6 @@ export default function AppLayout() {
           <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
             <Outlet />
           </main>
-          
-          {/* AVA Voice Button - Show for all employers (handles own access states) */}
-          {isEmployer && <AvaVoiceButton />}
         </div>
       </div>
     </TooltipProvider>
