@@ -507,7 +507,8 @@ export function generateApplicantDossier(application: ApplicationData, profile: 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(...COLORS.secondary);
-    doc.text("Voice Interview with AVA", margin, y);
+    const interviewTypeLabel = application.voice_interview_video_enabled !== false ? "Video Interview with AVA" : "Voice Interview with AVA";
+    doc.text(interviewTypeLabel, margin, y);
     y += 10;
     
     const voiceScore = voiceResult.overall_score || 0;
