@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   Lightbulb, 
   Calendar, 
-  PartyPopper, 
   Download, 
   ArrowRight,
   Sparkles,
   ExternalLink,
   X,
-  Mic
+  Mic,
+  Trophy,
+  Star,
+  Crown
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
@@ -94,25 +97,45 @@ export function CandidateStatusScreen({
         colors: ['#10B981', '#14B8A6', '#06B6D4', '#8B5CF6', '#A78BFA'],
       });
     } else if (state === "hired" && showContent) {
-      // Epic celebration for hired
-      const duration = 3000;
+      // Epic 5-second multi-burst celebration with golden colors
+      const duration = 5000;
       const end = Date.now() + duration;
+      let lastCenterBurst = 0;
 
       const frame = () => {
+        // Golden confetti from left
         confetti({
-          particleCount: 7,
+          particleCount: 5,
           angle: 60,
           spread: 55,
           origin: { x: 0, y: 0.6 },
-          colors: ['#10B981', '#34D399', '#6EE7B7', '#FFD700', '#FCD34D'],
+          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
+          shapes: ['circle', 'square'],
+          gravity: 0.8,
         });
+        
+        // Golden confetti from right
         confetti({
-          particleCount: 7,
+          particleCount: 5,
           angle: 120,
           spread: 55,
           origin: { x: 1, y: 0.6 },
-          colors: ['#10B981', '#34D399', '#6EE7B7', '#FFD700', '#FCD34D'],
+          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
+          shapes: ['circle', 'square'],
+          gravity: 0.8,
         });
+        
+        // Center burst every 500ms
+        const now = Date.now();
+        if (now - lastCenterBurst > 500) {
+          confetti({
+            particleCount: 30,
+            spread: 100,
+            origin: { x: 0.5, y: 0.4 },
+            colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FFFFFF', '#FFD700'],
+          });
+          lastCenterBurst = now;
+        }
 
         if (Date.now() < end) {
           requestAnimationFrame(frame);
@@ -459,119 +482,174 @@ export function CandidateStatusScreen({
             </Card>
           )}
 
-          {/* Hired State */}
+          {/* Hired State - Premium Full-Screen Celebration */}
           {state === "hired" && (
-            <Card className="bg-card border-border overflow-hidden relative">
-              {/* Animated sparkles background */}
-              <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {[...Array(12)].map((_, i) => (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="fixed inset-0 z-50 overflow-hidden"
+            >
+              {/* Premium dark-to-gold gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-900" />
+              
+              {/* Animated floating particles */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {[...Array(30)].map((_, i) => (
                   <motion.div
                     key={i}
                     className="absolute"
                     initial={{ 
-                      x: Math.random() * 100 + "%", 
-                      y: Math.random() * 100 + "%",
+                      x: `${Math.random() * 100}vw`,
+                      y: "110vh",
                       opacity: 0,
-                      scale: 0 
                     }}
                     animate={{ 
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0],
-                      rotate: [0, 180]
+                      y: "-10vh",
+                      opacity: [0, 1, 1, 0],
+                      scale: [0.5, 1, 1, 0.5],
                     }}
                     transition={{
-                      duration: 2,
+                      duration: 4 + Math.random() * 3,
                       repeat: Infinity,
-                      delay: Math.random() * 2,
-                      ease: "easeInOut"
+                      delay: Math.random() * 3,
+                      ease: "linear"
                     }}
                   >
-                    <Sparkles className="h-4 w-4 text-yellow-400/50" />
+                    {i % 3 === 0 ? (
+                      <Star className="h-4 w-4 text-amber-400/60" />
+                    ) : i % 3 === 1 ? (
+                      <Sparkles className="h-3 w-3 text-yellow-300/50" />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-amber-400/40" />
+                    )}
                   </motion.div>
                 ))}
               </div>
 
-              {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-emerald-500/50 via-yellow-500/50 to-emerald-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6 relative z-10">
-                {/* Icon */}
+              {/* Main celebration content */}
+              <div className="relative z-10 flex items-center justify-center min-h-screen p-6">
                 <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", delay: 0.2, duration: 0.8 }}
-                  className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500/30 to-yellow-500/30 flex items-center justify-center"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", duration: 0.8 }}
+                  className="w-full max-w-lg"
                 >
-                  <motion.div
-                    animate={{ 
-                      scale: [1, 1.1, 1],
-                    }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    <PartyPopper className="h-12 w-12 text-emerald-400" />
-                  </motion.div>
-                </motion.div>
+                  <Card className="backdrop-blur-xl bg-slate-900/80 border-amber-500/30 shadow-2xl shadow-amber-500/20 overflow-hidden">
+                    {/* Golden top border */}
+                    <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
+                    
+                    <CardContent className="p-8 text-center space-y-6">
+                      {/* Animated trophy icon */}
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", duration: 1, delay: 0.3 }}
+                        className="relative"
+                      >
+                        <div className="mx-auto w-28 h-28 rounded-full bg-gradient-to-br from-amber-400/30 to-yellow-600/30 flex items-center justify-center border-2 border-amber-500/50 shadow-lg shadow-amber-500/30">
+                          <motion.div 
+                            animate={{ 
+                              scale: [1, 1.15, 1],
+                              filter: ["brightness(1)", "brightness(1.4)", "brightness(1)"]
+                            }} 
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Trophy className="h-14 w-14 text-amber-400" />
+                          </motion.div>
+                        </div>
+                        
+                        {/* Floating crown */}
+                        <motion.div
+                          initial={{ y: -10, opacity: 0 }}
+                          animate={{ y: [-5, 5, -5], opacity: 1 }}
+                          transition={{ y: { duration: 2, repeat: Infinity }, opacity: { delay: 0.5 } }}
+                          className="absolute -top-4 left-1/2 -translate-x-1/2"
+                        >
+                          <Crown className="h-8 w-8 text-yellow-400 drop-shadow-lg" />
+                        </motion.div>
+                      </motion.div>
 
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-yellow-400 to-emerald-400 bg-clip-text text-transparent">
-                    🎊 Welcome Aboard! 🎊
-                  </h2>
-                  <p className="text-xl text-foreground font-semibold">
-                    Congratulations!
-                  </p>
-                </motion.div>
+                      {/* Official badge */}
+                      <motion.div
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <Badge className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-900 font-bold px-4 py-1.5 text-sm border-0 shadow-lg">
+                          ✨ OFFICIAL TEAM MEMBER ✨
+                        </Badge>
+                      </motion.div>
 
-                {/* Message */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="space-y-2"
-                >
-                  <p className="text-lg text-muted-foreground">
-                    You've been selected for
-                  </p>
-                  <p className="text-xl font-bold text-foreground">
-                    {jobTitle || "the position"}
-                  </p>
-                  {companyName && (
-                    <p className="text-muted-foreground">at {companyName}</p>
-                  )}
-                </motion.div>
+                      {/* Headlines with staggered animation */}
+                      <motion.h1 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="text-4xl font-extrabold bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent"
+                      >
+                        🏆 CONGRATULATIONS! 🏆
+                      </motion.h1>
+                      
+                      <motion.h2
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.7 }}
+                        className="text-2xl font-bold text-white"
+                      >
+                        You're Officially Hired!
+                      </motion.h2>
 
-                {/* Encouragement */}
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-muted-foreground leading-relaxed"
-                >
-                  Your new journey begins now. We can't wait to see what you'll accomplish!
-                </motion.p>
+                      {/* Job & Company */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.8 }}
+                        className="space-y-1"
+                      >
+                        <p className="text-lg text-amber-200/80">as</p>
+                        <p className="text-2xl font-bold text-amber-100">{jobTitle || "the position"}</p>
+                        {companyName && (
+                          <p className="text-amber-300/70">at {companyName}</p>
+                        )}
+                      </motion.div>
 
-                {/* Action button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                >
-                  <Button 
-                    size="lg" 
-                    onClick={onClose} 
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    Continue
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+                      {/* Motivational message */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1 }}
+                        className="pt-4 space-y-3"
+                      >
+                        <p className="text-amber-100/90 leading-relaxed">
+                          Your talent, dedication, and perseverance have earned you this incredible moment.
+                        </p>
+                        <p className="text-amber-200/70 text-sm italic">
+                          "The beginning is always today." — Mary Shelley
+                        </p>
+                      </motion.div>
+
+                      {/* CTA Button */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1.2 }}
+                        className="pt-2"
+                      >
+                        <Button 
+                          size="lg"
+                          onClick={onClose}
+                          className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-900 font-bold shadow-lg shadow-amber-500/30 px-8"
+                        >
+                          <Sparkles className="h-5 w-5" />
+                          Start Your Journey
+                          <ArrowRight className="h-5 w-5" />
+                        </Button>
+                      </motion.div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
-              </CardContent>
-            </Card>
+              </div>
+            </motion.div>
           )}
         </motion.div>
       </motion.div>
