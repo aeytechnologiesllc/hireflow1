@@ -47,16 +47,16 @@ export function FileMessage({ fileUrl, fileName, fileType, fileSize, isMine }: F
     return (
       <>
         <div 
-          className="cursor-pointer group relative"
+          className="cursor-pointer group relative overflow-hidden rounded-xl shadow-sm"
           onClick={() => setLightboxOpen(true)}
         >
           <img
             src={fileUrl}
             alt={fileName}
-            className="max-w-[200px] max-h-[200px] rounded-lg object-cover"
+            className="w-full max-h-[240px] object-cover"
           />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-            <ImageIcon className="h-6 w-6 text-white" />
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <ImageIcon className="h-5 w-5 text-white drop-shadow-md" />
           </div>
         </div>
         <ImageLightbox
@@ -70,28 +70,16 @@ export function FileMessage({ fileUrl, fileName, fileType, fileSize, isMine }: F
   }
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 p-3 rounded-lg border",
-      isMine ? "bg-primary/10 border-primary/20" : "bg-secondary/50 border-border"
-    )}>
-      <div className={cn(
-        "h-10 w-10 rounded-lg flex items-center justify-center",
-        isMine ? "bg-primary/20" : "bg-secondary"
-      )}>
-        <FileText className={cn(
-          "h-5 w-5",
-          isMine ? "text-primary" : "text-muted-foreground"
-        )} />
+    <div className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/60 border border-border/50">
+      <div className="h-9 w-9 rounded-lg bg-secondary flex items-center justify-center">
+        <FileText className="h-4 w-4 text-muted-foreground" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "text-sm font-medium truncate",
-          isMine ? "text-primary-foreground" : "text-foreground"
-        )}>
+        <p className="text-sm font-medium text-foreground truncate">
           {fileName}
         </p>
         {fileSize && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {formatFileSize(fileSize)}
           </p>
         )}
@@ -99,10 +87,10 @@ export function FileMessage({ fileUrl, fileName, fileType, fileSize, isMine }: F
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 shrink-0"
+        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
         onClick={handleDownload}
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-3.5 w-3.5" />
       </Button>
     </div>
   );
