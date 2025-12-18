@@ -277,6 +277,9 @@ const handleFinishQuiz = () => {
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = application.jobs?.quiz_questions as any[] | undefined;
       
+      // Extract voice_interview step (goes AFTER review)
+      const voiceInterviewStep = workflowSteps.find((step: any) => step.type === 'voice_interview');
+      
       const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
@@ -286,14 +289,25 @@ const handleFinishQuiz = () => {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
       
-      // Add workflow steps
-      workflowSteps.forEach((step: any) => {
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      workflowSteps.filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
       
+      // Add Review phase
+      allPhases.push({ id: "review", type: "review", title: "Review" });
+      
+      // Add voice_interview AFTER Review if it exists
+      if (voiceInterviewStep) {
+        allPhases.push({ 
+          id: (voiceInterviewStep as any).id, 
+          type: "voice_interview", 
+          title: (voiceInterviewStep as any).title || "Ava Interview" 
+        });
+      }
+      
       // Add final phases
       allPhases.push(
-        { id: "review", type: "review", title: "Review" },
         { id: "interview", type: "interview", title: "Interview" },
         { id: "hired", type: "hired", title: "Hired" }
       );
@@ -313,12 +327,18 @@ const handleFinishQuiz = () => {
         if (results.passed) {
           // Advance to next phase
           if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-            newPhase = allPhases[currentIndex + 1].id;
-            // Store next phase info for evaluation screen
-            setNextPhaseInfo({
-              id: allPhases[currentIndex + 1].id,
-              title: allPhases[currentIndex + 1].title,
-            });
+            const nextPhase = allPhases[currentIndex + 1];
+            newPhase = nextPhase.id;
+            
+            // DON'T show "Start Next Phase" button if next phase is review
+            // The candidate should wait for employer to advance them to premium phases
+            if (nextPhase.type !== "review") {
+              setNextPhaseInfo({
+                id: nextPhase.id,
+                title: nextPhase.title,
+              });
+            }
+            // If review phase, nextPhaseInfo stays null - candidate waits for employer
           }
         } else {
           // Failed - reject the application
