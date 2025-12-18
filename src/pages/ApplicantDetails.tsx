@@ -1835,9 +1835,6 @@ ${interviewType} Interview with AVA Results:
                 )}
                 Re-analyze
               </Button>
-              <Button variant="outline" size="sm">
-                Employer Only
-              </Button>
             </div>
           </div>
 
