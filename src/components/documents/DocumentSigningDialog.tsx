@@ -74,6 +74,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
+  const [isDocumentLoading, setIsDocumentLoading] = useState(true);
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("document");
   const [isEditing, setIsEditing] = useState(false);
@@ -93,6 +94,8 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
   useEffect(() => {
     if (document && open) {
+      setIsDocumentLoading(true);
+      setActiveTab("document"); // Always start on document tab
       fetchAuditLogs();
       parseDocumentData();
       recordDocumentView();
@@ -118,7 +121,10 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   };
 
   const parseDocumentData = () => {
-    if (!document?.file_url) return;
+    if (!document?.file_url) {
+      setIsDocumentLoading(false);
+      return;
+    }
     
     try {
       if (document.file_url.startsWith("data:application/json;base64,")) {
@@ -145,6 +151,8 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         content: "Unable to parse document content",
         signatureFields: [],
       });
+    } finally {
+      setIsDocumentLoading(false);
     }
   };
 
@@ -179,8 +187,9 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   };
 
   const initCanvas = (fieldId: string, canvas: HTMLCanvasElement | null) => {
-    canvasRefs.current[fieldId] = canvas;
-    if (canvas) {
+    if (!canvas) return;
+    try {
+      canvasRefs.current[fieldId] = canvas;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.strokeStyle = "#000";
@@ -188,6 +197,8 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
       }
+    } catch (error) {
+      console.error("Canvas init error:", error);
     }
   };
 
@@ -251,7 +262,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
   // Get fields that the current user needs to sign
   const getSignableFields = () => {
-    if (!documentData?.signatureFields) return [];
+    if (isDocumentLoading || !documentData?.signatureFields) return [];
     
     if (role === "candidate") {
       // Candidate signs recipient field
@@ -265,7 +276,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   };
 
   const signableFields = getSignableFields();
-  const canSign = signableFields.length > 0 && document?.status === "pending";
+  const canSign = !isDocumentLoading && signableFields.length > 0 && document?.status === "pending";
 
   const allRequiredSigned = () => {
     return signableFields
@@ -560,9 +571,9 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                 <Eye className="h-4 w-4" />
                 Document
               </TabsTrigger>
-              <TabsTrigger value="sign" className="gap-2" disabled={!canSign}>
+              <TabsTrigger value="sign" className="gap-2" disabled={!canSign || isDocumentLoading}>
                 <PenTool className="h-4 w-4" />
-                Sign
+                {isDocumentLoading ? "Loading..." : "Sign"}
               </TabsTrigger>
               <TabsTrigger value="audit" className="gap-2">
                 <History className="h-4 w-4" />
@@ -663,7 +674,12 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
             {/* Signing View */}
             <TabsContent value="sign" className="h-full m-0">
-              {showDeclineForm ? (
+              {isDocumentLoading ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                  <p className="text-muted-foreground">Loading document...</p>
+                </div>
+              ) : showDeclineForm ? (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
