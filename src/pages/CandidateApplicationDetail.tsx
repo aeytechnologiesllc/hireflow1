@@ -38,6 +38,7 @@ import { CandidatePerformanceReport } from "@/components/CandidatePerformanceRep
 import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { generatePerformanceReport } from "@/utils/generatePerformanceReport";
+import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 
 interface WorkflowStep {
   id: string;
@@ -120,7 +121,26 @@ export default function CandidateApplicationDetail() {
     enabled: !!id && !!user,
   });
 
-  // Fetch interview details when needed
+  // Fetch interview for this application (for candidate confirmation card)
+  const { data: candidateInterview, refetch: refetchInterview } = useQuery({
+    queryKey: ["candidate-interview", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("application_id", id!)
+        .eq("status", "scheduled")
+        .order("scheduled_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Fetch interview details when needed (for status screen)
   const fetchInterviewDetails = async (applicationId: string) => {
     const { data } = await supabase
       .from("interviews")
@@ -189,6 +209,32 @@ export default function CandidateApplicationDetail() {
       supabase.removeChannel(channel);
     };
   }, [id, refetch]);
+
+  // Subscribe to real-time updates for interview changes
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`interview-candidate-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "interviews",
+          filter: `application_id=eq.${id}`,
+        },
+        (payload) => {
+          console.log("Interview updated:", payload);
+          refetchInterview();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, refetchInterview]);
 
   // Check on initial load if status changed recently (within last 30 seconds)
   useEffect(() => {
@@ -514,6 +560,14 @@ export default function CandidateApplicationDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Interview Confirmation Card - for candidate to confirm/reschedule */}
+      {candidateInterview && (
+        <CandidateInterviewConfirmationCard
+          interview={candidateInterview}
+          applicationId={id!}
+        />
+      )}
 
       {/* Application Status - Rejected with Performance Report */}
       {isRejected && (

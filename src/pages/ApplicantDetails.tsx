@@ -46,6 +46,7 @@ import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { MediaPlayer } from "@/components/MediaPlayer";
 import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import { RescheduleInterviewDialog } from "@/components/RescheduleInterviewDialog";
+import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -316,6 +317,7 @@ export default function ApplicantDetails() {
   const [documentWizardMode, setDocumentWizardMode] = useState<"generate" | "upload" | undefined>();
   const [showCancelInterviewConfirm, setShowCancelInterviewConfirm] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -1406,7 +1408,7 @@ Voice Interview with AVA Results:
                   <Calendar className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground">Interview Scheduled</span>
                     <Badge 
                       variant="secondary"
@@ -1419,6 +1421,25 @@ Voice Interview with AVA Results:
                     >
                       {scheduledInterview.status}
                     </Badge>
+                    {/* Candidate Response Status */}
+                    {scheduledInterview.status === "scheduled" && (
+                      <Badge 
+                        variant="outline"
+                        className={
+                          (scheduledInterview as any).candidate_response === "confirmed" 
+                            ? "bg-success/10 text-success border-success/30" :
+                          (scheduledInterview as any).candidate_response === "reschedule_requested" 
+                            ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :
+                          "bg-muted/50 text-muted-foreground border-muted"
+                        }
+                      >
+                        {(scheduledInterview as any).candidate_response === "confirmed" 
+                          ? "✓ Candidate Confirmed" :
+                         (scheduledInterview as any).candidate_response === "reschedule_requested" 
+                          ? "⏱ Reschedule Requested" :
+                         "Awaiting Confirmation"}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                     <span>{format(new Date(scheduledInterview.scheduled_at), "EEEE, MMMM d, yyyy")}</span>
@@ -1437,6 +1458,18 @@ Voice Interview with AVA Results:
               </div>
               
               <div className="flex items-center gap-2">
+                {/* Review Request Button */}
+                {(scheduledInterview as any).candidate_response === "reschedule_requested" && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowRescheduleReviewDialog(true)}
+                    className="gap-2 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                  >
+                    <Clock className="h-4 w-4" />
+                    Review Request
+                  </Button>
+                )}
+                
                 {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
                   <Button asChild className="gap-2">
                     <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
@@ -2951,6 +2984,20 @@ Voice Interview with AVA Results:
         interview={scheduledInterview}
         applicationId={id || ""}
       />
+
+      {/* Employer Review Reschedule Request Dialog */}
+      {scheduledInterview && (scheduledInterview as any).candidate_response === "reschedule_requested" && (
+        <EmployerRescheduleReviewDialog
+          open={showRescheduleReviewDialog}
+          onOpenChange={setShowRescheduleReviewDialog}
+          interviewId={scheduledInterview.id}
+          applicationId={id || ""}
+          currentScheduledAt={scheduledInterview.scheduled_at}
+          proposedTimes={((scheduledInterview as any).proposed_times as any[]) || []}
+          candidateNote={(scheduledInterview as any).candidate_note || null}
+          onMessageCandidate={() => setShowMessageDialog(true)}
+        />
+      )}
     </div>
   );
 }
