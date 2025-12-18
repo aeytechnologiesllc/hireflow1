@@ -48,6 +48,7 @@ const LANGUAGE_OPTIONS = [
   { value: "de", label: "German" },
   { value: "pt", label: "Portuguese" },
   { value: "hi", label: "Hindi" },
+  { value: "ur", label: "Urdu" },
   { value: "ar", label: "Arabic" },
   { value: "zh", label: "Mandarin" },
   { value: "ja", label: "Japanese" },

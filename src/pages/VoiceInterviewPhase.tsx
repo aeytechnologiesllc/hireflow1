@@ -352,7 +352,7 @@ export default function VoiceInterviewPhase() {
       return `[${time}] ${m.role === 'user' ? 'Candidate' : 'Ava'}: ${m.content}`;
     }).join('\n\n');
 
-    const header = `Voice Interview Transcript
+    const header = `${videoEnabled ? 'Video' : 'Voice'} Interview Transcript
 Date: ${new Date().toLocaleDateString()}
 Position: ${job?.title || 'Unknown'}
 Company: ${job?.company_name || 'Unknown'}
@@ -413,7 +413,7 @@ Duration: ${formatTime(elapsedSeconds)}
   }
 
   if (isSubmitted && applicationId) {
-    return <PhaseAlreadySubmitted applicationId={applicationId} phaseName="Voice Interview" />;
+    return <PhaseAlreadySubmitted applicationId={applicationId} phaseName={videoEnabled ? "Video Interview" : "Voice Interview"} />;
   }
 
   return (
@@ -421,7 +421,7 @@ Duration: ${formatTime(elapsedSeconds)}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Voice Interview</h1>
+          <h1 className="text-2xl font-bold text-foreground">{videoEnabled ? 'Video Interview' : 'Voice Interview'}</h1>
           <p className="text-muted-foreground">
             {job?.title} {job?.company_name && `at ${job.company_name}`}
           </p>
@@ -437,13 +437,13 @@ Duration: ${formatTime(elapsedSeconds)}
           <Card className="border-border bg-card/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Volume2 className="h-5 w-5 text-primary" />
+                {videoEnabled ? <Video className="h-5 w-5 text-primary" /> : <Volume2 className="h-5 w-5 text-primary" />}
                 Before You Begin
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3 text-muted-foreground">
-                <p>You're about to have a voice conversation with our professional interviewer.</p>
+                <p>You're about to have a {videoEnabled ? 'video interview' : 'voice conversation'} with our professional interviewer.</p>
                 <ul className="list-disc list-inside space-y-2">
                   <li>Find a quiet place with minimal background noise</li>
                   <li>Ensure your {videoEnabled ? 'camera and microphone are' : 'microphone is'} working properly</li>
@@ -574,8 +574,8 @@ Duration: ${formatTime(elapsedSeconds)}
                   size="lg"
                   disabled={!cameraTestPassed}
                 >
-                  <Phone className="h-5 w-5" />
-                  Start Voice Interview
+                  {videoEnabled ? <Video className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
+                  {videoEnabled ? 'Start Video Interview' : 'Start Voice Interview'}
                 </Button>
                 {!cameraTestPassed && (
                   <p className="text-xs text-muted-foreground text-center mt-2">
