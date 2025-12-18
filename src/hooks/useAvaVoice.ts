@@ -33,6 +33,7 @@ interface AvaVoiceState {
   isListening: boolean;
   isProcessing: boolean; // True when waiting for AVA's response after user stops speaking
   isStuck: boolean; // True when Ava hasn't responded for too long
+  isEndingInterview: boolean; // True when end_interview is called, before audio finishes
   reconnectAttempts: number; // Track reconnection attempts
   error: string | null;
   audioLevels: number[]; // 5 values for audio bars visualization
@@ -51,6 +52,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isListening: false,
     isProcessing: false,
     isStuck: false,
+    isEndingInterview: false,
     reconnectAttempts: 0,
     error: null,
     audioLevels: [8, 8, 8, 8, 8],
@@ -517,29 +519,39 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   isInterviewEndedRef.current = true;
                   clearProcessingTimeout();
                   
+                  // IMMEDIATELY signal that we're ending - show overlay to user
+                  setState(s => ({ ...s, isEndingInterview: true }));
+                  
                   // Wait for audio queue to finish playing before triggering end
                   const waitForAudioComplete = (): Promise<void> => {
                     return new Promise((resolve) => {
                       let checkCount = 0;
-                      const maxChecks = 100; // 10 seconds max wait
+                      let emptyCount = 0; // Track consecutive empty checks
+                      const maxChecks = 50; // 5 seconds max wait (reduced from 10)
                       
                       const checkInterval = setInterval(() => {
                         checkCount++;
                         const queueLength = audioQueueRef.current?.length || 0;
                         
-                        console.log(`Waiting for audio... Queue length: ${queueLength}, Check: ${checkCount}`);
+                        console.log(`Waiting for audio... Queue=${queueLength}, Empty=${emptyCount}, Check=${checkCount}`);
                         
-                        // Check if audio queue is empty and not playing
+                        // Check if audio queue is empty
                         if (queueLength === 0) {
-                          // Give a small buffer after queue empties to ensure playback finished
-                          setTimeout(() => {
+                          emptyCount++;
+                          // After 3 consecutive empty checks (300ms), proceed
+                          if (emptyCount >= 3) {
+                            console.log('Audio queue empty for 300ms, proceeding');
                             clearInterval(checkInterval);
                             resolve();
-                          }, 500);
-                          clearInterval(checkInterval);
-                        } else if (checkCount >= maxChecks) {
-                          // Timeout after 10 seconds to prevent infinite wait
-                          console.log('Audio wait timeout, proceeding with interview end');
+                            return;
+                          }
+                        } else {
+                          emptyCount = 0; // Reset if queue has items
+                        }
+                        
+                        if (checkCount >= maxChecks) {
+                          // Timeout after 5 seconds to prevent long wait
+                          console.log('Audio wait timeout (5s), proceeding with interview end');
                           clearInterval(checkInterval);
                           resolve();
                         }
@@ -564,8 +576,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                       pcRef.current?.close();
                       pcRef.current = null;
                       
-                      // Stop mic stream
-                      micStreamRef.current?.getTracks().forEach(track => track.stop());
+                      // Stop mic stream only if internal
+                      if (micStreamRef.current && !optionsRef.current.externalMicStream) {
+                        micStreamRef.current.getTracks().forEach(track => track.stop());
+                      }
                       micStreamRef.current = null;
                       
                       // Clean up audio
@@ -589,6 +603,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                         isSpeaking: false,
                         isListening: false,
                         isProcessing: false,
+                        isEndingInterview: false,
                       }));
                     }, 100);
                   });
@@ -702,6 +717,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       isListening: false,
       isProcessing: false,
       isStuck: false,
+      isEndingInterview: false,
       reconnectAttempts: 0,
       error: null,
       audioLevels: [8, 8, 8, 8, 8],
