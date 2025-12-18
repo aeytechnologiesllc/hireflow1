@@ -169,3 +169,34 @@ export function useUpdateApplication() {
     },
   });
 }
+
+export function useDeleteApplication() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (applicationId: string) => {
+      // Delete related documents first
+      await supabase.from("documents").delete().eq("application_id", applicationId);
+      
+      // Delete related interviews
+      await supabase.from("interviews").delete().eq("application_id", applicationId);
+      
+      // Delete related messages
+      await supabase.from("messages").delete().eq("application_id", applicationId);
+      
+      // Delete the application
+      const { error } = await supabase
+        .from("applications")
+        .delete()
+        .eq("id", applicationId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+}
