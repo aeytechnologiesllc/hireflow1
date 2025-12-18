@@ -1,611 +1,344 @@
-import jsPDF from "jspdf";
-import type { Tables } from "@/integrations/supabase/types";
+import { jsPDF } from "jspdf";
 
-interface ApplicationData extends Tables<"applications"> {
-  jobs: Tables<"jobs"> | null;
+// Types for the AI-generated report data
+export interface PerformanceReportData {
+  executiveSummary: {
+    headline: string;
+    overallAssessment: string;
+    standoutMoments: string[];
+    criticalGrowthAreas: string[];
+  };
+  personalityProfile: {
+    primaryTraits: Array<{ trait: string; score: number; description: string }>;
+    communicationStyle: { style: string; strengths: string[]; developmentAreas: string[] };
+    workStyleInsights: string;
+  };
+  phaseAnalysis: Array<{
+    phaseName: string; score: number; status: string; summary: string;
+    whatWentWell: string[]; areasForImprovement: string[]; keyMoments: string[]; coachingTip: string;
+  }>;
+  skillsBreakdown: {
+    technicalSkills: Array<{ skill: string; score: number; evidence: string }>;
+    softSkills: Array<{ skill: string; score: number; evidence: string }>;
+    communicationMetrics: { clarity: number; articulation: number; confidence: number; professionalTone: number };
+  };
+  interviewDeepDive: {
+    overallImpression: string;
+    questionBreakdown: Array<{ question: string; responseQuality: string; notableQuote: string; whatWorked: string; whatToImprove: string; idealApproach: string }>;
+    bodyLanguageAndTone: string;
+    missedOpportunities: string[];
+  };
+  growthRoadmap: {
+    immediate: Array<RoadmapItem>; shortTerm: Array<RoadmapItem>; longTerm: Array<RoadmapItem>;
+  };
+  motivationalClose: {
+    personalizedMessage: string; nextSteps: string[];
+    inspirationalQuote: { quote: string; author: string };
+  };
+  metadata: {
+    candidateName: string; candidateEmail: string; jobTitle: string;
+    overallScore: number; generatedAt: string; applicationId: string;
+  };
 }
 
-interface CandidateProfile {
-  full_name: string | null;
-  email: string;
+interface RoadmapItem {
+  title: string; priority: string; timeframe: string; description: string;
+  actionSteps: string[];
+  resources: Array<{ name: string; url: string; description: string }>;
+  successMetric: string;
 }
 
-// Color palette
 const COLORS = {
-  primary: [16, 185, 129] as [number, number, number], // Teal/Emerald
-  secondary: [139, 92, 246] as [number, number, number], // Purple
-  success: [34, 197, 94] as [number, number, number], // Green
-  warning: [245, 158, 11] as [number, number, number], // Amber
-  danger: [239, 68, 68] as [number, number, number], // Red
-  dark: [15, 23, 42] as [number, number, number], // Slate-900
-  muted: [100, 116, 139] as [number, number, number], // Slate-500
-  light: [241, 245, 249] as [number, number, number], // Slate-100
-  white: [255, 255, 255] as [number, number, number],
+  primary: { r: 79, g: 70, b: 229 }, secondary: { r: 99, g: 102, b: 241 },
+  success: { r: 34, g: 197, b: 94 }, warning: { r: 245, g: 158, b: 11 },
+  danger: { r: 239, g: 68, b: 68 }, dark: { r: 30, g: 41, b: 59 },
+  medium: { r: 100, g: 116, b: 139 }, light: { r: 148, g: 163, b: 184 },
+  background: { r: 248, g: 250, b: 252 }, white: { r: 255, g: 255, b: 255 },
+  gold: { r: 245, g: 158, b: 11 },
 };
 
-// Helper to draw rounded rectangles
-function roundedRect(
-  doc: jsPDF,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  style: "S" | "F" | "FD" = "F"
-) {
-  doc.roundedRect(x, y, w, h, r, r, style);
+function setColor(doc: jsPDF, c: { r: number; g: number; b: number }) { doc.setTextColor(c.r, c.g, c.b); }
+function setFillColor(doc: jsPDF, c: { r: number; g: number; b: number }) { doc.setFillColor(c.r, c.g, c.b); }
+function setDrawColor(doc: jsPDF, c: { r: number; g: number; b: number }) { doc.setDrawColor(c.r, c.g, c.b); }
+function roundedRect(doc: jsPDF, x: number, y: number, w: number, h: number, r: number, style: 'S' | 'F' | 'FD' = 'F') { doc.roundedRect(x, y, w, h, r, r, style); }
+
+function drawProgressBar(doc: jsPDF, x: number, y: number, width: number, height: number, pct: number, color: { r: number; g: number; b: number }) {
+  setFillColor(doc, { r: 226, g: 232, b: 240 }); roundedRect(doc, x, y, width, height, height / 2, 'F');
+  if (pct > 0) { setFillColor(doc, color); roundedRect(doc, x, y, Math.min((pct / 100) * width, width), height, height / 2, 'F'); }
 }
 
-// Helper to draw progress bar
-function drawProgressBar(
-  doc: jsPDF,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  value: number,
-  color: [number, number, number]
-) {
-  doc.setFillColor(...COLORS.light);
-  roundedRect(doc, x, y, width, height, 2, "F");
-  
-  const fillWidth = (value / 100) * width;
-  if (fillWidth > 0) {
-    doc.setFillColor(...color);
-    roundedRect(doc, x, y, Math.max(fillWidth, 4), height, 2, "F");
-  }
+function getScoreColor(score: number) { return score >= 80 ? COLORS.success : score >= 60 ? COLORS.warning : COLORS.danger; }
+
+function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
+  if (!text) return [];
+  const words = text.split(' '); const lines: string[] = []; let currentLine = '';
+  words.forEach(word => {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (doc.getTextWidth(testLine) > maxWidth && currentLine) { lines.push(currentLine); currentLine = word; }
+    else { currentLine = testLine; }
+  });
+  if (currentLine) lines.push(currentLine);
+  return lines;
 }
 
-// Parse notes JSON safely
-function parseNotes(notes: string | null): Record<string, any> {
-  try {
-    return notes ? JSON.parse(notes) : {};
-  } catch {
-    return {};
-  }
+function addPageHeader(doc: jsPDF, title: string, pageNum: number, totalPages: number) {
+  const pw = doc.internal.pageSize.getWidth();
+  setDrawColor(doc, COLORS.primary); doc.setLineWidth(0.5); doc.line(20, 15, pw - 20, 15);
+  doc.setFontSize(10); setColor(doc, COLORS.primary); doc.setFont("helvetica", "bold"); doc.text(title, 20, 12);
+  doc.setFont("helvetica", "normal"); setColor(doc, COLORS.medium); doc.text(`Page ${pageNum} of ${totalPages}`, pw - 20, 12, { align: 'right' });
 }
 
-// Get score color based on value
-function getScoreColor(score: number): [number, number, number] {
-  if (score >= 80) return COLORS.success;
-  if (score >= 60) return COLORS.primary;
-  if (score >= 40) return COLORS.warning;
-  return COLORS.danger;
+function addSectionTitle(doc: jsPDF, title: string, y: number, icon?: string): number {
+  setColor(doc, COLORS.primary); doc.setFontSize(14); doc.setFont("helvetica", "bold");
+  doc.text(icon ? `${icon} ${title}` : title, 20, y);
+  setDrawColor(doc, COLORS.secondary); doc.setLineWidth(0.3); doc.line(20, y + 2, 100, y + 2);
+  return y + 10;
 }
 
-export function generatePerformanceReport(
-  application: ApplicationData,
-  profile: CandidateProfile
-): void {
+function addSubsectionTitle(doc: jsPDF, title: string, y: number): number {
+  setColor(doc, COLORS.dark); doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.text(title, 20, y);
+  return y + 6;
+}
+
+export function generatePerformanceReport(reportData: PerformanceReportData) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 15;
-  const contentWidth = pageWidth - margin * 2;
-  
-  const notes = parseNotes(application.notes);
-  const job = application.jobs;
-  const overallScore = application.ai_score || 0;
-  
-  // ============= PAGE 1: HEADER + EXECUTIVE SUMMARY + METRICS =============
-  let y = 0;
-  
-  // Compact header bar
-  doc.setFillColor(...COLORS.dark);
-  doc.rect(0, 0, pageWidth, 45, "F");
-  
-  doc.setFillColor(...COLORS.primary);
-  doc.rect(0, 45, pageWidth, 3, "F");
-  
-  // Title and candidate info in header
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(...COLORS.white);
-  doc.text("Performance Report", margin, 18);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(...COLORS.primary);
-  doc.text(profile.full_name || "Candidate", margin, 30);
-  
-  doc.setFontSize(8);
-  doc.setTextColor(...COLORS.light);
-  doc.text(`${job?.title || "Position"} • ${new Date(application.created_at).toLocaleDateString()}`, margin, 38);
-  
-  // Overall Score - Right side of header
-  doc.setFillColor(...getScoreColor(overallScore));
-  doc.circle(pageWidth - 30, 23, 15, "F");
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(...COLORS.white);
-  doc.text(`${overallScore}`, pageWidth - 30, 26, { align: "center" });
-  
-  doc.setFontSize(7);
-  doc.text("SCORE", pageWidth - 30, 33, { align: "center" });
-  
-  y = 58;
-  
-  // Performance Level Badge
-  let performanceLevel = "Needs Development";
-  let levelColor = COLORS.danger;
-  if (overallScore >= 80) { performanceLevel = "Excellent"; levelColor = COLORS.success; }
-  else if (overallScore >= 60) { performanceLevel = "Strong"; levelColor = COLORS.primary; }
-  else if (overallScore >= 40) { performanceLevel = "Developing"; levelColor = COLORS.warning; }
-  
-  doc.setFillColor(...levelColor);
-  roundedRect(doc, margin, y, 70, 16, 3, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.white);
-  doc.text(performanceLevel.toUpperCase(), margin + 35, y + 10.5, { align: "center" });
-  
-  // Quick summary text next to badge
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.muted);
-  const phasesCompleted = countCompletedPhases(notes, application);
-  doc.text(`${phasesCompleted} phases completed • Generated ${new Date().toLocaleDateString()}`, margin + 78, y + 10.5);
-  
-  y += 28;
-  
-  // KEY METRICS GRID (2 rows x 3 cols)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...COLORS.dark);
-  doc.text("Key Metrics", margin, y);
-  
-  y += 10;
-  
-  const metrics = extractKeyMetrics(notes, application);
-  const metricWidth = (contentWidth - 10) / 3;
-  const metricHeight = 28;
-  
-  metrics.slice(0, 6).forEach((metric, index) => {
-    const col = index % 3;
-    const row = Math.floor(index / 3);
-    const xPos = margin + col * (metricWidth + 5);
-    const yPos = y + row * (metricHeight + 5);
-    
-    doc.setFillColor(...COLORS.light);
-    roundedRect(doc, xPos, yPos, metricWidth, metricHeight, 4, "F");
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(...getScoreColor(metric.value));
-    doc.text(metric.display, xPos + metricWidth / 2, yPos + 11, { align: "center" });
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.muted);
-    doc.text(metric.label, xPos + metricWidth / 2, yPos + 21, { align: "center" });
+  const margin = 20; const contentWidth = pageWidth - (margin * 2);
+  const { metadata, executiveSummary, personalityProfile, phaseAnalysis, skillsBreakdown, interviewDeepDive, growthRoadmap, motivationalClose } = reportData;
+
+  // PAGE 1: COVER & EXECUTIVE SUMMARY
+  setFillColor(doc, COLORS.primary); doc.rect(0, 0, pageWidth, 60, 'F');
+  setColor(doc, COLORS.white); doc.setFontSize(24); doc.setFont("helvetica", "bold");
+  doc.text("PERFORMANCE REPORT", pageWidth / 2, 25, { align: 'center' });
+  doc.setFontSize(12); doc.setFont("helvetica", "normal");
+  doc.text("Comprehensive Career Development Analysis", pageWidth / 2, 35, { align: 'center' });
+
+  let y = 70;
+  setFillColor(doc, { r: 226, g: 232, b: 240 }); roundedRect(doc, margin + 2, y + 2, contentWidth, 45, 4, 'F');
+  setFillColor(doc, COLORS.white); roundedRect(doc, margin, y, contentWidth, 45, 4, 'F');
+  y += 12; setColor(doc, COLORS.dark); doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(metadata.candidateName || 'Candidate', margin + 10, y);
+  y += 8; doc.setFontSize(11); doc.setFont("helvetica", "normal"); setColor(doc, COLORS.medium);
+  doc.text(`Applied for: ${metadata.jobTitle}`, margin + 10, y); y += 6;
+  doc.text(`Email: ${metadata.candidateEmail}`, margin + 10, y);
+
+  const scoreX = pageWidth - margin - 35, scoreY = 92, scoreColor = getScoreColor(metadata.overallScore);
+  setFillColor(doc, scoreColor); doc.circle(scoreX, scoreY, 18, 'F');
+  setColor(doc, COLORS.white); doc.setFontSize(20); doc.setFont("helvetica", "bold");
+  doc.text(`${metadata.overallScore}`, scoreX, scoreY + 2, { align: 'center' });
+  doc.setFontSize(8); doc.text("SCORE", scoreX, scoreY + 10, { align: 'center' });
+
+  y = 130; y = addSectionTitle(doc, "Executive Summary", y, "📊");
+  setFillColor(doc, { r: 238, g: 242, b: 255 }); roundedRect(doc, margin, y, contentWidth, 20, 3, 'F');
+  setColor(doc, COLORS.primary); doc.setFontSize(11); doc.setFont("helvetica", "bold");
+  const hl = wrapText(doc, executiveSummary?.headline || "", contentWidth - 20);
+  hl.forEach((l, i) => doc.text(l, margin + 10, y + 8 + (i * 5)));
+  y += 25 + (hl.length > 1 ? (hl.length - 1) * 5 : 0);
+
+  setColor(doc, COLORS.dark); doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  const al = wrapText(doc, executiveSummary?.overallAssessment || "", contentWidth);
+  al.forEach((l, i) => doc.text(l, margin, y + (i * 5))); y += al.length * 5 + 10;
+
+  const colW = (contentWidth - 10) / 2;
+  setFillColor(doc, { r: 220, g: 252, b: 231 }); roundedRect(doc, margin, y, colW, 50, 3, 'F');
+  setColor(doc, COLORS.success); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+  doc.text("✓ Standout Moments", margin + 5, y + 8);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); setColor(doc, COLORS.dark);
+  let mY = y + 16;
+  (executiveSummary?.standoutMoments || []).slice(0, 3).forEach(m => {
+    const ls = wrapText(doc, `• ${m}`, colW - 10);
+    ls.forEach((l, i) => { if (mY + (i * 4) < y + 48) doc.text(l, margin + 5, mY + (i * 4)); });
+    mY += ls.length * 4 + 2;
   });
-  
-  y += Math.ceil(metrics.slice(0, 6).length / 3) * (metricHeight + 5) + 10;
-  
-  // SIDE-BY-SIDE ASSESSMENT CARDS
-  const cardWidth = (contentWidth - 8) / 2;
-  const strengths = extractStrengthsList(notes, application);
-  const improvements = extractImprovementsList(notes, application);
-  
-  // Strengths Card (Left)
-  doc.setFillColor(230, 255, 240); // Light green tint
-  roundedRect(doc, margin, y, cardWidth, 70, 6, "F");
-  
-  doc.setFillColor(...COLORS.success);
-  roundedRect(doc, margin, y, 4, 70, 2, "F");
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...COLORS.success);
-  doc.text("What You Did Well", margin + 10, y + 12);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...COLORS.dark);
-  let bulletY = y + 24;
-  strengths.slice(0, 4).forEach((s) => {
-    doc.text(`• ${s}`, margin + 10, bulletY);
-    bulletY += 11;
+
+  setFillColor(doc, { r: 254, g: 243, b: 199 }); roundedRect(doc, margin + colW + 10, y, colW, 50, 3, 'F');
+  setColor(doc, COLORS.warning); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+  doc.text("⚡ Growth Priorities", margin + colW + 15, y + 8);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); setColor(doc, COLORS.dark);
+  let gY = y + 16;
+  (executiveSummary?.criticalGrowthAreas || []).slice(0, 3).forEach(a => {
+    const ls = wrapText(doc, `• ${a}`, colW - 10);
+    ls.forEach((l, i) => { if (gY + (i * 4) < y + 48) doc.text(l, margin + colW + 15, gY + (i * 4)); });
+    gY += ls.length * 4 + 2;
   });
-  
-  // Growth Card (Right)
-  doc.setFillColor(255, 247, 230); // Light amber tint
-  roundedRect(doc, margin + cardWidth + 8, y, cardWidth, 70, 6, "F");
-  
-  doc.setFillColor(...COLORS.warning);
-  roundedRect(doc, margin + cardWidth + 8, y, 4, 70, 2, "F");
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...COLORS.warning);
-  doc.text("Areas for Growth", margin + cardWidth + 18, y + 12);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...COLORS.dark);
-  bulletY = y + 24;
-  improvements.slice(0, 4).forEach((i) => {
-    doc.text(`• ${i}`, margin + cardWidth + 18, bulletY);
-    bulletY += 11;
+
+  // PAGE 2: PERSONALITY
+  doc.addPage(); addPageHeader(doc, "Personality Profile", 2, 7); y = 25;
+  y = addSectionTitle(doc, "Personality Profile", y, "🧠");
+  y = addSubsectionTitle(doc, "Core Personality Traits", y);
+  (personalityProfile?.primaryTraits || []).slice(0, 5).forEach(t => {
+    setFillColor(doc, COLORS.background); roundedRect(doc, margin, y, contentWidth, 22, 3, 'F');
+    setColor(doc, COLORS.dark); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(t.trait, margin + 5, y + 7);
+    const sc = getScoreColor(t.score); setFillColor(doc, sc);
+    roundedRect(doc, margin + 5 + doc.getTextWidth(t.trait) + 5, y + 2, 20, 8, 2, 'F');
+    setColor(doc, COLORS.white); doc.setFontSize(8);
+    doc.text(`${t.score}%`, margin + 5 + doc.getTextWidth(t.trait) + 15, y + 7, { align: 'center' });
+    setColor(doc, COLORS.medium); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    const dl = wrapText(doc, t.description, contentWidth - 10);
+    dl.slice(0, 2).forEach((l, i) => doc.text(l, margin + 5, y + 13 + (i * 4)));
+    y += 26;
   });
-  
-  y += 82;
-  
-  // PHASE PERFORMANCE (Compact rows)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...COLORS.dark);
-  doc.text("Phase Performance", margin, y);
-  
-  y += 12;
-  
-  const phases = getCompletedPhases(notes, application);
-  
-  phases.forEach((phase) => {
-    if (y > pageHeight - 25) {
-      doc.addPage();
-      y = margin;
-    }
-    
-    // Phase row: Name | Progress Bar | Score
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.dark);
-    doc.text(phase.name, margin, y + 4);
-    
-    // Progress bar
-    drawProgressBar(doc, margin + 55, y, contentWidth - 85, 6, phase.score, getScoreColor(phase.score));
-    
-    // Score
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...getScoreColor(phase.score));
-    doc.text(`${phase.score}%`, margin + contentWidth - 5, y + 4, { align: "right" });
-    
-    y += 14;
+  y += 5; y = addSubsectionTitle(doc, "Communication Style", y);
+  setFillColor(doc, { r: 238, g: 242, b: 255 }); roundedRect(doc, margin, y, contentWidth, 35, 3, 'F');
+  setColor(doc, COLORS.primary); doc.setFontSize(12); doc.setFont("helvetica", "bold");
+  doc.text(`Style: ${personalityProfile?.communicationStyle?.style || 'Analytical'}`, margin + 5, y + 10);
+  setColor(doc, COLORS.dark); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+  doc.text(`Strengths: ${(personalityProfile?.communicationStyle?.strengths || []).slice(0,2).join(", ") || "N/A"}`, margin + 5, y + 20);
+  doc.text(`Development: ${(personalityProfile?.communicationStyle?.developmentAreas || []).slice(0,2).join(", ") || "N/A"}`, margin + 5, y + 28);
+
+  // PAGE 3: PHASE ANALYSIS
+  doc.addPage(); addPageHeader(doc, "Phase Analysis", 3, 7); y = 25;
+  y = addSectionTitle(doc, "Phase-by-Phase Performance", y, "📋");
+  (phaseAnalysis || []).slice(0, 4).forEach(p => {
+    const ch = 50;
+    setFillColor(doc, COLORS.white); setDrawColor(doc, { r: 226, g: 232, b: 240 }); doc.setLineWidth(0.3);
+    roundedRect(doc, margin, y, contentWidth, ch, 4, 'FD');
+    const stc = p.status === 'excellent' ? COLORS.success : p.status === 'good' ? COLORS.warning : COLORS.danger;
+    setFillColor(doc, stc); roundedRect(doc, margin, y, 4, ch, 2, 'F');
+    setColor(doc, COLORS.dark); doc.setFontSize(11); doc.setFont("helvetica", "bold");
+    doc.text(p.phaseName, margin + 10, y + 8);
+    setColor(doc, stc); doc.text(`${p.score}%`, pageWidth - margin - 10, y + 8, { align: 'right' });
+    drawProgressBar(doc, margin + 10, y + 12, contentWidth - 40, 4, p.score, stc);
+    setColor(doc, COLORS.medium); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    doc.text((p.summary || "").substring(0, 90), margin + 10, y + 22);
+    if (p.whatWentWell?.[0]) { setColor(doc, COLORS.success); doc.setFontSize(8); doc.text(`✓ ${p.whatWentWell[0].substring(0, 80)}`, margin + 10, y + 32); }
+    if (p.areasForImprovement?.[0]) { setColor(doc, COLORS.warning); doc.text(`△ ${p.areasForImprovement[0].substring(0, 80)}`, margin + 10, y + 40); }
+    if (p.coachingTip) { setColor(doc, COLORS.primary); doc.setFont("helvetica", "italic"); doc.text(`💡 ${p.coachingTip.substring(0, 85)}`, margin + 10, y + 48); }
+    y += ch + 8;
+    if (y > pageHeight - 60) { doc.addPage(); addPageHeader(doc, "Phase Analysis (cont.)", 3, 7); y = 25; }
   });
-  
-  // ============= PAGE 2: GROWTH ROADMAP + CLOSING =============
-  doc.addPage();
-  y = margin;
-  
-  // Header bar
-  doc.setFillColor(...COLORS.warning);
-  doc.rect(0, 0, pageWidth, 6, "F");
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(...COLORS.dark);
-  doc.text("Your Growth Roadmap", margin, y + 18);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.muted);
-  doc.text("Actionable steps to strengthen your candidacy", margin, y + 28);
-  
-  y += 40;
-  
-  // Recommendations (compact cards)
-  const recommendations = generateRoadmap(application, notes, overallScore);
-  
-  recommendations.forEach((rec, index) => {
-    if (y > pageHeight - 50) {
-      doc.addPage();
-      y = margin + 15;
-    }
-    
-    const cardHeight = 38 + (rec.steps ? Math.min(rec.steps.length, 3) * 9 : 0);
-    
-    doc.setFillColor(...COLORS.light);
-    roundedRect(doc, margin, y, contentWidth, cardHeight, 5, "F");
-    
-    // Priority badge
-    const priorityColor = rec.priority === "high" ? COLORS.danger : 
-                          rec.priority === "medium" ? COLORS.warning : COLORS.primary;
-    doc.setFillColor(...priorityColor);
-    roundedRect(doc, margin + 6, y + 6, 45, 12, 2, "F");
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.white);
-    doc.text(rec.priority.toUpperCase(), margin + 28.5, y + 13.5, { align: "center" });
-    
-    // Timeline badge
-    if (rec.timeline) {
-      doc.setFillColor(...COLORS.dark);
-      roundedRect(doc, margin + 55, y + 6, 40, 12, 2, "F");
-      doc.setFontSize(7);
-      doc.text(rec.timeline, margin + 75, y + 13.5, { align: "center" });
-    }
-    
-    // Title
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...COLORS.dark);
-    doc.text(rec.title, margin + 8, y + 28);
-    
-    // Steps (compact)
-    if (rec.steps && rec.steps.length > 0) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(...COLORS.muted);
-      let stepY = y + 38;
-      rec.steps.slice(0, 3).forEach((step, i) => {
-        doc.text(`${i + 1}. ${step}`, margin + 12, stepY);
-        stepY += 9;
-      });
-    }
-    
-    y += cardHeight + 8;
+
+  // PAGE 4: SKILLS
+  doc.addPage(); addPageHeader(doc, "Skills Assessment", 4, 7); y = 25;
+  y = addSectionTitle(doc, "Skills Assessment", y, "🎯");
+  y = addSubsectionTitle(doc, "Communication Metrics", y);
+  const mets = skillsBreakdown?.communicationMetrics || { clarity: 0, articulation: 0, confidence: 0, professionalTone: 0 };
+  const metL = [{ n: "Clarity", v: mets.clarity }, { n: "Articulation", v: mets.articulation }, { n: "Confidence", v: mets.confidence }, { n: "Prof. Tone", v: mets.professionalTone }];
+  const mw = (contentWidth - 30) / 4;
+  metL.forEach((m, i) => {
+    const mx = margin + (i * (mw + 10));
+    setFillColor(doc, COLORS.background); roundedRect(doc, mx, y, mw, 35, 3, 'F');
+    const sc = getScoreColor(m.v); setFillColor(doc, sc); doc.circle(mx + mw / 2, y + 12, 10, 'F');
+    setColor(doc, COLORS.white); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(`${m.v}`, mx + mw / 2, y + 14, { align: 'center' });
+    setColor(doc, COLORS.dark); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text(m.n, mx + mw / 2, y + 30, { align: 'center' });
   });
-  
-  // CLOSING MESSAGE (compact, not a full page)
-  if (y > pageHeight - 60) {
-    doc.addPage();
-    y = margin + 15;
-  }
-  
-  y += 10;
-  
-  doc.setFillColor(...COLORS.primary);
-  roundedRect(doc, margin, y, contentWidth, 45, 6, "F");
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...COLORS.white);
-  doc.text("Your Journey Continues", margin + 10, y + 15);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  const closingText = "Every application is a stepping stone. Use these insights to become an even stronger candidate. Small, consistent improvements compound into transformative growth.";
-  const closingLines = doc.splitTextToSize(closingText, contentWidth - 20);
-  doc.text(closingLines, margin + 10, y + 26);
-  
+  y += 45; y = addSubsectionTitle(doc, "Technical Skills", y);
+  (skillsBreakdown?.technicalSkills || []).slice(0, 4).forEach(s => {
+    setColor(doc, COLORS.dark); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text(s.skill, margin, y);
+    drawProgressBar(doc, margin + 60, y - 3, 80, 5, s.score, getScoreColor(s.score));
+    setColor(doc, getScoreColor(s.score)); doc.text(`${s.score}%`, margin + 145, y);
+    setColor(doc, COLORS.medium); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text((s.evidence || "N/A").substring(0, 60), margin, y + 5); y += 14;
+  });
+  y += 5; y = addSubsectionTitle(doc, "Soft Skills", y);
+  (skillsBreakdown?.softSkills || []).slice(0, 4).forEach(s => {
+    setColor(doc, COLORS.dark); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text(s.skill, margin, y);
+    drawProgressBar(doc, margin + 60, y - 3, 80, 5, s.score, getScoreColor(s.score));
+    setColor(doc, getScoreColor(s.score)); doc.text(`${s.score}%`, margin + 145, y);
+    setColor(doc, COLORS.medium); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text((s.evidence || "N/A").substring(0, 60), margin, y + 5); y += 14;
+  });
+
+  // PAGE 5: INTERVIEW
+  doc.addPage(); addPageHeader(doc, "Interview Analysis", 5, 7); y = 25;
+  y = addSectionTitle(doc, "Interview Deep Dive", y, "🎤");
+  setFillColor(doc, { r: 238, g: 242, b: 255 }); roundedRect(doc, margin, y, contentWidth, 25, 3, 'F');
+  setColor(doc, COLORS.dark); doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  const il = wrapText(doc, interviewDeepDive?.overallImpression || "Interview analysis not available.", contentWidth - 10);
+  il.slice(0, 3).forEach((l, i) => doc.text(l, margin + 5, y + 8 + (i * 5))); y += 30;
+  y = addSubsectionTitle(doc, "Question-by-Question Analysis", y);
+  (interviewDeepDive?.questionBreakdown || []).slice(0, 3).forEach((qa, idx) => {
+    const qh = 50;
+    setFillColor(doc, COLORS.background); roundedRect(doc, margin, y, contentWidth, qh, 3, 'F');
+    setFillColor(doc, COLORS.primary); roundedRect(doc, margin + 5, y + 3, 20, 10, 2, 'F');
+    setColor(doc, COLORS.white); doc.setFontSize(8); doc.setFont("helvetica", "bold");
+    doc.text(`Q${idx + 1}`, margin + 15, y + 9, { align: 'center' });
+    const qc = qa.responseQuality === 'excellent' ? COLORS.success : qa.responseQuality === 'good' ? COLORS.warning : COLORS.danger;
+    setFillColor(doc, qc); roundedRect(doc, pageWidth - margin - 30, y + 3, 25, 10, 2, 'F');
+    setColor(doc, COLORS.white); doc.text((qa.responseQuality || "N/A").toUpperCase(), pageWidth - margin - 17.5, y + 9, { align: 'center' });
+    setColor(doc, COLORS.dark); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.text((qa.question || "").substring(0, 60), margin + 30, y + 9);
+    if (qa.notableQuote) { setColor(doc, COLORS.primary); doc.setFontSize(8); doc.setFont("helvetica", "italic"); doc.text(`"${qa.notableQuote.substring(0, 75)}..."`, margin + 5, y + 20); }
+    setColor(doc, COLORS.success); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text(`✓ ${(qa.whatWorked || "N/A").substring(0, 70)}`, margin + 5, y + 30);
+    setColor(doc, COLORS.warning); doc.text(`△ ${(qa.whatToImprove || "N/A").substring(0, 70)}`, margin + 5, y + 38);
+    setColor(doc, COLORS.medium); doc.setFont("helvetica", "italic");
+    doc.text(`💡 ${(qa.idealApproach || "N/A").substring(0, 70)}`, margin + 5, y + 46);
+    y += qh + 8;
+    if (y > pageHeight - 70) { doc.addPage(); addPageHeader(doc, "Interview Analysis (cont.)", 5, 7); y = 25; }
+  });
+
+  // PAGE 6: ROADMAP
+  doc.addPage(); addPageHeader(doc, "Growth Roadmap", 6, 7); y = 25;
+  y = addSectionTitle(doc, "Your Growth Roadmap", y, "🚀");
+  const renderRoadmap = (items: RoadmapItem[], title: string, pc: { r: number; g: number; b: number }) => {
+    if (!items?.length) return;
+    setFillColor(doc, pc); roundedRect(doc, margin, y, contentWidth, 8, 2, 'F');
+    setColor(doc, COLORS.white); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.text(title, margin + 5, y + 5.5); y += 12;
+    items.slice(0, 2).forEach(item => {
+      const ih = 45;
+      setFillColor(doc, COLORS.background); roundedRect(doc, margin, y, contentWidth, ih, 3, 'F');
+      const bc = item.priority === 'high' ? COLORS.danger : item.priority === 'medium' ? COLORS.warning : COLORS.success;
+      setFillColor(doc, bc); roundedRect(doc, pageWidth - margin - 25, y + 3, 20, 8, 2, 'F');
+      setColor(doc, COLORS.white); doc.setFontSize(7); doc.text((item.priority || "").toUpperCase(), pageWidth - margin - 15, y + 8, { align: 'center' });
+      setColor(doc, COLORS.dark); doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text(item.title, margin + 5, y + 9);
+      setColor(doc, COLORS.primary); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+      doc.text(`⏰ ${item.timeframe}`, margin + 5 + doc.getTextWidth(item.title) + 5, y + 9);
+      setColor(doc, COLORS.medium); doc.setFontSize(8);
+      doc.text((item.description || "").substring(0, 90), margin + 5, y + 17);
+      setColor(doc, COLORS.dark); (item.actionSteps || []).slice(0, 2).forEach((s, i) => doc.text(`${i + 1}. ${s.substring(0, 55)}`, margin + 5, y + 25 + (i * 5)));
+      if (item.resources?.length) {
+        setColor(doc, COLORS.primary); doc.setFontSize(7); doc.setFont("helvetica", "bold"); doc.text("RESOURCES:", margin + 5, y + 38);
+        doc.setFont("helvetica", "normal");
+        doc.text(item.resources.slice(0, 2).map(r => `${r.name} (${r.url})`).join(" | ").substring(0, 90), margin + 35, y + 38);
+      }
+      y += ih + 5;
+      if (y > pageHeight - 60) { doc.addPage(); addPageHeader(doc, "Growth Roadmap (cont.)", 6, 7); y = 25; }
+    }); y += 5;
+  };
+  renderRoadmap(growthRoadmap?.immediate || [], "🔥 IMMEDIATE ACTIONS (This Week)", COLORS.danger);
+  renderRoadmap(growthRoadmap?.shortTerm || [], "📅 SHORT-TERM GOALS (30-90 Days)", COLORS.warning);
+  renderRoadmap(growthRoadmap?.longTerm || [], "🎯 LONG-TERM DEVELOPMENT (3-12 Months)", COLORS.primary);
+
+  // PAGE 7: CLOSING
+  doc.addPage(); addPageHeader(doc, "Your Next Chapter", 7, 7); y = 35;
+  setFillColor(doc, COLORS.primary); doc.rect(0, y - 10, pageWidth, 50, 'F');
+  setColor(doc, COLORS.white); doc.setFontSize(22); doc.setFont("helvetica", "bold");
+  doc.text("Your Journey Continues", pageWidth / 2, y + 10, { align: 'center' });
+  doc.setFontSize(11); doc.setFont("helvetica", "normal");
+  doc.text("Every expert was once a beginner. Here's your path forward.", pageWidth / 2, y + 22, { align: 'center' });
+  y = 90; y = addSectionTitle(doc, "A Personal Note For You", y, "💪");
+  setFillColor(doc, { r: 238, g: 242, b: 255 }); roundedRect(doc, margin, y, contentWidth, 40, 4, 'F');
+  setColor(doc, COLORS.dark); doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  const ml = wrapText(doc, motivationalClose?.personalizedMessage || "Your dedication to improving yourself is commendable!", contentWidth - 20);
+  ml.slice(0, 4).forEach((l, i) => doc.text(l, margin + 10, y + 12 + (i * 6))); y += 50;
+  y = addSectionTitle(doc, "Your Immediate Action Checklist", y, "✅");
+  (motivationalClose?.nextSteps || []).slice(0, 5).forEach((s, i) => {
+    setFillColor(doc, i % 2 === 0 ? COLORS.background : COLORS.white); roundedRect(doc, margin, y, contentWidth, 10, 2, 'F');
+    setDrawColor(doc, COLORS.primary); doc.setLineWidth(0.5); doc.rect(margin + 5, y + 2, 5, 5, 'S');
+    setColor(doc, COLORS.dark); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    doc.text(s.substring(0, 90), margin + 15, y + 7); y += 12;
+  }); y += 10;
+  setFillColor(doc, COLORS.gold); roundedRect(doc, margin, y, contentWidth, 30, 4, 'F');
+  setColor(doc, COLORS.white); doc.setFontSize(11); doc.setFont("helvetica", "italic");
+  const q = motivationalClose?.inspirationalQuote?.quote || "Success is not final, failure is not fatal: it is the courage to continue that counts.";
+  const ql = wrapText(doc, `"${q}"`, contentWidth - 20);
+  ql.slice(0, 2).forEach((l, i) => doc.text(l, pageWidth / 2, y + 10 + (i * 6), { align: 'center' }));
+  doc.setFontSize(9); doc.setFont("helvetica", "bold");
+  doc.text(`— ${motivationalClose?.inspirationalQuote?.author || "Winston Churchill"}`, pageWidth / 2, y + 24, { align: 'center' });
+
   // Footer
-  doc.setFontSize(7);
-  doc.setTextColor(...COLORS.muted);
-  doc.text("Generated by HireFlow • Thank you for your application", pageWidth / 2, pageHeight - 10, { align: "center" });
-  
-  // Save the PDF
-  const fileName = `Performance-Report-${profile.full_name?.replace(/\s+/g, "-") || "Candidate"}-${new Date().toISOString().split("T")[0]}.pdf`;
+  y = pageHeight - 25;
+  setDrawColor(doc, COLORS.light); doc.setLineWidth(0.3); doc.line(margin, y - 5, pageWidth - margin, y - 5);
+  setColor(doc, COLORS.medium); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Generated by HireFlow AI Performance Analysis", pageWidth / 2, y, { align: 'center' });
+  doc.text(`${new Date(metadata.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageWidth / 2, y + 5, { align: 'center' });
+
+  const fileName = `Performance-Report-${(metadata.candidateName || 'Candidate').replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
-}
-
-// Count completed phases
-function countCompletedPhases(notes: Record<string, any>, application: ApplicationData): number {
-  let count = 1;
-  if (notes.typingTestResult) count++;
-  if (notes.quizResult || notes.quiz || notes.quizAnswers) count++;
-  if (notes.salesSimulationResult) count++;
-  if (notes.chatSimulationResult) count++;
-  if (notes.chatInterviewResult) count++;
-  if (notes.portfolioResult) count++;
-  if (application.voice_interview_result) count++;
-  return count;
-}
-
-// Extract key metrics
-function extractKeyMetrics(notes: Record<string, any>, application: ApplicationData): Array<{ label: string; value: number; display: string }> {
-  const metrics: Array<{ label: string; value: number; display: string }> = [];
-  
-  if (notes.typingTestResult) {
-    metrics.push({ label: "Typing Speed", value: Math.min(notes.typingTestResult.wpm || 0, 100), display: `${notes.typingTestResult.wpm || 0} WPM` });
-    metrics.push({ label: "Accuracy", value: notes.typingTestResult.accuracy || 0, display: `${notes.typingTestResult.accuracy || 0}%` });
-  }
-  
-  const quizResult = notes.quizResult || notes.quiz;
-  if (quizResult?.score) {
-    metrics.push({ label: "Quiz Score", value: quizResult.score, display: `${quizResult.score}%` });
-  }
-  
-  if (notes.salesSimulationResult?.overall_score) {
-    metrics.push({ label: "Sales Skills", value: notes.salesSimulationResult.overall_score, display: `${notes.salesSimulationResult.overall_score}%` });
-  }
-  
-  if (notes.chatSimulationResult?.overall_score) {
-    metrics.push({ label: "Service Skills", value: notes.chatSimulationResult.overall_score, display: `${notes.chatSimulationResult.overall_score}%` });
-  }
-  
-  const voiceResult = application.voice_interview_result as Record<string, any> | null;
-  if (voiceResult?.overall_score) {
-    metrics.push({ label: "Interview", value: voiceResult.overall_score, display: `${voiceResult.overall_score}%` });
-  }
-  
-  if (metrics.length < 6 && application.ai_score) {
-    metrics.push({ label: "Overall", value: application.ai_score, display: `${application.ai_score}%` });
-  }
-  
-  return metrics;
-}
-
-// Extract strengths as bullet points
-function extractStrengthsList(notes: Record<string, any>, application: ApplicationData): string[] {
-  const strengths: string[] = [];
-  
-  if (notes.typingTestResult?.wpm >= 50) strengths.push("Strong typing proficiency");
-  if (notes.typingTestResult?.accuracy >= 95) strengths.push("Excellent accuracy");
-  if ((notes.quizResult?.score || notes.quiz?.score) >= 70) strengths.push("Solid knowledge foundation");
-  if (notes.salesSimulationResult?.overall_score >= 60) strengths.push("Effective sales communication");
-  if (notes.chatSimulationResult?.overall_score >= 60) strengths.push("Good customer service aptitude");
-  if (notes.chatInterviewResult?.overall_score >= 60) strengths.push("Strong interview presence");
-  
-  const voiceResult = application.voice_interview_result as Record<string, any> | null;
-  if (voiceResult?.overall_score >= 60) strengths.push("Clear verbal communication");
-  
-  if (strengths.length === 0) {
-    strengths.push("Completed all required phases");
-    strengths.push("Demonstrated initiative");
-  }
-  
-  return strengths;
-}
-
-// Extract improvements as bullet points
-function extractImprovementsList(notes: Record<string, any>, application: ApplicationData): string[] {
-  const improvements: string[] = [];
-  
-  if (notes.typingTestResult?.wpm < 40) improvements.push("Increase typing speed (target: 50+ WPM)");
-  if (notes.typingTestResult?.accuracy < 90) improvements.push("Improve typing accuracy");
-  if ((notes.quizResult?.score || notes.quiz?.score || 0) < 60) improvements.push("Strengthen core knowledge");
-  if (notes.salesSimulationResult?.overall_score < 50) improvements.push("Develop sales communication");
-  if (notes.chatSimulationResult?.overall_score < 50) improvements.push("Enhance customer service skills");
-  if (notes.chatInterviewResult?.overall_score < 50) improvements.push("Practice interview responses");
-  
-  const voiceResult = application.voice_interview_result as Record<string, any> | null;
-  if (voiceResult?.overall_score && voiceResult.overall_score < 50) improvements.push("Improve verbal clarity");
-  
-  if (improvements.length === 0) {
-    improvements.push("Continue refining existing skills");
-    improvements.push("Seek additional practice opportunities");
-  }
-  
-  return improvements;
-}
-
-// Get completed phases with scores
-function getCompletedPhases(notes: Record<string, any>, application: ApplicationData): Array<{ name: string; score: number }> {
-  const phases: Array<{ name: string; score: number }> = [];
-  
-  const quizResult = notes.quizResult || notes.quiz;
-  if (quizResult?.score) {
-    phases.push({ name: "Skills Quiz", score: quizResult.score });
-  }
-  
-  if (notes.typingTestResult) {
-    const wpm = notes.typingTestResult.wpm || 0;
-    const accuracy = notes.typingTestResult.accuracy || 0;
-    const score = Math.round((wpm / 60 * 50) + (accuracy * 0.5));
-    phases.push({ name: "Typing Test", score: Math.min(score, 100) });
-  }
-  
-  if (notes.chatSimulationResult?.overall_score) {
-    phases.push({ name: "Customer Service", score: notes.chatSimulationResult.overall_score });
-  }
-  
-  if (notes.salesSimulationResult?.overall_score) {
-    phases.push({ name: "Sales Meeting", score: notes.salesSimulationResult.overall_score });
-  }
-  
-  if (notes.chatInterviewResult?.overall_score) {
-    phases.push({ name: "Interview", score: notes.chatInterviewResult.overall_score });
-  }
-  
-  if (notes.portfolioResult?.score) {
-    phases.push({ name: "Portfolio", score: notes.portfolioResult.score });
-  }
-  
-  const voiceResult = application.voice_interview_result as Record<string, any> | null;
-  if (voiceResult?.overall_score) {
-    phases.push({ name: "Voice Interview", score: voiceResult.overall_score });
-  }
-  
-  return phases;
-}
-
-// Generate compact roadmap recommendations
-function generateRoadmap(
-  application: ApplicationData,
-  notes: Record<string, any>,
-  overallScore: number
-): Array<{ title: string; priority: "high" | "medium" | "low"; timeline?: string; steps?: string[] }> {
-  const recommendations: Array<{ title: string; priority: "high" | "medium" | "low"; timeline?: string; steps?: string[] }> = [];
-  
-  if (notes.typingTestResult) {
-    const wpm = notes.typingTestResult.wpm || 0;
-    const accuracy = notes.typingTestResult.accuracy || 0;
-    
-    if (wpm < 40) {
-      recommendations.push({
-        title: "Master Typing Speed",
-        priority: "high",
-        timeline: "2-3 weeks",
-        steps: [
-          "Practice 15-20 min daily with TypingClub or Keybr",
-          "Focus on proper finger placement before speed",
-          "Track your WPM weekly to see progress"
-        ]
-      });
-    } else if (accuracy < 90) {
-      recommendations.push({
-        title: "Improve Typing Accuracy",
-        priority: "medium",
-        timeline: "1-2 weeks",
-        steps: [
-          "Slow down your pace by 20%",
-          "Use accuracy-focused typing exercises",
-          "Review work before submitting"
-        ]
-      });
-    }
-  }
-  
-  const quizResult = notes.quizResult || notes.quiz;
-  if (quizResult && (quizResult.score || 0) < 70) {
-    recommendations.push({
-      title: "Strengthen Industry Knowledge",
-      priority: "high",
-      timeline: "2-4 weeks",
-      steps: [
-        "Identify topics where you struggled",
-        "Find online courses for those areas",
-        "Test yourself weekly to track improvement"
-      ]
-    });
-  }
-  
-  const chatResult = notes.chatSimulationResult || notes.chatInterviewResult;
-  if (chatResult && (chatResult.overall_score || 0) < 60) {
-    recommendations.push({
-      title: "Elevate Communication Skills",
-      priority: "high",
-      timeline: "Ongoing",
-      steps: [
-        "Practice the STAR method for responses",
-        "Record yourself and review for clarity",
-        "Join a public speaking group or find a mentor"
-      ]
-    });
-  }
-  
-  if (notes.salesSimulationResult && (notes.salesSimulationResult.overall_score || 0) < 60) {
-    recommendations.push({
-      title: "Develop Sales Skills",
-      priority: "medium",
-      timeline: "3-4 weeks",
-      steps: [
-        "Study consultative selling approaches",
-        "Practice asking discovery questions",
-        "Role-play sales scenarios with a mentor"
-      ]
-    });
-  }
-  
-  const voiceResult = application.voice_interview_result as Record<string, any> | null;
-  if (voiceResult && voiceResult.overall_score < 60) {
-    recommendations.push({
-      title: "Sharpen Interview Performance",
-      priority: "high",
-      timeline: "1-2 weeks",
-      steps: [
-        "Research common interview questions",
-        "Prepare structured answers using STAR",
-        "Conduct mock interviews with friends"
-      ]
-    });
-  }
-  
-  // Always include a forward-looking recommendation
-  recommendations.push({
-    title: "Build on This Experience",
-    priority: "low",
-    timeline: "Ongoing",
-    steps: [
-      "Save this report for future reference",
-      "Set calendar reminders to practice",
-      "Apply to similar positions to improve"
-    ]
-  });
-  
-  return recommendations.slice(0, 4);
 }
