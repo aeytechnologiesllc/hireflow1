@@ -12,6 +12,7 @@ import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, 
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { AvaAvatar, useAvaExpression } from "@/components/AvaAvatar";
 
 interface Message {
   id: string;
@@ -43,6 +44,7 @@ export default function VoiceInterviewPhase() {
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
   const [isProcessingEnd, setIsProcessingEnd] = useState(false);
+  const [justFinishedSpeaking, setJustFinishedSpeaking] = useState(false);
 
   // Camera/video states
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -225,6 +227,29 @@ export default function VoiceInterviewPhase() {
     onTranscript: handleTranscript,
     onInterviewEnd: handleInterviewEnd,
   });
+
+  // Compute AVA expression from state
+  const avaExpression = useAvaExpression({
+    isSpeaking,
+    isListening,
+    isProcessing,
+    isConnected,
+    justFinishedSpeaking,
+  });
+
+  // Track when user finishes speaking for encouraging expression
+  const wasListeningRef = useRef(false);
+  useEffect(() => {
+    if (isListening && !isSpeaking) {
+      wasListeningRef.current = true;
+    } else if (wasListeningRef.current && !isListening && isProcessing) {
+      // User just stopped speaking, show encouraging expression briefly
+      setJustFinishedSpeaking(true);
+      const timer = setTimeout(() => setJustFinishedSpeaking(false), 1500);
+      wasListeningRef.current = false;
+      return () => clearTimeout(timer);
+    }
+  }, [isListening, isSpeaking, isProcessing]);
 
   // Interview timer effect - must be after useAvaVoice hook
   useEffect(() => {
@@ -695,69 +720,14 @@ Duration: ${formatTime(elapsedSeconds)}
           <Card className="border-border bg-card/50">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* Context-aware status indicator */}
-                  
-                  {/* CANDIDATE SPEAKING - Show animated audio bars */}
-                  {isListening && !isSpeaking && (
-                    <div className="flex items-end gap-0.5 h-12 px-2">
-                      {audioLevels.map((level, i) => (
-                        <motion.div
-                          key={i}
-                          className="w-2 rounded-full bg-emerald-500"
-                          animate={{ height: Math.max(8, level * 0.4) }}
-                          transition={{ duration: 0.05 }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* AVA SPEAKING - Show pulsing speaker icon */}
-                  {isSpeaking && (
-                    <motion.div
-                      className="w-12 h-12 rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center"
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 0.8, repeat: Infinity }}
-                    >
-                      <Volume2 className="h-6 w-6 text-white" />
-                    </motion.div>
-                  )}
-                  
-                  {/* AVA PROCESSING - Show thinking orb */}
-                  {isProcessing && !isSpeaking && !isListening && (
-                    <motion.div 
-                      className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center"
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </motion.div>
-                  )}
-                  
-                  {/* CONNECTING */}
-                  {isConnecting && (
-                    <motion.div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </motion.div>
-                  )}
-                  
-                  {/* IDLE - Ready to listen */}
-                  {isConnected && !isListening && !isSpeaking && !isProcessing && !isConnecting && (
-                    <motion.div 
-                      className="w-12 h-12 rounded-full bg-muted/30 border border-border flex items-center justify-center"
-                      animate={{ scale: [1, 1.02, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <Mic className="h-6 w-6 text-muted-foreground" />
-                    </motion.div>
-                  )}
-                  
-                  {/* DISCONNECTED */}
-                  {!isConnected && !isConnecting && (
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                      <MicOff className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                  )}
+                <div className="flex items-center gap-4">
+                  {/* AVA Avatar - Real-time animated */}
+                  <AvaAvatar
+                    expression={isConnecting ? "neutral" : !isConnected ? "neutral" : avaExpression}
+                    audioLevels={audioLevels}
+                    size="md"
+                    showStatus={false}
+                  />
                   
                   {/* Status Text */}
                   <div>
@@ -774,33 +744,19 @@ Duration: ${formatTime(elapsedSeconds)}
                         ? "Ava is thinking..."
                         : "Ready to listen"}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-muted-foreground">
-                        {isConnecting
-                          ? "Please wait..."
-                          : !isConnected
-                          ? "Interview ended"
-                          : isListening && !isSpeaking
-                          ? "I can hear you"
-                          : isSpeaking
-                          ? "Please wait for her to finish"
-                          : isProcessing
-                          ? "Preparing response..."
-                          : "Speak naturally"}
-                      </p>
-                      {/* Thinking indicator dots */}
-                      {isConnected && isProcessing && !isSpeaking && !isListening && (
-                        <motion.div
-                          className="flex gap-1"
-                          animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1.2, repeat: Infinity }}
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        </motion.div>
-                      )}
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {isConnecting
+                        ? "Please wait..."
+                        : !isConnected
+                        ? "Interview ended"
+                        : isListening && !isSpeaking
+                        ? "I can hear you"
+                        : isSpeaking
+                        ? "Please wait for her to finish"
+                        : isProcessing
+                        ? "Preparing response..."
+                        : "Speak naturally"}
+                    </p>
                   </div>
                 </div>
 
