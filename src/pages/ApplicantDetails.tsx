@@ -94,178 +94,148 @@ const phaseColors = {
   upcoming: "bg-muted",
 };
 
-// Component to render AI analysis with proper formatting
-type SectionContext = 'neutral' | 'strengths' | 'concerns' | 'critical';
-
-interface ParsedSection {
-  type: 'score' | 'heading' | 'list' | 'paragraph';
-  text: string;
-  context?: SectionContext;
+// Component to render AI analysis with premium typography-first design
+interface ParsedAnalysis {
+  score: number | null;
+  recommendation: string | null;
+  sections: {
+    title: string;
+    items: string[];
+  }[];
 }
 
-interface ListItem {
-  text: string;
-  context: SectionContext;
-}
-
-function AIAnalysisContent({ content }: { content: string }) {
-  // Parse the content into sections with context tracking
-  const sections: ParsedSection[] = [];
+function parseAIAnalysis(content: string): ParsedAnalysis {
+  const result: ParsedAnalysis = {
+    score: null,
+    recommendation: null,
+    sections: []
+  };
   
   const lines = content.split('\n');
-  let currentList: ListItem[] = [];
-  let currentSection: SectionContext = 'neutral';
+  let currentSection: { title: string; items: string[] } | null = null;
   
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) {
-      if (currentList.length > 0) {
-        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
-        currentList = [];
-      }
+    if (!trimmed) continue;
+    
+    // Extract score
+    const scoreMatch = trimmed.match(/^\*\*Overall Score:\s*(\d+)\*\*$/);
+    if (scoreMatch) {
+      result.score = parseInt(scoreMatch[1], 10);
       continue;
     }
     
-    // Check for score line
-    if (trimmed.match(/^\*\*Overall Score:\s*\d+\*\*$/)) {
-      if (currentList.length > 0) {
-        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
-        currentList = [];
-      }
-      const scoreMatch = trimmed.match(/\d+/);
-      if (scoreMatch) {
-        sections.push({ type: 'score', text: scoreMatch[0] });
-      }
+    // Extract recommendation
+    const recMatch = trimmed.match(/^\*\*Recommendation:\s*([^*]+)\*\*$/);
+    if (recMatch) {
+      result.recommendation = recMatch[1].trim();
       continue;
     }
     
-    // Check for headings (bold text like **Key Strengths:**)
-    if (trimmed.match(/^\*\*[^*]+:\*\*$/)) {
-      if (currentList.length > 0) {
-        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
-        currentList = [];
+    // Check for section headings
+    const headingMatch = trimmed.match(/^\*\*([^*]+):\*\*$/);
+    if (headingMatch) {
+      if (currentSection) {
+        result.sections.push(currentSection);
       }
-      const headingText = trimmed.replace(/\*\*/g, '');
-      const lowerText = headingText.toLowerCase();
-      
-      // Track section context for list items
-      if (lowerText.includes('strength') || lowerText.includes('positive') || lowerText.includes('matching skills')) {
-        currentSection = 'strengths';
-      } else if (lowerText.includes('concern') || lowerText.includes('areas') || lowerText.includes('missing') || lowerText.includes('questionable')) {
-        currentSection = 'concerns';
-      } else if (lowerText.includes('red flag') || lowerText.includes('critical') || lowerText.includes('fabricat') || lowerText.includes('suspicious') || lowerText.includes('invalid')) {
-        currentSection = 'critical';
-      } else {
-        currentSection = 'neutral';
-      }
-      
-      sections.push({ type: 'heading', text: headingText, context: currentSection });
+      currentSection = { title: headingMatch[1].trim(), items: [] };
       continue;
     }
     
-    // Check for recommendation (bold text with value)
-    if (trimmed.match(/^\*\*Recommendation:\s*[^*]+\*\*$/)) {
-      if (currentList.length > 0) {
-        sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
-        currentList = [];
-      }
-      const recText = trimmed.replace(/\*\*/g, '');
-      currentSection = 'neutral';
-      sections.push({ type: 'heading', text: recText, context: currentSection });
-      continue;
+    // List items
+    if (trimmed.startsWith('- ') && currentSection) {
+      currentSection.items.push(trimmed.substring(2));
     }
-    
-    // Check for list items
-    if (trimmed.startsWith('- ')) {
-      currentList.push({ text: trimmed.substring(2), context: currentSection });
-      continue;
-    }
-    
-    // Regular paragraph
-    if (currentList.length > 0) {
-      sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
-      currentList = [];
-    }
-    sections.push({ type: 'paragraph', text: trimmed.replace(/\*\*/g, ''), context: currentSection });
   }
   
-  // Don't forget remaining list items
-  if (currentList.length > 0) {
-    sections.push({ type: 'list', text: JSON.stringify(currentList), context: currentSection });
+  if (currentSection) {
+    result.sections.push(currentSection);
   }
+  
+  return result;
+}
+
+function AIAnalysisContent({ content }: { content: string }) {
+  const parsed = parseAIAnalysis(content);
+  
+  // Determine if recommendation is positive
+  const isPositiveRec = parsed.recommendation?.toLowerCase().includes('proceed') || 
+                        parsed.recommendation?.toLowerCase().includes('strong') ||
+                        parsed.recommendation?.toLowerCase().includes('recommend');
   
   return (
-    <div className="space-y-4">
-      {sections.map((section, index) => {
-        if (section.type === 'score') {
-          return (
-            <div key={index} className="flex items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">Overall Score:</span>
-              <span className="text-2xl font-bold text-primary">{section.text}</span>
-              <span className="text-muted-foreground">/100</span>
+    <div className="space-y-6">
+      {/* Hero: Score + Recommendation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/50">
+        {/* Score Display */}
+        {parsed.score !== null && (
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                <circle
+                  cx="18" cy="18" r="15"
+                  fill="none"
+                  className="stroke-muted"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="18" cy="18" r="15"
+                  fill="none"
+                  className="stroke-primary"
+                  strokeWidth="3"
+                  strokeDasharray={`${(parsed.score / 100) * 94.2} 94.2`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold text-foreground">{parsed.score}</span>
+              </div>
             </div>
-          );
-        }
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Score</span>
+              <span className="text-sm text-muted-foreground">out of 100</span>
+            </div>
+          </div>
+        )}
         
-        if (section.type === 'heading') {
-          const isRecommendation = section.text.toLowerCase().includes('recommendation');
-          const headingColorClass = 
-            isRecommendation ? 'text-primary' :
-            section.context === 'strengths' ? 'text-emerald-500' : 
-            section.context === 'concerns' ? 'text-amber-500' : 
-            section.context === 'critical' ? 'text-red-400' :
-            'text-foreground';
-          
-          return (
-            <h4 
-              key={index} 
-              className={`font-semibold text-sm pt-2 ${headingColorClass}`}
-            >
-              {section.text}
+        {/* Recommendation Verdict - THE ONE COLOR ELEMENT */}
+        {parsed.recommendation && (
+          <div className={`px-4 py-2.5 rounded-lg border ${
+            isPositiveRec 
+              ? 'border-primary/30 bg-primary/5' 
+              : 'border-border bg-muted/30'
+          }`}>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium block mb-0.5">
+              Verdict
+            </span>
+            <span className={`text-base font-semibold ${isPositiveRec ? 'text-primary' : 'text-foreground'}`}>
+              {parsed.recommendation}
+            </span>
+          </div>
+        )}
+      </div>
+      
+      {/* Sections */}
+      <div className="space-y-5">
+        {parsed.sections.map((section, index) => (
+          <div key={index} className="space-y-2.5">
+            {/* Section Header - Typography-driven, no colors */}
+            <h4 className="text-[11px] uppercase tracking-[0.08em] font-medium text-muted-foreground">
+              {section.title}
             </h4>
-          );
-        }
-        
-        if (section.type === 'list') {
-          let items: ListItem[] = [];
-          try {
-            items = JSON.parse(section.text);
-          } catch {
-            // Fallback for old format
-            items = section.text.split('|||').map(t => ({ text: t, context: 'neutral' as SectionContext }));
-          }
-          
-          return (
-            <ul key={index} className="space-y-2 pl-4">
-              {items.map((item, i) => {
-                const bulletColor = 
-                  item.context === 'strengths' ? 'text-emerald-500' :
-                  item.context === 'concerns' ? 'text-amber-500' :
-                  item.context === 'critical' ? 'text-red-400' : 
-                  'text-primary';
-                const textColor = 
-                  item.context === 'strengths' ? 'text-emerald-300/90' :
-                  item.context === 'concerns' ? 'text-amber-300/90' :
-                  item.context === 'critical' ? 'text-red-300/90' : 
-                  'text-muted-foreground';
-                
-                return (
-                  <li key={i} className={`text-sm flex items-start gap-2 ${textColor}`}>
-                    <span className={`mt-1.5 ${bulletColor}`}>•</span>
-                    <span>{item.text}</span>
-                  </li>
-                );
-              })}
+            
+            {/* List Items - All muted, key phrases bold */}
+            <ul className="space-y-2 pl-0.5">
+              {section.items.map((item, i) => (
+                <li key={i} className="text-sm flex items-start gap-2.5 text-muted-foreground leading-relaxed">
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
-          );
-        }
-        
-        return (
-          <p key={index} className="text-sm text-muted-foreground leading-relaxed">
-            {section.text}
-          </p>
-        );
-      })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
