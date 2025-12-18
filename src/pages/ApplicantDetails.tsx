@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { motion, useSpring, useTransform } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -178,21 +179,50 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
   return result;
 }
 
+// Animated counter hook for score display
+function useAnimatedCounter(value: number, duration: number = 1000) {
+  const spring = useSpring(0, { stiffness: 50, damping: 20 });
+  const display = useTransform(spring, (current) => Math.round(current));
+  
+  useEffect(() => {
+    spring.set(value);
+  }, [value, spring]);
+  
+  return display;
+}
+
 function AIAnalysisContent({ content }: { content: string }) {
   const parsed = parseAIAnalysis(content);
+  const animatedScore = useAnimatedCounter(parsed.score ?? 0);
+  const [displayScore, setDisplayScore] = useState(0);
+  
+  // Subscribe to animated score changes
+  useEffect(() => {
+    const unsubscribe = animatedScore.on("change", (v) => setDisplayScore(v));
+    return unsubscribe;
+  }, [animatedScore]);
   
   // Determine if recommendation is positive
   const isPositiveRec = parsed.recommendation?.toLowerCase().includes('proceed') || 
                         parsed.recommendation?.toLowerCase().includes('strong') ||
                         parsed.recommendation?.toLowerCase().includes('recommend');
   
+  // Animated stroke dasharray
+  const circumference = 94.2;
+  const targetDasharray = parsed.score !== null ? (parsed.score / 100) * circumference : 0;
+  
   return (
     <div className="space-y-6">
       {/* Hero: Score + Recommendation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/50">
-        {/* Score Display */}
+        {/* Score Display with Animation */}
         {parsed.score !== null && (
-          <div className="flex items-center gap-3">
+          <motion.div 
+            className="flex items-center gap-3"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
             <div className="relative">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
                 <circle
@@ -201,24 +231,26 @@ function AIAnalysisContent({ content }: { content: string }) {
                   className="stroke-muted"
                   strokeWidth="3"
                 />
-                <circle
+                <motion.circle
                   cx="18" cy="18" r="15"
                   fill="none"
                   className="stroke-primary"
                   strokeWidth="3"
-                  strokeDasharray={`${(parsed.score / 100) * 94.2} 94.2`}
                   strokeLinecap="round"
+                  initial={{ strokeDasharray: `0 ${circumference}` }}
+                  animate={{ strokeDasharray: `${targetDasharray} ${circumference}` }}
+                  transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold text-foreground">{parsed.score}</span>
+                <span className="text-lg font-bold text-foreground">{displayScore}</span>
               </div>
             </div>
             <div className="flex flex-col">
               <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Score</span>
               <span className="text-sm text-muted-foreground">out of 100</span>
             </div>
-          </div>
+          </motion.div>
         )}
         
         {/* Recommendation Verdict - THE ONE COLOR ELEMENT */}
@@ -1565,7 +1597,12 @@ ${interviewType} Interview with AVA Results:
         </Card>
       )}
 
-      {/* Candidate Journey */}
+      {/* Candidate Journey - Animated */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+      >
       <Card className={`bg-card border-border overflow-hidden ${isRejected ? 'relative' : ''}`}>
         {/* Rejected Overlay */}
         {isRejected && (
@@ -1620,13 +1657,15 @@ ${interviewType} Interview with AVA Results:
             {/* Progress bar background */}
             <div className="absolute top-8 left-0 right-0 h-2 bg-muted rounded-full" />
             
-            {/* Completed progress */}
-            <div 
-              className="absolute top-8 left-0 h-2 rounded-full transition-all duration-300"
+            {/* Completed progress - Animated glide-in */}
+            <motion.div 
+              className="absolute top-8 left-0 h-2 rounded-full"
               style={{ 
-                width: `${dragPosition}%`,
                 background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)"
               }}
+              initial={{ width: "0%" }}
+              animate={{ width: `${dragPosition}%` }}
+              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
             />
 
             {/* Phase markers */}
@@ -1699,8 +1738,14 @@ ${interviewType} Interview with AVA Results:
           </div>
         </CardContent>
       </Card>
+      </motion.div>
 
-      {/* Processing Mode Indicator */}
+      {/* Processing Mode Indicator - Animated */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+      >
       {isAutoPilot ? (
         <Card className="bg-card border-border border-l-4 border-l-primary">
           <CardContent className="p-4">
@@ -1730,8 +1775,14 @@ ${interviewType} Interview with AVA Results:
           </CardContent>
         </Card>
       )}
+      </motion.div>
 
-      {/* Applicant Info */}
+      {/* Applicant Info - Animated */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+      >
       <Card className="bg-card border-border">
         <CardContent className="p-6">
           {/* Phase Tags - Clickable */}
@@ -1788,8 +1839,14 @@ ${interviewType} Interview with AVA Results:
           </p>
         </CardContent>
       </Card>
+      </motion.div>
 
-      {/* AVA's Analysis */}
+      {/* AVA's Analysis - Animated */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.4 }}
+      >
       <Card className="bg-card border-border">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1888,6 +1945,8 @@ ${interviewType} Interview with AVA Results:
           )}
         </CardContent>
       </Card>
+      </motion.div>
+      
       {/* Application Data Dialog */}
       <Dialog open={showApplicationDialog} onOpenChange={setShowApplicationDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh]">
