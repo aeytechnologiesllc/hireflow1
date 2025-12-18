@@ -36,6 +36,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
@@ -1389,57 +1394,78 @@ ${interviewType} Interview with AVA Results:
     >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate("/applicants")}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Applicants
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => navigate("/applicants")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Back to Applicants</TooltipContent>
+        </Tooltip>
         
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => downloadDossier(application)}
-            disabled={isGeneratingDossier}
-            className="gap-2"
-          >
-            {isGeneratingDossier ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Download Dossier
-          </Button>
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => downloadDossier(application)}
+                disabled={isGeneratingDossier}
+              >
+                {isGeneratingDossier ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download Dossier</TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowNotesDialog(true)}
+                className="relative"
+              >
+                <FileText className="h-5 w-5" />
+                {application?.employer_notes && (
+                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Notes</TooltipContent>
+          </Tooltip>
+          
+          {canMessageCandidates && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setShowMessageDialog(true)}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Message Candidate</TooltipContent>
+            </Tooltip>
+          )}
+          
           {canScheduleInterviews && (
             <Button 
               onClick={handleScheduleInterviewClick}
-              className="gap-2"
+              size="sm"
+              className="gap-1.5"
             >
               <Calendar className="h-4 w-4" />
-              Schedule Interview
-            </Button>
-          )}
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => setShowNotesDialog(true)}
-          >
-            <FileText className="h-4 w-4" />
-            Notes
-            {application?.employer_notes && (
-              <span className="h-2 w-2 rounded-full bg-primary" />
-            )}
-          </Button>
-          {canMessageCandidates && (
-            <Button 
-              variant="outline" 
-              className="gap-2"
-              onClick={() => setShowMessageDialog(true)}
-            >
-              <MessageSquare className="h-4 w-4" />
-              Message
+              Schedule
             </Button>
           )}
         </div>
@@ -1619,32 +1645,36 @@ ${interviewType} Interview with AVA Results:
               <span className="font-semibold text-foreground">Candidate Journey</span>
             </div>
             
-            <div className="flex items-center gap-3">
-              {canManagePipeline && !isRejected && (
-                <Button 
-                  variant="outline" 
-                  onClick={handleReject}
-                  className="gap-2 text-destructive border-destructive/50 hover:bg-destructive/10"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Reject Candidate
-                </Button>
-              )}
-              {canManagePipeline && !isRejected && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowHelpDialog(true)}
-                  className="gap-2 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/15 transition-all"
-                >
-                  <Move className="h-4 w-4 text-primary" />
-                  <span className="text-foreground">Hold & Drag</span>
-                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-              )}
+            <div className="flex items-center gap-2">
               {!canManagePipeline && (
                 <Badge variant="secondary" className="text-xs">
-                  View Only Mode
+                  View Only
                 </Badge>
+              )}
+              {canManagePipeline && !isRejected && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => setShowHelpDialog(true)}
+                      className="gap-2"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                      How to use slider
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={handleReject}
+                      className="gap-2 text-destructive focus:text-destructive"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reject Candidate
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
@@ -1716,25 +1746,34 @@ ${interviewType} Interview with AVA Results:
               );
             })}
 
-            {/* Draggable avatar */}
-            <div 
-              className={`absolute top-3 z-20 ${
-                isAwaitingReview && !isDragging ? "animate-float-awaiting" : "-translate-x-1/2"
+            {/* Draggable avatar - Animated glide-in */}
+            <motion.div 
+              className={`absolute top-3 z-20 -translate-x-1/2 ${
+                isAwaitingReview && !isDragging ? "animate-float-awaiting" : ""
               } ${
                 canManagePipeline ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-70"
               } ${
                 phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline && !isAwaitingReview ? "animate-bounce-subtle" : ""
               }`}
-              style={{ left: `${dragPosition}%` }}
+              initial={{ left: "0%" }}
+              animate={{ left: `${dragPosition}%` }}
+              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+              style={isDragging ? { left: `${dragPosition}%` } : undefined}
               onMouseDown={canManagePipeline ? handleDragStart : undefined}
               onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
-              <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"}`}>
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </div>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.8 }}
+              >
+                <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </motion.div>
+            </motion.div>
           </div>
         </CardContent>
       </Card>
