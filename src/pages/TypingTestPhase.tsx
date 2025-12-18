@@ -77,6 +77,7 @@ export default function TypingTestPhase() {
     score: number;
     passed: boolean;
   } | null>(null);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
   
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
@@ -139,6 +140,24 @@ export default function TypingTestPhase() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+  }, [testState]);
+
+  // Detect tab switching during test
+  useEffect(() => {
+    if (testState !== "testing") return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((prev) => prev + 1);
+      } else {
+        toast.warning("Please stay on this tab during the test. Tab switches are recorded.", {
+          duration: 3000,
+        });
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [testState]);
 
   const startTest = useCallback(() => {
@@ -237,6 +256,7 @@ export default function TypingTestPhase() {
           accuracy: results.accuracy,
           score: results.score,
           passed: results.passed,
+          tabSwitches: tabSwitchCount,
           completedAt: new Date().toISOString(),
         },
         typingTestResult: {
@@ -244,6 +264,7 @@ export default function TypingTestPhase() {
           accuracy: results.accuracy,
           score: results.score,
           passed: results.passed,
+          tabSwitches: tabSwitchCount,
         },
       };
 
@@ -373,6 +394,7 @@ export default function TypingTestPhase() {
     setTimeLeft(60);
     setResults(null);
     setStartTime(null);
+    setTabSwitchCount(0);
     const randomIndex = Math.floor(Math.random() * typingTexts.length);
     setTargetText(typingTexts[randomIndex]);
   };
@@ -505,6 +527,11 @@ export default function TypingTestPhase() {
                     <span>Your score is based on speed (WPM) and accuracy</span>
                   </li>
                 </ul>
+                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    <strong>Note:</strong> Copy/paste and right-click are disabled. Tab switching will be recorded.
+                  </p>
+                </div>
               </div>
 
               <div className="text-center">
@@ -557,6 +584,17 @@ export default function TypingTestPhase() {
                 placeholder="Start typing here..."
                 className="min-h-[150px] font-mono text-lg"
                 autoFocus
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                onContextMenu={(e) => e.preventDefault()}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  toast.warning("Paste is disabled during the typing test");
+                }}
+                onCopy={(e) => e.preventDefault()}
+                onCut={(e) => e.preventDefault()}
               />
 
               <div className="flex justify-end">
