@@ -22,8 +22,7 @@ import {
   Zap,
   Hand,
 } from "lucide-react";
-import avaOrb from "@/assets/ava-orb.png";
-import { staggerContainer, staggerItem, pulsingGlow } from "@/lib/animations";
+import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -290,16 +289,15 @@ export default function Jobs() {
         </div>
         {canCreateJobs && (
           <motion.div
-            animate={pulsingGlow.animate}
-            transition={pulsingGlow.transition}
+            animate={pulsingGlowWithScale.animate}
+            transition={pulsingGlowWithScale.transition}
             className="rounded-lg"
           >
             <Button 
-              className="gap-2 bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+              className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
               asChild
             >
               <Link to="/jobs/create">
-                <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_6px_hsla(160,60%,50%,0.8)]" />
                 Create with Ava
               </Link>
             </Button>
@@ -391,16 +389,15 @@ export default function Jobs() {
               </p>
               {canCreateJobs && (
                 <motion.div
-                  animate={pulsingGlow.animate}
-                  transition={pulsingGlow.transition}
+                  animate={pulsingGlowWithScale.animate}
+                  transition={pulsingGlowWithScale.transition}
                   className="rounded-lg inline-block"
                 >
                   <Button 
-                    className="gap-2 bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+                    className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
                     asChild
                   >
                     <Link to="/jobs/create">
-                      <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_6px_hsla(160,60%,50%,0.8)]" />
                       Create with Ava
                     </Link>
                   </Button>
