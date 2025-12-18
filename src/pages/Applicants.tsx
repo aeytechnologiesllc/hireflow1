@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { useJob } from "@/hooks/useJobs";
+import { useAIShortlist } from "@/hooks/useAIShortlist";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
+import AIShortlistDialog from "@/components/AIShortlistDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -198,8 +200,10 @@ export default function Applicants() {
   const { data: filteredJob } = useJob(jobIdFilter || undefined);
   const { data: stats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
+  const { generateShortlist, shortlist, isLoading: isShortlistLoading, clearShortlist } = useAIShortlist();
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [shortlistDialogOpen, setShortlistDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
 
   // Permission checks
@@ -223,6 +227,28 @@ export default function Applicants() {
 
   const handleNavigateToDetails = (id: string) => {
     navigate(`/applicants/${id}`);
+  };
+
+  const handleGenerateShortlist = async () => {
+    if (!jobIdFilter || !filteredJob) {
+      toast.error("Please filter by a specific job to generate a shortlist");
+      return;
+    }
+    setShortlistDialogOpen(true);
+    await generateShortlist(
+      jobIdFilter,
+      filteredJob.title,
+      filteredJob.description,
+      filteredApplications
+    );
+  };
+
+  const handleShortlistScheduleInterview = (candidateName: string, applicationId?: string) => {
+    const app = filteredApplications.find(a => a.id === applicationId);
+    if (app) {
+      setSelectedApplication(app);
+      setScheduleDialogOpen(true);
+    }
   };
 
   const filteredApplications = useMemo(() => {
@@ -289,9 +315,20 @@ export default function Applicants() {
             <>
               <h2 className="text-2xl font-bold text-foreground">Applicants</h2>
               <p className="text-muted-foreground mt-1">Review and manage job applications</p>
-            </>
-          )}
+          </>
+            )}
         </div>
+        {/* AI Shortlist Button - only show when filtered by job and 2+ applicants */}
+        {jobIdFilter && filteredJob && filteredApplications.length >= 2 && (
+          <Button 
+            onClick={handleGenerateShortlist}
+            className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+            disabled={isShortlistLoading}
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Shortlist
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -380,6 +417,17 @@ export default function Applicants() {
         candidateName={selectedApplication?.profiles?.full_name || "Candidate"}
         open={scheduleDialogOpen}
         onOpenChange={setScheduleDialogOpen}
+      />
+
+      <AIShortlistDialog
+        open={shortlistDialogOpen}
+        onOpenChange={(open) => {
+          setShortlistDialogOpen(open);
+          if (!open) clearShortlist();
+        }}
+        shortlist={shortlist}
+        isLoading={isShortlistLoading}
+        onScheduleInterview={handleShortlistScheduleInterview}
       />
     </div>
   );
