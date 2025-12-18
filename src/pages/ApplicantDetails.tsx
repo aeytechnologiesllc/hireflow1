@@ -1796,11 +1796,6 @@ ${interviewType} Interview with AVA Results:
             <div className="flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-primary" />
               <span className="font-semibold text-foreground">AVA's Analysis</span>
-              {application.ai_score && (
-                <Badge className="bg-primary/20 text-primary">
-                  {application.ai_score}/100
-                </Badge>
-              )}
             </div>
             
             <div className="flex items-center gap-3">
