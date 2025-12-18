@@ -47,44 +47,7 @@ import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import ActivityFeed from "@/components/ActivityFeed";
 import PipelineHealthCard from "@/components/PipelineHealthCard";
 import { staggerContainer, staggerItem } from "@/lib/animations";
-
-// Wave SVG component for stat cards
-function WaveGradient({ color }: { color: string }) {
-  const gradientId = `wave-gradient-${color}-${Math.random()}`;
-  
-  const colorMap: Record<string, { from: string; to: string }> = {
-    green: { from: "#10b981", to: "#059669" },
-    blue: { from: "#3b82f6", to: "#2563eb" },
-    purple: { from: "#a855f7", to: "#7c3aed" },
-  };
-
-  const colors = colorMap[color] || colorMap.green;
-
-  return (
-    <svg
-      className="absolute bottom-0 left-0 right-0 h-16 w-full"
-      viewBox="0 0 400 60"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={colors.from} stopOpacity="0.3" />
-          <stop offset="50%" stopColor={colors.to} stopOpacity="0.1" />
-          <stop offset="100%" stopColor={colors.from} stopOpacity="0.3" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M0,30 Q50,10 100,30 T200,30 T300,30 T400,30 L400,60 L0,60 Z"
-        fill={`url(#${gradientId})`}
-      />
-      <path
-        d="M0,40 Q50,20 100,40 T200,40 T300,40 T400,40 L400,60 L0,60 Z"
-        fill={`url(#${gradientId})`}
-        opacity="0.5"
-      />
-    </svg>
-  );
-}
+import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
 
 interface StatCardProps {
   title: string;
@@ -92,33 +55,92 @@ interface StatCardProps {
   subtitle: string;
   icon: React.ElementType;
   color: "green" | "blue" | "purple";
-  borderColor: string;
-  iconBgColor: string;
-  iconColor: string;
   isLoading?: boolean;
+  index?: number;
 }
 
-function StatCard({ title, value, subtitle, icon: Icon, color, borderColor, iconBgColor, iconColor, isLoading }: StatCardProps) {
+const colorConfig = {
+  green: {
+    border: "border-l-primary",
+    iconBg: "bg-primary/15",
+    iconColor: "text-primary",
+    glowColor: "hsla(160, 60%, 40%, 0.4)",
+    gradientFrom: "from-primary/5",
+  },
+  blue: {
+    border: "border-l-blue-500",
+    iconBg: "bg-blue-500/15",
+    iconColor: "text-blue-500",
+    glowColor: "hsla(217, 91%, 60%, 0.4)",
+    gradientFrom: "from-blue-500/5",
+  },
+  purple: {
+    border: "border-l-accent",
+    iconBg: "bg-accent/15",
+    iconColor: "text-accent",
+    glowColor: "hsla(280, 65%, 60%, 0.4)",
+    gradientFrom: "from-accent/5",
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.1,
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1] as const,
+    },
+  }),
+};
+
+function StatCard({ title, value, subtitle, icon: Icon, color, isLoading, index = 0 }: StatCardProps) {
+  const config = colorConfig[color];
+  const numericValue = typeof value === "number" ? value : parseInt(value, 10) || 0;
+
   return (
-    <Card className={`relative overflow-hidden bg-card border-l-4 ${borderColor}`}>
-      <CardContent className="pt-3 md:pt-4 pb-12 md:pb-16 px-3 md:px-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs md:text-sm text-muted-foreground">{title}</p>
-            {isLoading ? (
-              <Skeleton className="h-8 md:h-10 w-14 md:w-16 mt-2" />
-            ) : (
-              <p className="text-2xl md:text-4xl font-bold text-foreground mt-1 md:mt-2">{value}</p>
-            )}
-            <p className="text-xs md:text-sm text-muted-foreground mt-1">{subtitle}</p>
+    <motion.div
+      custom={index}
+      initial="hidden"
+      animate="visible"
+      variants={cardVariants}
+      whileHover={{
+        scale: 1.02,
+        boxShadow: `0 0 30px -5px ${config.glowColor}`,
+      }}
+      transition={{ duration: 0.3 }}
+      className="h-full"
+    >
+      <Card className={`relative overflow-hidden h-full bg-gradient-to-br ${config.gradientFrom} to-card/80 backdrop-blur-sm border-l-4 ${config.border} border border-border/50 shadow-lg shadow-black/5 hover:border-border transition-all duration-300`}>
+        <CardContent className="pt-4 md:pt-5 pb-4 md:pb-5 px-4 md:px-6">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
+              {isLoading ? (
+                <Skeleton className="h-8 md:h-10 w-14 md:w-16 mt-2" />
+              ) : (
+                <p className="text-2xl md:text-4xl font-bold text-foreground mt-1 md:mt-2">
+                  <AnimatedCounter value={numericValue} />
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground/80 mt-1">{subtitle}</p>
+            </div>
+            <motion.div
+              className={`w-10 h-10 md:w-12 md:h-12 rounded-xl ${config.iconBg} flex items-center justify-center`}
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            >
+              <Icon className={`h-5 w-5 md:h-6 md:w-6 ${config.iconColor}`} />
+            </motion.div>
           </div>
-          <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${iconBgColor} flex items-center justify-center`}>
-            <Icon className={`h-4 w-4 md:h-5 md:w-5 ${iconColor}`} />
-          </div>
-        </div>
-      </CardContent>
-      <WaveGradient color={color} />
-    </Card>
+        </CardContent>
+        {/* Subtle bottom gradient accent */}
+        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${config.gradientFrom} via-transparent to-transparent opacity-50`} />
+      </Card>
+    </motion.div>
   );
 }
 
@@ -457,10 +479,8 @@ export default function Dashboard() {
               subtitle="Open positions"
               icon={Briefcase}
               color="green"
-              borderColor="border-l-primary"
-              iconBgColor="bg-primary/20"
-              iconColor="text-primary"
               isLoading={isEmployerLoading}
+              index={0}
             />
             <StatCard
               title="Total Applicants"
@@ -468,10 +488,8 @@ export default function Dashboard() {
               subtitle={appStats?.total ? "Applications received" : "No applications"}
               icon={Users}
               color="blue"
-              borderColor="border-l-blue-500"
-              iconBgColor="bg-blue-500/20"
-              iconColor="text-blue-500"
               isLoading={isEmployerLoading}
+              index={1}
             />
             <StatCard
               title="Under Review"
@@ -479,10 +497,8 @@ export default function Dashboard() {
               subtitle={appStats?.reviewing ? "Being reviewed" : "No pending"}
               icon={Clock}
               color="purple"
-              borderColor="border-l-accent"
-              iconBgColor="bg-accent/20"
-              iconColor="text-accent"
               isLoading={isEmployerLoading}
+              index={2}
             />
             <StatCard
               title="Hired"
@@ -490,10 +506,8 @@ export default function Dashboard() {
               subtitle={appStats?.hired ? "Candidates hired" : "No hires"}
               icon={CheckCircle2}
               color="green"
-              borderColor="border-l-primary"
-              iconBgColor="bg-primary/20"
-              iconColor="text-primary"
               isLoading={isEmployerLoading}
+              index={3}
             />
           </>
         ) : (
@@ -504,10 +518,8 @@ export default function Dashboard() {
               subtitle="Submitted"
               icon={Briefcase}
               color="green"
-              borderColor="border-l-primary"
-              iconBgColor="bg-primary/20"
-              iconColor="text-primary"
               isLoading={isCandidateLoading}
+              index={0}
             />
             <StatCard
               title="Interviews"
@@ -515,10 +527,8 @@ export default function Dashboard() {
               subtitle="Scheduled"
               icon={Calendar}
               color="blue"
-              borderColor="border-l-blue-500"
-              iconBgColor="bg-blue-500/20"
-              iconColor="text-blue-500"
               isLoading={isCandidateLoading}
+              index={1}
             />
             <StatCard
               title="In Review"
@@ -526,10 +536,8 @@ export default function Dashboard() {
               subtitle="Pending"
               icon={Clock}
               color="purple"
-              borderColor="border-l-accent"
-              iconBgColor="bg-accent/20"
-              iconColor="text-accent"
               isLoading={isCandidateLoading}
+              index={2}
             />
             <StatCard
               title="Offers"
@@ -537,10 +545,8 @@ export default function Dashboard() {
               subtitle="Received"
               icon={CheckCircle2}
               color="green"
-              borderColor="border-l-primary"
-              iconBgColor="bg-primary/20"
-              iconColor="text-primary"
               isLoading={isCandidateLoading}
+              index={3}
             />
           </>
         )}
