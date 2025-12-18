@@ -34,6 +34,8 @@ import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
 import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
 import { AvaInterviewConfigDialog } from "@/components/AvaInterviewConfigDialog";
 import { VoiceInterviewResultsDialog } from "@/components/VoiceInterviewResultsDialog";
+import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
+import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { MediaPlayer } from "@/components/MediaPlayer";
 import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import type { Tables } from "@/integrations/supabase/types";
@@ -301,6 +303,9 @@ export default function ApplicantDetails() {
     newIndex: number;
     newPhase: { id: string; title: string; type: string };
   } | null>(null);
+  const [showHiringDocumentPrompt, setShowHiringDocumentPrompt] = useState(false);
+  const [showDocumentWizard, setShowDocumentWizard] = useState(false);
+  const [documentWizardMode, setDocumentWizardMode] = useState<"generate" | "upload" | undefined>();
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -706,6 +711,11 @@ export default function ApplicantDetails() {
         // Auto-open interview scheduler when moving to interview phase
         if (newPhase.type === "interview") {
           setShowInterviewWizard(true);
+        }
+        
+        // Show hiring document prompt when moving to hired phase
+        if (newPhase.type === "hired") {
+          setShowHiringDocumentPrompt(true);
         }
       }
       
@@ -2660,6 +2670,44 @@ Voice Interview with AVA Results:
           const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
           return voiceStep?.config?.language_name || 'English';
         })()}
+      />
+
+      {/* Hiring Document Prompt Dialog */}
+      <HiringDocumentPromptDialog
+        open={showHiringDocumentPrompt}
+        onOpenChange={setShowHiringDocumentPrompt}
+        candidateName={profile?.full_name || "this candidate"}
+        jobTitle={job?.title || "this position"}
+        onCreateDocument={() => {
+          setDocumentWizardMode("generate");
+          setShowHiringDocumentPrompt(false);
+          setShowDocumentWizard(true);
+        }}
+        onUploadDocument={() => {
+          setDocumentWizardMode("upload");
+          setShowHiringDocumentPrompt(false);
+          setShowDocumentWizard(true);
+        }}
+        onSkip={() => setShowHiringDocumentPrompt(false)}
+      />
+
+      {/* Document Wizard (pre-populated) */}
+      <DocumentWizard
+        open={showDocumentWizard}
+        onOpenChange={setShowDocumentWizard}
+        applications={application ? [{
+          id: application.id,
+          candidate_id: application.candidate_id,
+          profiles: {
+            full_name: profile?.full_name || null,
+            email: profile?.email || "",
+          },
+          jobs: {
+            title: job?.title || "",
+          },
+        }] : []}
+        preSelectedApplicationId={application?.id}
+        initialMode={documentWizardMode}
       />
     </div>
   );
