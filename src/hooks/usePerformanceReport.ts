@@ -1,54 +1,39 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { generatePerformanceReport } from "@/utils/generatePerformanceReport";
+import { generatePerformanceReport, PerformanceReportData } from "@/utils/generatePerformanceReport";
 import { toast } from "sonner";
-import type { Tables } from "@/integrations/supabase/types";
-
-type ApplicationData = Tables<"applications"> & {
-  jobs: Tables<"jobs"> | null;
-};
-
-interface CandidateProfile {
-  full_name: string | null;
-  email: string;
-}
 
 export function usePerformanceReport() {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const downloadReport = async (
-    application: ApplicationData | null,
-    candidateId?: string
-  ) => {
-    if (!application) {
-      toast.error("Application data not available");
+  const downloadReport = async (applicationId: string) => {
+    if (!applicationId) {
+      toast.error("Application ID not available");
       return;
     }
 
     setIsGenerating(true);
     try {
-      // Fetch candidate profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("user_id", candidateId || application.candidate_id)
-        .single();
+      toast.info("Generating comprehensive AI analysis...", { duration: 5000 });
 
-      if (!profile) {
-        toast.error("Could not load candidate profile");
-        return;
+      const { data, error } = await supabase.functions.invoke('ai-generate-performance-report', {
+        body: { applicationId }
+      });
+
+      if (error) {
+        console.error("Error from edge function:", error);
+        throw new Error(error.message || "Failed to generate report");
       }
 
-      const candidateProfile: CandidateProfile = {
-        full_name: profile.full_name,
-        email: profile.email,
-      };
+      if (!data || data.error) {
+        throw new Error(data?.error || "No report data received");
+      }
 
-      generatePerformanceReport(application as any, candidateProfile);
+      generatePerformanceReport(data as PerformanceReportData);
       toast.success("Performance report downloaded!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating report:", error);
-      toast.error("Failed to generate performance report");
+      toast.error(error.message || "Failed to generate performance report");
     } finally {
       setIsGenerating(false);
     }
