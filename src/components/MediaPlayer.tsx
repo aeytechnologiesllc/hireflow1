@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 
 interface MediaPlayerProps {
   src: string;
@@ -18,6 +18,8 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const [isSeeking, setIsSeeking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -29,10 +31,32 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
 
   // Handle metadata loaded
   const handleLoadedMetadata = useCallback(() => {
-    if (mediaRef.current) {
-      setDuration(mediaRef.current.duration);
-      setIsLoaded(true);
+    if (mediaRef.current && !isLoaded) {
+      const dur = mediaRef.current.duration;
+      if (isFinite(dur) && dur > 0) {
+        setDuration(dur);
+        setIsLoaded(true);
+      }
     }
+  }, [isLoaded]);
+
+  // Backup: handle can play (more reliable for WebM)
+  const handleCanPlay = useCallback(() => {
+    if (mediaRef.current && !isLoaded) {
+      const dur = mediaRef.current.duration;
+      if (isFinite(dur) && dur > 0) {
+        setDuration(dur);
+        setIsLoaded(true);
+      }
+    }
+  }, [isLoaded]);
+
+  // Handle error
+  const handleError = useCallback((e: React.SyntheticEvent<HTMLMediaElement, Event>) => {
+    const error = e.currentTarget.error;
+    console.error("MediaPlayer error:", error);
+    setHasError(true);
+    setErrorMessage(error?.message || "Failed to load media");
   }, []);
 
   // Handle time update - only update when playing and not seeking
@@ -133,15 +157,38 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
       <MediaElement
         ref={mediaRef as any}
         src={src}
-        crossOrigin="anonymous"
-        preload="metadata"
+        preload="auto"
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleCanPlay}
+        onLoadedData={handleCanPlay}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
+        onError={handleError}
         className={type === "video" ? "w-full max-h-[200px] rounded-lg mb-3" : "hidden"}
       />
 
-      {/* Custom controls */}
+      {/* Error state */}
+      {hasError && (
+        <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <span className="text-sm font-medium">Could not load recording</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{errorMessage}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(src, '_blank')}
+            className="gap-2"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open in New Tab
+          </Button>
+        </div>
+      )}
+
+      {/* Custom controls - only show when no error */}
+      {!hasError && (
       <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
         {/* Play/Pause button */}
         <Button
@@ -203,6 +250,7 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
           className="w-20"
         />
       </div>
+      )}
     </div>
   );
 }
