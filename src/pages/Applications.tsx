@@ -233,8 +233,18 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                       }
                     }}
                   >
-                    <actionConfig.icon className="h-4 w-4" />
-                    {actionConfig.label}
+                    {phaseType === "voice_interview" ? (
+                      application.voice_interview_video_enabled !== false ? (
+                        <Video className="h-4 w-4" />
+                      ) : (
+                        <actionConfig.icon className="h-4 w-4" />
+                      )
+                    ) : (
+                      <actionConfig.icon className="h-4 w-4" />
+                    )}
+                    {phaseType === "voice_interview" 
+                      ? (application.voice_interview_video_enabled !== false ? "Start Video Interview" : "Start Voice Interview")
+                      : actionConfig.label}
                   </Button>
                 )}
                 {isPendingReview && phaseType === "voice_interview" && (
