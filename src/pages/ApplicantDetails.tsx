@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,7 @@ import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
 import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
 import { AvaInterviewConfigDialog } from "@/components/AvaInterviewConfigDialog";
 import { VoiceInterviewResultsDialog } from "@/components/VoiceInterviewResultsDialog";
+import { MediaPlayer } from "@/components/MediaPlayer";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -2297,8 +2298,26 @@ Voice Interview with AVA Results:
 
                       {dialogData.type === "voice_interview" && dialogData.content && (
                         <div className="space-y-4">
+                          {/* Recording Player - Show directly */}
+                          {application?.voice_interview_recording_url && (
+                            <Card>
+                              <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                  {application?.voice_interview_video_enabled !== false ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                                  Interview Recording
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <MediaPlayer 
+                                  src={application.voice_interview_recording_url}
+                                  type={application.voice_interview_video_enabled !== false ? "video" : "audio"}
+                                />
+                              </CardContent>
+                            </Card>
+                          )}
+
                           {/* Quick Summary */}
-                          <div className="flex items-center gap-4 mb-4">
+                          <div className="flex items-center gap-4">
                             <div className="text-center">
                               <p className="text-3xl font-bold text-primary">{dialogData.content.overall_score || "N/A"}</p>
                               <p className="text-xs text-muted-foreground">/100</p>
@@ -2311,7 +2330,7 @@ Voice Interview with AVA Results:
                               }>
                                 {dialogData.content.recommendation?.replace("_", " ").toUpperCase() || "N/A"}
                               </Badge>
-                              <p className="text-sm text-muted-foreground mt-2">{dialogData.content.executive_summary || dialogData.content.summary}</p>
+                              <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{dialogData.content.executive_summary || dialogData.content.summary}</p>
                             </div>
                           </div>
 
@@ -2321,10 +2340,11 @@ Voice Interview with AVA Results:
                               setActiveBadgeDialog(null);
                               setShowVoiceInterviewResults(true);
                             }}
+                            variant="outline"
                             className="w-full gap-2"
                           >
                             <Sparkles className="h-4 w-4" />
-                            View Full Analysis (Radar Charts, Question Breakdown, PDF Export)
+                            View Full Analysis
                           </Button>
                         </div>
                       )}
