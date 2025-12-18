@@ -108,50 +108,73 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
   const result: ParsedAnalysis = {
     score: null,
     recommendation: null,
-    sections: []
+    sections: [],
   };
-  
-  const lines = content.split('\n');
+
+  const lines = content.split("\n");
   let currentSection: { title: string; items: string[] } | null = null;
-  
+
+  const pushSection = () => {
+    if (currentSection && (currentSection.items.length > 0 || currentSection.title)) {
+      result.sections.push(currentSection);
+    }
+    currentSection = null;
+  };
+
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    
-    // Extract score
-    const scoreMatch = trimmed.match(/^\*\*Overall Score:\s*(\d+)\*\*$/);
+
+    // Score - support both "**Overall Score: 70**" and "Overall Score: 70"
+    const scoreMatch = trimmed.match(/^(?:\*\*)?Overall Score\s*[:\-]\s*(\d{1,3})(?:\*\*)?$/i);
     if (scoreMatch) {
-      result.score = parseInt(scoreMatch[1], 10);
+      const n = parseInt(scoreMatch[1], 10);
+      result.score = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
       continue;
     }
-    
-    // Extract recommendation
-    const recMatch = trimmed.match(/^\*\*Recommendation:\s*([^*]+)\*\*$/);
+
+    // Recommendation - support both "**Recommendation: ...**" and "Recommendation: ..."
+    const recMatch = trimmed.match(/^(?:\*\*)?Recommendation\s*[:\-]\s*([^*\n]+?)(?:\*\*)?$/i);
     if (recMatch) {
       result.recommendation = recMatch[1].trim();
       continue;
     }
-    
-    // Check for section headings
-    const headingMatch = trimmed.match(/^\*\*([^*]+):\*\*$/);
+
+    // Section headings - support "**DOCUMENT VALIDATION**" and "**Key Strengths:**"
+    const headingMatch = trimmed.match(/^\*\*\s*([^*]+?)\s*\*\*\s*:??\s*$/);
     if (headingMatch) {
-      if (currentSection) {
-        result.sections.push(currentSection);
-      }
+      pushSection();
       currentSection = { title: headingMatch[1].trim(), items: [] };
       continue;
     }
-    
-    // List items
-    if (trimmed.startsWith('- ') && currentSection) {
-      currentSection.items.push(trimmed.substring(2));
+
+    // Ensure we have a section once the structured output starts
+    if (!currentSection && /^Status\s*[:\-]|^Confidence\s*[:\-]|^Notes\s*[:\-]|^Red Flags\s*[:\-]|^Summary\s*[:\-]|^Key Strengths\s*[:\-]|^Areas of Concern\s*[:\-]/i.test(trimmed)) {
+      currentSection = { title: "Overview", items: [] };
+    }
+
+    if (!currentSection) continue;
+
+    // Bullet items
+    if (trimmed.startsWith("- ")) {
+      currentSection.items.push(trimmed.slice(2).trim());
+      continue;
+    }
+    if (trimmed.startsWith("• ")) {
+      currentSection.items.push(trimmed.slice(2).trim());
+      continue;
+    }
+
+    // Key/value lines (e.g., "Status: VALID_RESUME")
+    const kvMatch = trimmed.match(/^([^:]{2,40}):\s*(.+)$/);
+    if (kvMatch) {
+      currentSection.items.push(`${kvMatch[1].trim()}: ${kvMatch[2].trim()}`);
+      continue;
     }
   }
-  
-  if (currentSection) {
-    result.sections.push(currentSection);
-  }
-  
+
+  pushSection();
+
   return result;
 }
 
