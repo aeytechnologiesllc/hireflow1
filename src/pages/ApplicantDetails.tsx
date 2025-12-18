@@ -610,7 +610,7 @@ export default function ApplicantDetails() {
       
       if (isBackward) {
         // Moving backward - clear data for reset phases
-        const phasesToReset = phases.slice(newIndex + 1, currentIndex + 1);
+        const phasesToReset = phases.slice(newIndex, currentIndex + 1);
         
         phasesToReset.forEach((phase) => {
           // ALWAYS delete step ID data (e.g., notes.step1, notes.step_xxx)
