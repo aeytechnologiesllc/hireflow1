@@ -568,7 +568,7 @@ export default function ApplicantDetails() {
       if (nearestIndex < currentIndex) {
         console.log("[Slider Debug] Moving backward from", currentIndex, "to", nearestIndex);
         // Get phases that will be reset
-        const phasesToReset = phases.slice(nearestIndex + 1, currentIndex + 1);
+        const phasesToReset = phases.slice(nearestIndex, currentIndex + 1);
         setPendingPhaseChange({
           newIndex: nearestIndex,
           newPhase,
