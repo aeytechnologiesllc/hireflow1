@@ -923,11 +923,13 @@ export default function ApplicantDetails() {
         }
       }
       
-      // Build update payload
+      // Build update payload - clear AI analysis so it re-triggers after redo
       const updatePayload: any = {
         id: application.id,
         notes: JSON.stringify(updatedNotes),
         phase_ai_analysis: null, // Clear phase analysis
+        ai_analysis: null, // Clear so re-analysis happens fresh after phase redo
+        ai_score: null, // Clear so new score is calculated after phase redo
       };
       
       // Clear voice interview result and recording if resetting that phase

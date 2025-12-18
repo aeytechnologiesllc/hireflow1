@@ -42,6 +42,7 @@ export default function VoiceInterviewPhase() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
+  const [isProcessingEnd, setIsProcessingEnd] = useState(false);
 
   // Camera/video states
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -139,7 +140,8 @@ export default function VoiceInterviewPhase() {
   const handleInterviewEnd = useCallback(async (evaluation: any) => {
     setInterviewResult(evaluation);
     
-    // Show completion screen IMMEDIATELY so user sees upload progress
+    // Show completion screen IMMEDIATELY with processing state
+    setIsProcessingEnd(true);
     setShowCompletionScreen(true);
     
     try {
@@ -187,6 +189,9 @@ export default function VoiceInterviewPhase() {
       toast.error("Failed to save interview results");
       // Still cleanup camera on error too
       cleanupVideo();
+    } finally {
+      // Done processing - show completion state
+      setIsProcessingEnd(false);
     }
   }, [applicationId, messages, stopRecording, uploadRecording, cleanupVideo]);
 
@@ -832,22 +837,41 @@ Duration: ${formatTime(elapsedSeconds)}
             >
               <Card className="border-primary/20 bg-card/95 backdrop-blur max-w-md mx-4">
                 <CardContent className="py-12 text-center space-y-6">
-                  {isUploading ? (
+                  {isProcessingEnd || isUploading ? (
                     <>
                       <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary/20 to-teal-400/20 flex items-center justify-center">
                         <Loader2 className="h-10 w-10 text-primary animate-spin" />
                       </div>
                       <div className="space-y-2">
-                        <h2 className="text-xl font-bold text-foreground">Uploading Recording...</h2>
+                        <h2 className="text-xl font-bold text-foreground">
+                          {isUploading ? "Uploading Recording..." : "Processing Interview..."}
+                        </h2>
                         <p className="text-muted-foreground">
-                          Please wait while we save your interview
+                          {isUploading 
+                            ? "Please wait while we save your interview" 
+                            : "Preparing your recording for upload"}
                         </p>
-                        <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mt-4">
-                          <div 
-                            className="bg-gradient-to-r from-primary to-teal-400 h-2 rounded-full transition-all"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
+                        
+                        {/* Warning message - always visible during processing/uploading */}
+                        <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                          <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-2">
+                            <span className="text-lg">⚠️</span>
+                            Please do not refresh or navigate away
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Your interview is being saved. This may take a moment.
+                          </p>
                         </div>
+                        
+                        {/* Progress bar only during upload */}
+                        {isUploading && (
+                          <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mt-4">
+                            <div 
+                              className="bg-gradient-to-r from-primary to-teal-400 h-2 rounded-full transition-all"
+                              style={{ width: `${uploadProgress}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : (
