@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { useConversations, useMessages, useSendMessage, useMarkAsRead, useMessageableEmployers, useMessageableCandidates, useDeleteConversation } from "@/hooks/useMessages";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { MessageComposer } from "@/components/messages/MessageComposer";
 import { FileMessage } from "@/components/messages/FileMessage";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 
 function formatMessageDate(date: Date) {
   if (isToday(date)) return format(date, "h:mm a");
@@ -153,7 +155,12 @@ export default function Messages() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] gap-4">
+    <motion.div 
+      className="flex h-[calc(100vh-12rem)] gap-4"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
       {/* Conversations List */}
       <Card className="w-80 flex-shrink-0 bg-card border-border flex flex-col">
         <div className="p-4 border-b border-border">
@@ -470,6 +477,6 @@ export default function Messages() {
           </CardContent>
         )}
       </Card>
-    </div>
+    </motion.div>
   );
 }

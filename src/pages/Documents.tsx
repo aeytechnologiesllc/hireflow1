@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
@@ -26,6 +27,7 @@ import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDia
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 
 // Get display status based on document state and user role
 const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
@@ -171,8 +173,13 @@ export default function Documents() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div 
+      className="space-y-6"
+      initial="hidden"
+      animate="visible"
+      variants={staggerContainer}
+    >
+      <motion.div variants={staggerItem} className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Documents</h2>
           <p className="text-muted-foreground mt-1">
@@ -191,51 +198,55 @@ export default function Documents() {
             View Only
           </Badge>
         )}
-      </div>
+      </motion.div>
 
       {isLoading ? (
-        <div className="space-y-4">
+        <motion.div variants={staggerItem} className="space-y-4">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
-        </div>
+        </motion.div>
       ) : documents && documents.length > 0 ? (
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="all">All ({documents.length})</TabsTrigger>
-            <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
-            <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
-            <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
-          </TabsList>
+        <motion.div variants={staggerItem}>
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="all">All ({documents.length})</TabsTrigger>
+              <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
+              <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
+              <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="all" className="space-y-4">{documents.map(renderDocumentCard)}</TabsContent>
-          <TabsContent value="pending" className="space-y-4">
-            {pendingDocs.length > 0 ? pendingDocs.map(renderDocumentCard) : <EmptyState message="No pending documents" />}
-          </TabsContent>
-          <TabsContent value="signed" className="space-y-4">
-            {signedDocs.length > 0 ? signedDocs.map(renderDocumentCard) : <EmptyState message="No signed documents" />}
-          </TabsContent>
-          <TabsContent value="declined" className="space-y-4">
-            {declinedDocs.length > 0 ? declinedDocs.map(renderDocumentCard) : <EmptyState message="No declined documents" />}
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="all" className="space-y-4">{documents.map(renderDocumentCard)}</TabsContent>
+            <TabsContent value="pending" className="space-y-4">
+              {pendingDocs.length > 0 ? pendingDocs.map(renderDocumentCard) : <EmptyState message="No pending documents" />}
+            </TabsContent>
+            <TabsContent value="signed" className="space-y-4">
+              {signedDocs.length > 0 ? signedDocs.map(renderDocumentCard) : <EmptyState message="No signed documents" />}
+            </TabsContent>
+            <TabsContent value="declined" className="space-y-4">
+              {declinedDocs.length > 0 ? declinedDocs.map(renderDocumentCard) : <EmptyState message="No declined documents" />}
+            </TabsContent>
+          </Tabs>
+        </motion.div>
       ) : (
-        <Card className="bg-card border-border">
-          <CardContent className="p-12 text-center">
-            <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
-            <p className="text-muted-foreground max-w-md mx-auto mb-6">
-            {isEmployer 
-              ? (canSendDocuments ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here when created.")
-              : "Documents will appear here."}
-            </p>
-            {isEmployer && canSendDocuments && (
-              <Button onClick={() => setWizardOpen(true)}>
-                <Wand2 className="h-4 w-4 mr-2" />
-                Create Your First Document
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <motion.div variants={staggerItem}>
+          <Card className="bg-card border-border">
+            <CardContent className="p-12 text-center">
+              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
+              <p className="text-muted-foreground max-w-md mx-auto mb-6">
+              {isEmployer 
+                ? (canSendDocuments ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here when created.")
+                : "Documents will appear here."}
+              </p>
+              {isEmployer && canSendDocuments && (
+                <Button onClick={() => setWizardOpen(true)}>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Create Your First Document
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
@@ -281,7 +292,7 @@ export default function Documents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </motion.div>
   );
 }
 

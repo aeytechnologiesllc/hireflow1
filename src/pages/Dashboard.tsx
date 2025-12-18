@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useJobStats, useEmployerJobs, useDeleteJob, useCreateJob, type JobWithApplicationCount } from "@/hooks/useJobs";
 import { useApplicationStats } from "@/hooks/useApplications";
@@ -45,6 +46,7 @@ import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import ActivityFeed from "@/components/ActivityFeed";
 import PipelineHealthCard from "@/components/PipelineHealthCard";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 
 // Wave SVG component for stat cards
 function WaveGradient({ color }: { color: string }) {
@@ -439,9 +441,14 @@ export default function Dashboard() {
   ) || { total: 0, interviews: 0, inReview: 0, offers: 0 };
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <motion.div 
+      className="space-y-4 md:space-y-6"
+      initial="hidden"
+      animate="visible"
+      variants={staggerContainer}
+    >
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
         {isEmployer ? (
           <>
             <StatCard
@@ -537,14 +544,14 @@ export default function Dashboard() {
             />
           </>
         )}
-      </div>
+      </motion.div>
 
       {/* Pipeline Health & Activity Feed - Employer */}
       {isEmployer && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <motion.div variants={staggerItem} className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <PipelineHealthCard />
           <ActivityFeed limit={10} />
-        </div>
+        </motion.div>
       )}
 
       {/* Candidate Portal Link - Employer */}
@@ -699,6 +706,6 @@ export default function Dashboard() {
         open={showWorkflowDialog}
         onOpenChange={setShowWorkflowDialog}
       />
-    </div>
+    </motion.div>
   );
 }

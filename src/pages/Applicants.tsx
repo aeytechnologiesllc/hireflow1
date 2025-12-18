@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
@@ -38,6 +39,7 @@ import BulkActionsBar from "@/components/BulkActionsBar";
 import BulkRejectDialog from "@/components/BulkRejectDialog";
 import BulkMessageDialog from "@/components/BulkMessageDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-500",
@@ -414,9 +416,14 @@ export default function Applicants() {
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-6"
+      initial="hidden"
+      animate="visible"
+      variants={staggerContainer}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div variants={staggerItem} className="flex items-center justify-between">
         <div>
           {jobIdFilter && filteredJob ? (
             <>
@@ -449,10 +456,10 @@ export default function Applicants() {
             AI Shortlist
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-5 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Total</p>
@@ -483,7 +490,7 @@ export default function Applicants() {
             <p className="text-2xl font-bold text-primary">{stats?.hired || 0}</p>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Filters */}
       <div className="flex items-center gap-4">
@@ -639,6 +646,6 @@ export default function Applicants() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </motion.div>
   );
 }

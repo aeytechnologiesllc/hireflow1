@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
@@ -22,6 +23,7 @@ import {
   Hand,
 } from "lucide-react";
 import avaOrb from "@/assets/ava-orb.png";
+import { staggerContainer, staggerItem, pulsingGlow } from "@/lib/animations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -274,28 +276,39 @@ export default function Jobs() {
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-6"
+      initial="hidden"
+      animate="visible"
+      variants={staggerContainer}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div variants={staggerItem} className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Job Postings</h2>
           <p className="text-muted-foreground mt-1">Manage your job listings and track applications</p>
         </div>
         {canCreateJobs && (
-          <Button 
-            className="gap-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300" 
-            asChild
+          <motion.div
+            animate={pulsingGlow.animate}
+            transition={pulsingGlow.transition}
+            className="rounded-lg"
           >
-            <Link to="/jobs/create">
-              <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]" />
-              Create with Ava
-            </Link>
-          </Button>
+            <Button 
+              className="gap-2 bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+              asChild
+            >
+              <Link to="/jobs/create">
+                <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_6px_hsla(160,60%,50%,0.8)]" />
+                Create with Ava
+              </Link>
+            </Button>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <motion.div variants={staggerItem} className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -309,10 +322,10 @@ export default function Jobs() {
           <Filter className="h-4 w-4" />
           Filters
         </Button>
-      </div>
+      </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Total Jobs</p>
@@ -337,30 +350,36 @@ export default function Jobs() {
             <p className="text-2xl font-bold text-muted-foreground">{stats?.closed || 0}</p>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Job List */}
-      <div className="space-y-4">
+      <motion.div variants={staggerItem} className="space-y-4">
         {isLoading ? (
           <>
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
           </>
         ) : filteredJobs && filteredJobs.length > 0 ? (
-          filteredJobs.map((job) => (
-            <JobCard 
-              key={job.id} 
-              job={job} 
-              onDelete={handleDelete}
-              onViewDetails={handleViewDetails}
-              onViewWorkflow={handleViewWorkflow}
-              onEdit={handleEdit}
-              onDuplicate={handleDuplicate}
-              onCardClick={handleCardClick}
-              isDeleting={deleteJob.isPending}
-              canDelete={!!canDeleteJobs}
-              canEdit={!!canEditJobs}
-            />
+          filteredJobs.map((job, index) => (
+            <motion.div
+              key={job.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <JobCard 
+                job={job} 
+                onDelete={handleDelete}
+                onViewDetails={handleViewDetails}
+                onViewWorkflow={handleViewWorkflow}
+                onEdit={handleEdit}
+                onDuplicate={handleDuplicate}
+                onCardClick={handleCardClick}
+                isDeleting={deleteJob.isPending}
+                canDelete={!!canDeleteJobs}
+                canEdit={!!canEditJobs}
+              />
+            </motion.div>
           ))
         ) : (
           <Card className="bg-card border-border">
@@ -371,20 +390,26 @@ export default function Jobs() {
                 Create your first job posting to start receiving applications.
               </p>
               {canCreateJobs && (
-                <Button 
-                  className="gap-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300" 
-                  asChild
+                <motion.div
+                  animate={pulsingGlow.animate}
+                  transition={pulsingGlow.transition}
+                  className="rounded-lg inline-block"
                 >
-                  <Link to="/jobs/create">
-                    <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_4px_rgba(168,85,247,0.5)]" />
-                    Create with Ava
-                  </Link>
-                </Button>
+                  <Button 
+                    className="gap-2 bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+                    asChild
+                  >
+                    <Link to="/jobs/create">
+                      <img src={avaOrb} alt="Ava" className="h-5 w-5 drop-shadow-[0_0_6px_hsla(160,60%,50%,0.8)]" />
+                      Create with Ava
+                    </Link>
+                  </Button>
+                </motion.div>
               )}
             </CardContent>
           </Card>
         )}
-      </div>
+      </motion.div>
 
       {/* Job Details Dialog */}
       <JobDetailsDialog
@@ -400,6 +425,6 @@ export default function Jobs() {
         open={showWorkflowDialog}
         onOpenChange={setShowWorkflowDialog}
       />
-    </div>
+    </motion.div>
   );
 }
