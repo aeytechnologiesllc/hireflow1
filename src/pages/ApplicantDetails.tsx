@@ -26,7 +26,7 @@ import {
   FileCheck, ClipboardList, Video, Keyboard, Mic,
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
-  HelpCircle, Move, Zap, AlertCircle, Download
+  HelpCircle, Move, Zap, AlertCircle, Download, FastForward
 } from "lucide-react";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
@@ -1122,7 +1122,8 @@ Voice Interview with AVA Results:
   const workflowBadges = (() => {
     const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
     const quizQuestions = job?.quiz_questions as any[] | undefined;
-    const badges: { id: string; title: string; type: string; hasData: boolean; score?: number; icon: any }[] = [];
+    const skippedPhases = parsedNotes.employerSkippedPhases || [];
+    const badges: { id: string; title: string; type: string; hasData: boolean; isSkipped: boolean; score?: number; icon: any }[] = [];
     
     // Application badge (always present)
     const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
@@ -1131,6 +1132,7 @@ Voice Interview with AVA Results:
       title: "Application",
       type: "application",
       hasData: hasApplicationData,
+      isSkipped: false,
       icon: FileCheck,
     });
     
@@ -1141,6 +1143,7 @@ Voice Interview with AVA Results:
         title: "Resume",
         type: "resume",
         hasData: !!resumeUrl,
+        isSkipped: skippedPhases.includes("resume"),
         score: application.ai_score || undefined,
         icon: FileText,
       });
@@ -1154,6 +1157,7 @@ Voice Interview with AVA Results:
         title: "Quiz",
         type: "quiz",
         hasData: !!quizData,
+        isSkipped: skippedPhases.includes("quiz"),
         score: quizData?.score,
         icon: ClipboardList,
       });
@@ -1168,6 +1172,7 @@ Voice Interview with AVA Results:
           title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
           type: step.type,
           hasData: !!stepData,
+          isSkipped: skippedPhases.includes(step.id),
           score: stepData?.score,
           icon: stepTypeIcons[step.type] || ClipboardList,
         });
@@ -1354,6 +1359,7 @@ Voice Interview with AVA Results:
               const Icon = phase.icon;
               const isCompleted = index < effectivePhaseIndex;
               const isCurrent = index === effectivePhaseIndex;
+              const isSkipped = parsedNotes.employerSkippedPhases?.includes(phase.id);
               
               return (
                 <div 
@@ -1364,6 +1370,7 @@ Voice Interview with AVA Results:
                   {/* Dot */}
                   <div 
                     className={`w-4 h-4 rounded-full border-2 border-background mt-6 z-10 ${
+                      isSkipped ? "bg-amber-500" :
                       isCompleted ? phaseColors.completed : 
                       isCurrent ? phaseColors.current : 
                       phaseColors.upcoming
@@ -1372,17 +1379,22 @@ Voice Interview with AVA Results:
                   
                   {/* Icon & Label */}
                   <div className="mt-3 flex flex-col items-center">
-                    <Icon className={`h-5 w-5 ${
-                      isCompleted ? "text-success" : 
-                      isCurrent ? "text-warning" : 
-                      "text-muted-foreground"
-                    }`} />
+                    {isSkipped ? (
+                      <FastForward className="h-5 w-5 text-amber-500" />
+                    ) : (
+                      <Icon className={`h-5 w-5 ${
+                        isCompleted ? "text-success" : 
+                        isCurrent ? "text-warning" : 
+                        "text-muted-foreground"
+                      }`} />
+                    )}
                     <span className={`text-xs mt-1 ${
+                      isSkipped ? "text-amber-500" :
                       isCompleted ? "text-success" : 
                       isCurrent ? "text-warning" : 
                       "text-muted-foreground"
                     }`}>
-                      {phase.title}
+                      {isSkipped ? "Skipped" : phase.title}
                     </span>
                   </div>
                 </div>
@@ -1464,9 +1476,11 @@ Voice Interview with AVA Results:
               return (
                 <Badge 
                   key={badge.id}
-                  variant={badge.hasData ? undefined : "outline"}
+                  variant={badge.hasData || badge.isSkipped ? undefined : "outline"}
                   className={`gap-1 cursor-pointer transition-colors ${
-                    badge.hasData 
+                    badge.isSkipped
+                      ? "bg-amber-500/20 text-amber-500 border-amber-500/30 hover:bg-amber-500/30"
+                      : badge.hasData 
                       ? "bg-success/20 text-success border-success/30 hover:bg-success/30" 
                       : "hover:bg-accent"
                   }`}
@@ -1480,9 +1494,14 @@ Voice Interview with AVA Results:
                     }
                   }}
                 >
-                  <Icon className="h-3 w-3" />
+                  {badge.isSkipped ? (
+                    <FastForward className="h-3 w-3" />
+                  ) : (
+                    <Icon className="h-3 w-3" />
+                  )}
                   {badge.title}
-                  {badge.score && ` (${badge.score})`}
+                  {badge.isSkipped && " (Skipped)"}
+                  {!badge.isSkipped && badge.score && ` (${badge.score})`}
                 </Badge>
               );
             })}

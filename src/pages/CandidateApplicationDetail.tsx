@@ -28,6 +28,7 @@ import {
   Briefcase,
   Calendar,
   AlertCircle,
+  FastForward,
   Hand,
   Mic
 } from "lucide-react";
@@ -633,10 +634,23 @@ export default function CandidateApplicationDetail() {
                         </Badge>
                       )}
                       {isCompleted && (
-                        <Badge className="bg-success/20 text-success border-success/30">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Completed
-                        </Badge>
+                        (() => {
+                          const notesData = typeof application.notes === 'string' 
+                            ? JSON.parse(application.notes || '{}') 
+                            : (application.notes || {});
+                          const isSkipped = notesData.employerSkippedPhases?.includes(phase.id);
+                          return isSkipped ? (
+                            <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
+                              <FastForward className="h-3 w-3 mr-1" />
+                              Skipped
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-success/20 text-success border-success/30">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Completed
+                            </Badge>
+                          );
+                        })()
                       )}
                     </div>
                     
