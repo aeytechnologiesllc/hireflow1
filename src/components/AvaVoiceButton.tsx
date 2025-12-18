@@ -214,9 +214,9 @@ export default function AvaVoiceButton() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Dark portal with green glow - base styles
+  // Dark portal with green glow - base styles (smaller size)
   const getPortalStyles = () => {
-    const baseStyles = "h-10 w-10 rounded-full bg-[hsl(220,15%,8%)] border border-border/30 transition-all duration-300";
+    const baseStyles = "h-8 w-8 rounded-full bg-[hsl(220,15%,8%)] border border-border/30 transition-all duration-300";
     
     switch (voiceAccessState) {
       case 'exhausted':
@@ -300,16 +300,16 @@ export default function AvaVoiceButton() {
   // Determine glow animation based on state
   const getGlowAnimation = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
-      return {}; // No glow for locked state
+      return { animate: undefined, transition: undefined }; // No glow for locked state
     }
     if (voiceAccessState === 'exhausted') {
       // Amber glow for exhausted
       return {
         animate: {
           boxShadow: [
-            "0 0 15px -3px hsla(38, 92%, 50%, 0.5)",
-            "0 0 25px -3px hsla(38, 92%, 50%, 0.7)",
-            "0 0 15px -3px hsla(38, 92%, 50%, 0.5)"
+            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)",
+            "0 0 35px 4px hsla(38, 92%, 50%, 0.75)",
+            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)"
           ]
         },
         transition: pulsingGlow.transition
@@ -370,34 +370,14 @@ export default function AvaVoiceButton() {
             "relative flex items-center justify-center cursor-pointer",
             getPortalStyles()
           )}
-          {...getGlowAnimation()}
+          animate={getGlowAnimation().animate}
+          transition={getGlowAnimation().transition}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           {getButtonContent()}
         </motion.button>
 
-        {/* Trial minutes badge */}
-        {voiceAccessState === 'trial' && !isConnected && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full shadow-lg"
-          >
-            {formatMinutes(voiceMinutesRemaining)}
-          </motion.div>
-        )}
-
-        {/* Exhausted badge */}
-        {voiceAccessState === 'exhausted' && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full shadow-lg"
-          >
-            0:00
-          </motion.div>
-        )}
 
         {/* Error indicator */}
         {error && (
