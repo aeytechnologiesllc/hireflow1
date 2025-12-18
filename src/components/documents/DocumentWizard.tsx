@@ -45,6 +45,8 @@ interface DocumentWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   applications: ApplicationForDocument[];
+  preSelectedApplicationId?: string;
+  initialMode?: "generate" | "upload";
 }
 
 const DOCUMENT_TYPES = [
@@ -117,7 +119,13 @@ const ACCEPTED_FILE_TYPES = {
   "text/plain": [".txt"],
 };
 
-export function DocumentWizard({ open, onOpenChange, applications }: DocumentWizardProps) {
+export function DocumentWizard({ 
+  open, 
+  onOpenChange, 
+  applications,
+  preSelectedApplicationId,
+  initialMode,
+}: DocumentWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [documentSource, setDocumentSource] = useState<"generate" | "upload" | "">("");
   const [documentType, setDocumentType] = useState("");
@@ -182,6 +190,35 @@ export function DocumentWizard({ open, onOpenChange, applications }: DocumentWiz
       }
     }
   }, [open, profile]);
+
+  // Handle pre-selection when props are provided
+  useEffect(() => {
+    if (open && initialMode) {
+      setDocumentSource(initialMode);
+      // Skip the source selection step (step 0) by starting at step 1
+      setCurrentStep(1);
+    }
+  }, [open, initialMode]);
+
+  useEffect(() => {
+    if (open && preSelectedApplicationId && applications.length > 0) {
+      // Find the application
+      const app = applications.find(a => a.id === preSelectedApplicationId);
+      if (app) {
+        setSelectedApplication(preSelectedApplicationId);
+        // Auto-populate recipient details (but keep them editable)
+        if (app.profiles?.full_name) {
+          setRecipientName(app.profiles.full_name);
+        }
+        if (app.profiles?.email) {
+          setRecipientEmail(app.profiles.email);
+        }
+        if (app.jobs?.title) {
+          setJobTitle(app.jobs.title);
+        }
+      }
+    }
+  }, [open, preSelectedApplicationId, applications]);
 
   const resetWizard = () => {
     setCurrentStep(0);
