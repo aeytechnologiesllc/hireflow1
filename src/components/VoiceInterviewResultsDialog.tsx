@@ -128,17 +128,17 @@ Date: ${new Date().toLocaleDateString()}
     doc.text('Score Breakdown', 20, yPos);
     yPos += 10;
     doc.setFontSize(10);
-    doc.text(`Communication: ${result.communication_score || 'N/A'}`, 25, yPos);
+    doc.text(`Communication: ${result.communication_score ?? '—'}`, 25, yPos);
     yPos += 6;
-    doc.text(`Technical: ${result.technical_score || 'N/A'}`, 25, yPos);
+    doc.text(`Technical: ${result.technical_score ?? '—'}`, 25, yPos);
     yPos += 6;
-    doc.text(`Culture Fit: ${result.culture_fit_score || 'N/A'}`, 25, yPos);
+    doc.text(`Culture Fit: ${result.culture_fit_score ?? '—'}`, 25, yPos);
     yPos += 6;
-    doc.text(`Problem Solving: ${result.problem_solving_score || 'N/A'}`, 25, yPos);
+    doc.text(`Problem Solving: ${result.problem_solving_score ?? '—'}`, 25, yPos);
     yPos += 6;
-    doc.text(`Adaptability: ${result.adaptability_score || 'N/A'}`, 25, yPos);
+    doc.text(`Adaptability: ${result.adaptability_score ?? '—'}`, 25, yPos);
     yPos += 6;
-    doc.text(`Leadership Potential: ${result.leadership_potential_score || 'N/A'}`, 25, yPos);
+    doc.text(`Leadership Potential: ${result.leadership_potential_score ?? '—'}`, 25, yPos);
     yPos += 12;
 
     // Strengths
@@ -206,7 +206,7 @@ Date: ${new Date().toLocaleDateString()}
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Voice Interview Analysis</span>
+            <span>{videoEnabled ? 'Video' : 'Voice'} Interview Analysis</span>
             <div className="flex gap-2">
               {transcript && transcript.length > 0 && (
                 <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-2">
@@ -257,7 +257,7 @@ Date: ${new Date().toLocaleDateString()}
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-6">
                     <div className="text-center">
-                      <p className="text-4xl font-bold text-primary">{result.overall_score || "N/A"}</p>
+                      <p className="text-4xl font-bold text-primary">{result.overall_score !== undefined && result.overall_score !== null ? result.overall_score : "—"}</p>
                       <p className="text-xs text-muted-foreground">/100</p>
                     </div>
                     <div className="flex-1">
@@ -299,7 +299,7 @@ Date: ${new Date().toLocaleDateString()}
                 ].map((item, i) => (
                   <Card key={i}>
                     <CardContent className="py-3 text-center">
-                      <p className="text-xl font-bold">{item.value || "N/A"}</p>
+                      <p className="text-xl font-bold">{item.value !== undefined && item.value !== null ? item.value : "—"}</p>
                       <p className="text-xs text-muted-foreground">{item.label}</p>
                     </CardContent>
                   </Card>
@@ -322,7 +322,7 @@ Date: ${new Date().toLocaleDateString()}
                         <p className="text-xs text-muted-foreground">Avg Response Time</p>
                       </div>
                       <div className="text-center p-2 bg-muted/30 rounded">
-                        <p className="text-lg font-bold">{result.communication_metrics.clarity_score || "N/A"}</p>
+                        <p className="text-lg font-bold">{result.communication_metrics.clarity_score !== undefined && result.communication_metrics.clarity_score !== null ? result.communication_metrics.clarity_score : "—"}</p>
                         <p className="text-xs text-muted-foreground">Clarity Score</p>
                       </div>
                       <div className="text-center p-2 bg-muted/30 rounded">

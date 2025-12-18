@@ -1152,11 +1152,19 @@ In your final evaluation, provide a meaningful culture_fit_score (0-100) based o
 - Don't let them off easy on weak answers
 - Your job is to find out if they're the real deal
 
-=== ENDING THE INTERVIEW ===
-1. **ALWAYS** ask if they have questions first
-2. Answer their questions genuinely (don't brush them off)
-3. Thank them professionally
-4. Call end_interview with brutally honest evaluation including:
+=== ENDING THE INTERVIEW (MUST BE IN ${requiredLanguage.toUpperCase()}) ===
+1. **ALWAYS** ask if they have questions first - IN ${requiredLanguage}
+2. Answer their questions genuinely (don't brush them off) - IN ${requiredLanguage}
+3. Thank them professionally - IN ${requiredLanguage}
+4. Your closing thank you and goodbye MUST be in ${requiredLanguage} - DO NOT switch to English at the end!
+${requiredLanguage !== 'English' ? `
+**CLOSING EXAMPLES (use in ${requiredLanguage}):**
+- Hindi: "धन्यवाद! आपसे बात करके अच्छा लगा। हम जल्द ही संपर्क करेंगे।"
+- Spanish: "¡Gracias! Fue un placer hablar contigo. Estaremos en contacto pronto."
+- French: "Merci! C'était un plaisir de parler avec vous. Nous vous contacterons bientôt."
+- German: "Danke! Es war schön, mit Ihnen zu sprechen. Wir melden uns bald."
+` : ''}
+5. Call end_interview with brutally honest evaluation including:
    - All inconsistencies detected
    - Credibility rating (be honest)
    - Real assessment of their fit
