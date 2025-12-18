@@ -1882,66 +1882,7 @@ export default function CreateJob() {
                                   </Button>
                                 </div>
                                 
-                                {/* Voice Interview Language Config */}
-                                {isVoiceInterview && (
-                                  <div className="mt-4 pt-4 border-t border-border/50 space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label className="text-xs text-muted-foreground">Interview Language</Label>
-                                        <Select
-                                          value={(step.config?.language as string) || 'en'}
-                                          onValueChange={(value) => {
-                                            const langName = VOICE_INTERVIEW_LANGUAGES.find(l => l.value === value)?.label || 'English';
-                                            updateWorkflowStepConfig(step.id, 'language', value);
-                                            updateWorkflowStepConfig(step.id, 'language_name', langName);
-                                          }}
-                                        >
-                                          <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {VOICE_INTERVIEW_LANGUAGES.map(lang => (
-                                              <SelectItem key={lang.value} value={lang.value}>
-                                                {lang.label}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label className="text-xs text-muted-foreground">Enforcement Mode</Label>
-                                        <Select
-                                          value={(step.config?.language_enforcement as string) || 'flexible'}
-                                          onValueChange={(value) => updateWorkflowStepConfig(step.id, 'language_enforcement', value)}
-                                        >
-                                          <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="flexible">
-                                              <div className="flex flex-col">
-                                                <span>Flexible</span>
-                                                <span className="text-xs text-muted-foreground">Deduct points if different</span>
-                                              </div>
-                                            </SelectItem>
-                                            <SelectItem value="strict">
-                                              <div className="flex flex-col">
-                                                <span>Strict</span>
-                                                <span className="text-xs text-muted-foreground">End interview if not met</span>
-                                              </div>
-                                            </SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      {(step.config?.language_enforcement as string) === 'strict' 
-                                        ? `Interview will end if candidate cannot communicate in ${(step.config?.language_name as string) || 'English'}`
-                                        : `Interview continues in candidate's language if needed, with points deducted`
-                                      }
-                                    </p>
-                                  </div>
-                                )}
+                                {/* Voice Interview Language Config - REMOVED: Language is now only configured when moving candidate to interview phase */}
                               </div>
                             );
                           })}
