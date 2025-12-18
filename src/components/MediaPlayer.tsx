@@ -29,10 +29,30 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Force load on mount/src change
+  useEffect(() => {
+    if (mediaRef.current && src) {
+      console.log("MediaPlayer: Loading src:", src);
+      mediaRef.current.load();
+    }
+  }, [src]);
+
+  // Loading timeout fallback - enable play button after 3s even if metadata not loaded
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!isLoaded && !hasError) {
+        console.log("MediaPlayer: Timeout fallback - enabling play button");
+        setIsLoaded(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [isLoaded, hasError]);
+
   // Handle metadata loaded
   const handleLoadedMetadata = useCallback(() => {
     if (mediaRef.current && !isLoaded) {
       const dur = mediaRef.current.duration;
+      console.log("MediaPlayer: onLoadedMetadata - duration:", dur);
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
@@ -44,12 +64,25 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const handleCanPlay = useCallback(() => {
     if (mediaRef.current && !isLoaded) {
       const dur = mediaRef.current.duration;
+      console.log("MediaPlayer: onCanPlay - duration:", dur);
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
       }
     }
   }, [isLoaded]);
+
+  // Handle duration change (WebM files may update duration after initial load)
+  const handleDurationChange = useCallback(() => {
+    if (mediaRef.current) {
+      const dur = mediaRef.current.duration;
+      console.log("MediaPlayer: onDurationChange - duration:", dur);
+      if (isFinite(dur) && dur > 0 && dur !== duration) {
+        setDuration(dur);
+        if (!isLoaded) setIsLoaded(true);
+      }
+    }
+  }, [duration, isLoaded]);
 
   // Handle error
   const handleError = useCallback((e: React.SyntheticEvent<HTMLMediaElement, Event>) => {
@@ -74,10 +107,19 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
       mediaRef.current.pause();
       setIsPlaying(false);
     } else {
-      mediaRef.current.play();
+      mediaRef.current.play().then(() => {
+        // Duration may now be available after play starts
+        const dur = mediaRef.current?.duration;
+        if (dur && isFinite(dur) && dur > 0 && duration === 0) {
+          console.log("MediaPlayer: Duration available on play:", dur);
+          setDuration(dur);
+        }
+      }).catch(err => {
+        console.error("MediaPlayer: Play failed:", err);
+      });
       setIsPlaying(true);
     }
-  }, [isPlaying]);
+  }, [isPlaying, duration]);
 
   // Handle seeking via slider
   const handleSliderChange = useCallback((value: number[]) => {
@@ -161,6 +203,7 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
         onLoadedMetadata={handleLoadedMetadata}
         onCanPlay={handleCanPlay}
         onLoadedData={handleCanPlay}
+        onDurationChange={handleDurationChange}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
         onError={handleError}
