@@ -26,8 +26,15 @@ import {
   FileCheck, ClipboardList, Video, Keyboard, Mic,
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
-  HelpCircle, Move, Zap, AlertCircle, Download, FastForward
+  HelpCircle, Move, Zap, AlertCircle, Download, FastForward,
+  MoreHorizontal, CalendarX
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
@@ -38,6 +45,7 @@ import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDia
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { MediaPlayer } from "@/components/MediaPlayer";
 import { useApplicantDossier } from "@/hooks/useApplicantDossier";
+import { RescheduleInterviewDialog } from "@/components/RescheduleInterviewDialog";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -306,6 +314,8 @@ export default function ApplicantDetails() {
   const [showHiringDocumentPrompt, setShowHiringDocumentPrompt] = useState(false);
   const [showDocumentWizard, setShowDocumentWizard] = useState(false);
   const [documentWizardMode, setDocumentWizardMode] = useState<"generate" | "upload" | undefined>();
+  const [showCancelInterviewConfirm, setShowCancelInterviewConfirm] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const { data: application, isLoading } = useQuery({
@@ -1426,14 +1436,39 @@ Voice Interview with AVA Results:
                 </div>
               </div>
               
-              {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
-                <Button asChild className="gap-2">
-                  <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
-                    <Video className="h-4 w-4" />
-                    Join Meeting
-                  </a>
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
+                  <Button asChild className="gap-2">
+                    <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
+                      <Video className="h-4 w-4" />
+                      Join Meeting
+                    </a>
+                  </Button>
+                )}
+                
+                {scheduledInterview.status === "scheduled" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setShowRescheduleDialog(true)}>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Reschedule
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => setShowCancelInterviewConfirm(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <CalendarX className="h-4 w-4 mr-2" />
+                        Cancel Interview
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -2869,6 +2904,52 @@ Voice Interview with AVA Results:
         }] : []}
         preSelectedApplicationId={application?.id}
         initialMode={documentWizardMode}
+      />
+
+      {/* Cancel Interview Confirmation */}
+      <AlertDialog open={showCancelInterviewConfirm} onOpenChange={setShowCancelInterviewConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Interview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this interview? The candidate will need to be rescheduled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Interview</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!scheduledInterview) return;
+                try {
+                  const { error } = await supabase
+                    .from("interviews")
+                    .update({ status: "cancelled" })
+                    .eq("id", scheduledInterview.id);
+                  
+                  if (error) throw error;
+                  
+                  queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
+                  queryClient.invalidateQueries({ queryKey: ["interviews"] });
+                  toast.success("Interview cancelled");
+                  setShowCancelInterviewConfirm(false);
+                } catch (error) {
+                  toast.error("Failed to cancel interview");
+                }
+              }}
+            >
+              Cancel Interview
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reschedule Interview Dialog */}
+      <RescheduleInterviewDialog
+        open={showRescheduleDialog}
+        onOpenChange={setShowRescheduleDialog}
+        interview={scheduledInterview}
+        applicationId={id || ""}
       />
     </div>
   );
