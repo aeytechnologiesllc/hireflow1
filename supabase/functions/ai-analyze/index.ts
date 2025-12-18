@@ -209,18 +209,28 @@ serve(async (req) => {
           // Use pdf-parse library to extract text
           const pdfParse = (await import("https://esm.sh/pdf-parse@1.1.1")).default;
           const pdfData = await pdfParse(new Uint8Array(pdfBuffer));
-          const extractedText = pdfData.text;
+          const extractedText = pdfData.text?.trim() || "";
           
-          console.log("Successfully extracted resume text, length:", extractedText.length);
-          resumeContent = `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${extractedText}\n--- END RESUME CONTENT ---`;
-          pdfExtracted = true;
+          console.log("Resume text extraction result, length:", extractedText.length);
+          
+          // Check if extraction returned meaningful content (at least 100 chars of text)
+          if (extractedText.length >= 100) {
+            console.log("Successfully extracted resume text");
+            resumeContent = `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${extractedText}\n--- END RESUME CONTENT ---`;
+            pdfExtracted = true;
+          } else {
+            // Image-based PDF or minimal text - graceful fallback
+            console.log("Resume appears to be image-based (extracted text < 100 chars). Proceeding with application data only.");
+            resumeContent = `\n\n[Note: This resume appears to be image-based or uses non-extractable text (like graphics/scanned documents). Text extraction returned minimal content (${extractedText.length} characters). Please analyze this candidate based on the other application data provided above. The resume was uploaded successfully but its contents cannot be automatically extracted for analysis.]`;
+            pdfExtracted = false;
+          }
         } else {
           console.warn("Failed to fetch resume:", pdfResponse.status);
-          resumeContent = "\n\n[Note: Could not access resume file - HTTP " + pdfResponse.status + "]";
+          resumeContent = "\n\n[Note: Could not access resume file - HTTP " + pdfResponse.status + ". Please analyze based on other application data.]";
         }
       } catch (err) {
         console.error("Error extracting resume text:", err);
-        resumeContent = "\n\n[Note: Resume file could not be parsed - may not be a valid PDF. Error: " + (err instanceof Error ? err.message : "Unknown") + "]";
+        resumeContent = "\n\n[Note: Resume file could not be parsed. This may be an image-based PDF or an unsupported format. Please analyze based on other application data provided. Error details: " + (err instanceof Error ? err.message : "Unknown") + "]";
       }
     }
 
