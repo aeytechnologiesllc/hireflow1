@@ -35,6 +35,7 @@ import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
 import { AvaInterviewConfigDialog } from "@/components/AvaInterviewConfigDialog";
 import { VoiceInterviewResultsDialog } from "@/components/VoiceInterviewResultsDialog";
 import { MediaPlayer } from "@/components/MediaPlayer";
+import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -264,6 +265,7 @@ export default function ApplicantDetails() {
   const { user } = useAuth();
   const updateApplication = useUpdateApplication();
   const { data: permissions } = useTeamMemberPermissions();
+  const { downloadDossier, isGenerating: isGeneratingDossier } = useApplicantDossier();
   
   // Permission checks for team members
   const canManagePipeline = permissions?.isTeamMember ? permissions.canManagePipeline : true;
@@ -1234,6 +1236,19 @@ Voice Interview with AVA Results:
         </Button>
         
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => downloadDossier(application)}
+            disabled={isGeneratingDossier}
+            className="gap-2"
+          >
+            {isGeneratingDossier ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Download Dossier
+          </Button>
           {canScheduleInterviews && (
             <Button 
               onClick={() => setShowInterviewWizard(true)}
