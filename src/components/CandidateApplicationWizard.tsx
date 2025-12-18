@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateApplication } from "@/hooks/useApplications";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
+import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import type { Tables, Json } from "@/integrations/supabase/types";
 
 interface CandidateApplicationWizardProps {
@@ -97,6 +99,12 @@ export default function CandidateApplicationWizard({
   const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
   const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
   const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Evaluation screen state for autopilot mode
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
+  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
+  const [createdApplicationId, setCreatedApplicationId] = useState<string | null>(null);
+  const [aiScore, setAiScore] = useState<number | null>(null);
 
   const currentStepData = steps[currentStep];
 
@@ -432,6 +440,7 @@ Resume URL: ${resumeUrl || "Not provided"}
     try {
       // Run AI analysis
       const aiResult = await analyzeApplication();
+      setAiScore(aiResult?.score || null);
 
       // Prepare notes with application answers
       const notes = applicationQuestions.length > 0
@@ -443,28 +452,157 @@ Resume URL: ${resumeUrl || "Not provided"}
           })
         : null;
 
-      await createApplication.mutateAsync({
+      // Determine if autopilot mode and what the next phase should be
+      const isAutoMode = job.processing_mode !== "manual";
+      const passingScore = job.passing_score || 60;
+      const passed = aiResult?.score !== null && aiResult.score >= passingScore;
+
+      // Build the phases list to determine next phase
+      const workflowSteps = (job.workflow_steps as any[]) || [];
+      const quizQuestions = (job.quiz_questions as any[]) || [];
+      
+      const allPhases: { id: string; type: string; title: string }[] = [
+        { id: "application", type: "application", title: "Application" },
+      ];
+      
+      // Add quiz phase if quiz_questions exist
+      if (quizQuestions.length > 0) {
+        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
+      }
+      
+      // Add workflow steps
+      workflowSteps.forEach((step: any) => {
+        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
+      });
+      
+      // Add final phases
+      allPhases.push(
+        { id: "review", type: "review", title: "Review" },
+        { id: "interview", type: "interview", title: "Interview" },
+        { id: "hired", type: "hired", title: "Hired" }
+      );
+
+      // Determine phase and status based on mode and score
+      let newPhase = "application";
+      let newStatus: "pending" | "rejected" = "pending";
+      
+      if (isAutoMode && aiResult?.score !== null) {
+        if (passed) {
+          // Advance to next phase
+          const currentIndex = 0; // application is index 0
+          if (currentIndex < allPhases.length - 1) {
+            newPhase = allPhases[currentIndex + 1].id;
+            setNextPhaseInfo({
+              id: allPhases[currentIndex + 1].id,
+              title: allPhases[currentIndex + 1].title,
+            });
+          }
+        } else {
+          // Failed - reject
+          newStatus = "rejected";
+        }
+      }
+
+      const createdApp = await createApplication.mutateAsync({
         job_id: job.id,
         cover_letter: coverLetter || null,
         resume_url: resumeUrl || null,
         ai_analysis: aiResult?.analysis || null,
         ai_score: aiResult?.score || null,
         notes,
-        phase: "application",
+        phase: newPhase,
+        status: newStatus,
       });
 
-      toast.success("Application submitted successfully!");
+      setCreatedApplicationId(createdApp.id);
       queryClient.invalidateQueries({ queryKey: ["applications"] });
-      handleClose();
-      navigate("/applications");
+
+      if (isAutoMode && aiResult?.score !== null) {
+        // Show evaluation screen
+        setEvaluationState(passed ? "passed" : "failed");
+      } else {
+        // Manual mode - just toast and navigate
+        toast.success("Application submitted successfully!");
+        handleClose();
+        navigate("/applications");
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to submit application");
+      setEvaluationState(null);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Handlers for evaluation screen
+  const handleStartNextPhase = () => {
+    if (!nextPhaseInfo || !createdApplicationId) return;
+    
+    const workflowSteps = (job.workflow_steps as any[]) || [];
+    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    
+    handleClose();
+    
+    if (nextStep) {
+      const phaseRoutes: Record<string, string> = {
+        typing_test: "typing-test",
+        video_intro: "video-intro",
+        video_message: "video-intro",
+        portfolio_upload: "portfolio",
+        chat_simulation: "chat-simulation",
+        chat_interview: "chat-interview",
+        sales_simulation: "sales-simulation",
+        voice_interview: "voice-interview",
+        quiz: "quiz",
+      };
+      const route = phaseRoutes[nextStep.type] || nextStep.type;
+      navigate(`/applications/${createdApplicationId}/${route}/${nextPhaseInfo.id}`);
+    } else if (nextPhaseInfo.id === "quiz") {
+      navigate(`/applications/${createdApplicationId}/quiz/quiz`);
+    } else if (nextPhaseInfo.id === "review") {
+      navigate(`/applications/${createdApplicationId}`);
+    } else {
+      navigate(`/applications/${createdApplicationId}`);
+    }
+  };
+
+  const handleDoLater = () => {
+    handleClose();
+    navigate(`/applications/${createdApplicationId}`);
+  };
+
   const isPending = isSubmitting || isAnalyzing;
+
+  // Show evaluation screen for autopilot mode
+  if (evaluationState) {
+    // Show CandidateStatusScreen for failed state
+    if (evaluationState === "failed") {
+      return (
+        <CandidateStatusScreen
+          state="rejected"
+          jobTitle={job.title}
+          applicationData={{ id: createdApplicationId, jobs: job, status: "rejected" } as any}
+          candidateId={undefined}
+          onClose={() => {
+            handleClose();
+            navigate("/applications");
+          }}
+        />
+      );
+    }
+    
+    // Show EvaluationScreen for passed/evaluating states
+    return (
+      <EvaluationScreen
+        state={evaluationState}
+        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
+        onDoLater={handleDoLater}
+        nextPhaseName={nextPhaseInfo?.title}
+        score={aiScore ?? undefined}
+        passingScore={job.passing_score || 60}
+      />
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

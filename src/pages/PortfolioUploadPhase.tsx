@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { EvaluationScreen } from "@/components/EvaluationScreen";
 
 interface ApplicationDetails {
   id: string;
@@ -70,6 +71,10 @@ export default function PortfolioUploadPhase() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Evaluation screen state for autopilot mode
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | null>(null);
+  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -295,14 +300,11 @@ export default function PortfolioUploadPhase() {
       if (isAutoMode) {
         if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
           newPhase = allPhases[currentIndex + 1].id;
+          setNextPhaseInfo({
+            id: allPhases[currentIndex + 1].id,
+            title: (allPhases[currentIndex + 1] as any).title || allPhases[currentIndex + 1].type,
+          });
         }
-        toast.success("Portfolio submitted!", {
-          description: "Great work! You've advanced to the next phase.",
-        });
-      } else {
-        toast.success("Portfolio submitted!", {
-          description: "Your portfolio has been uploaded. The employer will review your work.",
-        });
       }
 
       const analysisText = aiAnalysis 
@@ -321,19 +323,44 @@ export default function PortfolioUploadPhase() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-
-      // Trigger AVA analysis in background (fire-and-forget)
       triggerAvaAnalysis(id!).catch(console.error);
 
-      navigate(`/applications/${id}`);
+      if (isAutoMode) {
+        setEvaluationState("passed");
+      } else {
+        toast.success("Portfolio submitted!", {
+          description: "Your portfolio has been uploaded. The employer will review your work.",
+        });
+        navigate(`/applications/${id}`);
+      }
     } catch (error) {
       console.error("Error submitting portfolio:", error);
       toast.error("Failed to submit portfolio");
+      setEvaluationState(null);
     } finally {
       setIsSubmitting(false);
       setIsAnalyzing(false);
     }
   };
+
+  // Handlers for evaluation screen
+  const handleStartNextPhase = () => {
+    if (!nextPhaseInfo || !application) return;
+    const workflowSteps = application.jobs?.workflow_steps as any[] || [];
+    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    if (nextStep) {
+      const phaseRoutes: Record<string, string> = {
+        typing_test: "typing-test", video_intro: "video-intro", portfolio_upload: "portfolio",
+        chat_simulation: "chat-simulation", chat_interview: "chat-interview",
+        sales_simulation: "sales-simulation", voice_interview: "voice-interview", quiz: "quiz",
+      };
+      navigate(`/applications/${id}/${phaseRoutes[nextStep.type] || nextStep.type}/${nextPhaseInfo.id}`);
+    } else {
+      navigate(`/applications/${id}`);
+    }
+  };
+
+  const handleDoLater = () => navigate(`/applications/${id}`);
 
   // Check if already submitted
   const existingResult = (() => {
@@ -377,6 +404,20 @@ export default function PortfolioUploadPhase() {
         applicationId={id!}
         phaseName="Portfolio Upload"
         isManualMode={application.jobs?.processing_mode === "manual"}
+      />
+    );
+  }
+
+  // Show evaluation screen for autopilot mode
+  if (evaluationState) {
+    return (
+      <EvaluationScreen
+        state={evaluationState}
+        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
+        onDoLater={handleDoLater}
+        nextPhaseName={nextPhaseInfo?.title}
+        score={100}
+        passingScore={application?.jobs?.passing_score || 60}
       />
     );
   }
