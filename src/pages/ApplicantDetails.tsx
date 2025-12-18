@@ -1736,17 +1736,6 @@ ${interviewType} Interview with AVA Results:
         <CardContent className="p-6">
           {/* Phase Tags - Clickable */}
           <div className="flex flex-wrap gap-2 mb-6">
-            {isAutoPilot ? (
-              <Badge className="bg-primary/20 text-primary border-primary/30">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Auto-Pilot
-              </Badge>
-            ) : (
-              <Badge className="bg-orange-500/20 text-orange-500 border-orange-500/30">
-                <Eye className="h-3 w-3 mr-1" />
-                Manual
-              </Badge>
-            )}
             {workflowBadges.map((badge) => {
               const Icon = badge.icon;
               return (
@@ -1844,64 +1833,34 @@ ${interviewType} Interview with AVA Results:
               <div className="flex items-center gap-2 mb-4 flex-wrap">
                 <span className="text-sm text-muted-foreground">AVA analyzed:</span>
                 {resumeUrl && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Resume
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Resume</Badge>
                 )}
                 {(parsedNotes.applicationAnswers?.length > 0 || application.cover_letter) && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Application Answers
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Application Answers</Badge>
                 )}
                 {parsedNotes.typingTestResult && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Typing Test
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Typing Test</Badge>
                 )}
                 {(parsedNotes.quizResult || parsedNotes.quiz || (parsedNotes.quizAnswers && Object.keys(parsedNotes.quizAnswers).length > 0)) && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Quiz
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Quiz</Badge>
                 )}
                 {parsedNotes.chatSimulationResult && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Chat Simulation
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Chat Simulation</Badge>
                 )}
                 {parsedNotes.chatInterviewResult && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Interview
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Interview</Badge>
                 )}
                 {parsedNotes.salesSimulationResult && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Sales Simulation
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Sales Simulation</Badge>
                 )}
                 {parsedNotes.portfolioResult && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Portfolio
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Portfolio</Badge>
                 )}
                 {parsedNotes.videoIntroUrl && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Video Intro
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Video Intro</Badge>
                 )}
                 {application.voice_interview_result && (
-                  <Badge variant="outline" className="text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                    Voice Interview
-                  </Badge>
+                  <Badge variant="outline" className="text-xs">Voice Interview</Badge>
                 )}
               </div>
 
