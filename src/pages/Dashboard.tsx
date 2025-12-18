@@ -43,6 +43,8 @@ import type { Job } from "@/hooks/useJobs";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
+import ActivityFeed from "@/components/ActivityFeed";
+import PipelineHealthCard from "@/components/PipelineHealthCard";
 
 // Wave SVG component for stat cards
 function WaveGradient({ color }: { color: string }) {
@@ -536,6 +538,14 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {/* Pipeline Health & Activity Feed - Employer */}
+      {isEmployer && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <PipelineHealthCard />
+          <ActivityFeed limit={10} />
+        </div>
+      )}
 
       {/* Candidate Portal Link - Employer */}
       {isEmployer && (

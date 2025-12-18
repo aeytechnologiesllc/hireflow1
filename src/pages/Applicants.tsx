@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -23,6 +24,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import ScheduleInterviewDialog from "@/components/ScheduleInterviewDialog";
 import AIShortlistDialog from "@/components/AIShortlistDialog";
+import BulkActionsBar from "@/components/BulkActionsBar";
+import BulkRejectDialog from "@/components/BulkRejectDialog";
+import BulkMessageDialog from "@/components/BulkMessageDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 const statusColors: Record<string, string> = {
@@ -39,9 +43,12 @@ interface ApplicantCardProps {
   onStatusChange: (id: string, status: string) => void;
   onScheduleInterview: (application: ApplicationWithCandidate) => void;
   onNavigateToDetails: (id: string) => void;
+  isSelectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
-function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails }: ApplicantCardProps) {
+function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails, isSelectionMode, isSelected, onToggleSelect }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
   
@@ -84,13 +91,31 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
   const phaseName = getPhaseName(application.phase);
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isSelectionMode) {
+      e.stopPropagation();
+      onToggleSelect(application.id);
+    } else {
+      onNavigateToDetails(application.id);
+    }
+  };
+
   return (
     <Card 
-      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
-      onClick={() => onNavigateToDetails(application.id)}
+      className={`bg-card border-border hover:border-primary/50 transition-colors cursor-pointer ${isSelected ? "ring-2 ring-primary border-primary" : ""}`}
+      onClick={handleCardClick}
     >
       <CardContent className="p-6">
         <div className="flex items-start gap-4">
+          {isSelectionMode && (
+            <div className="flex items-center justify-center pt-1" onClick={(e) => e.stopPropagation()}>
+              <Checkbox 
+                checked={isSelected} 
+                onCheckedChange={() => onToggleSelect(application.id)}
+                className="h-5 w-5"
+              />
+            </div>
+          )}
           <Avatar className="h-12 w-12">
             <AvatarFallback className="bg-primary/10 text-primary font-medium">
               {initials}
@@ -205,11 +230,18 @@ export default function Applicants() {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [shortlistDialogOpen, setShortlistDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
+  
+  // Selection state for bulk actions
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRejectDialogOpen, setBulkRejectDialogOpen] = useState(false);
+  const [bulkMessageDialogOpen, setBulkMessageDialogOpen] = useState(false);
 
   // Permission checks
   const canManagePipeline = !isTeamMember || permissions?.canManagePipeline;
   const canScheduleInterviews = !isTeamMember || permissions?.canScheduleInterviews;
   const canMessageCandidates = !isTeamMember || permissions?.canMessageCandidates;
+  const canSendDocuments = !isTeamMember || permissions?.canSendDocuments;
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -227,6 +259,30 @@ export default function Applicants() {
 
   const handleNavigateToDetails = (id: string) => {
     navigate(`/applicants/${id}`);
+  };
+
+  // Bulk action handlers
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredApplications.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredApplications.map((app) => app.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
   };
 
   const handleGenerateShortlist = async () => {
@@ -276,6 +332,10 @@ export default function Applicants() {
     
     return result;
   }, [applications, isTeamMember, permissions?.assignedJobIds, jobIdFilter, searchQuery]);
+
+  const selectedApplications = useMemo(() => {
+    return filteredApplications.filter((app) => selectedIds.has(app.id));
+  }, [filteredApplications, selectedIds]);
 
   if (!isEmployer) {
     return (
@@ -376,6 +436,24 @@ export default function Applicants() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+        <Button 
+          variant={isSelectionMode ? "default" : "outline"} 
+          className="gap-2"
+          onClick={() => {
+            setIsSelectionMode(!isSelectionMode);
+            if (isSelectionMode) {
+              setSelectedIds(new Set());
+            }
+          }}
+        >
+          {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+          {isSelectionMode ? "Done" : "Select"}
+        </Button>
+        {isSelectionMode && filteredApplications.length > 0 && (
+          <Button variant="outline" onClick={handleSelectAll}>
+            {selectedIds.size === filteredApplications.length ? "Deselect All" : "Select All"}
+          </Button>
+        )}
         <Button variant="outline" className="gap-2">
           <Filter className="h-4 w-4" />
           Filters
@@ -397,6 +475,9 @@ export default function Applicants() {
               onStatusChange={handleStatusChange}
               onScheduleInterview={handleScheduleInterview}
               onNavigateToDetails={handleNavigateToDetails}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedIds.has(application.id)}
+              onToggleSelect={handleToggleSelect}
             />
           ))
         ) : (
@@ -428,6 +509,34 @@ export default function Applicants() {
         shortlist={shortlist}
         isLoading={isShortlistLoading}
         onScheduleInterview={handleShortlistScheduleInterview}
+      />
+
+      {/* Bulk Actions */}
+      <BulkActionsBar
+        selectedCount={selectedIds.size}
+        onReject={() => setBulkRejectDialogOpen(true)}
+        onScheduleInterview={() => toast.info("Bulk interview scheduling coming soon")}
+        onSendDocument={() => navigate("/documents")}
+        onSendMessage={() => setBulkMessageDialogOpen(true)}
+        onClearSelection={handleClearSelection}
+        canManagePipeline={canManagePipeline}
+        canScheduleInterviews={canScheduleInterviews}
+        canSendDocuments={canSendDocuments}
+        canMessageCandidates={canMessageCandidates}
+      />
+
+      <BulkRejectDialog
+        open={bulkRejectDialogOpen}
+        onOpenChange={setBulkRejectDialogOpen}
+        selectedApplications={selectedApplications}
+        onSuccess={handleClearSelection}
+      />
+
+      <BulkMessageDialog
+        open={bulkMessageDialogOpen}
+        onOpenChange={setBulkMessageDialogOpen}
+        selectedApplications={selectedApplications}
+        onSuccess={handleClearSelection}
       />
     </div>
   );
