@@ -527,7 +527,13 @@ Resume URL: ${resumeUrl || "Not provided"}
         navigate("/applications");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to submit application");
+      // Check for duplicate application error
+      if (error.message?.includes("applications_job_id_candidate_id_key") || 
+          error.code === "23505") {
+        toast.error("You have already submitted an application for this job. You cannot submit duplicate applications.");
+      } else {
+        toast.error(error.message || "Failed to submit application");
+      }
       setEvaluationState(null);
     } finally {
       setIsSubmitting(false);

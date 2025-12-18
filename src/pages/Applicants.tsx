@@ -63,9 +63,28 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
   const profile = application.profiles;
   const job = application.jobs;
   
-  const initials = profile?.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
-    : profile?.email?.[0]?.toUpperCase() || "?";
+  // Extract applicant name from application notes (Full Name answer) or fall back to profile
+  const applicantName = (() => {
+    if (application.notes) {
+      try {
+        const parsed = JSON.parse(application.notes);
+        const fullNameAnswer = parsed.applicationAnswers?.find(
+          (a: { question: string; answer: string }) =>
+            a.question.toLowerCase().includes("full name") ||
+            a.question.toLowerCase() === "name"
+        );
+        if (fullNameAnswer?.answer) return fullNameAnswer.answer;
+      } catch {}
+    }
+    return profile?.full_name || "Unknown Candidate";
+  })();
+  
+  const initials = applicantName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
 
   // Get human-readable phase name from workflow steps
   const getPhaseName = (phase: string | null) => {
@@ -137,7 +156,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-semibold text-foreground">
-                  {profile?.full_name || "Unknown Candidate"}
+                  {applicantName}
                 </h3>
                 <p className="text-sm text-muted-foreground">{profile?.email}</p>
               </div>

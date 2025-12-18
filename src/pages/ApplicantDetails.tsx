@@ -474,6 +474,19 @@ export default function ApplicantDetails() {
     }
   })();
 
+  // Extract applicant display name from application answers (prioritize Full Name)
+  const applicantDisplayName = (() => {
+    if (parsedNotes.applicationAnswers?.length > 0) {
+      const fullNameAnswer = parsedNotes.applicationAnswers.find(
+        (a: { question: string; answer: string }) =>
+          a.question.toLowerCase().includes("full name") ||
+          a.question.toLowerCase() === "name"
+      );
+      if (fullNameAnswer?.answer) return fullNameAnswer.answer;
+    }
+    return application?.profiles?.full_name || application?.profiles?.email || "Unknown Candidate";
+  })();
+
   // Check if candidate has completed the current phase (awaiting employer review)
   const hasCompletedCurrentPhase = (phaseId: string, phaseType: string): boolean => {
     if (phaseType === "application") {
@@ -976,7 +989,7 @@ Skills Required: ${application.jobs?.skills_required?.join(", ") || "Not specifi
 Experience Level: ${application.jobs?.experience_level || "Not specified"}
 
 Candidate Information:
-Name: ${application.profiles?.full_name || "Unknown"}
+Name: ${applicantDisplayName}
 Email: ${application.profiles?.email || "Not provided"}
 Skills: ${application.profiles?.skills?.join(", ") || "Not specified"}
 Experience Years: ${application.profiles?.experience_years || "Not specified"}
@@ -1718,7 +1731,7 @@ Voice Interview with AVA Results:
           </div>
 
           {/* Name & Details */}
-          <h2 className="text-2xl font-bold text-foreground">{profile?.full_name || "Unknown Candidate"}</h2>
+          <h2 className="text-2xl font-bold text-foreground">{applicantDisplayName}</h2>
           <p className="text-muted-foreground mt-1">
             Applied for {job?.title || "Unknown Position"} at {profile?.company_name || "Company"}
           </p>
