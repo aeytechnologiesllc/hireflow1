@@ -767,6 +767,61 @@ export default function ApplicantDetails() {
     setDragPosition(snapPercentage);
   };
 
+  // Handle Schedule Interview button click - syncs with slider
+  const handleScheduleInterviewClick = async () => {
+    if (!application) return;
+    
+    // Find the interview phase
+    const interviewPhaseIndex = phases.findIndex(p => p.type === "interview");
+    if (interviewPhaseIndex === -1) {
+      toast.error("No interview phase found in workflow");
+      return;
+    }
+    
+    const interviewPhase = phases[interviewPhaseIndex];
+    
+    // If already at interview phase, just open the wizard
+    if (effectivePhaseIndex === interviewPhaseIndex) {
+      setShowInterviewWizard(true);
+      return;
+    }
+    
+    try {
+      // Track skipped phases (from current position to interview, excluding destination)
+      let updatedNotes = { ...parsedNotes };
+      const skippedPhases = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex).map(p => p.id);
+      
+      if (skippedPhases.length > 0) {
+        updatedNotes.employerSkippedPhases = [
+          ...(updatedNotes.employerSkippedPhases || []),
+          ...skippedPhases,
+        ];
+      }
+      
+      // Update application: phase, status, and notes
+      await updateApplication.mutateAsync({
+        id: application.id,
+        phase: interviewPhase.id,
+        status: "interview",
+        notes: JSON.stringify(updatedNotes),
+      });
+      
+      // Update slider position visually
+      const snapPercentage = (interviewPhaseIndex / (phases.length - 1)) * 100;
+      setDragPosition(snapPercentage);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      
+      toast.success("Advanced to Interview phase");
+      
+      // Open the wizard
+      setShowInterviewWizard(true);
+    } catch (error) {
+      toast.error("Failed to advance to interview phase");
+    }
+  };
+
   // Reset a single phase without affecting others
   const handleResetSinglePhase = async () => {
     if (!application || !phaseToReset) return;
@@ -1282,7 +1337,7 @@ Voice Interview with AVA Results:
           </Button>
           {canScheduleInterviews && (
             <Button 
-              onClick={() => setShowInterviewWizard(true)}
+              onClick={handleScheduleInterviewClick}
               className="gap-2"
             >
               <Calendar className="h-4 w-4" />
