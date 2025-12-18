@@ -20,6 +20,7 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const [volume, setVolume] = useState(1);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [maxTimeReached, setMaxTimeReached] = useState(0);
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -94,10 +95,15 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
 
   // Handle time update - only update when playing and not seeking
   const handleTimeUpdate = useCallback(() => {
-    if (mediaRef.current && isPlaying && !isSeeking) {
-      setCurrentTime(mediaRef.current.currentTime);
+    if (mediaRef.current && !isSeeking) {
+      const time = mediaRef.current.currentTime;
+      setCurrentTime(time);
+      // Track max time as fallback duration for WebM files
+      if (time > maxTimeReached) {
+        setMaxTimeReached(time);
+      }
     }
-  }, [isPlaying, isSeeking]);
+  }, [isSeeking, maxTimeReached]);
 
   // Handle play/pause
   const togglePlay = useCallback(() => {
@@ -145,11 +151,15 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   // Handle media ended
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
+    // When media ends, we know the true duration
+    if (mediaRef.current && currentTime > 0 && duration === 0) {
+      setDuration(currentTime);
+    }
     setCurrentTime(0);
     if (mediaRef.current) {
       mediaRef.current.currentTime = 0;
     }
-  }, []);
+  }, [currentTime, duration]);
 
   // Handle volume change
   const handleVolumeChange = useCallback((value: number[]) => {
@@ -268,7 +278,11 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
 
         {/* Duration display */}
         <span className="text-sm text-muted-foreground w-12 shrink-0">
-          {formatTime(duration)}
+          {duration > 0 
+            ? formatTime(duration) 
+            : maxTimeReached > 0 
+              ? `~${formatTime(maxTimeReached)}` 
+              : "—"}
         </span>
 
         {/* Volume controls */}
