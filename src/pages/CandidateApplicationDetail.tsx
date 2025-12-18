@@ -162,15 +162,16 @@ export default function CandidateApplicationDetail() {
           refetch();
           
           // Detect status changes and show appropriate screen
-          if (newStatus !== oldStatus) {
-            if (newStatus === "rejected") {
-              setStatusScreen("rejected");
-            } else if (newStatus === "hired") {
-              setStatusScreen("hired");
-            } else if (newStatus === "interview") {
-              fetchInterviewDetails(id);
-              setStatusScreen("interview_scheduled");
-            }
+          // Note: payload.old might be empty if REPLICA IDENTITY isn't FULL, so also check payload.new directly
+          const statusChanged = newStatus !== oldStatus || !oldStatus;
+          
+          if (newStatus === "rejected" && statusChanged) {
+            setStatusScreen("rejected");
+          } else if (newStatus === "hired" && statusChanged) {
+            setStatusScreen("hired");
+          } else if (newStatus === "interview" && statusChanged) {
+            fetchInterviewDetails(id);
+            setStatusScreen("interview_scheduled");
           }
           
           // Show toast notification for phase changes (if not showing status screen)
