@@ -43,10 +43,27 @@ export const staggerItem: Variants = {
 export const pulsingGlow = {
   animate: {
     boxShadow: [
-      "0 0 25px 2px hsla(160, 60%, 45%, 0.6)",
-      "0 0 40px 5px hsla(160, 60%, 50%, 0.85)",
-      "0 0 25px 2px hsla(160, 60%, 45%, 0.6)"
+      "0 0 15px 1px hsla(160, 60%, 45%, 0.45)",
+      "0 0 25px 3px hsla(160, 60%, 50%, 0.65)",
+      "0 0 15px 1px hsla(160, 60%, 45%, 0.45)"
     ]
+  },
+  transition: {
+    duration: 2,
+    repeat: Infinity,
+    ease: [0.4, 0, 0.2, 1]
+  } as Transition
+};
+
+// Synchronized breathing animation - glow expands while button contracts
+export const pulsingGlowWithScale = {
+  animate: {
+    boxShadow: [
+      "0 0 15px 1px hsla(160, 60%, 45%, 0.45)",
+      "0 0 25px 3px hsla(160, 60%, 50%, 0.65)",
+      "0 0 15px 1px hsla(160, 60%, 45%, 0.45)"
+    ],
+    scale: [1, 0.97, 1]
   },
   transition: {
     duration: 2,
