@@ -630,8 +630,12 @@ export default function ApplicantDetails() {
             delete updatedNotes.salesSimulationResult;
           }
           if (phase.type === "quiz") {
+            // Delete all possible quiz data formats
+            delete updatedNotes.quiz;
+            delete updatedNotes.quizResult;
             if (updatedNotes.quizAnswers) {
               delete updatedNotes.quizAnswers[phase.id];
+              delete updatedNotes.quizAnswers['quiz'];
               // Clean up empty quizAnswers object
               if (Object.keys(updatedNotes.quizAnswers).length === 0) {
                 delete updatedNotes.quizAnswers;
@@ -687,8 +691,8 @@ export default function ApplicantDetails() {
         
         toast.success(`Reset to ${newPhase.title} phase. Candidate can redo cleared phases.`);
       } else {
-        // Moving forward - track skipped phases
-        const skippedPhases = phases.slice(currentIndex + 1, newIndex + 1).map((p) => p.id);
+        // Moving forward - track skipped phases (exclude destination phase)
+        const skippedPhases = phases.slice(currentIndex + 1, newIndex).map((p) => p.id);
         
         if (skippedPhases.length > 0) {
           updatedNotes.employerSkippedPhases = [
