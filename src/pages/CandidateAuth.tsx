@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, Sparkles, Check, Circle } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import hireflowLogo from "@/assets/hireflow-logo.png";
+import { WelcomeAnimation } from "@/components/animations/WelcomeAnimation";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -49,6 +50,8 @@ export default function CandidateAuth() {
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeName, setWelcomeName] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<"signin" | "signup">(
     searchParams.get("tab") === "signup" ? "signup" : "signin"
   );
@@ -101,10 +104,16 @@ export default function CandidateAuth() {
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
-      navigate("/apply");
+      setWelcomeName(undefined);
+      setShowWelcome(true);
     }
 
     setIsLoading(false);
+  };
+
+  const handleWelcomeComplete = () => {
+    setShowWelcome(false);
+    navigate("/apply");
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -144,7 +153,8 @@ export default function CandidateAuth() {
         title: "Account created!",
         description: "Welcome to HireFlow. You can now apply for jobs.",
       });
-      navigate("/apply");
+      setWelcomeName(signUpName);
+      setShowWelcome(true);
     }
 
     setIsLoading(false);
@@ -159,7 +169,15 @@ export default function CandidateAuth() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <>
+      {showWelcome && (
+        <WelcomeAnimation 
+          name={welcomeName} 
+          onComplete={handleWelcomeComplete}
+          duration={2500}
+        />
+      )}
+      <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Background grid pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03]"
@@ -364,6 +382,7 @@ export default function CandidateAuth() {
           </div>
         </motion.div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
