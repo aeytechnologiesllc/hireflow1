@@ -198,6 +198,9 @@ export default function VideoIntroPhase() {
       const workflowSteps = application.jobs?.workflow_steps as any[] || [];
       const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
       
+      // Extract voice_interview step (goes AFTER review)
+      const voiceInterviewStep = workflowSteps.find((step: any) => step.type === 'voice_interview');
+      
       const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
@@ -207,14 +210,25 @@ export default function VideoIntroPhase() {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
       
-      // Add workflow steps
-      workflowSteps.forEach((step: any) => {
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      workflowSteps.filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
       
+      // Add Review phase
+      allPhases.push({ id: "review", type: "review", title: "Review" });
+      
+      // Add voice_interview AFTER Review if it exists
+      if (voiceInterviewStep) {
+        allPhases.push({ 
+          id: voiceInterviewStep.id, 
+          type: "voice_interview", 
+          title: voiceInterviewStep.title || "Ava Interview" 
+        });
+      }
+      
       // Add final phases
       allPhases.push(
-        { id: "review", type: "review", title: "Review" },
         { id: "interview", type: "interview", title: "Interview" },
         { id: "hired", type: "hired", title: "Hired" }
       );
@@ -230,11 +244,16 @@ export default function VideoIntroPhase() {
       // Determine next phase (video always passes since it's completion-based)
       let newPhase = application.phase;
       if (isAutoMode && currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        newPhase = allPhases[currentIndex + 1].id;
-        setNextPhaseInfo({
-          id: allPhases[currentIndex + 1].id,
-          title: allPhases[currentIndex + 1].title,
-        });
+        const nextPhase = allPhases[currentIndex + 1];
+        newPhase = nextPhase.id;
+        
+        // DON'T show "Start Next Phase" button if next phase is review
+        if (nextPhase.type !== "review") {
+          setNextPhaseInfo({
+            id: nextPhase.id,
+            title: nextPhase.title,
+          });
+        }
       }
 
       // 4. Update database

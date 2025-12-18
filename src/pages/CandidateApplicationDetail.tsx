@@ -100,10 +100,11 @@ export default function CandidateApplicationDetail() {
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
   
   // Status screen state
-  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | null>(null);
+  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | null>(null);
   const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
+  const previousPhaseRef = useRef<string | null>(null);
 
   // Fetch application with job details
   const { data: application, isLoading, refetch } = useQuery({
@@ -195,11 +196,30 @@ export default function CandidateApplicationDetail() {
             setStatusScreen("interview_scheduled");
           }
           
-          // Show toast notification for phase changes (if not showing status screen)
-          if (newPhase !== oldPhase && newStatus === oldStatus) {
-            toast.success(`You've been advanced to the ${newPhase} phase!`, {
-              description: "Check your next steps below.",
-            });
+          // Detect phase changes - specifically for Ava Interview unlock
+          const phaseChanged = newPhase !== oldPhase && oldPhase;
+          if (phaseChanged && !statusChanged) {
+            // Check if advanced to voice_interview phase (Ava Interview)
+            // We need to fetch the latest application to get the workflow steps
+            const checkVoiceInterview = async () => {
+              const { data: app } = await supabase
+                .from("applications")
+                .select("jobs(workflow_steps)")
+                .eq("id", id)
+                .single();
+              
+              const workflowSteps = (app?.jobs as any)?.workflow_steps as any[] | undefined;
+              const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
+              
+              if (voiceInterviewStep && newPhase === voiceInterviewStep.id) {
+                setStatusScreen("ava_interview_unlocked");
+              } else {
+                toast.success(`You've been advanced to the ${newPhase} phase!`, {
+                  description: "Check your next steps below.",
+                });
+              }
+            };
+            checkVoiceInterview();
           }
         }
       )
@@ -236,16 +256,19 @@ export default function CandidateApplicationDetail() {
     };
   }, [id, refetchInterview]);
 
-  // Check on initial load if status changed recently (within last 30 seconds)
+  // Check on initial load if status or phase changed recently (within last 30 seconds)
   useEffect(() => {
-    if (!application || previousStatusRef.current === application.status) return;
+    if (!application) return;
     
     const updatedAt = new Date(application.updated_at);
     const now = new Date();
     const timeDiff = now.getTime() - updatedAt.getTime();
     const isRecent = timeDiff < 30000; // 30 seconds
     
-    // Only show screen if this is first load and status change was recent
+    const statusChanged = previousStatusRef.current !== application.status;
+    const phaseChanged = previousPhaseRef.current !== application.phase;
+    
+    // Only show screen if this is first load and change was recent
     if (previousStatusRef.current === null && isRecent) {
       if (application.status === "rejected") {
         setStatusScreen("rejected");
@@ -257,7 +280,22 @@ export default function CandidateApplicationDetail() {
       }
     }
     
+    // Check for Ava Interview unlock on initial load
+    if (previousPhaseRef.current === null && isRecent && application.phase) {
+      const workflowSteps = application.jobs?.workflow_steps as any[] | undefined;
+      const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
+      
+      if (voiceInterviewStep && application.phase === voiceInterviewStep.id) {
+        // Check if we haven't completed the voice interview yet
+        const hasVoiceInterviewResult = !!application.voice_interview_result;
+        if (!hasVoiceInterviewResult) {
+          setStatusScreen("ava_interview_unlocked");
+        }
+      }
+    }
+    
     previousStatusRef.current = application.status;
+    previousPhaseRef.current = application.phase;
   }, [application]);
 
   // Handle report download from status screen

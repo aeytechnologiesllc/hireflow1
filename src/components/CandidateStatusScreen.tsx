@@ -10,7 +10,8 @@ import {
   ArrowRight,
   Sparkles,
   ExternalLink,
-  X
+  X,
+  Mic
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
@@ -28,7 +29,7 @@ interface InterviewDetails {
 }
 
 interface CandidateStatusScreenProps {
-  state: "rejected" | "interview_scheduled" | "hired" | null;
+  state: "rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | null;
   jobTitle?: string;
   companyName?: string;
   interviewDetails?: InterviewDetails;
@@ -83,6 +84,14 @@ export function CandidateStatusScreen({
         spread: 70,
         origin: { y: 0.6 },
         colors: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#60A5FA', '#93C5FD'],
+      });
+    } else if (state === "ava_interview_unlocked" && showContent) {
+      // Premium celebration with emerald/teal colors for Ava Interview
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#10B981', '#14B8A6', '#06B6D4', '#8B5CF6', '#A78BFA'],
       });
     } else if (state === "hired" && showContent) {
       // Epic celebration for hired
@@ -333,6 +342,116 @@ export function CandidateStatusScreen({
                 >
                   <Button onClick={onClose} className="gap-2">
                     View Details
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Ava Interview Unlocked State */}
+          {state === "ava_interview_unlocked" && (
+            <Card className="bg-card border-border overflow-hidden relative">
+              {/* Animated sparkles background */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {[...Array(8)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute"
+                    initial={{ 
+                      x: Math.random() * 100 + "%", 
+                      y: Math.random() * 100 + "%",
+                      opacity: 0,
+                      scale: 0 
+                    }}
+                    animate={{ 
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0],
+                      rotate: [0, 180]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: Math.random() * 2,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 text-emerald-400/50" />
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Decorative top gradient */}
+              <div className="h-2 bg-gradient-to-r from-emerald-500/50 via-teal-500/50 to-cyan-500/50" />
+              
+              <CardContent className="p-8 text-center space-y-6 relative z-10">
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className="mx-auto w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center"
+                >
+                  <motion.div
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
+                    <Mic className="h-10 w-10 text-emerald-400" />
+                  </motion.div>
+                </motion.div>
+
+                {/* Headline */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
+                    🎉 Congratulations!
+                  </h2>
+                  <p className="text-emerald-400 font-semibold text-lg">
+                    You've Been Selected for an Ava Interview!
+                  </p>
+                </motion.div>
+
+                {/* Message */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-muted-foreground leading-relaxed"
+                >
+                  The employer has reviewed your application and wants to learn more about you. 
+                  Ava, our AI interviewer, will conduct a voice interview to help showcase your skills.
+                </motion.p>
+
+                {/* Job info */}
+                {jobTitle && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-sm text-muted-foreground"
+                  >
+                    Position: <span className="text-foreground font-medium">{jobTitle}</span>
+                  </motion.p>
+                )}
+
+                {/* Action button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <Button 
+                    size="lg"
+                    onClick={onClose} 
+                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                  >
+                    Start Ava Interview
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>

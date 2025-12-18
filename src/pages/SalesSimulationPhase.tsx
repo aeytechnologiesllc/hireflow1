@@ -590,6 +590,9 @@ export default function SalesSimulationPhase() {
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
       
+      // Extract voice_interview step (goes AFTER review)
+      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
+      
       const allPhases: { id: string; type: string }[] = [
         { id: "application", type: "application" },
       ];
@@ -599,14 +602,21 @@ export default function SalesSimulationPhase() {
         allPhases.push({ id: "quiz", type: "quiz" });
       }
       
-      // Add workflow steps
-      workflowSteps.forEach((step: any) => {
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
         allPhases.push({ id: step.id, type: step.type });
       });
       
+      // Add Review phase
+      allPhases.push({ id: "review", type: "review" });
+      
+      // Add voice_interview AFTER Review if it exists
+      if (voiceInterviewStep) {
+        allPhases.push({ id: voiceInterviewStep.id, type: "voice_interview" });
+      }
+      
       // Add final phases
       allPhases.push(
-        { id: "review", type: "review" },
         { id: "interview", type: "interview" },
         { id: "hired", type: "hired" }
       );
@@ -624,7 +634,9 @@ export default function SalesSimulationPhase() {
       if (isAutoMode) {
         if (passed) {
           if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-            newPhase = allPhases[currentIndex + 1].id;
+            const nextPhase = allPhases[currentIndex + 1];
+            newPhase = nextPhase.id;
+            // Note: SalesSimulation uses toast instead of EvaluationScreen
           }
           toast.success("Sales simulation completed!", {
             description: `You scored ${evaluation.score}%. Prospect verdict: ${evaluation.wouldBuy === "yes" ? "Would buy!" : evaluation.wouldBuy === "maybe" ? "Might buy" : "Wouldn't buy"}`,

@@ -123,7 +123,9 @@ export function EvaluationScreen({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
                   >
-                    You've successfully completed this phase and can move on to the next step.
+                    {nextPhaseName && onStartNextPhase 
+                      ? "You've successfully completed this phase and can move on to the next step."
+                      : "You've completed all candidate phases! The employer will review your application and may invite you to an Ava Interview."}
                   </motion.p>
                   {score !== undefined && (
                     <motion.p
@@ -154,16 +156,20 @@ export function EvaluationScreen({
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   )}
-                  {onDoLater && (
-                    <Button 
-                      variant="ghost" 
-                      onClick={onDoLater}
-                      className="w-full gap-2 text-muted-foreground"
-                    >
-                      <Clock className="h-4 w-4" />
-                      I'll do it later
-                    </Button>
-                  )}
+                  <Button 
+                    variant={nextPhaseName && onStartNextPhase ? "ghost" : "default"}
+                    onClick={onDoLater}
+                    className={nextPhaseName && onStartNextPhase ? "w-full gap-2 text-muted-foreground" : "w-full gap-2"}
+                  >
+                    {nextPhaseName && onStartNextPhase ? (
+                      <>
+                        <Clock className="h-4 w-4" />
+                        I'll do it later
+                      </>
+                    ) : (
+                      "Back to My Applications"
+                    )}
+                  </Button>
                 </motion.div>
               </CardContent>
             </Card>
