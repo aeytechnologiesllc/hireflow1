@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { EmojiPicker } from "./EmojiPicker";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,15 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [message]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,7 +63,7 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
 
   const handleEmojiSelect = (emoji: string) => {
     setMessage((prev) => prev + emoji);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const handleSend = async () => {
@@ -107,7 +115,7 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
       )}
 
       {/* Input Row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-end gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -116,32 +124,38 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
         />
         
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-        >
-          <Paperclip className="h-5 w-5" />
-        </Button>
+        {/* Grouped icons */}
+        <div className="flex items-center gap-1 shrink-0 pb-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
 
-        <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+        </div>
 
-        <Input
-          ref={inputRef}
+        {/* Auto-growing textarea */}
+        <Textarea
+          ref={textareaRef}
           placeholder="Type a message..."
-          className="bg-background border-border flex-1"
+          className="min-h-[40px] max-h-[120px] resize-none flex-1 bg-background border-border py-2"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
+          rows={1}
         />
 
         <Button
           onClick={handleSend}
           disabled={(!message.trim() && !selectedFile) || isPending || disabled}
-          className="shrink-0"
+          className="shrink-0 mb-1"
+          size="icon"
         >
           <Send className="h-4 w-4" />
         </Button>
