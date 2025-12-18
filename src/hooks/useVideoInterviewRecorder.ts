@@ -159,11 +159,19 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       return null;
     }
 
-    console.log('[Audio Mixing] Setting up audio mixing', {
+    // Verify mic audio tracks exist BEFORE setup
+    const micAudioTracks = cameraStreamRef.current.getAudioTracks();
+    console.log('[Audio Mixing] Pre-setup check', {
+      micAudioTracks: micAudioTracks.length,
+      micTrackLabels: micAudioTracks.map(t => ({ label: t.label, enabled: t.enabled, muted: t.muted })),
       hasAvaElement: !!avaAudioElement,
       hasSrcObject: !!avaAudioElement?.srcObject,
       srcObjectType: avaAudioElement?.srcObject?.constructor?.name
     });
+
+    if (micAudioTracks.length === 0) {
+      console.error('[Audio Mixing] CRITICAL: No audio tracks found on camera stream! Candidate will not be recorded.');
+    }
 
     try {
       // Create audio context for mixing
@@ -174,14 +182,26 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       audioDestinationRef.current = ctx.createMediaStreamDestination();
       const destination = audioDestinationRef.current;
 
-      // Add candidate's microphone audio
-      const micStream = cameraStreamRef.current;
-      const micSource = ctx.createMediaStreamSource(micStream);
-      const micGain = ctx.createGain();
-      micGain.gain.value = 1.0;
-      micSource.connect(micGain);
-      micGain.connect(destination);
-      console.log('[Audio Mixing] Candidate mic connected to mixer');
+      // Add candidate's microphone audio - use ONLY the audio track specifically
+      const micAudioTrack = cameraStreamRef.current.getAudioTracks()[0];
+      if (micAudioTrack) {
+        // Create a stream with ONLY the audio track to ensure proper capture
+        const micOnlyStream = new MediaStream([micAudioTrack]);
+        const micSource = ctx.createMediaStreamSource(micOnlyStream);
+        const micGain = ctx.createGain();
+        // Boost mic gain slightly to ensure candidate audio is clearly audible
+        micGain.gain.value = 1.2;
+        micSource.connect(micGain);
+        micGain.connect(destination);
+        console.log('[Audio Mixing] Candidate mic connected to mixer', {
+          trackLabel: micAudioTrack.label,
+          trackEnabled: micAudioTrack.enabled,
+          trackMuted: micAudioTrack.muted,
+          gainValue: micGain.gain.value
+        });
+      } else {
+        console.error('[Audio Mixing] CRITICAL: No mic audio track available - candidate audio will NOT be recorded!');
+      }
 
       // Add Ava's audio if available - use MediaStreamSource directly for WebRTC
       if (avaAudioElement && avaAudioElement.srcObject instanceof MediaStream) {
@@ -209,6 +229,14 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       const videoTrack = cameraStreamRef.current.getVideoTracks()[0];
       const mixedAudioTrack = destination.stream.getAudioTracks()[0];
 
+      // Verify mixed audio track exists and log its state
+      console.log('[Audio Mixing] Mixed audio track check', {
+        hasMixedAudioTrack: !!mixedAudioTrack,
+        mixedAudioEnabled: mixedAudioTrack?.enabled,
+        mixedAudioMuted: mixedAudioTrack?.muted,
+        mixedAudioLabel: mixedAudioTrack?.label
+      });
+
       // For audio-only mode, we might not have a video track
       if (videoTrack) {
         combinedStreamRef.current = new MediaStream([videoTrack, mixedAudioTrack]);
@@ -218,7 +246,12 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
 
       console.log('[Audio Mixing] Combined stream created', {
         videoTracks: combinedStreamRef.current.getVideoTracks().length,
-        audioTracks: combinedStreamRef.current.getAudioTracks().length
+        audioTracks: combinedStreamRef.current.getAudioTracks().length,
+        audioTrackDetails: combinedStreamRef.current.getAudioTracks().map(t => ({ 
+          label: t.label, 
+          enabled: t.enabled, 
+          muted: t.muted 
+        }))
       });
 
       return combinedStreamRef.current;
