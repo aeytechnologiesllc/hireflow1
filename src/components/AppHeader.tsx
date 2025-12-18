@@ -52,7 +52,10 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
     : user?.email?.[0]?.toUpperCase() || "U";
 
   const userName = user?.user_metadata?.full_name || user?.email || "User";
-  const pageTitle = pageTitles[location.pathname] || "Dashboard";
+  const pageTitle = pageTitles[location.pathname] || "";
+  
+  // Hide title on detail pages (routes with IDs like /applicants/:id, /jobs/:id)
+  const isDetailPage = /\/(applicants|jobs|interviews|applications)\/[a-zA-Z0-9-]+/.test(location.pathname);
 
   return (
     <header className="h-14 md:h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
@@ -68,7 +71,9 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
             <Menu className="h-5 w-5" />
           </Button>
         )}
-        <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">{pageTitle}</h1>
+        {!isDetailPage && pageTitle && (
+          <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">{pageTitle}</h1>
+        )}
       </div>
 
       {/* Right side */}
