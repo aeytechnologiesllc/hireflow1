@@ -1159,6 +1159,7 @@ ${interviewType} Interview with AVA Results:
   const job = application.jobs;
   const isAutoPilot = job?.processing_mode === "auto";
   const passingScore = job?.passing_score || 60;
+  const isRejected = application.status === "rejected";
   
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
@@ -1419,6 +1420,49 @@ ${interviewType} Interview with AVA Results:
         </div>
       </div>
 
+      {/* Rejected Status Banner */}
+      {isRejected && (
+        <Card className="bg-destructive/10 border-destructive/30 border-l-4 border-l-destructive">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
+                  <XCircle className="h-6 w-6 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-destructive text-lg">Candidate Rejected</h3>
+                  <p className="text-sm text-muted-foreground">
+                    This candidate is no longer being considered for {job?.title || "this position"}.
+                  </p>
+                </div>
+              </div>
+              {canManagePipeline && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={async () => {
+                    try {
+                      await updateApplication.mutateAsync({ 
+                        id: application.id, 
+                        status: "reviewing" 
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["application", id] });
+                      toast.success("Candidate moved back to reviewing");
+                    } catch (error) {
+                      toast.error("Failed to reconsider candidate");
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Reconsider Candidate
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scheduled Interview Card */}
       {scheduledInterview && (
         <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
@@ -1529,8 +1573,16 @@ ${interviewType} Interview with AVA Results:
       )}
 
       {/* Candidate Journey */}
-      <Card className="bg-card border-border overflow-hidden">
-        <CardContent className="p-6">
+      <Card className={`bg-card border-border overflow-hidden ${isRejected ? 'relative' : ''}`}>
+        {/* Rejected Overlay */}
+        {isRejected && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] z-30 flex items-center justify-center pointer-events-none">
+            <div className="transform -rotate-12 border-4 border-destructive/50 rounded-lg px-8 py-3">
+              <span className="text-4xl font-bold text-destructive/70 tracking-widest">REJECTED</span>
+            </div>
+          </div>
+        )}
+        <CardContent className={`p-6 ${isRejected ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -1538,7 +1590,7 @@ ${interviewType} Interview with AVA Results:
             </div>
             
             <div className="flex items-center gap-3">
-              {canManagePipeline && (
+              {canManagePipeline && !isRejected && (
                 <Button 
                   variant="outline" 
                   onClick={handleReject}
@@ -1548,7 +1600,7 @@ ${interviewType} Interview with AVA Results:
                   Reject Candidate
                 </Button>
               )}
-              {canManagePipeline && (
+              {canManagePipeline && !isRejected && (
                 <Button 
                   variant="outline" 
                   onClick={() => setShowHelpDialog(true)}
