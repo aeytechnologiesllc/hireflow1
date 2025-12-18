@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,8 +10,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import avaOrbLogo from "@/assets/ava-orb.png";
 import { dispatchAvaFormCommand } from "@/utils/avaFormEvents";
+import { pulsingGlow } from "@/lib/animations";
 
 const FIRST_USE_KEY = 'ava_has_used_assistant';
 
@@ -39,28 +39,23 @@ export default function AvaVoiceButton() {
   }, [location.pathname]);
 
   const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
-    // No longer storing messages since we removed the chat panel
     console.log(`[${role}]: ${text}`);
   }, []);
 
   const handleToolCall = useCallback((toolName: string, result: any) => {
     console.log("Tool call result:", toolName, result);
 
-    // Invalidate relevant queries to sync dashboard when AVA performs actions
     if (result?.success || result?.action) {
-      // Handle open_applicant_page - instant navigation, no toast
       if (toolName === 'open_applicant_page' && result.action === 'navigate' && result.route) {
         navigate(result.route);
         return;
       }
       
-      // Handle navigation commands - minimal feedback
       if (toolName === 'navigate_to_page' && result.action === 'navigate' && result.route) {
         navigate(result.route);
         return;
       }
       
-      // Handle walkthrough navigation - synchronized with speech
       if (toolName === 'walkthrough_navigate') {
         if (result.completed) {
           toast.success("Walkthrough complete!");
@@ -73,7 +68,6 @@ export default function AvaVoiceButton() {
         return;
       }
       
-      // Handle message sent
       if (toolName === 'send_message' && result.success) {
         toast.success('Message sent!');
         queryClient.invalidateQueries({ queryKey: ["messages"] });
@@ -81,16 +75,13 @@ export default function AvaVoiceButton() {
         return;
       }
       
-      // Handle interactive job creation
       if (toolName === 'create_job_interactive') {
-        // Navigate to create job page if starting
         if (result.action === 'navigate_and_prepare' && result.route) {
           toast.success('Opening job creation wizard...');
           navigate(result.route);
           return;
         }
         
-        // Fill a field in the form
         if (result.action === 'fill_field' && result.field) {
           dispatchAvaFormCommand({
             action: 'fill_field',
@@ -100,7 +91,6 @@ export default function AvaVoiceButton() {
           return;
         }
         
-        // Navigate wizard steps
         if (result.action === 'navigate_step') {
           dispatchAvaFormCommand({
             action: 'navigate_step',
@@ -109,7 +99,6 @@ export default function AvaVoiceButton() {
           return;
         }
         
-        // Trigger generation (workflow or content)
         if (result.action === 'trigger_generate') {
           dispatchAvaFormCommand({
             action: 'trigger_generate',
@@ -118,7 +107,6 @@ export default function AvaVoiceButton() {
           return;
         }
         
-        // Submit the form
         if (result.action === 'submit') {
           dispatchAvaFormCommand({
             action: 'submit'
@@ -127,7 +115,6 @@ export default function AvaVoiceButton() {
         }
       }
       
-      // Handle interview scheduling
       if (toolName === 'schedule_interview' && result.success) {
         queryClient.invalidateQueries({ queryKey: ["interviews"] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
@@ -143,21 +130,18 @@ export default function AvaVoiceButton() {
       }
       
       if (toolName === 'move_applicant_to_phase' || toolName === 'reject_applicant') {
-        // Refresh application details and applicants list
         if (currentApplicationId) {
           queryClient.invalidateQueries({ queryKey: ["application", currentApplicationId] });
         }
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
       if (toolName === 'get_applicant_count' || toolName === 'get_job_stats' || toolName === 'list_recent_applicants') {
-        // Refresh jobs and applications data
         queryClient.invalidateQueries({ queryKey: ["jobs"] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
     }
   }, [queryClient, currentApplicationId, navigate]);
 
-  // Get Google Calendar connection state
   const googleAccessToken = localStorage.getItem("google_access_token");
   const googleRefreshToken = localStorage.getItem("google_refresh_token");
   const googleCalendarConnected = !!googleAccessToken;
@@ -176,7 +160,6 @@ export default function AvaVoiceButton() {
     applicationId: currentApplicationId,
     googleCalendarConnected,
     googleRefreshToken: googleRefreshToken || undefined,
-    // Pass user context for personalized AVA responses
     subscriptionPlan: subscription?.plan_type,
     subscriptionStatus: subscription?.status,
     countryCode: pricing.countryCode,
@@ -186,7 +169,6 @@ export default function AvaVoiceButton() {
     onToolCall: handleToolCall,
   });
 
-  // Mark as used after first connection
   useEffect(() => {
     if (isConnected && isFirstUse) {
       localStorage.setItem(FIRST_USE_KEY, 'true');
@@ -194,7 +176,6 @@ export default function AvaVoiceButton() {
     }
   }, [isConnected, isFirstUse]);
 
-  // Toggle button click - immediately starts/stops conversation
   const handleButtonClick = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired' || voiceAccessState === 'trial_exhausted') {
       setShowUpgradeDialog(true);
@@ -233,76 +214,55 @@ export default function AvaVoiceButton() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get button styling based on access state
-  const getButtonStyles = () => {
+  // Dark portal with green glow - base styles
+  const getPortalStyles = () => {
+    const baseStyles = "h-10 w-10 rounded-full bg-[hsl(220,15%,8%)] border border-border/30 transition-all duration-300";
+    
     switch (voiceAccessState) {
-      case 'full':
-      case 'trial':
-      case 'trial_exhausted': // Trial exhausted still shows premium orb, not amber
-        return "bg-transparent hover:bg-transparent shadow-none";
-      case 'exhausted': // Only Enterprise users with 0 minutes show amber
-        return "bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50";
+      case 'exhausted':
+        return cn(baseStyles, "border-amber-500/50");
       case 'locked':
       case 'expired':
+        return cn(baseStyles, "opacity-60");
       default:
-        return "bg-muted/50 hover:bg-muted/70 border border-muted-foreground/20";
+        return baseStyles;
     }
   };
 
   const getButtonContent = () => {
     if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
       return (
-        <div className="relative">
-          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-50 grayscale" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Lock className="h-5 w-5 text-muted-foreground" />
-          </div>
+        <div className="flex items-center justify-center">
+          <Lock className="h-4 w-4 text-muted-foreground" />
         </div>
       );
     }
-    // Enterprise users with 0 minutes show amber clock
+    
     if (voiceAccessState === 'exhausted') {
       return (
-        <div className="relative">
-          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-50" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Clock className="h-5 w-5 text-amber-500" />
-          </div>
+        <div className="flex items-center justify-center">
+          <Clock className="h-4 w-4 text-amber-500" />
         </div>
       );
     }
-    // Trial exhausted - still show premium orb with pulse (not amber)
-    if (voiceAccessState === 'trial_exhausted') {
-      return (
-        <motion.div 
-          className="relative"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <div className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125" />
-          <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
-        </motion.div>
-      );
-    }
+    
     if (isConnecting) {
       return (
-        <div className="relative">
-          <img src={avaOrbLogo} alt="AVA" className="h-12 w-12 object-contain opacity-70" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
+        <div className="flex items-center justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
         </div>
       );
     }
-    // When AVA is speaking - show green animated bars
+    
+    // Speaking - green animated bars
     if (isConnected && isSpeaking) {
       return (
-        <div className="flex items-end justify-center gap-0.5 h-10">
-          {[0, 1, 2, 3, 4].map((i) => (
+        <div className="flex items-end justify-center gap-0.5 h-5">
+          {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="w-1.5 bg-emerald-400 rounded-full"
-              animate={{ height: [12, 24, 16, 28, 12][i % 5] }}
+              className="w-1 bg-emerald-400 rounded-full"
+              animate={{ height: [6, 14, 10, 16, 6][i % 5] }}
               transition={{ 
                 duration: 0.2, 
                 repeat: Infinity, 
@@ -314,48 +274,55 @@ export default function AvaVoiceButton() {
         </div>
       );
     }
-    // When connected (user can speak) - show reactive audio bars throughout session
+    
+    // Listening - audio reactive bars
     if (isConnected) {
       return (
-        <div className="flex items-end justify-center gap-0.5 h-10">
-          {[0, 1, 2, 3, 4].map((i) => (
+        <div className="flex items-end justify-center gap-0.5 h-5">
+          {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="w-1.5 bg-primary rounded-full"
-              animate={{ height: audioLevels[i] }}
+              className="w-1 bg-primary rounded-full"
+              animate={{ height: audioLevels[i] ? audioLevels[i] * 0.6 : 4 }}
               transition={{ duration: 0.05, ease: "linear" }}
             />
           ))}
         </div>
       );
     }
-    // Show AVA orb with glow effect and subtle pulse (default/disconnected)
-    return (
-      <motion.div 
-        className="relative"
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <motion.div 
-          className="absolute inset-0 rounded-full bg-purple-500/30 blur-lg scale-125"
-          animate={{ opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <img src={avaOrbLogo} alt="AVA" className="relative h-12 w-12 object-contain" />
-      </motion.div>
-    );
+    
+    // Default - empty dark portal (the glow does the work)
+    return null;
   };
 
   const enterprisePrice = pricing.enterprise.monthlyFormatted;
 
+  // Determine glow animation based on state
+  const getGlowAnimation = () => {
+    if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
+      return {}; // No glow for locked state
+    }
+    if (voiceAccessState === 'exhausted') {
+      // Amber glow for exhausted
+      return {
+        animate: {
+          boxShadow: [
+            "0 0 15px -3px hsla(38, 92%, 50%, 0.5)",
+            "0 0 25px -3px hsla(38, 92%, 50%, 0.7)",
+            "0 0 15px -3px hsla(38, 92%, 50%, 0.5)"
+          ]
+        },
+        transition: pulsingGlow.transition
+      };
+    }
+    // Green glow for active states
+    return pulsingGlow;
+  };
+
   return (
     <>
-      {/* Floating Button */}
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="fixed bottom-6 right-6 z-50"
-      >
+      {/* Header-integrated button */}
+      <div className="relative">
         {/* Listening ring animation */}
         {isConnected && isListening && (
           <motion.div
@@ -371,7 +338,7 @@ export default function AvaVoiceButton() {
               ease: "easeInOut"
             }}
             style={{
-              border: "3px solid hsl(var(--primary))",
+              border: "2px solid hsl(var(--primary))",
             }}
           />
         )}
@@ -391,59 +358,58 @@ export default function AvaVoiceButton() {
               ease: "easeInOut"
             }}
             style={{
-              border: "3px solid hsl(142.1 76.2% 36.3%)",
+              border: "2px solid hsl(142.1 76.2% 36.3%)",
             }}
           />
         )}
 
-        <Button
+        <motion.button
           onClick={handleButtonClick}
           disabled={isConnecting}
-          variant="ghost"
           className={cn(
-            "h-16 w-16 rounded-full p-0 transition-all duration-300 relative",
-            getButtonStyles(),
-            isSpeaking && voiceAccessState !== 'locked' && "animate-pulse"
+            "relative flex items-center justify-center cursor-pointer",
+            getPortalStyles()
           )}
+          {...getGlowAnimation()}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
           {getButtonContent()}
-        </Button>
+        </motion.button>
 
-        {/* Trial minutes remaining badge */}
+        {/* Trial minutes badge */}
         {voiceAccessState === 'trial' && !isConnected && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg"
+            className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full shadow-lg"
           >
             {formatMinutes(voiceMinutesRemaining)}
           </motion.div>
         )}
 
-        {/* Exhausted badge - only for Enterprise users */}
+        {/* Exhausted badge */}
         {voiceAccessState === 'exhausted' && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg"
+            className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full shadow-lg"
           >
             0:00
           </motion.div>
         )}
-
-        {/* No badge for trial_exhausted - shows clean premium orb */}
 
         {/* Error indicator */}
         {error && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap"
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[8px] px-1.5 py-0.5 rounded-full whitespace-nowrap"
           >
             Error
           </motion.div>
         )}
-      </motion.div>
+      </div>
 
       {/* Upgrade Dialog */}
       <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
