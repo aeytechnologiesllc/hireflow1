@@ -37,7 +37,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { CandidatePerformanceReport } from "@/components/CandidatePerformanceReport";
 import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { generatePerformanceReport } from "@/utils/generatePerformanceReport";
+import { usePerformanceReport } from "@/hooks/usePerformanceReport";
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 
 interface WorkflowStep {
@@ -102,7 +102,6 @@ export default function CandidateApplicationDetail() {
   // Status screen state
   const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | null>(null);
   const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
 
@@ -299,22 +298,11 @@ export default function CandidateApplicationDetail() {
   }, [application]);
 
   // Handle report download from status screen
-  const handleDownloadReport = async () => {
-    if (!application || !profile) return;
-    
-    setIsGeneratingReport(true);
-    try {
-      await generatePerformanceReport(application, {
-        full_name: profile.full_name || "Candidate",
-        email: profile.email || user?.email || ""
-      });
-      toast.success("Performance report downloaded!");
-    } catch (error) {
-      console.error("Error generating report:", error);
-      toast.error("Failed to generate report");
-    } finally {
-      setIsGeneratingReport(false);
-    }
+  const { downloadReport, isGenerating: isGeneratingReportHook } = usePerformanceReport();
+  
+  const handleDownloadReport = () => {
+    if (!application) return;
+    downloadReport(application.id);
   };
 
   // Build phases from workflow
@@ -556,7 +544,7 @@ export default function CandidateApplicationDetail() {
         interviewDetails={interviewDetails || undefined}
         onClose={() => setStatusScreen(null)}
         onDownloadReport={handleDownloadReport}
-        isGeneratingReport={isGeneratingReport}
+        isGeneratingReport={isGeneratingReportHook}
       />
 
       <div className="space-y-6">
@@ -625,9 +613,7 @@ export default function CandidateApplicationDetail() {
           
           {/* Performance Report Download */}
           <CandidatePerformanceReport
-            application={application}
-            candidateName={profile?.full_name || null}
-            candidateEmail={profile?.email || user?.email || ""}
+            applicationId={application.id}
           />
         </div>
       )}

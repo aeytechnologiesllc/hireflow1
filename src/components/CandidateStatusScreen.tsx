@@ -63,7 +63,7 @@ export function CandidateStatusScreen({
   // Handle report download - use hook if applicationData provided, otherwise use callback
   const handleDownloadReport = () => {
     if (applicationData) {
-      downloadReport(applicationData, candidateId);
+      downloadReport(applicationData.id);
     } else if (onDownloadReport) {
       onDownloadReport();
     }
