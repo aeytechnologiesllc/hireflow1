@@ -662,6 +662,18 @@ export default function ApplicantDetails() {
           }
         });
         
+        // Clear skipped status for ALL phases at or after the reset destination
+        // This ensures any phase the candidate will pass through again is no longer marked as skipped
+        if (updatedNotes.employerSkippedPhases) {
+          const phasesAtOrAfterDestination = phases.slice(newIndex).map(p => p.id);
+          updatedNotes.employerSkippedPhases = updatedNotes.employerSkippedPhases.filter(
+            (id: string) => !phasesAtOrAfterDestination.includes(id)
+          );
+          if (updatedNotes.employerSkippedPhases.length === 0) {
+            delete updatedNotes.employerSkippedPhases;
+          }
+        }
+        
         // Determine if we're resetting to application phase (clear ai_score and resume)
         const isResetToApplication = newPhase.type === "application" || newPhase.id === "application";
         
