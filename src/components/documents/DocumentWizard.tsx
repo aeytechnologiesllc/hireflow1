@@ -648,11 +648,11 @@ export function DocumentWizard({
           name: docName,
           document_type: docType,
           file_url: fileUrl,
-          status: "pending",
+          status: "pending" as const,
           sender_id: user.id,
           recipient_id: app?.candidate_id || null,
           expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        })
+        } as any)
         .select()
         .single();
 

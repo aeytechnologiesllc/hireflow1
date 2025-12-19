@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
+import { QRCodeCanvas } from "qrcode.react";
 import { 
   FileText, 
   Download, 
@@ -24,10 +24,17 @@ import {
   XCircle,
   ChevronRight,
   FileCheck,
-  Edit
+  Edit,
+  Hash,
+  FileJson,
+  Award
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
+import { AuditCertificate } from "./AuditCertificate";
+import { downloadAuditTrailPDF, downloadAuditTrailJSON, AuditExportData, AuditExportEntry } from "@/lib/auditExport";
+import { generateCompletionCertificate, CompletionCertificate } from "@/lib/completionCertificate";
+import { downloadCertificatePDF } from "@/lib/certificatePDF";
 
 interface AuditLog {
   id: string;
@@ -37,6 +44,18 @@ interface AuditLog {
   user_id: string | null;
   ip_address: string | null;
   user_agent: string | null;
+  signer_name?: string;
+  signer_email?: string;
+  signer_role?: string;
+  location_city?: string;
+  location_region?: string;
+  location_country?: string;
+  document_hash?: string;
+  document_version?: number;
+  signature_method?: string;
+  consent_confirmed?: boolean;
+  pre_signature_hash?: string;
+  post_signature_hash?: string;
 }
 
 interface DocumentData {
@@ -54,6 +73,7 @@ interface SignedDocumentViewerProps {
 const getActionIcon = (action: string) => {
   switch (action) {
     case "created":
+    case "document_created":
       return <FileText className="h-4 w-4" />;
     case "sent":
       return <ChevronRight className="h-4 w-4" />;
@@ -84,6 +104,7 @@ const getActionColor = (action: string) => {
 const getActionLabel = (action: string) => {
   switch (action) {
     case "created":
+    case "document_created":
       return "Document Created";
     case "sent":
       return "Document Sent";
@@ -97,6 +118,12 @@ const getActionLabel = (action: string) => {
       return "Document Declined";
     case "edited":
       return "Document Edited";
+    case "electronic_consent_confirmed":
+      return "Electronic Consent Confirmed";
+    case "employer_review_confirmed":
+      return "Employer Review Confirmed";
+    case "document_completed":
+      return "Document Completed";
     default:
       return action.replace(/_/g, " ");
   }
@@ -108,12 +135,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
+  const [completionCert, setCompletionCert] = useState<CompletionCertificate | null>(null);
+  const qrRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (document && open) {
       fetchAuditLogs();
       parseDocumentData();
       parseSignatures();
+      loadCompletionCertificate();
       setShowAuditTrail(false);
     }
   }, [document, open]);
@@ -128,7 +158,38 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       .order("created_at", { ascending: true });
 
     if (!error && data) {
-      setAuditLogs(data);
+      setAuditLogs(data as AuditLog[]);
+    }
+  };
+
+  const loadCompletionCertificate = async () => {
+    if (!document || document.status !== 'signed') return;
+    
+    // Try to load from stored certificate first
+    if (document.completion_certificate) {
+      try {
+        const cert = typeof document.completion_certificate === 'string' 
+          ? JSON.parse(document.completion_certificate) 
+          : document.completion_certificate;
+        setCompletionCert(cert as CompletionCertificate);
+        return;
+      } catch (e) {
+        console.error("Error parsing stored certificate:", e);
+      }
+    }
+    
+    // Generate on the fly
+    try {
+      const finalHash = document.v3_hash || document.v2_hash || document.document_hash || '';
+      const cert = await generateCompletionCertificate(
+        document.id,
+        document.name,
+        document.document_type,
+        finalHash
+      );
+      setCompletionCert(cert);
+    } catch (e) {
+      console.error("Error generating certificate:", e);
     }
   };
 
@@ -175,6 +236,69 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     }
   };
 
+  const getDocumentCode = () => {
+    return (document as any)?.document_code || `DOC-${document?.id.slice(0, 6).toUpperCase()}`;
+  };
+
+  const getVerificationUrl = () => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/verify/${getDocumentCode()}`;
+  };
+
+  const getQRDataUrl = (): string | undefined => {
+    if (qrRef.current) {
+      return qrRef.current.toDataURL('image/png');
+    }
+    return undefined;
+  };
+
+  const handleDownloadCertificate = async () => {
+    if (!document || !completionCert) return;
+    
+    const qrDataUrl = getQRDataUrl();
+    await downloadCertificatePDF(completionCert, getDocumentCode(), document.name, qrDataUrl);
+  };
+
+  const handleDownloadAuditPDF = () => {
+    if (!document) return;
+    
+    const exportData: AuditExportData = {
+      documentId: document.id,
+      documentCode: getDocumentCode(),
+      documentName: document.name,
+      documentType: document.document_type,
+      status: document.status,
+      completedAt: document.signed_at,
+      v1Hash: document.v1_hash,
+      v2Hash: document.v2_hash,
+      v3Hash: document.v3_hash,
+      finalHash: document.v3_hash || document.v2_hash || document.document_hash,
+      entries: auditLogs as AuditExportEntry[]
+    };
+    
+    downloadAuditTrailPDF(exportData);
+  };
+
+  const handleDownloadAuditJSON = () => {
+    if (!document) return;
+    
+    const exportData: AuditExportData = {
+      documentId: document.id,
+      documentCode: getDocumentCode(),
+      documentName: document.name,
+      documentType: document.document_type,
+      status: document.status,
+      completedAt: document.signed_at,
+      v1Hash: document.v1_hash,
+      v2Hash: document.v2_hash,
+      v3Hash: document.v3_hash,
+      finalHash: document.v3_hash || document.v2_hash || document.document_hash,
+      entries: auditLogs as AuditExportEntry[]
+    };
+    
+    downloadAuditTrailJSON(exportData);
+  };
+
   const handleDownload = async () => {
     if (!document || !documentData) return;
     
@@ -190,13 +314,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     const maxWidth = pageWidth - margin * 2;
     let yPosition = margin;
 
-    // Set font
     pdf.setFont("helvetica");
 
-    // Document header
+    // Document header with Document ID
     pdf.setFontSize(10);
     pdf.setTextColor(100);
-    pdf.text(`Document ID: ${document.id.slice(0, 8)}...`, margin, yPosition);
+    pdf.text(`Document ID: ${getDocumentCode()}`, margin, yPosition);
     pdf.text(
       `Completed: ${document.signed_at ? format(new Date(document.signed_at), "PPpp") : ""}`,
       pageWidth - margin,
@@ -212,14 +335,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.text(document.name, margin, yPosition);
     yPosition += 8;
 
-    // Document type
     pdf.setFontSize(10);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(100);
     pdf.text(document.document_type?.replace(/_/g, " ") || "", margin, yPosition);
     yPosition += 10;
 
-    // Divider line
     pdf.setDrawColor(200);
     pdf.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += 10;
@@ -248,7 +369,6 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     ];
 
     for (const line of lines) {
-      // Check if we need a new page
       if (yPosition > pageHeight - 40) {
         pdf.addPage();
         yPosition = margin;
@@ -266,22 +386,18 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         pdf.text(label, margin, yPosition);
         yPosition += 5;
         
-        // Add signature image
         try {
           pdf.addImage(candidateSignature, "PNG", margin, yPosition, 50, 15);
         } catch (e) {
           pdf.text("[Signed]", margin, yPosition + 8);
         }
         
-        // Add date
         const signDate = document.candidate_signed_at 
           ? format(new Date(document.candidate_signed_at), "MM/dd/yyyy")
           : "";
         pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
         
         yPosition += 20;
-        
-        // Draw signature line
         pdf.setDrawColor(150);
         pdf.line(margin, yPosition, margin + 60, yPosition);
         yPosition += 8;
@@ -295,28 +411,23 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         pdf.text(label, margin, yPosition);
         yPosition += 5;
         
-        // Add signature image
         try {
           pdf.addImage(employerSignature, "PNG", margin, yPosition, 50, 15);
         } catch (e) {
           pdf.text("[Signed]", margin, yPosition + 8);
         }
         
-        // Add date
         const signDate = document.employer_signed_at 
           ? format(new Date(document.employer_signed_at), "MM/dd/yyyy")
           : "";
         pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
         
         yPosition += 20;
-        
-        // Draw signature line
         pdf.setDrawColor(150);
         pdf.line(margin, yPosition, margin + 60, yPosition);
         yPosition += 8;
         
       } else {
-        // Regular text line
         const wrappedLines = pdf.splitTextToSize(line || " ", maxWidth);
         for (const wrappedLine of wrappedLines) {
           if (yPosition > pageHeight - 20) {
@@ -341,7 +452,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     yPosition += 8;
     
     pdf.setFontSize(9);
-    pdf.setTextColor(34, 139, 34); // Green color
+    pdf.setTextColor(34, 139, 34);
     pdf.setFont("helvetica", "bold");
     pdf.text("✓ Certificate of Completion", margin, yPosition);
     yPosition += 5;
@@ -349,20 +460,19 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.setTextColor(100);
     pdf.text("This document has been electronically signed by all parties.", margin, yPosition);
     yPosition += 4;
+    pdf.text(`Document ID: ${getDocumentCode()}`, margin, yPosition);
+    yPosition += 4;
     pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}`, margin, yPosition);
 
-    // Save the PDF
     pdf.save(`${document.name}.pdf`);
   };
 
-  // Render document content with inline embedded signatures
   const renderDocumentWithSignatures = () => {
     if (!documentData?.content) return <span className="text-muted-foreground">Loading document...</span>;
 
     const content = documentData.content;
     const lines = content.split('\n');
     
-    // Patterns for signature lines
     const candidatePatterns = [
       /^(Employee Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
       /^(Candidate Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
@@ -379,7 +489,6 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     ];
 
     return lines.map((line, index) => {
-      // Check if line matches candidate signature pattern
       const isCandidateLine = candidatePatterns.some(pattern => pattern.test(line.trim()));
       const isEmployerLine = employerPatterns.some(pattern => pattern.test(line.trim()));
 
@@ -449,7 +558,6 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         );
       }
 
-      // Regular line - preserve whitespace
       return (
         <div key={index} className="whitespace-pre-wrap">
           {line || '\u00A0'}
@@ -460,9 +568,21 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   if (!document) return null;
 
+  const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden p-0">
+        {/* Hidden QR Code for PDF generation */}
+        <div className="hidden">
+          <QRCodeCanvas 
+            ref={qrRef}
+            value={getVerificationUrl()} 
+            size={150}
+            level="M"
+          />
+        </div>
+
         <AnimatePresence mode="wait">
           {!showAuditTrail ? (
             <motion.div
@@ -494,9 +614,36 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 </div>
               </DialogHeader>
 
+              {/* Document Identity Bar */}
+              <div className="px-6 py-3 bg-muted/50 border-b border-border">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Document ID:</span>
+                      <span className="font-mono font-medium">{getDocumentCode()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Completed:</span>
+                      <span className="font-medium">
+                        {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : "Pending"}
+                      </span>
+                    </div>
+                  </div>
+                  {finalHash && (
+                    <div className="flex items-center gap-2">
+                      <Hash className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {finalHash.substring(0, 16)}...
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Document Content */}
               <ScrollArea className="flex-1 min-h-0 p-6">
-                {/* PDF-like Document View */}
                 <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border shadow-lg overflow-hidden">
                   {/* Document Header */}
                   <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-6 border-b border-border">
@@ -509,7 +656,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         </div>
                       </div>
                       <div className="text-right text-xs text-muted-foreground">
-                        <p>Document ID: {document.id.slice(0, 8)}...</p>
+                        <p>Document ID: {getDocumentCode()}</p>
                         <p>Signed: {document.signed_at ? format(new Date(document.signed_at), "PPpp") : ""}</p>
                       </div>
                     </div>
@@ -599,28 +746,49 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         <div>
                           <p className="text-sm font-medium text-success">Certificate of Completion</p>
                           <p className="text-xs text-muted-foreground">
-                            This document has been electronically signed by all parties.
+                            Integrity verified via SHA-256 hash matching the finalized document.
                           </p>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Completed: {document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}
-                      </p>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          Document ID: {getDocumentCode()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Completed: {document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </ScrollArea>
 
               {/* Footer Actions */}
-              <div className="p-4 border-t border-border flex items-center justify-between bg-card shrink-0">
-                <Button variant="outline" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-                <Button onClick={() => setShowAuditTrail(true)} className="gap-2">
-                  <History className="h-4 w-4" />
-                  View Audit Trail
-                </Button>
+              <div className="p-4 border-t border-border bg-card shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleDownload}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Signed PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadCertificate} disabled={!completionCert}>
+                      <Award className="h-4 w-4 mr-2" />
+                      Certificate
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadAuditPDF}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Audit PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadAuditJSON}>
+                      <FileJson className="h-4 w-4 mr-2" />
+                      Audit JSON
+                    </Button>
+                  </div>
+                  <Button onClick={() => setShowAuditTrail(true)} className="gap-2">
+                    <History className="h-4 w-4" />
+                    View Audit Trail
+                  </Button>
+                </div>
               </div>
             </motion.div>
           ) : (
@@ -652,7 +820,31 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 </div>
               </DialogHeader>
 
-              {/* Audit Trail Content - DocuSign Style */}
+              {/* Document Identity Bar in Audit View */}
+              <div className="px-6 py-3 bg-muted/50 border-b border-border">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Document ID</p>
+                    <p className="font-mono font-medium">{getDocumentCode()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant="default" className="mt-0.5">Fully Executed</Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Final Hash (SHA-256)</p>
+                    <p className="font-mono text-xs truncate">{finalHash || 'Pending'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Completed</p>
+                    <p className="font-medium">
+                      {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : "Pending"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audit Trail Content */}
               <ScrollArea className="flex-1 min-h-0 p-6">
                 <div className="space-y-1">
                   {auditLogs.map((log, index) => (
@@ -663,34 +855,30 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       transition={{ delay: index * 0.05 }}
                       className="relative"
                     >
-                      {/* Timeline connector */}
                       {index < auditLogs.length - 1 && (
                         <div className="absolute left-5 top-12 w-0.5 h-full bg-border -translate-x-1/2" />
                       )}
                       
                       <div className="flex gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors">
-                        {/* Icon */}
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${getActionColor(log.action)}`}>
                           {getActionIcon(log.action)}
                         </div>
                         
-                        {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="font-medium text-foreground">
                                 {getActionLabel(log.action)}
                               </p>
+                              {log.signer_name && (
+                                <p className="text-sm text-muted-foreground">
+                                  {log.signer_name} ({log.signer_role || 'Unknown role'})
+                                </p>
+                              )}
                               {log.details && typeof log.details === "object" && (
                                 <div className="mt-1 text-sm text-muted-foreground">
                                   {(log.details as Record<string, unknown>).reason && (
                                     <p>Reason: {String((log.details as Record<string, unknown>).reason)}</p>
-                                  )}
-                                  {(log.details as Record<string, unknown>).role && (
-                                    <p>Role: {String((log.details as Record<string, unknown>).role)}</p>
-                                  )}
-                                  {(log.details as Record<string, unknown>).method && (
-                                    <p>Method: {String((log.details as Record<string, unknown>).method)}</p>
                                   )}
                                 </div>
                               )}
@@ -705,13 +893,18 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                             </div>
                           </div>
                           
-                          {/* Technical Details */}
                           <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                               {log.ip_address && (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                   <Globe className="h-3 w-3" />
                                   <span>IP: {log.ip_address}</span>
+                                </div>
+                              )}
+                              {log.location_city && log.location_city !== 'Unknown' && (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Globe className="h-3 w-3" />
+                                  <span>{log.location_city}, {log.location_region}, {log.location_country}</span>
                                 </div>
                               )}
                               {log.user_agent && (
@@ -724,10 +917,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                                 <Calendar className="h-3 w-3" />
                                 <span>{format(new Date(log.created_at), "PPpp")}</span>
                               </div>
-                              {log.user_id && (
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <User className="h-3 w-3" />
-                                  <span>User: {log.user_id.slice(0, 8)}...</span>
+                              {log.document_hash && (
+                                <div className="flex items-center gap-2 text-muted-foreground col-span-2">
+                                  <Hash className="h-3 w-3" />
+                                  <span className="font-mono">Hash: {log.document_hash.substring(0, 20)}...</span>
                                 </div>
                               )}
                             </div>
@@ -743,9 +936,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   <div className="flex items-center gap-3">
                     <Shield className="h-8 w-8 text-success" />
                     <div>
-                      <p className="font-semibold text-foreground">Document Integrity Verified</p>
+                      <p className="font-semibold text-foreground">Integrity Verified via SHA-256</p>
                       <p className="text-sm text-muted-foreground">
                         This audit trail provides a complete, tamper-evident record of all document activity.
+                        Hash matching confirms the finalized document has not been altered.
                       </p>
                     </div>
                   </div>

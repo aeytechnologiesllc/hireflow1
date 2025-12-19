@@ -191,11 +191,11 @@ export function CreateDocumentDialog({ open, onOpenChange, applications }: Creat
           name: documentName,
           document_type: documentType,
           file_url: `data:text/plain;base64,${btoa(documentContent)}`,
-          status: "pending",
+          status: "pending" as const,
           sender_id: user.id,
           recipient_id: app?.candidate_id,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-        })
+        } as any)
         .select()
         .single();
 

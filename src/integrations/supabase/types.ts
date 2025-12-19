@@ -222,6 +222,7 @@ export type Database = {
           created_at: string
           decline_reason: string | null
           declined_at: string | null
+          document_code: string
           document_hash: string | null
           document_type: string | null
           employer_signature_data: string | null
@@ -258,6 +259,7 @@ export type Database = {
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
+          document_code: string
           document_hash?: string | null
           document_type?: string | null
           employer_signature_data?: string | null
@@ -294,6 +296,7 @@ export type Database = {
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
+          document_code?: string
           document_hash?: string | null
           document_type?: string | null
           employer_signature_data?: string | null

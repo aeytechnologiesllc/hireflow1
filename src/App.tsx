@@ -40,6 +40,7 @@ import NotFound from "./pages/NotFound";
 import MarketingDemo from "./pages/MarketingDemo";
 import CandidatePortalLanding from "./pages/CandidatePortalLanding";
 import CandidateAuth from "./pages/CandidateAuth";
+import VerifyDocument from "./pages/VerifyDocument";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,9 @@ const App = () => (
             
             {/* Marketing Demo (full-screen, no layout) */}
             <Route path="/marketing-demo" element={<MarketingDemo />} />
+            
+            {/* Document Verification (public, outside AppLayout) */}
+            <Route path="/verify/:documentCode" element={<VerifyDocument />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
