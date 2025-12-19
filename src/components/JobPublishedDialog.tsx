@@ -325,9 +325,12 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             <Button variant="outline" onClick={onClose} className="flex-1">
               Done
             </Button>
-            <Button onClick={() => window.open(`/jobs/${job.id}`, "_blank")} className="flex-1 gap-2">
+            <Button onClick={() => {
+              onClose();
+              window.location.href = "/jobs";
+            }} className="flex-1 gap-2">
               <ExternalLink className="h-4 w-4" />
-              View Job
+              View Jobs
             </Button>
           </motion.div>
         </div>
