@@ -42,6 +42,8 @@ import CandidatePortalLanding from "./pages/CandidatePortalLanding";
 import CandidateAuth from "./pages/CandidateAuth";
 import VerifyDocument from "./pages/VerifyDocument";
 import OAuthGoogleCallback from "./pages/OAuthGoogleCallback";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +106,10 @@ const App = () => (
             
             {/* OAuth Callback (public, outside AppLayout) */}
             <Route path="/oauth/google/callback" element={<OAuthGoogleCallback />} />
+            
+            {/* Legal Pages (public, outside AppLayout) */}
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
