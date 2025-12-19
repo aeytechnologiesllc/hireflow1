@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -68,11 +69,14 @@ export default function Auth() {
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
 
+  // Check for redirect parameter (e.g., from guest job creation)
+  const redirectTo = searchParams.get("redirect");
+
   useEffect(() => {
     if (user && !authLoading) {
-      navigate("/dashboard");
+      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, redirectTo]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +111,7 @@ export default function Auth() {
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
-      navigate("/dashboard");
+      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
 
     setIsLoading(false);
@@ -150,7 +154,7 @@ export default function Auth() {
         title: "Account created!",
         description: "Welcome to HireFlow. You can now start using the platform.",
       });
-      navigate("/dashboard");
+      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
 
     setIsLoading(false);
