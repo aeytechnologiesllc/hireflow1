@@ -814,13 +814,13 @@ export default function ApplicantDetails() {
           }
         }
         
-        // Determine if we're resetting to application phase (clear ai_score and resume)
-        const isResetToApplication = newPhase.type === "application" || newPhase.id === "application";
+        // Determine if we're resetting to application or start phase (clear ai_score, resume, and application answers)
+        const isResetToApplication = newPhase.type === "journey_start" || newPhase.type === "application" || newPhase.id === "application";
         
         // Check if any voice_interview phases are being reset
         const isResettingVoiceInterview = phasesToReset.some((p: any) => p.type === "voice_interview");
         
-        // If resetting to application, also clear the application answers so candidate can re-submit
+        // If resetting to application or start, also clear the application answers so candidate can re-submit
         if (isResetToApplication) {
           delete updatedNotes.applicationAnswers;
         }
@@ -1786,6 +1786,14 @@ ${interviewType} Interview with AVA Results:
               const isSkipped = parsedNotes.employerSkippedPhases?.includes(phase.id);
               const isStartPhase = phase.type === "journey_start";
               
+              // Start point turns green when candidate has begun their journey:
+              // - They've moved past Start (effectivePhaseIndex > 0), OR
+              // - They're at Start but Application phase has data (they've started filling it)
+              const isStartCompleted = isStartPhase && (
+                effectivePhaseIndex > 0 || 
+                (effectivePhaseIndex === 0 && hasCompletedCurrentPhase("application", "application"))
+              );
+              
               return (
                 <div 
                   key={phase.id}
@@ -1798,7 +1806,7 @@ ${interviewType} Interview with AVA Results:
                       isStartPhase ? "w-3 h-3" : "w-4 h-4"
                     } ${
                       isSkipped ? "bg-amber-500" :
-                      isStartPhase ? "bg-muted-foreground/50" :
+                      isStartPhase ? (isStartCompleted ? "bg-success" : "bg-muted-foreground/50") :
                       isCompleted ? phaseColors.completed : 
                       isCurrent ? phaseColors.current : 
                       phaseColors.upcoming
@@ -1811,7 +1819,7 @@ ${interviewType} Interview with AVA Results:
                       <FastForward className="h-5 w-5 text-amber-500" />
                     ) : (
                       <Icon className={`${isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
-                        isStartPhase ? "text-muted-foreground/60" :
+                        isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
                         isCompleted ? "text-success" : 
                         isCurrent ? "text-warning" : 
                         "text-muted-foreground"
@@ -1819,7 +1827,7 @@ ${interviewType} Interview with AVA Results:
                     )}
                     <span className={`text-xs mt-1 ${
                       isSkipped ? "text-amber-500" :
-                      isStartPhase ? "text-muted-foreground/60" :
+                      isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
                       isCompleted ? "text-success" : 
                       isCurrent ? "text-warning" : 
                       "text-muted-foreground"
