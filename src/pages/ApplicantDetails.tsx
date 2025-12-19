@@ -1362,23 +1362,25 @@ ${interviewType} Interview with AVA Results:
     
     // Application badge (always present)
     const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
+    const isApplicationSkipped = skippedPhases.includes("application");
     badges.push({
       id: "application",
       title: "Application",
       type: "application",
       hasData: hasApplicationData,
-      isSkipped: false,
+      isSkipped: isApplicationSkipped,
       icon: FileCheck,
     });
     
     // Resume badge (if resume uploaded or required)
+    // Resume is also skipped if Application is skipped (since resume is part of application)
     if (job?.require_resume !== false || resumeUrl) {
       badges.push({
         id: "resume",
         title: "Resume",
         type: "resume",
         hasData: !!resumeUrl,
-        isSkipped: skippedPhases.includes("resume"),
+        isSkipped: skippedPhases.includes("resume") || isApplicationSkipped,
         score: application.ai_score || undefined,
         icon: FileText,
       });
