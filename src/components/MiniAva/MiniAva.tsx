@@ -3,18 +3,6 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import type { PersonalityState } from './useAvaPersonality';
 import type { AvaExpression } from './useAvaReactions';
 
-// Import all Ava images
-import avaNeutral from '@/assets/ava-neutral.png';
-import avaThinking from '@/assets/ava-thinking.png';
-import avaCelebrating from '@/assets/ava-celebrating.png';
-import avaProud from '@/assets/ava-proud.png';
-import avaEncouraging from '@/assets/ava-encouraging.png';
-import avaEmpathetic from '@/assets/ava-empathetic.png';
-import avaWaving from '@/assets/ava-waving.png';
-import avaListening from '@/assets/ava-listening.png';
-import avaSpeaking from '@/assets/ava-speaking.png';
-import avaOrb from '@/assets/ava-orb.png';
-
 interface MiniAvaProps {
   personalityState: PersonalityState;
   expression: AvaExpression;
@@ -41,11 +29,11 @@ export default function MiniAva({
   isListening = false,
   isSpeaking = false,
 }: MiniAvaProps) {
-  // Animation states
   const [headTilt, setHeadTilt] = useState(0);
   const [sparkles, setSparkles] = useState<Sparkle[]>([]);
   const [isWaking, setIsWaking] = useState(false);
   const [prevState, setPrevState] = useState<PersonalityState>(personalityState);
+  const [isBlinking, setIsBlinking] = useState(false);
 
   // Detect wake-up for stretch animation
   useEffect(() => {
@@ -61,14 +49,35 @@ export default function MiniAva({
     if (personalityState === 'sleeping') return;
     
     const tiltInterval = setInterval(() => {
-      if (Math.random() > 0.75) {
-        const tilt = (Math.random() - 0.5) * 12;
+      if (Math.random() > 0.7) {
+        const tilt = (Math.random() - 0.5) * 10;
         setHeadTilt(tilt);
-        setTimeout(() => setHeadTilt(0), 1000);
+        setTimeout(() => setHeadTilt(0), 1200);
       }
-    }, 6000 + Math.random() * 4000);
+    }, 4000 + Math.random() * 3000);
     
     return () => clearInterval(tiltInterval);
+  }, [personalityState]);
+
+  // Blinking animation
+  useEffect(() => {
+    if (personalityState === 'sleeping') return;
+    
+    const blink = () => {
+      setIsBlinking(true);
+      setTimeout(() => setIsBlinking(false), 150);
+    };
+
+    const scheduleNextBlink = () => {
+      const delay = 2500 + Math.random() * 4000;
+      return setTimeout(() => {
+        blink();
+        scheduleNextBlink();
+      }, delay);
+    };
+
+    const timeoutId = scheduleNextBlink();
+    return () => clearTimeout(timeoutId);
   }, [personalityState]);
 
   // Sparkle generation
@@ -97,7 +106,6 @@ export default function MiniAva({
       }
     }, expression === 'celebrating' ? 400 : 2500);
     
-    // Initial sparkle on hover
     if (isHovered) {
       generateSparkle();
     }
@@ -105,54 +113,184 @@ export default function MiniAva({
     return () => clearInterval(sparkleInterval);
   }, [personalityState, isHovered, expression, generateSparkle]);
 
-  // Select the correct Ava image based on state and expression
-  const avaImage = useMemo(() => {
-    // Sleeping mode uses orb
-    if (personalityState === 'sleeping') {
-      return avaOrb;
-    }
+  // Determine current visual state
+  const visualState = useMemo(() => {
+    if (personalityState === 'sleeping') return 'sleeping';
+    if (isBlinking) return 'blinking';
+    if (isListening) return 'listening';
+    if (isSpeaking) return 'speaking';
+    if (expression === 'celebrating') return 'celebrating';
+    if (expression === 'happy') return 'happy';
+    if (expression === 'excited') return 'excited';
+    if (expression === 'concerned') return 'concerned';
+    if (expression === 'thinking') return 'thinking';
+    if (expression === 'waving') return 'waving';
+    if (expression === 'poked') return 'poked';
+    if (personalityState === 'drowsy') return 'drowsy';
+    if (personalityState === 'curious') return 'curious';
+    return 'neutral';
+  }, [personalityState, expression, isListening, isSpeaking, isBlinking]);
 
-    // Voice states take priority
-    if (isSpeaking) {
-      return avaSpeaking;
-    }
-    if (isListening) {
-      return avaListening;
-    }
+  // Render eyes based on visual state
+  const renderEyes = () => {
+    const leftX = 35;
+    const rightX = 65;
+    const baseY = 42;
 
-    // Expression-based selection
-    switch (expression) {
-      case 'celebrating':
-        return avaCelebrating;
-      case 'happy':
-        return avaProud;
-      case 'excited':
-        return avaEncouraging;
-      case 'concerned':
-        return avaEmpathetic;
-      case 'thinking':
-        return avaThinking;
-      case 'waving':
-        return avaWaving;
-      case 'poked':
-        return avaSpeaking;
-      default:
-        break;
-    }
-
-    // Personality state fallbacks
-    switch (personalityState) {
+    switch (visualState) {
+      case 'sleeping':
+        return (
+          <>
+            <path d={`M ${leftX - 6} ${baseY + 2} Q ${leftX} ${baseY + 6} ${leftX + 6} ${baseY + 2}`} 
+                  stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+            <path d={`M ${rightX - 6} ${baseY + 2} Q ${rightX} ${baseY + 6} ${rightX + 6} ${baseY + 2}`} 
+                  stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          </>
+        );
+      case 'blinking':
+        return (
+          <>
+            <line x1={leftX - 5} y1={baseY} x2={leftX + 5} y2={baseY} stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1={rightX - 5} y1={baseY} x2={rightX + 5} y2={baseY} stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" />
+          </>
+        );
       case 'drowsy':
-        return avaThinking;
+        return (
+          <>
+            <ellipse cx={leftX} cy={baseY + 1} rx="5" ry="3" fill="#5D4E37" />
+            <ellipse cx={rightX} cy={baseY + 1} rx="5" ry="3" fill="#5D4E37" />
+            <circle cx={leftX + 1.5} cy={baseY} r="1.2" fill="white" opacity="0.7" />
+            <circle cx={rightX + 1.5} cy={baseY} r="1.2" fill="white" opacity="0.7" />
+          </>
+        );
+      case 'celebrating':
+      case 'excited':
+        return (
+          <>
+            <text x={leftX} y={baseY + 5} textAnchor="middle" fontSize="12" fill="#F59E0B">★</text>
+            <text x={rightX} y={baseY + 5} textAnchor="middle" fontSize="12" fill="#F59E0B">★</text>
+          </>
+        );
+      case 'happy':
+      case 'waving':
+        return (
+          <>
+            <path d={`M ${leftX - 5} ${baseY + 2} Q ${leftX} ${baseY - 3} ${leftX + 5} ${baseY + 2}`} 
+                  stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+            <path d={`M ${rightX - 5} ${baseY + 2} Q ${rightX} ${baseY - 3} ${rightX + 5} ${baseY + 2}`} 
+                  stroke="#5D4E37" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          </>
+        );
+      case 'poked':
+        return (
+          <>
+            <circle cx={leftX} cy={baseY} r="7" fill="#5D4E37" />
+            <circle cx={rightX} cy={baseY} r="7" fill="#5D4E37" />
+            <circle cx={leftX + 2} cy={baseY - 2} r="2.5" fill="white" />
+            <circle cx={rightX + 2} cy={baseY - 2} r="2.5" fill="white" />
+          </>
+        );
+      case 'thinking':
       case 'curious':
-        return avaListening;
-      default:
-        return avaNeutral;
+        return (
+          <>
+            <circle cx={leftX} cy={baseY - 1} r="5" fill="#5D4E37" />
+            <circle cx={rightX + 2} cy={baseY - 2} r="5" fill="#5D4E37" />
+            <circle cx={leftX + 2} cy={baseY - 3} r="1.8" fill="white" />
+            <circle cx={rightX + 4} cy={baseY - 4} r="1.8" fill="white" />
+          </>
+        );
+      case 'concerned':
+        return (
+          <>
+            <ellipse cx={leftX} cy={baseY} rx="5" ry="6" fill="#5D4E37" />
+            <ellipse cx={rightX} cy={baseY} rx="5" ry="6" fill="#5D4E37" />
+            <circle cx={leftX + 1.5} cy={baseY - 2} r="2" fill="white" opacity="0.9" />
+            <circle cx={rightX + 1.5} cy={baseY - 2} r="2" fill="white" opacity="0.9" />
+            {/* Worried eyebrows */}
+            <line x1={leftX - 5} y1={baseY - 10} x2={leftX + 3} y2={baseY - 8} stroke="#5D4E37" strokeWidth="2" strokeLinecap="round" />
+            <line x1={rightX + 5} y1={baseY - 10} x2={rightX - 3} y2={baseY - 8} stroke="#5D4E37" strokeWidth="2" strokeLinecap="round" />
+          </>
+        );
+      case 'listening':
+        return (
+          <>
+            <circle cx={leftX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={rightX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={leftX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+            <circle cx={rightX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+          </>
+        );
+      case 'speaking':
+        return (
+          <>
+            <circle cx={leftX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={rightX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={leftX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+            <circle cx={rightX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+          </>
+        );
+      default: // neutral
+        return (
+          <>
+            <circle cx={leftX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={rightX} cy={baseY} r="5" fill="#5D4E37" />
+            <circle cx={leftX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+            <circle cx={rightX + 1.5} cy={baseY - 1.5} r="2" fill="white" />
+          </>
+        );
     }
-  }, [personalityState, expression, isListening, isSpeaking]);
+  };
 
-  // Sleeping indicator
-  const showZzz = personalityState === 'sleeping';
+  // Render mouth based on visual state
+  const renderMouth = () => {
+    const centerX = 50;
+    const mouthY = 58;
+
+    switch (visualState) {
+      case 'sleeping':
+        return <line x1={centerX - 4} y1={mouthY} x2={centerX + 4} y2={mouthY} 
+                     stroke="#A0522D" strokeWidth="2" strokeLinecap="round" />;
+      case 'celebrating':
+      case 'excited':
+      case 'happy':
+      case 'waving':
+        return (
+          <path d={`M ${centerX - 8} ${mouthY - 2} Q ${centerX} ${mouthY + 8} ${centerX + 8} ${mouthY - 2}`}
+                stroke="#A0522D" strokeWidth="2" strokeLinecap="round" fill="#FFB5A7" fillOpacity="0.4" />
+        );
+      case 'poked':
+        return <ellipse cx={centerX} cy={mouthY + 2} rx="5" ry="6" fill="#A0522D" fillOpacity="0.6" />;
+      case 'thinking':
+        return <circle cx={centerX + 4} cy={mouthY} r="3" fill="#A0522D" fillOpacity="0.5" />;
+      case 'concerned':
+        return (
+          <path d={`M ${centerX - 5} ${mouthY + 3} Q ${centerX} ${mouthY - 2} ${centerX + 5} ${mouthY + 3}`}
+                stroke="#A0522D" strokeWidth="2" strokeLinecap="round" fill="none" />
+        );
+      case 'drowsy':
+        return (
+          <path d={`M ${centerX - 4} ${mouthY} Q ${centerX} ${mouthY + 3} ${centerX + 4} ${mouthY}`}
+                stroke="#A0522D" strokeWidth="2" strokeLinecap="round" fill="none" />
+        );
+      case 'listening':
+        return <circle cx={centerX} cy={mouthY} r="3" fill="#A0522D" fillOpacity="0.4" />;
+      case 'speaking':
+        return (
+          <motion.ellipse 
+            cx={centerX} cy={mouthY + 1} rx="5" ry="4" 
+            fill="#A0522D" fillOpacity="0.5"
+            animate={{ ry: [3, 5, 2, 4, 3] }}
+            transition={{ duration: 0.35, repeat: Infinity }}
+          />
+        );
+      default: // neutral, curious
+        return (
+          <path d={`M ${centerX - 6} ${mouthY} Q ${centerX} ${mouthY + 5} ${centerX + 6} ${mouthY}`}
+                stroke="#A0522D" strokeWidth="2" strokeLinecap="round" fill="none" />
+        );
+    }
+  };
 
   return (
     <motion.div
@@ -166,7 +304,7 @@ export default function MiniAva({
           : expression === 'poked'
           ? { scale: [1, 0.88, 1.18, 1], y: [0, 3, -6, 0] }
           : expression === 'waving'
-          ? { rotate: [0, -10, 10, -10, 0] }
+          ? { rotate: [0, -8, 8, -8, 0] }
           : { scale: 1, rotate: headTilt }
       }
       transition={{ 
@@ -174,7 +312,23 @@ export default function MiniAva({
         ease: 'easeOut'
       }}
     >
-      {/* Breathing animation wrapper */}
+      {/* Glow effect */}
+      <AnimatePresence>
+        {(isHovered || expression === 'celebrating') && (
+          <motion.div
+            className="absolute inset-0 -z-10 rounded-full"
+            style={{
+              background: 'radial-gradient(circle, hsla(25, 80%, 70%, 0.5) 0%, transparent 70%)',
+            }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1.4 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Breathing + floating animation wrapper */}
       <motion.div
         animate={{
           scale: personalityState === 'sleeping' ? [1, 1.03, 1] : [1, 1.04, 1],
@@ -185,10 +339,9 @@ export default function MiniAva({
           ease: 'easeInOut',
         }}
       >
-        {/* Floating animation wrapper */}
         <motion.div
           animate={{
-            y: personalityState === 'sleeping' ? 0 : [0, -3, 0],
+            y: personalityState === 'sleeping' ? [0, 1, 0] : [0, -3, 0],
           }}
           transition={{
             duration: 2.5,
@@ -196,24 +349,68 @@ export default function MiniAva({
             ease: 'easeInOut',
           }}
         >
-          {/* The actual Ava image */}
-          <motion.img
-            src={avaImage}
-            alt="Ava"
-            className="w-full h-full object-contain drop-shadow-lg rounded-full"
-            style={{
-              filter: personalityState === 'sleeping' 
-                ? 'brightness(0.6) saturate(0.5)' 
-                : personalityState === 'drowsy'
-                ? 'brightness(0.85) saturate(0.8)'
-                : 'none',
-            }}
-            animate={{
-              opacity: 1,
-            }}
-            transition={{ duration: 0.3 }}
-            draggable={false}
-          />
+          {/* The SVG character */}
+          <svg
+            viewBox="0 0 100 100"
+            width={size}
+            height={size}
+            className="drop-shadow-lg"
+          >
+            <defs>
+              {/* Warm peach face gradient */}
+              <radialGradient id="faceGradient" cx="40%" cy="30%" r="70%">
+                <stop offset="0%" stopColor="#FFE8D6" />
+                <stop offset="50%" stopColor="#FFDCC4" />
+                <stop offset="100%" stopColor="#F5C9A8" />
+              </radialGradient>
+              
+              {/* Soft purple hair tuft gradient */}
+              <radialGradient id="hairGradient" cx="50%" cy="40%" r="60%">
+                <stop offset="0%" stopColor="#D4B8E8" />
+                <stop offset="100%" stopColor="#B794D4" />
+              </radialGradient>
+              
+              {/* Blush gradient */}
+              <radialGradient id="blushGradient" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#FFB5A7" stopOpacity="0.65" />
+                <stop offset="100%" stopColor="#FFB5A7" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+
+            {/* Face blob - slightly squished circle for friendliness */}
+            <motion.ellipse
+              cx="50"
+              cy="52"
+              rx="36"
+              ry="38"
+              fill="url(#faceGradient)"
+              stroke="#E8C4A8"
+              strokeWidth="1"
+              animate={
+                expression === 'poked' 
+                  ? { rx: [36, 38, 34, 36], ry: [38, 36, 40, 38] } 
+                  : expression === 'celebrating'
+                  ? { ry: [38, 36, 38] }
+                  : {}
+              }
+              transition={{ duration: 0.3 }}
+            />
+
+            {/* Hair tuft at top */}
+            <ellipse cx="50" cy="16" rx="10" ry="7" fill="url(#hairGradient)" />
+            <ellipse cx="44" cy="18" rx="5" ry="4" fill="url(#hairGradient)" />
+            <ellipse cx="56" cy="18" rx="5" ry="4" fill="url(#hairGradient)" />
+
+            {/* Blush cheeks - always visible */}
+            <ellipse cx="26" cy="52" rx="8" ry="5" fill="url(#blushGradient)" />
+            <ellipse cx="74" cy="52" rx="8" ry="5" fill="url(#blushGradient)" />
+
+            {/* Eyes */}
+            {renderEyes()}
+
+            {/* Mouth */}
+            {renderMouth()}
+          </svg>
         </motion.div>
       </motion.div>
 
@@ -254,7 +451,7 @@ export default function MiniAva({
 
       {/* Sleeping zzz */}
       <AnimatePresence>
-        {showZzz && (
+        {personalityState === 'sleeping' && (
           <motion.div
             className="absolute -top-2 -right-1 pointer-events-none"
             initial={{ opacity: 0, y: 5 }}
@@ -262,7 +459,8 @@ export default function MiniAva({
             exit={{ opacity: 0, y: -10 }}
           >
             <motion.span
-              className="text-xs font-bold text-muted-foreground"
+              className="text-xs font-bold"
+              style={{ color: '#B794D4' }}
               animate={{ 
                 opacity: [0.4, 1, 0.4],
                 y: [0, -3, 0],
@@ -276,22 +474,6 @@ export default function MiniAva({
               zzz
             </motion.span>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Subtle glow behind when hovered or celebrating */}
-      <AnimatePresence>
-        {(isHovered || expression === 'celebrating') && (
-          <motion.div
-            className="absolute inset-0 -z-10 rounded-full"
-            style={{
-              background: 'radial-gradient(circle, hsla(45, 80%, 70%, 0.4) 0%, transparent 70%)',
-            }}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1.3 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.3 }}
-          />
         )}
       </AnimatePresence>
     </motion.div>
