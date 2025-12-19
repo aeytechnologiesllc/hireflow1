@@ -66,6 +66,13 @@ export default function Auth() {
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
+  // Password reset state
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
@@ -78,11 +85,29 @@ export default function Auth() {
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
 
+  // Detect password reset mode from URL and listen for PASSWORD_RECOVERY event
   useEffect(() => {
-    if (user && !authLoading) {
+    const isResetMode = searchParams.get("reset") === "true";
+    if (isResetMode) {
+      setIsResettingPassword(true);
+    }
+
+    // Listen for PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsResettingPassword(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [searchParams]);
+
+  useEffect(() => {
+    // Don't redirect if user is in password reset mode
+    if (user && !authLoading && !isResettingPassword) {
       navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
-  }, [user, authLoading, navigate, redirectTo]);
+  }, [user, authLoading, navigate, redirectTo, isResettingPassword]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +248,55 @@ export default function Auth() {
     // Note: on success, the page will redirect to Google, so no need to handle success state
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Validate passwords
+    try {
+      passwordSchema.parse(newPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({
+          variant: "destructive",
+          description: err.errors[0].message,
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        description: "Passwords do not match",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Password Reset Failed",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Password updated!",
+        description: "Your password has been successfully reset.",
+      });
+      setIsResettingPassword(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      navigate("/dashboard");
+    }
+
+    setIsLoading(false);
+  };
+
   if (authLoading) {
     return <AuthLoadingScreen variant="employer" />;
   }
@@ -341,7 +415,92 @@ export default function Auth() {
               </button>
             </div>
 
-            {showForgotPassword ? (
+            {isResettingPassword ? (
+              <motion.div
+                key="reset-password"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-foreground">Set new password</h2>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    Enter your new password below
+                  </p>
+                </div>
+
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password" className="text-foreground">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="new-password"
+                        type={showNewPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <PasswordRequirements password={newPassword} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password" className="text-foreground">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {confirmPassword && newPassword !== confirmPassword && (
+                      <p className="text-xs text-destructive mt-1">Passwords do not match</p>
+                    )}
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" 
+                    disabled={isLoading || newPassword !== confirmPassword}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      "Update Password"
+                    )}
+                  </Button>
+                </form>
+              </motion.div>
+            ) : showForgotPassword ? (
               <motion.div
                 key="forgot"
                 initial={{ opacity: 0, x: -10 }}
