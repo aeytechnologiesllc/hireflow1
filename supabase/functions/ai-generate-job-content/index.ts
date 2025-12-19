@@ -30,7 +30,7 @@ serve(async (req) => {
     }
 
     let prompt = "";
-    let systemPrompt = "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language.";
+    let systemPrompt = "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.";
 
     if (field === "full") {
       prompt = `Generate a complete job posting for the following position:
@@ -42,13 +42,14 @@ ${job_type ? `Job Type: ${job_type}` : ""}
 ${location ? `Location: ${location}` : ""}
 
 Return a JSON object with these fields:
-- description: A compelling 2-3 paragraph description of the role and opportunity
-- responsibilities: 5-7 bullet points of key responsibilities (each starting with an action verb)
-- requirements: 5-7 bullet points of required qualifications and skills
+- description: A compelling 2-3 paragraph description of the role and opportunity (plain text, no markdown)
+- responsibilities: 5-7 bullet points of key responsibilities. Each line starting with "• " and an action verb. NO markdown (no **, no *, no bold).
+- requirements: 5-7 bullet points of required qualifications. Each line starting with "• ". NO markdown (no **, no *, no bold). NO category labels.
 - skills: Comma-separated list of 6-10 relevant technical and soft skills
 - benefits: Comma-separated list of 5-8 common benefits
 
-Return ONLY valid JSON, no markdown or extra text.`;
+CRITICAL: All text must be clean plain text. NO markdown formatting whatsoever.
+Return ONLY valid JSON, no markdown code blocks.`;
     } else if (field === "description") {
       prompt = `Write a compelling 2-3 paragraph job description for a ${title} position${department ? ` in ${department}` : ""}${experience_level ? ` at ${experience_level} level` : ""}.
 
@@ -71,7 +72,16 @@ Each responsibility should:
 
 ${existingContent ? `Improve upon these existing responsibilities: ${existingContent}` : ""}
 
-Return as bullet points (each line starting with "• ").`;
+FORMATTING RULES (MUST FOLLOW):
+- Each responsibility on its own line starting with "• "
+- NO markdown formatting whatsoever (no **, no *, no #, no bold)
+- NO category labels or headers
+- Clean plain text only
+
+Example of CORRECT format:
+• Lead a team of designers to deliver projects on time
+• Collaborate with stakeholders to define requirements
+• Oversee quality assurance processes`;
     } else if (field === "requirements") {
       prompt = `Write 5-7 requirements for a ${title} position${experience_level ? ` at ${experience_level} level` : ""}.
 
@@ -83,7 +93,16 @@ Include:
 
 ${existingContent ? `Improve upon these existing requirements: ${existingContent}` : ""}
 
-Return as bullet points (each line starting with "• ").`;
+FORMATTING RULES (MUST FOLLOW):
+- Each requirement on its own line starting with "• "
+- NO markdown formatting whatsoever (no **, no *, no #, no bold)
+- NO category labels like "Education:" or "Skills:"
+- Clean plain text only
+
+Example of CORRECT format:
+• Bachelor's degree in Computer Science or related field
+• 5+ years of experience in software development
+• Strong communication and leadership skills`;
     } else if (field === "skills_required") {
       prompt = `List 6-10 relevant skills for a ${title} position${department ? ` in ${department}` : ""}.
 
