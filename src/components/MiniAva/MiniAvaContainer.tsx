@@ -43,9 +43,74 @@ export default function MiniAvaContainer() {
         console.log('Ava heard:', transcript);
       }
     },
-    onToolCall: (toolName, args) => {
-      if (toolName === 'navigate') {
-        navigate(args.path);
+    onToolCall: (toolName, result) => {
+      console.log('Tool call received:', toolName, result);
+      
+      // Handle navigation actions
+      if (result?.action === 'navigate' && result.route) {
+        navigate(result.route);
+        return;
+      }
+      
+      // Handle walkthrough navigation
+      if (toolName === 'walkthrough_navigate' && result?.route) {
+        toast.success(`${result.pageName} (${result.step}/${result.totalSteps})`);
+        navigate(result.route);
+        return;
+      }
+      
+      // Handle job creation navigation
+      if (result?.action === 'navigate_and_prepare' && result.route) {
+        navigate(result.route);
+        return;
+      }
+      
+      // Handle successful interview scheduling
+      if (toolName === 'schedule_interview' && result?.success) {
+        toast.success(result.message || 'Interview scheduled!');
+        return;
+      }
+      
+      // Handle message sent
+      if (toolName === 'send_message' && result?.success) {
+        toast.success('Message sent!');
+        return;
+      }
+      
+      // Handle shortlist
+      if (toolName === 'shortlist_applicant' && result?.success) {
+        toast.success(result.message || 'Added to shortlist!');
+        return;
+      }
+      
+      // Handle mark as top candidate
+      if (toolName === 'mark_as_top_candidate' && result?.success) {
+        toast.success(result.message || 'Marked as top candidate!');
+        return;
+      }
+      
+      // Handle notes added
+      if (toolName === 'add_applicant_note' && result?.success) {
+        toast.success('Note added!');
+        return;
+      }
+      
+      // Handle job status changes
+      if ((toolName === 'pause_job' || toolName === 'unpause_job' || toolName === 'archive_job') && result?.success) {
+        toast.success(result.message || 'Job updated!');
+        return;
+      }
+      
+      // Handle interview actions
+      if ((toolName === 'reschedule_interview' || toolName === 'cancel_interview') && result?.success) {
+        toast.success(result.message || 'Interview updated!');
+        return;
+      }
+      
+      // Handle bulk actions
+      if (toolName === 'bulk_reject' && result?.success) {
+        toast.success(result.message || `Rejected ${result.count} applicants`);
+        return;
       }
     },
   });
@@ -91,15 +156,16 @@ export default function MiniAvaContainer() {
       ref={containerRef}
       className="fixed bottom-6 right-6 z-50"
     >
-      <AnimatePresence>
+      <AnimatePresence mode="popLayout">
         {isExpanded ? (
           // Expanded voice mode
           <motion.div
             key="expanded"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            layout
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
             className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-4 shadow-xl"
             style={{ minWidth: 200 }}
           >
@@ -172,9 +238,11 @@ export default function MiniAvaContainer() {
           // Compact floating orb
           <motion.div
             key="compact"
-            initial={{ scale: 0, opacity: 0 }}
+            layout
+            initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
             className="relative cursor-pointer"
             onClick={handleClick}
             onMouseEnter={() => {

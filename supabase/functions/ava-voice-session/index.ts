@@ -518,6 +518,207 @@ You're Ava - quick, smart, and actually fun to talk to.
             },
             required: ["application_id", "date_time"]
           }
+        },
+        {
+          type: "function",
+          name: "shortlist_applicant",
+          description: "Add an applicant to your shortlist for quick reference. Use when user says 'shortlist them', 'add to shortlist', 'mark as shortlisted'.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_id: { type: "string", description: "The application ID to shortlist" },
+              reason: { type: "string", description: "Optional reason for shortlisting" }
+            },
+            required: ["application_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "mark_as_top_candidate",
+          description: "Flag an applicant as a top candidate. Use when user says 'mark as top candidate', 'they're my top choice', 'star this candidate'.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_id: { type: "string", description: "The application ID to mark" },
+              reason: { type: "string", description: "Optional reason" }
+            },
+            required: ["application_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "add_applicant_note",
+          description: "Add a personal note to an applicant's file. Use when user says 'add a note', 'make a note', 'write down that...'.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_id: { type: "string", description: "The application ID" },
+              note_content: { type: "string", description: "The note content to add" }
+            },
+            required: ["application_id", "note_content"]
+          }
+        },
+        {
+          type: "function",
+          name: "get_pipeline_summary",
+          description: "Get a quick overview of the hiring pipeline status. Use when user asks 'what's my pipeline looking like?', 'how many applicants do I have?', 'pipeline summary'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "Optional job ID to filter by" }
+            }
+          }
+        },
+        {
+          type: "function",
+          name: "get_todays_interviews",
+          description: "Get list of interviews scheduled for today. Use when user asks 'what interviews do I have today?', 'any interviews today?', 'today's schedule'.",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        },
+        {
+          type: "function",
+          name: "get_unread_messages",
+          description: "Get count and preview of unread messages. Use when user asks 'any unread messages?', 'new messages?', 'what messages do I have?'.",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        },
+        {
+          type: "function",
+          name: "get_pending_actions",
+          description: "Get list of actions needing attention. Use when user asks 'what needs my attention?', 'any pending actions?', 'what should I do next?'.",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        },
+        {
+          type: "function",
+          name: "bulk_reject",
+          description: "Reject multiple applicants at once based on score threshold. Use when user says 'reject everyone below 50', 'bulk reject low scores'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "Optional job ID to filter by" },
+              max_score: { type: "number", description: "Reject applicants with AI score at or below this value" },
+              reason: { type: "string", description: "Reason for rejection" }
+            }
+          }
+        },
+        {
+          type: "function",
+          name: "pause_job",
+          description: "Pause a job posting to stop accepting new applications. Use when user says 'pause the job', 'stop accepting applications'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "The job ID to pause" }
+            },
+            required: ["job_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "unpause_job",
+          description: "Resume a paused job posting. Use when user says 'unpause the job', 'resume accepting applications', 'make the job live again'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "The job ID to unpause" }
+            },
+            required: ["job_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "archive_job",
+          description: "Archive a job posting. Use when user says 'archive the job', 'put this job in archive'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "The job ID to archive" }
+            },
+            required: ["job_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "reschedule_interview",
+          description: "Move an existing interview to a new time. Use when user says 'reschedule the interview', 'move their interview to Friday'.",
+          parameters: {
+            type: "object",
+            properties: {
+              interview_id: { type: "string", description: "The interview ID to reschedule" },
+              new_date_time: { type: "string", description: "New date/time - natural language or ISO format" }
+            },
+            required: ["interview_id", "new_date_time"]
+          }
+        },
+        {
+          type: "function",
+          name: "cancel_interview",
+          description: "Cancel a scheduled interview. Use when user says 'cancel the interview', 'cancel their interview'.",
+          parameters: {
+            type: "object",
+            properties: {
+              interview_id: { type: "string", description: "The interview ID to cancel" },
+              reason: { type: "string", description: "Reason for cancellation" }
+            },
+            required: ["interview_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "compare_applicants",
+          description: "Compare two or more applicants side by side. Use when user says 'compare John and Sarah', 'how do they stack up?'.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_ids: { 
+                type: "array", 
+                items: { type: "string" },
+                description: "Array of application IDs to compare (minimum 2)" 
+              }
+            },
+            required: ["application_ids"]
+          }
+        },
+        {
+          type: "function",
+          name: "send_offer",
+          description: "Initiate the offer process for an applicant. Updates status to 'offered' and opens Documents. Use when user says 'send them an offer', 'extend an offer'.",
+          parameters: {
+            type: "object",
+            properties: {
+              application_id: { type: "string", description: "The application ID to send offer to" }
+            },
+            required: ["application_id"]
+          }
+        },
+        {
+          type: "function",
+          name: "get_team_activity",
+          description: "Get recent team activity and updates. Use when user asks 'what's the team been up to?', 'recent activity?'.",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        },
+        {
+          type: "function",
+          name: "duplicate_job",
+          description: "Clone an existing job posting. Use when user says 'duplicate the job', 'copy this job posting'.",
+          parameters: {
+            type: "object",
+            properties: {
+              job_id: { type: "string", description: "The job ID to duplicate" }
+            },
+            required: ["job_id"]
+          }
         }
       ];
     } else if (mode === 'interview') {
