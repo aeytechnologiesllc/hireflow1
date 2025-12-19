@@ -16,10 +16,11 @@ import {
   Users,
   CheckCircle2,
   ArrowLeft,
-  Sparkles
+  Sparkles,
+  XCircle
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { format } from "date-fns";
+import { format, isPast } from "date-fns";
 import CandidateApplicationWizard from "@/components/CandidateApplicationWizard";
 
 export default function JobDetails() {
@@ -30,6 +31,9 @@ export default function JobDetails() {
   const [showApplicationWizard, setShowApplicationWizard] = useState(false);
 
   const isEmployer = role === "employer";
+  
+  // Check if application deadline has passed
+  const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
 
   const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
     if (!min && !max) return "Competitive Salary";
@@ -200,40 +204,68 @@ export default function JobDetails() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <Card className="bg-card border-primary/50 overflow-hidden">
+              <Card className={`bg-card overflow-hidden ${isDeadlinePassed ? 'border-destructive/50' : 'border-primary/50'}`}>
                 <CardContent className="p-6 space-y-4">
-                  <div className="text-center">
-                    <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
-                    <h3 className="text-lg font-semibold text-foreground">Ready to Apply?</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Start your application and take the first step
-                    </p>
-                  </div>
-                  
-                  {/* Premium Glowing Apply Button */}
-                  <Button
-                    onClick={() => setShowApplicationWizard(true)}
-                    size="lg"
-                    className="w-full h-14 text-lg font-semibold relative overflow-hidden group"
-                    style={{
-                      boxShadow: "0 0 20px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.2)",
-                    }}
-                  >
-                    <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]" />
-                    <span className="relative flex items-center gap-2">
-                      Apply Now
-                      <motion.span
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
+                  {isDeadlinePassed ? (
+                    <>
+                      <div className="text-center">
+                        <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+                        <h3 className="text-lg font-semibold text-foreground">Applications Closed</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          The application deadline for this position has passed
+                        </p>
+                      </div>
+                      
+                      <Button
+                        disabled
+                        size="lg"
+                        variant="outline"
+                        className="w-full h-14 text-lg font-semibold"
                       >
-                        <Sparkles className="h-5 w-5" />
-                      </motion.span>
-                    </span>
-                  </Button>
+                        <XCircle className="h-5 w-5 mr-2" />
+                        Deadline Passed
+                      </Button>
 
-                  <p className="text-xs text-center text-muted-foreground">
-                    Your application will be reviewed by the hiring team
-                  </p>
+                      <p className="text-xs text-center text-muted-foreground">
+                        This job is no longer accepting applications
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center">
+                        <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
+                        <h3 className="text-lg font-semibold text-foreground">Ready to Apply?</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Start your application and take the first step
+                        </p>
+                      </div>
+                      
+                      {/* Premium Glowing Apply Button */}
+                      <Button
+                        onClick={() => setShowApplicationWizard(true)}
+                        size="lg"
+                        className="w-full h-14 text-lg font-semibold relative overflow-hidden group"
+                        style={{
+                          boxShadow: "0 0 20px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.2)",
+                        }}
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]" />
+                        <span className="relative flex items-center gap-2">
+                          Apply Now
+                          <motion.span
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Sparkles className="h-5 w-5" />
+                          </motion.span>
+                        </span>
+                      </Button>
+
+                      <p className="text-xs text-center text-muted-foreground">
+                        Your application will be reviewed by the hiring team
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
