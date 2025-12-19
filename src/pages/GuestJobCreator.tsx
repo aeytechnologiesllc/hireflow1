@@ -141,11 +141,33 @@ export default function GuestJobCreator() {
 
       if (error) throw error;
 
-      setGeneratedWorkflow({
-        applicationQuestions: data.application_questions || [],
-        quizQuestions: data.quiz_questions || [],
-        workflowSteps: data.workflow_steps || [],
+      // Debug logging to verify data
+      console.log('GuestJobCreator - Raw response data:', data);
+      console.log('GuestJobCreator - application_questions:', data?.application_questions);
+      console.log('GuestJobCreator - quiz_questions:', data?.quiz_questions);
+      console.log('GuestJobCreator - workflow_steps:', data?.workflow_steps);
+
+      const appQuestions = data?.application_questions || [];
+      const quizQs = data?.quiz_questions || [];
+      const wfSteps = data?.workflow_steps || [];
+
+      console.log('GuestJobCreator - Parsed counts:', {
+        applicationQuestions: appQuestions.length,
+        quizQuestions: quizQs.length,
+        workflowSteps: wfSteps.length,
       });
+
+      // Set the workflow data
+      const workflowData = {
+        applicationQuestions: appQuestions,
+        quizQuestions: quizQs,
+        workflowSteps: wfSteps,
+      };
+      
+      setGeneratedWorkflow(workflowData);
+      
+      // Show success toast with counts
+      toast.success(`Generated ${appQuestions.length} questions, ${quizQs.length} quiz items, ${wfSteps.length} workflow steps!`);
 
       // Move to review step after generation
       setTimeout(() => {
