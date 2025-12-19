@@ -1858,15 +1858,33 @@ export default function CreateJob() {
                             return (
                               <div
                                 key={step.id}
-                                className="p-4 rounded-lg border border-border bg-secondary/30"
+                                className={cn(
+                                  "p-4 rounded-lg border",
+                                  isVoiceInterview 
+                                    ? "border-violet-500/50 bg-gradient-to-r from-violet-500/10 via-fuchsia-500/5 to-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" 
+                                    : "border-border bg-secondary/30"
+                                )}
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                      <Icon className="h-5 w-5 text-primary" />
+                                    <div className={cn(
+                                      "h-10 w-10 rounded-lg flex items-center justify-center",
+                                      isVoiceInterview 
+                                        ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30" 
+                                        : "bg-primary/10"
+                                    )}>
+                                      <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-white" : "text-primary")} />
                                     </div>
                                     <div>
-                                      <div className="font-medium">{step.title}</div>
+                                      <div className="font-medium flex items-center gap-2">
+                                        {step.title}
+                                        {isVoiceInterview && (
+                                          <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-2 py-0.5 border-0 shadow-sm">
+                                            <Sparkles className="h-3 w-3 mr-1" />
+                                            Premium
+                                          </Badge>
+                                        )}
+                                      </div>
                                       <div className="text-sm text-muted-foreground">{step.description}</div>
                                     </div>
                                   </div>
@@ -1879,8 +1897,6 @@ export default function CreateJob() {
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
-                                
-                                {/* Voice Interview Language Config - REMOVED: Language is now only configured when moving candidate to interview phase */}
                               </div>
                             );
                           })}
