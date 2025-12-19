@@ -14,39 +14,66 @@ import {
   Check,
   Crown,
   Zap,
-  Brain,
   Rocket,
-  Target,
-  Shield,
-  Globe,
-  TrendingUp,
+  Mic,
+  ClipboardCheck,
+  UserCircle,
+  ArrowRight,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
-const FUTURE_FEATURES = [
+const HIREFLOW_FEATURES = [
   {
-    icon: Brain,
-    title: "AI-First Hiring",
-    description: "AVA thinks, screens, and interviews like your best recruiter—but never sleeps.",
-    stat: "10x faster",
+    icon: UserCircle,
+    title: "Candidate Portal",
+    description: "Applicants sign in to their own portal, submit resumes, and complete everything themselves.",
+    stat: "Self-Service",
   },
   {
-    icon: Target,
-    title: "Precision Matching",
-    description: "Find the perfect candidate, not just the available one.",
-    stat: "94% match rate",
+    icon: ClipboardCheck,
+    title: "Smart Assessments",
+    description: "AVA administers quizzes, typing tests, and chat simulations to evaluate real skills.",
+    stat: "Automated",
   },
   {
-    icon: Rocket,
-    title: "Zero to Hired",
-    description: "From job posting to signed offer in days, not months.",
-    stat: "5 day average",
+    icon: Mic,
+    title: "AVA Interviews",
+    description: "Chat interviews for everyone, premium voice interviews for deeper insights.",
+    stat: "24/7 Available",
   },
   {
-    icon: Shield,
-    title: "Bias-Free Process",
-    description: "AI ensures every candidate gets a fair, consistent evaluation.",
-    stat: "100% consistent",
+    icon: BarChart3,
+    title: "Analysis & Scoring",
+    description: "AVA provides detailed reports and scores—then YOU decide who to interview.",
+    stat: "Data-Driven",
+  },
+];
+
+const WORKFLOW_STEPS = [
+  {
+    icon: Briefcase,
+    title: "Post a Job",
+    description: "AVA generates your hiring workflow",
+  },
+  {
+    icon: Users,
+    title: "Candidates Apply",
+    description: "They get their own portal",
+  },
+  {
+    icon: MessageSquare,
+    title: "AVA Screens",
+    description: "Quizzes, tests, interviews",
+  },
+  {
+    icon: BarChart3,
+    title: "You Review",
+    description: "See scores & analysis",
+  },
+  {
+    icon: Check,
+    title: "Interview Winners",
+    description: "Only pre-qualified candidates",
   },
 ];
 
@@ -64,7 +91,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   useEffect(() => {
     if (step === 1) {
       const interval = setInterval(() => {
-        setActiveFeature((prev) => (prev + 1) % FUTURE_FEATURES.length);
+        setActiveFeature((prev) => (prev + 1) % HIREFLOW_FEATURES.length);
       }, 4000);
       return () => clearInterval(interval);
     }
@@ -106,7 +133,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       price: billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly,
       period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.growth.yearlyFormatted,
-      features: ["3 Active Jobs", "50 Applicants/month", "AI Screening", "Smart Documents"],
+      features: ["3 Active Jobs", "50 Applicants/month", "Chat Interviews", "Smart Documents"],
       popular: false,
     },
     {
@@ -114,10 +141,12 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       price: billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly,
       period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.business.yearlyFormatted,
-      features: ["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "Priority Support"],
+      features: ["Unlimited Jobs", "Unlimited Applicants", "Voice Interviews", "Team Portal", "Advanced Analytics"],
       popular: true,
     },
   ];
+
+  const totalSteps = 5;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background py-6 md:py-8">
@@ -172,12 +201,12 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       <div className="relative z-10 w-full max-w-4xl mx-auto px-4 md:px-6 pb-24 md:pb-8">
         {/* Progress indicators */}
         <div className="flex justify-center gap-3 mb-8">
-          {[0, 1, 2, 3].map((s) => (
+          {Array.from({ length: totalSteps }).map((_, s) => (
             <motion.button
               key={s}
               onClick={() => s < step && setStep(s)}
               className={`relative h-2 rounded-full transition-all duration-500 ${
-                s <= step ? "w-12" : "w-2"
+                s <= step ? "w-10" : "w-2"
               }`}
               style={{
                 background: s <= step 
@@ -202,6 +231,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Step 0: Welcome */}
           {step === 0 && (
             <motion.div
               key="welcome"
@@ -303,7 +333,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   className="group relative px-8 py-6 text-lg bg-card border border-primary/50 text-foreground hover:bg-card/80 shadow-[0_0_30px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_50px_hsl(var(--primary)/0.5)] transition-all duration-300"
                 >
                   <span className="relative z-10 flex items-center gap-2">
-                    Get Started
+                    Meet AVA
                     <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </span>
                 </Button>
@@ -311,6 +341,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </motion.div>
           )}
 
+          {/* Step 1: What Makes Us Different */}
           {step === 1 && (
             <motion.div
               key="features"
@@ -321,10 +352,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               className="flex flex-col items-center"
             >
               <h2 className="text-3xl font-bold text-foreground mb-2">What Makes Us Different</h2>
-              <p className="text-muted-foreground mb-10">Hiring reimagined for the modern era</p>
+              <p className="text-muted-foreground mb-10">Stop wasting time on unqualified interviews</p>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full mb-10">
-                {FUTURE_FEATURES.map((feature, idx) => {
+                {HIREFLOW_FEATURES.map((feature, idx) => {
                   const Icon = feature.icon;
                   const isActive = idx === activeFeature;
                   
@@ -377,7 +408,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
               {/* Progress bar for auto-rotation */}
               <div className="flex gap-2 mb-8">
-                {FUTURE_FEATURES.map((_, idx) => (
+                {HIREFLOW_FEATURES.map((_, idx) => (
                   <div
                     key={idx}
                     className={`h-1 rounded-full transition-all duration-300 ${
@@ -392,12 +423,104 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 onClick={() => setStep(2)}
                 className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg"
               >
+                See How AVA Works <ChevronRight className="h-5 w-5 ml-2" />
+              </Button>
+            </motion.div>
+          )}
+
+          {/* Step 2: How AVA Works (NEW) */}
+          {step === 2 && (
+            <motion.div
+              key="workflow"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center"
+            >
+              <h2 className="text-3xl font-bold text-foreground mb-2">How AVA Works For You</h2>
+              <p className="text-muted-foreground mb-10">You only interview candidates AVA has already vetted</p>
+
+              {/* Workflow visualization */}
+              <div className="w-full max-w-3xl mb-10">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-2">
+                  {WORKFLOW_STEPS.map((workflowStep, idx) => {
+                    const Icon = workflowStep.icon;
+                    return (
+                      <motion.div
+                        key={workflowStep.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="flex flex-col items-center text-center flex-1"
+                      >
+                        <motion.div
+                          className="relative w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mb-3"
+                          whileHover={{ scale: 1.1 }}
+                          animate={{
+                            boxShadow: [
+                              "0 0 0px hsl(var(--primary) / 0)",
+                              "0 0 20px hsl(var(--primary) / 0.3)",
+                              "0 0 0px hsl(var(--primary) / 0)",
+                            ],
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
+                        >
+                          <Icon className="h-7 w-7 text-primary" />
+                          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                            {idx + 1}
+                          </div>
+                        </motion.div>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">{workflowStep.title}</h4>
+                        <p className="text-xs text-muted-foreground">{workflowStep.description}</p>
+                        
+                        {/* Arrow connector (hidden on mobile, visible on md+) */}
+                        {idx < WORKFLOW_STEPS.length - 1 && (
+                          <ArrowRight className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-5 w-5 text-primary/50" style={{ position: 'relative', marginTop: '-60px' }} />
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Connecting line (desktop only) */}
+                <div className="hidden md:block relative mt-4">
+                  <div className="absolute top-0 left-[10%] right-[10%] h-0.5 bg-gradient-to-r from-primary/20 via-primary/50 to-primary/20" style={{ marginTop: '-90px' }} />
+                </div>
+              </div>
+
+              {/* Key benefit callout */}
+              <motion.div
+                className="w-full max-w-2xl p-6 rounded-2xl border border-primary/30 bg-primary/5 mb-8"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-foreground mb-1">The AVA Difference</h4>
+                    <p className="text-muted-foreground text-sm">
+                      Most employers waste hours interviewing candidates who aren't qualified. With AVA, candidates complete assessments, quizzes, and interviews <span className="text-primary font-medium">before you ever meet them</span>. You only spend time with the best.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <Button
+                size="lg"
+                onClick={() => setStep(3)}
+                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg"
+              >
                 See What You Get <ChevronRight className="h-5 w-5 ml-2" />
               </Button>
             </motion.div>
           )}
 
-          {step === 2 && (
+          {/* Step 3: Pricing/Trial */}
+          {step === 3 && (
             <motion.div
               key="trial"
               initial={{ opacity: 0, y: 40 }}
@@ -502,7 +625,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
               <Button
                 size="lg"
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg shadow-primary/25"
               >
                 Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
@@ -510,7 +633,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </motion.div>
           )}
 
-          {step === 3 && (
+          {/* Step 4: Celebrate */}
+          {step === 4 && (
             <motion.div
               key="celebrate"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -580,7 +704,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                Your 7-day journey into the future of hiring starts now.
+                AVA is ready to start screening your candidates. Let's find your next great hire.
               </motion.p>
 
               <motion.div
@@ -607,7 +731,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
               >
-                Welcome to the future of hiring.
+                Welcome to smarter hiring.
               </motion.p>
             </motion.div>
           )}
