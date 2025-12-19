@@ -684,7 +684,13 @@ export default function ApplicantDetails() {
     
     // Calculate nearest phase using ref values
     const stepSize = 100 / (currentPhases.length - 1);
-    const nearestIndex = Math.round(currentDragPosition / stepSize);
+    let nearestIndex = Math.round(currentDragPosition / stepSize);
+    
+    // Prevent going back to journey_start (index 0) - Application (index 1) is the minimum
+    // Start phase is just a visual marker, not an actionable position
+    const minPhaseIndex = 1;
+    nearestIndex = Math.max(nearestIndex, minPhaseIndex);
+    
     const newPhase = currentPhases[nearestIndex];
     
     // Debug logging to troubleshoot slider issues
@@ -1905,6 +1911,49 @@ ${interviewType} Interview with AVA Results:
         </Card>
       )}
       </motion.div>
+
+      {/* Manual Mode Action Button - Only show when candidate has completed current phase and awaiting review */}
+      {!isAutoPilot && isAwaitingReview && !isRejected && canManagePipeline && effectivePhaseIndex < phases.length - 1 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut", delay: 0.25 }}
+        >
+          <Card className="bg-card border-border border-l-4 border-l-success">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                  <div>
+                    <h3 className="font-semibold text-success">Ready for Review</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Candidate has completed the <span className="font-medium">{phases[effectivePhaseIndex]?.title}</span> phase. Review and advance when ready.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={async () => {
+                    const nextIndex = effectivePhaseIndex + 1;
+                    const nextPhase = phases[nextIndex];
+                    
+                    if (nextPhase.type === "voice_interview") {
+                      setPendingAvaInterview({ newIndex: nextIndex, newPhase: nextPhase });
+                      setShowAvaInterviewConfig(true);
+                      return;
+                    }
+                    
+                    await executePhaseChange(nextIndex, nextPhase, false);
+                  }}
+                  className="gap-2"
+                >
+                  <FastForward className="h-4 w-4" />
+                  Approve & Advance
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Applicant Info - Animated */}
       <motion.div
