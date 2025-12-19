@@ -1,8 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
-import avaWaving from "@/assets/ava-waving.png";
-import hireflowLogo from "@/assets/hireflow-logo.png";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
@@ -56,16 +54,16 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
         animate={{ opacity: 1 }}
         className="relative z-10 flex flex-col items-center"
       >
-        {/* Ava container with animated ring */}
+        {/* Animated ring */}
         <div className="relative mb-8">
           {/* Outer glow ring */}
           <motion.div
-            className="absolute -inset-8 rounded-full"
+            className="absolute -inset-4 rounded-full"
             style={{
-              background: `radial-gradient(circle, hsl(var(--primary) / 0.15) 0%, transparent 70%)`,
+              background: `radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)`,
             }}
             animate={{
-              scale: [1, 1.15, 1],
+              scale: [1, 1.2, 1],
               opacity: [0.4, 0.7, 0.4],
             }}
             transition={{
@@ -77,31 +75,30 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
 
           {/* Spinning progress ring */}
           <svg 
-            width={160} 
-            height={160} 
-            className="absolute -inset-4"
+            width={100} 
+            height={100} 
             style={{ transform: 'rotate(-90deg)' }}
           >
             {/* Background ring */}
             <circle
-              cx={80}
-              cy={80}
-              r={74}
+              cx={50}
+              cy={50}
+              r={44}
               fill="none"
               stroke="hsl(var(--primary) / 0.1)"
               strokeWidth={3}
             />
             {/* Animated ring */}
             <motion.circle
-              cx={80}
-              cy={80}
-              r={74}
+              cx={50}
+              cy={50}
+              r={44}
               fill="none"
               stroke="url(#authLoadingGradient)"
               strokeWidth={3}
               strokeLinecap="round"
-              strokeDasharray={74 * 2 * Math.PI}
-              strokeDashoffset={74 * 2 * Math.PI * 0.7}
+              strokeDasharray={44 * 2 * Math.PI}
+              strokeDashoffset={44 * 2 * Math.PI * 0.7}
               animate={{ rotate: 360 }}
               transition={{
                 duration: 2,
@@ -119,33 +116,21 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
             </defs>
           </svg>
 
-          {/* Ava avatar with floating animation */}
+          {/* Center pulsing dot */}
           <motion.div
-            className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-primary/20 shadow-2xl"
-            animate={{
-              y: [0, -8, 0],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+            className="absolute inset-0 flex items-center justify-center"
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20"
+              className="w-3 h-3 rounded-full bg-primary"
               animate={{
-                opacity: [0.3, 0.5, 0.3],
+                scale: [1, 1.4, 1],
+                opacity: [0.6, 1, 0.6],
               }}
               transition={{
-                duration: 2,
+                duration: 1.5,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-            />
-            <img 
-              src={avaWaving} 
-              alt="Ava" 
-              className="w-full h-full object-cover relative z-10"
             />
           </motion.div>
         </div>
@@ -182,17 +167,6 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
             />
           ))}
         </div>
-
-        {/* Subtle branding */}
-        <motion.div 
-          className="flex items-center gap-2 mt-12 opacity-50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.5 }}
-          transition={{ delay: 0.5 }}
-        >
-          <img src={hireflowLogo} alt="HireFlow" className="w-5 h-5 rounded" />
-          <span className="text-sm text-muted-foreground font-medium">HireFlow</span>
-        </motion.div>
       </motion.div>
     </div>
   );
