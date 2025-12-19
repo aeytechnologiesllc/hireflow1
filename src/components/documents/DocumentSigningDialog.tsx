@@ -834,6 +834,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
             {/* Signing View */}
             <TabsContent value="sign" className="h-full m-0">
+              <ScrollArea className="h-[calc(70vh-180px)]">
               {isDocumentLoading ? (
                 <div className="flex flex-col items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
@@ -1117,6 +1118,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                   </div>
                 </div>
               )}
+              </ScrollArea>
             </TabsContent>
 
             {/* Audit Trail */}
