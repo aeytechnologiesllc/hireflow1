@@ -1845,6 +1845,7 @@ export default function CreateJob() {
                               {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
                                 const Icon = info.icon;
                                 const alreadyAdded = workflowSteps.some(s => s.type === type);
+                                const isVoiceInterview = type === 'voice_interview';
                                 return (
                                   <DropdownMenuItem
                                     key={type}
@@ -1854,17 +1855,38 @@ export default function CreateJob() {
                                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
                                       alreadyAdded 
                                         ? "opacity-50" 
-                                        : "hover:bg-primary/10"
+                                        : isVoiceInterview
+                                          ? "hover:bg-violet-500/10"
+                                          : "hover:bg-primary/10"
                                     )}
                                   >
                                     <div className={cn(
                                       "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-                                      alreadyAdded ? "bg-secondary" : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
+                                      alreadyAdded 
+                                        ? "bg-secondary" 
+                                        : isVoiceInterview
+                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
+                                          : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
                                     )}>
-                                      <Icon className={cn("h-5 w-5", alreadyAdded ? "text-muted-foreground" : "text-primary")} />
+                                      <Icon className={cn(
+                                        "h-5 w-5", 
+                                        alreadyAdded 
+                                          ? "text-muted-foreground" 
+                                          : isVoiceInterview 
+                                            ? "text-white" 
+                                            : "text-primary"
+                                      )} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm">{info.label}</div>
+                                      <div className="font-medium text-sm flex items-center gap-2">
+                                        {info.label}
+                                        {isVoiceInterview && !alreadyAdded && (
+                                          <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-1.5 py-0 border-0 shadow-sm">
+                                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                                            Premium
+                                          </Badge>
+                                        )}
+                                      </div>
                                       <div className="text-xs text-muted-foreground truncate">{info.description}</div>
                                     </div>
                                     {alreadyAdded && (
