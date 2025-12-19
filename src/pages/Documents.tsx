@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,10 @@ import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -19,15 +22,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
+import { cn } from "@/lib/utils";
 
 // Get display status based on document state and user role
 const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
@@ -42,8 +47,9 @@ const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => 
   const employerSigned = !!doc.employer_signed_at;
   
   if (candidateSigned && !employerSigned) {
+    // Both employer and candidate see BLUE for awaiting employer signature
     if (isEmployer) {
-      return { color: "bg-primary/20 text-primary", icon: PenTool, label: "Awaiting Your Signature" };
+      return { color: "bg-blue-500/20 text-blue-500", icon: PenTool, label: "Awaiting Your Signature" };
     }
     return { color: "bg-blue-500/20 text-blue-500", icon: Clock, label: "Awaiting Countersignature" };
   }
@@ -68,9 +74,50 @@ export default function Documents() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const pendingDocs = documents?.filter(d => d.status === "pending") || [];
-  const signedDocs = documents?.filter(d => d.status === "signed") || [];
-  const declinedDocs = documents?.filter(d => d.status === "declined") || [];
+  // Search and date filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [isDateRangeOpen, setIsDateRangeOpen] = useState(false);
+
+  // Filter documents by search and date range
+  const filteredDocuments = useMemo(() => {
+    let docs = documents || [];
+    
+    // Filter by search query (applicant name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      docs = docs.filter(doc => 
+        doc.applications?.profiles?.full_name?.toLowerCase().includes(query)
+      );
+    }
+    
+    // Filter by date range
+    if (dateRange?.from) {
+      docs = docs.filter(doc => {
+        const docDate = new Date(doc.created_at);
+        if (dateRange.to) {
+          // Set end date to end of day
+          const endDate = new Date(dateRange.to);
+          endDate.setHours(23, 59, 59, 999);
+          return docDate >= dateRange.from! && docDate <= endDate;
+        }
+        return docDate >= dateRange.from!;
+      });
+    }
+    
+    return docs;
+  }, [documents, searchQuery, dateRange]);
+
+  const pendingDocs = filteredDocuments.filter(d => d.status === "pending");
+  const signedDocs = filteredDocuments.filter(d => d.status === "signed");
+  const declinedDocs = filteredDocuments.filter(d => d.status === "declined");
+
+  const hasActiveFilters = searchQuery.trim() || dateRange?.from;
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setDateRange(undefined);
+  };
 
   const handleViewDocument = (doc: DocumentWithApplication) => {
     setSelectedDocument(doc);
@@ -138,6 +185,12 @@ export default function Documents() {
                   <span className="capitalize">{doc.document_type?.replace(/_/g, " ") || "Document"}</span>
                   <span>•</span>
                   <span>{format(new Date(doc.created_at), "MMM d, yyyy")}</span>
+                  {doc.applications?.profiles?.full_name && (
+                    <>
+                      <span>•</span>
+                      <span>{doc.applications.profiles.full_name}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -200,6 +253,67 @@ export default function Documents() {
         )}
       </motion.div>
 
+      {/* Search and Filter Bar */}
+      {documents && documents.length > 0 && (
+        <motion.div variants={staggerItem} className="flex flex-wrap items-center gap-3">
+          {/* Search by applicant name */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by applicant name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 w-64"
+            />
+          </div>
+
+          {/* Date range picker */}
+          <Popover open={isDateRangeOpen} onOpenChange={setIsDateRangeOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("gap-2", dateRange?.from && "border-primary")}>
+                <CalendarDays className="h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    `${format(dateRange.from, "MMM d")} - ${format(dateRange.to, "MMM d, yyyy")}`
+                  ) : format(dateRange.from, "MMM d, yyyy")
+                ) : "Select dates"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={(range) => {
+                  setDateRange(range);
+                  // Auto-close when both dates are selected
+                  if (range?.from && range?.to) {
+                    setIsDateRangeOpen(false);
+                  }
+                }}
+                numberOfMonths={2}
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+
+          {/* Clear filters button */}
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
+              <X className="h-4 w-4" />
+              Clear filters
+            </Button>
+          )}
+
+          {/* Show filter result count */}
+          {hasActiveFilters && (
+            <span className="text-sm text-muted-foreground">
+              Showing {filteredDocuments.length} of {documents.length} documents
+            </span>
+          )}
+        </motion.div>
+      )}
+
       {isLoading ? (
         <motion.div variants={staggerItem} className="space-y-4">
           <Skeleton className="h-20 w-full" />
@@ -209,13 +323,15 @@ export default function Documents() {
         <motion.div variants={staggerItem}>
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="all">All ({documents.length})</TabsTrigger>
+              <TabsTrigger value="all">All ({filteredDocuments.length})</TabsTrigger>
               <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
               <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
               <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="all" className="space-y-4">{documents.map(renderDocumentCard)}</TabsContent>
+            <TabsContent value="all" className="space-y-4">
+              {filteredDocuments.length > 0 ? filteredDocuments.map(renderDocumentCard) : <EmptyState message="No documents match your filters" />}
+            </TabsContent>
             <TabsContent value="pending" className="space-y-4">
               {pendingDocs.length > 0 ? pendingDocs.map(renderDocumentCard) : <EmptyState message="No pending documents" />}
             </TabsContent>

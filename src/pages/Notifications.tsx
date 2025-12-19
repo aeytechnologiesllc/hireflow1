@@ -1,8 +1,9 @@
-import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from "@/hooks/useNotifications";
+import { useEffect, useRef } from "react";
+import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useDeleteAllNotifications } from "@/hooks/useNotifications";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle } from "lucide-react";
+import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -83,6 +84,23 @@ export default function Notifications() {
   const { data: notifications, isLoading } = useNotifications();
   const markAsRead = useMarkNotificationAsRead();
   const markAllAsRead = useMarkAllNotificationsAsRead();
+  const deleteAll = useDeleteAllNotifications();
+
+  // Track if we've already auto-marked as read this session
+  const hasAutoMarkedRef = useRef(false);
+
+  // Auto-mark all notifications as read when visiting the page
+  useEffect(() => {
+    if (
+      notifications && 
+      notifications.some(n => !n.is_read) && 
+      !hasAutoMarkedRef.current &&
+      !markAllAsRead.isPending
+    ) {
+      hasAutoMarkedRef.current = true;
+      markAllAsRead.mutate();
+    }
+  }, [notifications, markAllAsRead]);
 
   const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
 
@@ -90,8 +108,8 @@ export default function Notifications() {
     markAsRead.mutate(id);
   };
 
-  const handleMarkAllAsRead = () => {
-    markAllAsRead.mutate();
+  const handleClearAll = () => {
+    deleteAll.mutate();
   };
 
   return (
@@ -109,17 +127,30 @@ export default function Notifications() {
             )}
           </p>
         </div>
-        {unreadCount > 0 && (
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleMarkAllAsRead}
-            disabled={markAllAsRead.isPending}
-          >
-            <Check className="h-4 w-4" />
-            Mark All as Read
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => markAllAsRead.mutate()}
+              disabled={markAllAsRead.isPending}
+            >
+              <Check className="h-4 w-4" />
+              Mark All as Read
+            </Button>
+          )}
+          {notifications && notifications.length > 0 && (
+            <Button 
+              variant="outline" 
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={handleClearAll}
+              disabled={deleteAll.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear All
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Notifications List */}
