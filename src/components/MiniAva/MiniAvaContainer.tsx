@@ -247,11 +247,11 @@ export default function MiniAvaContainer() {
               setShowTooltip(false);
             }}
           >
-            {/* Glow ring - warm golden glow to match Ava's style */}
+            {/* Glow ring - warm peach glow to match cartoony Ava */}
             <motion.div
               className="absolute inset-0 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsla(35, 70%, 60%, 0.35) 0%, hsla(45, 60%, 55%, 0.15) 50%, transparent 70%)',
+                background: 'radial-gradient(circle, hsla(25, 75%, 70%, 0.4) 0%, hsla(35, 65%, 65%, 0.15) 50%, transparent 70%)',
               }}
               animate={{
                 scale: isHovered ? 1.6 : 1.3,
