@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
@@ -47,6 +48,7 @@ interface JobPublishedDialogProps {
 }
 
 export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogProps) {
+  const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -327,7 +329,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             </Button>
             <Button onClick={() => {
               onClose();
-              window.location.href = "/jobs";
+              navigate("/jobs");
             }} className="flex-1 gap-2">
               <ExternalLink className="h-4 w-4" />
               View Jobs
