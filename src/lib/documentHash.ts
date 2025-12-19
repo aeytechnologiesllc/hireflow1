@@ -222,6 +222,41 @@ export interface SigningContext {
     region: string;
     country: string;
   };
+  connectionWarning?: string; // VPN/proxy detection - informational only
+}
+
+/**
+ * Known VPN/Hosting provider ASN names and patterns
+ * This is informational only - does NOT block signing
+ */
+const VPN_HOSTING_PATTERNS = [
+  'cloudflare', 'amazon', 'aws', 'google cloud', 'azure', 'digitalocean',
+  'linode', 'vultr', 'ovh', 'hetzner', 'nordvpn', 'expressvpn', 'surfshark',
+  'private internet access', 'mullvad', 'protonvpn', 'cyberghost',
+  'ipvanish', 'tunnelbear', 'windscribe', 'hotspot shield'
+];
+
+/**
+ * Check if geolocation data suggests VPN/proxy usage
+ * Returns warning message if detected, undefined otherwise
+ */
+function detectVpnOrProxy(geoData: { org?: string; isp?: string; hosting?: boolean; proxy?: boolean }): string | undefined {
+  // Check explicit flags first
+  if (geoData.proxy === true || geoData.hosting === true) {
+    return 'Connection may be using a VPN or proxy';
+  }
+  
+  // Check ISP/org name for known patterns
+  const orgLower = (geoData.org || '').toLowerCase();
+  const ispLower = (geoData.isp || '').toLowerCase();
+  
+  for (const pattern of VPN_HOSTING_PATTERNS) {
+    if (orgLower.includes(pattern) || ispLower.includes(pattern)) {
+      return 'Connection may be using a VPN or proxy';
+    }
+  }
+  
+  return undefined;
 }
 
 /**
@@ -236,6 +271,7 @@ export async function captureSigningContext(): Promise<SigningContext> {
   // Capture IP address synchronously - this is critical for compliance
   let ip = 'IP unavailable at time of signing';
   let geolocation: SigningContext['geolocation'] = undefined;
+  let connectionWarning: string | undefined = undefined;
   
   try {
     // Attempt to get IP and geolocation from our edge function
@@ -264,6 +300,14 @@ export async function captureSigningContext(): Promise<SigningContext> {
             country: data.country || 'Unknown',
           };
         }
+        
+        // Check for VPN/proxy usage (informational only)
+        connectionWarning = detectVpnOrProxy({
+          org: data.org,
+          isp: data.isp,
+          hosting: data.hosting,
+          proxy: data.proxy,
+        });
       }
     }
   } catch (error) {
@@ -290,6 +334,7 @@ export async function captureSigningContext(): Promise<SigningContext> {
     userAgent,
     timestamp,
     geolocation,
+    connectionWarning,
   };
 }
 

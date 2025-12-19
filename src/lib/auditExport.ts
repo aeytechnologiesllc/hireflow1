@@ -40,19 +40,55 @@ const getActionLabel = (action: string): string => {
     created: 'Document Created',
     document_created: 'Document Created',
     viewed: 'Document Viewed',
+    document_viewed: 'Document Viewed',
     edited: 'Document Edited',
     candidate_signed: 'Candidate Signed',
     employer_countersigned: 'Employer Countersigned',
     completed: 'Document Completed',
     document_completed: 'Document Completed',
     declined: 'Document Declined',
+    document_declined: 'Document Declined',
     downloaded: 'Document Downloaded',
     voided: 'Document Voided',
     electronic_consent_confirmed: 'Electronic Consent Confirmed',
     employer_review_confirmed: 'Employer Review Confirmed',
+    signing_session_started: 'Signing Session Started',
     sent: 'Document Sent'
   };
   return labels[action] || action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+/**
+ * Get human-readable event description for audit PDF
+ */
+const getEventDescription = (action: string, signatureMethod?: string): string => {
+  const sigType = signatureMethod === 'drawn' ? 'drawn signature' : 'typed signature';
+  
+  switch (action) {
+    case 'document_created':
+    case 'created':
+      return 'Document created and ready for signing workflow.';
+    case 'document_viewed':
+    case 'viewed':
+      return 'Document opened for viewing.';
+    case 'signing_session_started':
+      return 'Signing session initiated.';
+    case 'electronic_consent_confirmed':
+      return 'Electronic signature consent confirmed.';
+    case 'candidate_signed':
+      return `Candidate signed using ${sigType}.`;
+    case 'employer_review_confirmed':
+      return 'Employer verified candidate signature.';
+    case 'employer_countersigned':
+      return `Employer countersigned using ${sigType}.`;
+    case 'document_completed':
+      return 'Document fully executed and locked.';
+    case 'document_declined':
+    case 'declined':
+      return 'Document was declined.';
+    default:
+      return '';
+  }
 };
 
 /**
@@ -243,26 +279,41 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
   pdf.text("IP ADDRESS", margin + 135, y + 5);
   y += 9;
 
-  // Table Rows
+  // Table Rows with human-readable descriptions
   pdf.setTextColor(0);
   data.entries.forEach((entry, index) => {
-    checkNewPage(15);
+    // Check for space - need more if we're adding description
+    const hasDescription = getEventDescription(entry.action, entry.signature_method);
+    checkNewPage(hasDescription ? 20 : 15);
     
     const bgColor = index % 2 === 0 ? 255 : 248;
     pdf.setFillColor(bgColor, bgColor, bgColor);
-    pdf.rect(margin, y - 2, pageWidth - 2 * margin, 10, 'F');
+    const rowHeight = hasDescription ? 16 : 10;
+    pdf.rect(margin, y - 2, pageWidth - 2 * margin, rowHeight, 'F');
     
     pdf.setFontSize(7);
+    pdf.setFont("helvetica", "normal");
     pdf.text(getActionLabel(entry.action).substring(0, 25), margin + 2, y + 3);
     pdf.text((entry.signer_name || 'System').substring(0, 20), margin + 45, y + 3);
     pdf.text(format(new Date(entry.created_at), "yyyy-MM-dd HH:mm:ss"), margin + 90, y + 3);
+    
     // Explicitly show IP status - never silently omit
     const ipDisplay = entry.ip_address && entry.ip_address !== 'unknown' 
       ? entry.ip_address 
       : 'Unavailable';
     pdf.text(ipDisplay, margin + 135, y + 3);
     
-    y += 10;
+    // Add human-readable description below the row
+    if (hasDescription) {
+      pdf.setFontSize(6);
+      pdf.setFont("helvetica", "italic");
+      pdf.setTextColor(100);
+      pdf.text(hasDescription, margin + 5, y + 9);
+      pdf.setTextColor(0);
+      y += 16;
+    } else {
+      y += 10;
+    }
   });
 
   y += 10;
