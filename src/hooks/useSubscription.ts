@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
@@ -77,8 +78,68 @@ export function useSubscription() {
       return data;
     },
     enabled: !!user,
-    staleTime: 60000, // 1 minute
+    staleTime: 30000, // 30 seconds
   });
+
+  // Real-time subscription to relevant tables for usage updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Subscribe to jobs changes
+    const jobsChannel = supabase
+      .channel('subscription-jobs-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'jobs',
+          filter: `employer_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to applications changes (for applicants count and AI analyses)
+    const applicationsChannel = supabase
+      .channel('subscription-applications-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'applications',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to documents changes
+    const documentsChannel = supabase
+      .channel('subscription-documents-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'documents',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(jobsChannel);
+      supabase.removeChannel(applicationsChannel);
+      supabase.removeChannel(documentsChannel);
+    };
+  }, [user?.id, queryClient]);
 
   const createCheckoutSession = useMutation({
     mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business' | 'enterprise'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
