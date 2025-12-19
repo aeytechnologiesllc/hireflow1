@@ -1162,30 +1162,47 @@ export default function GuestJobCreator() {
 
                     {/* Generate with AVA Button */}
                     <div className="flex justify-end">
-                      <Button
-                        onClick={generateWorkflow}
-                        disabled={isGeneratingWorkflow}
-                        className={cn(
-                          "gap-2 px-6",
-                          "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
-                          "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
-                          "text-white font-semibold shadow-lg shadow-fuchsia-500/25",
-                          "border-0"
-                        )}
-                        size="lg"
+                      <motion.div
+                        className="relative"
+                        animate={{
+                          boxShadow: [
+                            "0 0 20px -5px rgba(217, 70, 239, 0.4)",
+                            "0 0 35px -5px rgba(217, 70, 239, 0.6)",
+                            "0 0 20px -5px rgba(217, 70, 239, 0.4)"
+                          ]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        style={{ borderRadius: "0.5rem" }}
                       >
-                        {isGeneratingWorkflow ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            <span>Generating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-5 w-5" />
-                            <span>Generate with AVA</span>
-                          </>
-                        )}
-                      </Button>
+                        <Button
+                          onClick={generateWorkflow}
+                          disabled={isGeneratingWorkflow}
+                          className={cn(
+                            "gap-2 px-6 relative overflow-hidden",
+                            "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
+                            "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
+                            "text-white font-semibold",
+                            "border-0"
+                          )}
+                          size="lg"
+                        >
+                          {isGeneratingWorkflow ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span>Generating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-5 w-5" />
+                              <span>Generate with AVA</span>
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
                     </div>
                   </CardContent>
                 </Card>
