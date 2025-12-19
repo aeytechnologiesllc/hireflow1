@@ -14,35 +14,35 @@ const GENERATION_STEPS = [
     icon: FileText, 
     label: "Analyzing job requirements...",
     sublabel: "Understanding the role",
-    color: "text-purple-400",
+    color: "text-emerald-300",
     duration: 2500
   },
   { 
     icon: Brain, 
     label: "Writing application questions...",
     sublabel: "Tailoring questions to the role",
-    color: "text-blue-400",
+    color: "text-emerald-400",
     duration: 3000
   },
   { 
     icon: Sparkles, 
     label: "Creating screening quiz...",
     sublabel: "Building knowledge assessments",
-    color: "text-emerald-400",
+    color: "text-teal-400",
     duration: 3500
   },
   { 
     icon: Layers, 
     label: "Building workflow phases...",
     sublabel: "Designing the candidate journey",
-    color: "text-fuchsia-400",
+    color: "text-emerald-500",
     duration: 2500
   },
   { 
     icon: Wand2, 
     label: "Optimizing for best candidates...",
     sublabel: "Final polish",
-    color: "text-amber-400",
+    color: "text-emerald-300",
     duration: 2000
   },
 ];
@@ -119,34 +119,34 @@ export default function AvaWorkflowGenerationOverlay({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-[hsl(220,18%,5%)]/95 backdrop-blur-xl" />
       
-      {/* Animated orbs */}
+      {/* Animated orbs - subtle emerald/teal tones */}
       <motion.div 
         animate={{ 
           x: [0, 50, 0], 
           y: [0, -30, 0],
           scale: [1, 1.2, 1],
-          opacity: [0.3, 0.5, 0.3]
+          opacity: [0.15, 0.25, 0.15]
         }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-purple-600/30 blur-[150px] rounded-full" 
+        className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-emerald-600/25 blur-[150px] rounded-full" 
       />
       <motion.div 
         animate={{ 
           x: [0, -40, 0], 
           y: [0, 40, 0],
           scale: [1, 1.1, 1],
-          opacity: [0.2, 0.4, 0.2]
+          opacity: [0.15, 0.3, 0.15]
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-emerald-600/30 blur-[130px] rounded-full" 
+        className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-teal-600/25 blur-[130px] rounded-full" 
       />
       <motion.div 
         animate={{ 
           scale: [1, 1.3, 1],
-          opacity: [0.15, 0.25, 0.15]
+          opacity: [0.1, 0.2, 0.1]
         }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-fuchsia-600/20 blur-[180px] rounded-full" 
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/15 blur-[180px] rounded-full" 
       />
 
       {/* Floating particles */}
@@ -183,14 +183,14 @@ export default function AvaWorkflowGenerationOverlay({
           className="flex justify-center mb-8"
         >
           <div className="relative">
-            {/* Glow ring */}
+            {/* Glow ring - subtle emerald tones */}
             <motion.div
               animate={{ 
                 scale: [1, 1.2, 1],
-                opacity: [0.5, 0.8, 0.5]
+                opacity: [0.3, 0.5, 0.3]
               }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/50 via-fuchsia-500/50 to-emerald-500/50 blur-xl"
+              className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-500/40 via-teal-500/40 to-emerald-400/40 blur-xl"
               style={{ width: 120, height: 120, margin: -20 }}
             />
             <img
@@ -248,7 +248,7 @@ export default function AvaWorkflowGenerationOverlay({
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                      className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500/30 to-fuchsia-500/30 flex items-center justify-center"
+                      className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500/30 to-teal-500/30 flex items-center justify-center"
                     >
                       <StepIcon className="h-5 w-5" />
                     </motion.div>
@@ -306,7 +306,7 @@ export default function AvaWorkflowGenerationOverlay({
           </div>
           <div className="h-1.5 bg-[hsl(220,15%,15%)] rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-emerald-500"
+              className="h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400"
               initial={{ width: "0%" }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5 }}
