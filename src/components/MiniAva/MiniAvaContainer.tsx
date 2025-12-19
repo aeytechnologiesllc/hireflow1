@@ -247,15 +247,15 @@ export default function MiniAvaContainer() {
               setShowTooltip(false);
             }}
           >
-            {/* Glow ring - updated to lavender/teal */}
+            {/* Glow ring - warm golden glow to match Ava's style */}
             <motion.div
               className="absolute inset-0 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsla(270, 60%, 75%, 0.35) 0%, hsla(175, 50%, 65%, 0.2) 50%, transparent 70%)',
+                background: 'radial-gradient(circle, hsla(35, 70%, 60%, 0.35) 0%, hsla(45, 60%, 55%, 0.15) 50%, transparent 70%)',
               }}
               animate={{
                 scale: isHovered ? 1.6 : 1.3,
-                opacity: personalityState === 'sleeping' ? 0.3 : isHovered ? 1 : 0.6,
+                opacity: personalityState === 'sleeping' ? 0.25 : isHovered ? 0.9 : 0.5,
               }}
               transition={{ duration: 0.4 }}
             />
@@ -268,13 +268,13 @@ export default function MiniAvaContainer() {
               size={48}
             />
             
-            {/* Status indicator - updated to match new palette */}
+            {/* Status indicator - warm colors */}
             <motion.div
               className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background"
               animate={{
                 backgroundColor: personalityState === 'sleeping' 
-                  ? 'hsl(270, 30%, 50%)' 
-                  : 'hsl(185, 70%, 55%)',
+                  ? 'hsl(35, 30%, 45%)' 
+                  : 'hsl(145, 60%, 50%)',
               }}
             />
           </motion.div>
