@@ -860,10 +860,6 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       <FileText className="h-4 w-4 mr-2" />
                       Audit PDF
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleDownloadAuditJSON}>
-                      <FileJson className="h-4 w-4 mr-2" />
-                      Audit JSON
-                    </Button>
                   </div>
                   <Button onClick={() => setShowAuditTrail(true)} className="gap-2">
                     <History className="h-4 w-4" />
