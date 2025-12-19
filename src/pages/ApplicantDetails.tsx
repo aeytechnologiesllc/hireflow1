@@ -28,7 +28,7 @@ import {
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
   HelpCircle, Move, Zap, AlertCircle, Download, FastForward,
-  MoreHorizontal, CalendarX
+  MoreHorizontal, CalendarX, Flag
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,6 +78,7 @@ const defaultPhases = [
 
 // Map workflow step types to icons
 const stepTypeIcons: Record<string, any> = {
+  journey_start: Flag,
   application: FileCheck,
   quiz: ClipboardList,
   video_intro: Video,
@@ -423,8 +424,9 @@ export default function ApplicantDetails() {
     const quizQuestions = application?.jobs?.quiz_questions as any[] | undefined;
     
     if (workflowSteps && workflowSteps.length > 0) {
-      // Start with application phase
+      // Start with journey_start as the true origin, then application
       const allPhases: { id: string; title: string; icon: any; type: string }[] = [
+        { id: "journey_start", title: "Start", icon: Flag, type: "journey_start" },
         { id: "application", title: "Application", icon: FileCheck, type: "application" },
       ];
       
@@ -475,7 +477,11 @@ export default function ApplicantDetails() {
       );
       return allPhases;
     }
-    return defaultPhases;
+    // Default phases with journey_start
+    return [
+      { id: "journey_start", title: "Start", icon: Flag, type: "journey_start" },
+      ...defaultPhases
+    ];
   })();
 
   // Find current phase index with fuzzy matching to handle spaces/underscores
@@ -519,6 +525,10 @@ export default function ApplicantDetails() {
 
   // Check if candidate has completed the current phase (awaiting employer review)
   const hasCompletedCurrentPhase = (phaseId: string, phaseType: string): boolean => {
+    // Journey start is always "complete" - it's just the starting point
+    if (phaseType === "journey_start") {
+      return true;
+    }
     if (phaseType === "application") {
       return !!(application?.cover_letter || parsedNotes.applicationAnswers?.length > 0);
     }
@@ -597,11 +607,12 @@ export default function ApplicantDetails() {
     }
   }, [effectivePhaseIndex, phases.length, isDragging, parsedNotes, application, isManualMode]);
 
-  const handleDragStart = () => {
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDrag = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleDrag = (e: MouseEvent | TouchEvent) => {
     if (!isDragging || !sliderRef.current) return;
     
     const rect = sliderRef.current.getBoundingClientRect();
@@ -610,6 +621,28 @@ export default function ApplicantDetails() {
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
     setDragPosition(percentage);
   };
+
+  // Global mouse/touch event listeners for smooth magnetic drag
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => handleDrag(e);
+    const handleTouchMove = (e: TouchEvent) => handleDrag(e);
+    const handleMouseUp = () => handleDragEnd();
+    const handleTouchEnd = () => handleDragEnd();
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging]);
 
   const handleDragEnd = async () => {
     if (!isDragging || !application) return;
@@ -784,8 +817,8 @@ export default function ApplicantDetails() {
         let skippedPhaseIds = phases.slice(currentIndex + 1, newIndex).map((p) => p.id);
         
         // If origin phase has no data (was reset/not completed), also mark it as skipped
-        // Exception: Don't mark 'application' as skipped since it's the true starting point
-        if (!originHasData && originPhase.type !== "application") {
+        // Exception: Don't mark 'journey_start' as skipped since it's just the starting point marker
+        if (!originHasData && originPhase.type !== "journey_start") {
           skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
         }
         
@@ -879,7 +912,8 @@ export default function ApplicantDetails() {
       let skippedPhaseIds = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex).map(p => p.id);
       
       // If origin phase has no data, also mark it as skipped
-      if (!originHasData && originPhase.type !== "application") {
+      // Exception: Don't mark 'journey_start' as skipped since it's just the starting point marker
+      if (!originHasData && originPhase.type !== "journey_start") {
         skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
       }
       
@@ -1403,14 +1437,7 @@ ${interviewType} Interview with AVA Results:
   };
 
   return (
-    <div 
-      className="space-y-6"
-      onMouseMove={handleDrag}
-      onMouseUp={handleDragEnd}
-      onMouseLeave={handleDragEnd}
-      onTouchMove={handleDrag}
-      onTouchEnd={handleDragEnd}
-    >
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <Tooltip>
@@ -1706,15 +1733,14 @@ ${interviewType} Interview with AVA Results:
             {/* Progress bar background */}
             <div className="absolute top-8 left-0 right-0 h-2 bg-muted rounded-full" />
             
-            {/* Completed progress - Animated glide-in */}
-            <motion.div 
+            {/* Completed progress - Smooth CSS animation */}
+            <div 
               className="absolute top-8 left-0 h-2 rounded-full"
               style={{ 
-                background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)"
+                background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)",
+                width: `${dragPosition}%`,
+                transition: isDragging ? 'none' : 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-              initial={{ width: "0%" }}
-              animate={isDragging ? false : { width: `${dragPosition}%` }}
-              transition={isDragging ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
             />
 
             {/* Phase markers */}
@@ -1724,6 +1750,7 @@ ${interviewType} Interview with AVA Results:
               const isCompleted = index < effectivePhaseIndex;
               const isCurrent = index === effectivePhaseIndex;
               const isSkipped = parsedNotes.employerSkippedPhases?.includes(phase.id);
+              const isStartPhase = phase.type === "journey_start";
               
               return (
                 <div 
@@ -1731,10 +1758,13 @@ ${interviewType} Interview with AVA Results:
                   className="absolute flex flex-col items-center -translate-x-1/2"
                   style={{ left: `${position}%` }}
                 >
-                  {/* Dot */}
+                  {/* Dot - smaller for start phase */}
                   <div 
-                    className={`w-4 h-4 rounded-full border-2 border-background mt-6 z-10 ${
+                    className={`rounded-full border-2 border-background mt-6 z-10 ${
+                      isStartPhase ? "w-3 h-3" : "w-4 h-4"
+                    } ${
                       isSkipped ? "bg-amber-500" :
+                      isStartPhase ? "bg-muted-foreground/50" :
                       isCompleted ? phaseColors.completed : 
                       isCurrent ? phaseColors.current : 
                       phaseColors.upcoming
@@ -1746,7 +1776,8 @@ ${interviewType} Interview with AVA Results:
                     {isSkipped ? (
                       <FastForward className="h-5 w-5 text-amber-500" />
                     ) : (
-                      <Icon className={`h-5 w-5 ${
+                      <Icon className={`${isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
+                        isStartPhase ? "text-muted-foreground/60" :
                         isCompleted ? "text-success" : 
                         isCurrent ? "text-warning" : 
                         "text-muted-foreground"
@@ -1754,6 +1785,7 @@ ${interviewType} Interview with AVA Results:
                     )}
                     <span className={`text-xs mt-1 ${
                       isSkipped ? "text-amber-500" :
+                      isStartPhase ? "text-muted-foreground/60" :
                       isCompleted ? "text-success" : 
                       isCurrent ? "text-warning" : 
                       "text-muted-foreground"
@@ -1765,34 +1797,29 @@ ${interviewType} Interview with AVA Results:
               );
             })}
 
-            {/* Draggable avatar - Animated glide-in */}
-            <motion.div 
-              className={`absolute top-3 z-20 -translate-x-1/2 ${
+            {/* Draggable avatar - Smooth CSS-based movement */}
+            <div 
+              className={`absolute top-3 z-20 ${
                 isAwaitingReview && !isDragging ? "animate-float-awaiting" : ""
               } ${
                 canManagePipeline ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-70"
               } ${
                 phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline && !isAwaitingReview ? "animate-bounce-subtle" : ""
               }`}
-              initial={{ left: "0%" }}
-              animate={isDragging ? false : { left: `${dragPosition}%` }}
-              transition={isDragging ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
-              style={{ left: `${dragPosition}%` }}
+              style={{ 
+                left: `${dragPosition}%`,
+                transform: 'translateX(-50%)',
+                transition: isDragging ? 'none' : 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
               onMouseDown={canManagePipeline ? handleDragStart : undefined}
               onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.8 }}
-              >
-                <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
-                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              </motion.div>
-            </motion.div>
+              <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
         </CardContent>
       </Card>
