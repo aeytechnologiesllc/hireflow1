@@ -13,6 +13,31 @@ interface ToolCallRequest {
   currentRoute?: string;
 }
 
+// Helper function to check if a string is a valid UUID
+const isUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+// Helper to resolve job identifier (title or ID) to actual job ID
+const resolveJobId = async (supabaseClient: any, userId: string, jobIdentifier: string): Promise<string | null> => {
+  // If it's already a valid UUID, return it
+  if (isUUID(jobIdentifier)) {
+    return jobIdentifier;
+  }
+  
+  // Otherwise, try to find the job by title (case-insensitive)
+  const { data: job } = await supabaseClient
+    .from("jobs")
+    .select("id")
+    .eq("employer_id", userId)
+    .ilike("title", `%${jobIdentifier}%`)
+    .limit(1)
+    .single();
+  
+  return job?.id || null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -48,7 +73,15 @@ serve(async (req) => {
           .eq("jobs.employer_id", user.id);
 
         if (parameters.job_id) {
-          query = query.eq("job_id", parameters.job_id);
+          // Resolve job title to ID if needed
+          const resolvedJobId = await resolveJobId(supabaseClient, user.id, parameters.job_id);
+          if (resolvedJobId) {
+            query = query.eq("job_id", resolvedJobId);
+          } else {
+            // Job not found - return 0 count with helpful message
+            result = { count: 0, filters: parameters, note: `No job found matching "${parameters.job_id}"` };
+            break;
+          }
         }
         if (parameters.status) {
           query = query.eq("status", parameters.status);
@@ -58,7 +91,7 @@ serve(async (req) => {
         }
 
         const { count, error } = await query;
-        if (error) throw error;
+        if (error) throw new Error(error.message || JSON.stringify(error));
 
         result = { count, filters: parameters };
         break;
@@ -1605,11 +1638,20 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  } catch (error) {
-    console.error("Tool call error:", error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error" 
-    }), {
+  } catch (error: any) {
+    // Handle different error types
+    let errorMessage = "Unknown error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle Postgres error objects
+      errorMessage = error.message || error.details || error.hint || JSON.stringify(error);
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    console.error("Tool call error:", errorMessage, error);
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
