@@ -142,9 +142,9 @@ export default function GuestJobCreator() {
       if (error) throw error;
 
       setGeneratedWorkflow({
-        applicationQuestions: data.applicationQuestions || [],
-        quizQuestions: data.quizQuestions || [],
-        workflowSteps: data.workflowSteps || [],
+        applicationQuestions: data.application_questions || [],
+        quizQuestions: data.quiz_questions || [],
+        workflowSteps: data.workflow_steps || [],
       });
 
       // Move to review step after generation
@@ -489,26 +489,28 @@ export default function GuestJobCreator() {
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
                   >
-                    <Button 
-                      onClick={handleNext}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-8 shadow-lg shadow-emerald-500/25"
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      <motion.span
-                        className="mr-2 inline-flex"
-                        whileHover={{ rotate: 10 }}
-                        transition={{ type: "spring", stiffness: 260, damping: 16 }}
+                      <Button 
+                        onClick={handleNext}
+                        className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-8 shadow-lg shadow-emerald-500/25 relative overflow-hidden group"
                       >
-                        <Wand2 className="h-4 w-4" />
-                      </motion.span>
-                      Generate with AVA
-                      <motion.span
-                        className="ml-2 inline-flex"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-                      >
-                        <Sparkles className="h-4 w-4" />
-                      </motion.span>
-                    </Button>
+                        <Wand2 className="h-4 w-4 mr-2 transition-transform group-hover:rotate-12" />
+                        Generate with AVA
+                        <motion.span
+                          className="ml-2 inline-flex"
+                          animate={{ 
+                            scale: [1, 1.15, 1],
+                            opacity: [0.8, 1, 0.8]
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          <Sparkles className="h-4 w-4" />
+                        </motion.span>
+                      </Button>
+                    </motion.div>
                   </motion.div>
                 </div>
               </motion.div>
