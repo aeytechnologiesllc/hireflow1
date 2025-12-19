@@ -4,9 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-import { Loader2 } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
 import OnboardingWizard from "./subscription/OnboardingWizard";
 import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
@@ -65,33 +65,24 @@ export default function AppLayout() {
     }
   }, [user, loading, navigate, location.pathname]);
 
+  const isCandidateRoute = location.pathname.startsWith("/candidate");
+  const loadingVariant = isCandidateRoute ? "candidate" : "employer";
+
   // Show loading while auth or subscription is loading
   if (loading || subLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
   // If there's a subscription auth error while logged in, show loading and let the useEffect handle sign-out
   if (user && subError) {
     const errorMessage = subError?.message || String(subError);
     if (errorMessage.includes("not authenticated") || errorMessage.includes("User not authenticated")) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      );
+      return <AuthLoadingScreen variant={loadingVariant} />;
     }
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
   // Show onboarding wizard for new users (role-specific)
