@@ -109,10 +109,15 @@ export type Database = {
           location_country: string | null
           location_region: string | null
           page_numbers_signed: string[] | null
+          post_signature_hash: string | null
+          pre_signature_hash: string | null
+          signature_event_id: string | null
           signature_method: string | null
           signer_email: string | null
           signer_name: string | null
           signer_role: string | null
+          signing_order_position: number | null
+          timestamp_utc: string | null
           user_agent: string | null
           user_id: string | null
         }
@@ -130,10 +135,15 @@ export type Database = {
           location_country?: string | null
           location_region?: string | null
           page_numbers_signed?: string[] | null
+          post_signature_hash?: string | null
+          pre_signature_hash?: string | null
+          signature_event_id?: string | null
           signature_method?: string | null
           signer_email?: string | null
           signer_name?: string | null
           signer_role?: string | null
+          signing_order_position?: number | null
+          timestamp_utc?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -151,10 +161,15 @@ export type Database = {
           location_country?: string | null
           location_region?: string | null
           page_numbers_signed?: string[] | null
+          post_signature_hash?: string | null
+          pre_signature_hash?: string | null
+          signature_event_id?: string | null
           signature_method?: string | null
           signer_email?: string | null
           signer_name?: string | null
           signer_role?: string | null
+          signing_order_position?: number | null
+          timestamp_utc?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -203,6 +218,7 @@ export type Database = {
           application_id: string
           candidate_signature_data: string | null
           candidate_signed_at: string | null
+          completion_certificate: Json | null
           created_at: string
           decline_reason: string | null
           declined_at: string | null
@@ -214,7 +230,9 @@ export type Database = {
           file_url: string
           id: string
           ip_address: string | null
+          is_locked: boolean | null
           is_voided: boolean | null
+          locked_at: string | null
           name: string
           recipient_id: string | null
           reminder_sent_at: string | null
@@ -224,6 +242,9 @@ export type Database = {
           signing_order: string | null
           status: Database["public"]["Enums"]["document_status"]
           user_agent: string | null
+          v1_hash: string | null
+          v2_hash: string | null
+          v3_hash: string | null
           version_number: number | null
           viewed_at: string | null
           voided_at: string | null
@@ -233,6 +254,7 @@ export type Database = {
           application_id: string
           candidate_signature_data?: string | null
           candidate_signed_at?: string | null
+          completion_certificate?: Json | null
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
@@ -244,7 +266,9 @@ export type Database = {
           file_url: string
           id?: string
           ip_address?: string | null
+          is_locked?: boolean | null
           is_voided?: boolean | null
+          locked_at?: string | null
           name: string
           recipient_id?: string | null
           reminder_sent_at?: string | null
@@ -254,6 +278,9 @@ export type Database = {
           signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
+          v1_hash?: string | null
+          v2_hash?: string | null
+          v3_hash?: string | null
           version_number?: number | null
           viewed_at?: string | null
           voided_at?: string | null
@@ -263,6 +290,7 @@ export type Database = {
           application_id?: string
           candidate_signature_data?: string | null
           candidate_signed_at?: string | null
+          completion_certificate?: Json | null
           created_at?: string
           decline_reason?: string | null
           declined_at?: string | null
@@ -274,7 +302,9 @@ export type Database = {
           file_url?: string
           id?: string
           ip_address?: string | null
+          is_locked?: boolean | null
           is_voided?: boolean | null
+          locked_at?: string | null
           name?: string
           recipient_id?: string | null
           reminder_sent_at?: string | null
@@ -284,6 +314,9 @@ export type Database = {
           signing_order?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           user_agent?: string | null
+          v1_hash?: string | null
+          v2_hash?: string | null
+          v3_hash?: string | null
           version_number?: number | null
           viewed_at?: string | null
           voided_at?: string | null
