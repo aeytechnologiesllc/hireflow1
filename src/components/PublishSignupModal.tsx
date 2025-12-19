@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import avaOrb from "@/assets/ava-orb.png";
+import PremiumCelebration from "@/components/animations/PremiumCelebration";
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai', 'me', 'tv', 'cc', 'xyz', 'club', 'site', 'store', 'blog'];
 
@@ -102,6 +103,8 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   const [isLoading, setIsLoading] = useState(false);
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationName, setCelebrationName] = useState("");
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -143,10 +146,14 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       });
       setIsLoading(false);
     } else {
-      // Redirect to auth which handles the guestJobData
-      toast({ title: "Welcome back!", description: "Creating your job..." });
-      navigate("/auth?redirect=createJob");
+      setCelebrationName(signInEmail.split("@")[0]);
+      setShowCelebration(true);
     }
+  };
+
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false);
+    navigate("/auth?redirect=createJob");
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -175,15 +182,23 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       toast({ variant: "destructive", title: "Sign Up Failed", description: errorMessage });
       setIsLoading(false);
     } else {
-      toast({ title: "Account created!", description: "Publishing your job..." });
-      // The auth state change in Auth.tsx will pick up the guestJobData
-      navigate("/auth?redirect=createJob");
+      setCelebrationName(signUpName);
+      setShowCelebration(true);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-border">
+    <>
+      {showCelebration && (
+        <PremiumCelebration
+          name={celebrationName}
+          jobTitle={jobTitle}
+          onComplete={handleCelebrationComplete}
+          enableSound={true}
+        />
+      )}
+      <Dialog open={isOpen && !showCelebration} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-border">
         {/* Header with celebration */}
         <div className="bg-gradient-to-br from-emerald-500/20 via-purple-500/10 to-background p-6 border-b border-border">
           <motion.div
@@ -398,5 +413,6 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
