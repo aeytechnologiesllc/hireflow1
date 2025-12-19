@@ -88,9 +88,12 @@ export function exportAuditTrailJSON(data: AuditExportData): string {
         role: entry.signer_role || null
       },
       technical: {
-        ipAddress: entry.ip_address || null,
+        // Explicitly show IP status - never silently omit
+        ipAddress: entry.ip_address && entry.ip_address !== 'unknown' 
+          ? entry.ip_address 
+          : 'IP unavailable at time of signing',
         userAgent: entry.user_agent || null,
-        location: entry.location_city ? {
+        location: entry.location_city && entry.location_city !== 'Unknown' ? {
           city: entry.location_city,
           region: entry.location_region,
           country: entry.location_country
@@ -253,7 +256,11 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
     pdf.text(getActionLabel(entry.action).substring(0, 25), margin + 2, y + 3);
     pdf.text((entry.signer_name || 'System').substring(0, 20), margin + 45, y + 3);
     pdf.text(format(new Date(entry.created_at), "yyyy-MM-dd HH:mm:ss"), margin + 90, y + 3);
-    pdf.text(entry.ip_address || '-', margin + 135, y + 3);
+    // Explicitly show IP status - never silently omit
+    const ipDisplay = entry.ip_address && entry.ip_address !== 'unknown' 
+      ? entry.ip_address 
+      : 'Unavailable';
+    pdf.text(ipDisplay, margin + 135, y + 3);
     
     y += 10;
   });

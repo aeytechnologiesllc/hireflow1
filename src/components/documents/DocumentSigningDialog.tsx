@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,11 +27,21 @@ import {
   Edit,
   Save,
   UserCheck,
-  Building2
+  Building2,
+  Shield
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
+import { captureSigningContext, generateV1Hash, generateV2Hash, generateV3Hash } from "@/lib/documentHash";
+import { 
+  logElectronicConsentConfirmed, 
+  logCandidateSigned, 
+  logEmployerCountersigned,
+  logDocumentCompleted,
+  logDocumentDeclined,
+  logDocumentViewed
+} from "@/lib/auditTrail";
 
 interface SignatureField {
   id: string;
@@ -80,6 +91,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
   const canvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentField, setCurrentField] = useState<string | null>(null);
@@ -103,6 +115,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       setShowDeclineForm(false);
       setDeclineReason("");
       setSignatures({});
+      setConsentConfirmed(false);
     }
   }, [document, open]);
 
@@ -324,9 +337,30 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       });
       return;
     }
+
+    if (!consentConfirmed) {
+      toast({
+        title: "Consent Required",
+        description: "Please confirm electronic signature consent before signing.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSigning(true);
     try {
+      // CRITICAL: Capture IP and signing context at exact moment of signature
+      const signingContext = await captureSigningContext();
+      
+      // Get signer information
+      const signerName = user.user_metadata?.full_name || user.email || 'Unknown';
+      const signerEmail = user.email || '';
+      const signerRole = role === 'candidate' ? 'candidate' : 'employer';
+      
+      // Get document content for hash generation
+      const documentContent = documentData?.content || '';
+      const currentHash = document.v1_hash || await generateV1Hash(documentContent);
+      
       // For positioned fields, map positioned_signature to the correct field ID
       const finalSignatures = hasPositionedSignableFields
         ? {
@@ -341,24 +375,110 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       const signatureData = JSON.stringify({
         signatures: finalSignatures,
         signedBy: user.id,
-        signedAt: new Date().toISOString(),
-        userAgent: navigator.userAgent,
+        signedAt: signingContext.timestamp,
+        userAgent: signingContext.userAgent,
+        ipAddress: signingContext.ip,
+        geolocation: signingContext.geolocation,
       });
 
+      // Log electronic consent confirmation with IP
+      await logElectronicConsentConfirmed(
+        document.id,
+        user.id,
+        signerName,
+        signerEmail,
+        signerRole as 'employer' | 'candidate',
+        role === 'candidate' ? 1 : 2,
+        currentHash
+      );
+
       const updates: Record<string, any> = {
-        user_agent: navigator.userAgent,
+        user_agent: signingContext.userAgent,
+        ip_address: signingContext.ip,
       };
 
       if (role === "candidate") {
+        // Generate v2 hash after candidate signs
+        const v2Hash = await generateV2Hash(
+          documentContent,
+          signatureData,
+          signerEmail,
+          signingContext.timestamp
+        );
+        
         updates.candidate_signature_data = signatureData;
-        updates.candidate_signed_at = new Date().toISOString();
+        updates.candidate_signed_at = signingContext.timestamp;
+        updates.v2_hash = v2Hash;
+        updates.version_number = 2;
+        
+        // Log candidate signed with proper audit trail
+        await logCandidateSigned(
+          document.id,
+          user.id,
+          signerName,
+          signerEmail,
+          'drawn',
+          documentContent,
+          signatureData,
+          currentHash
+        );
       } else if (role === "employer") {
+        // Get candidate signature info for v3 hash
+        const candidateSigData = document.candidate_signature_data || '';
+        let candidateEmail = '';
+        let candidateTimestamp = document.candidate_signed_at || '';
+        
+        try {
+          const parsed = JSON.parse(candidateSigData);
+          candidateEmail = parsed.signerEmail || '';
+        } catch {
+          // Use fallback
+        }
+        
+        // Generate v3 hash after employer countersigns
+        const v3Hash = await generateV3Hash(
+          documentContent,
+          candidateSigData,
+          candidateEmail,
+          candidateTimestamp,
+          signatureData,
+          signerEmail,
+          signingContext.timestamp
+        );
+        
         updates.employer_signature_data = signatureData;
-        updates.employer_signed_at = new Date().toISOString();
-        // Both parties have signed - mark as fully signed
+        updates.employer_signed_at = signingContext.timestamp;
+        updates.v3_hash = v3Hash;
+        updates.version_number = 3;
         updates.status = "signed";
-        updates.signed_at = new Date().toISOString();
+        updates.signed_at = signingContext.timestamp;
         updates.signature_data = signatureData;
+        updates.is_locked = true;
+        updates.locked_at = signingContext.timestamp;
+        
+        // Log employer countersigned with proper audit trail
+        await logEmployerCountersigned(
+          document.id,
+          user.id,
+          signerName,
+          signerEmail,
+          'drawn',
+          documentContent,
+          candidateSigData,
+          candidateEmail,
+          candidateTimestamp,
+          signatureData,
+          document.v2_hash || currentHash
+        );
+        
+        // Log document completed
+        await logDocumentCompleted(
+          document.id,
+          user.id,
+          signerName,
+          signerEmail,
+          v3Hash
+        );
       }
 
       const { error } = await supabase
@@ -367,18 +487,6 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
         .eq("id", document.id);
 
       if (error) throw error;
-
-      await supabase.from("document_audit_logs").insert({
-        document_id: document.id,
-        user_id: user.id,
-        action: role === "candidate" ? "candidate_signed" : "employer_countersigned",
-        details: { 
-          method: "electronic_signature",
-          fieldsCompleted: Object.keys(signatures).length,
-          role,
-        },
-        user_agent: navigator.userAgent,
-      });
 
       // Notify the other party
       if (role === "candidate" && document.sender_id) {
@@ -424,24 +532,34 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     
     setIsDeclining(true);
     try {
+      // Capture context at moment of decline
+      const signingContext = await captureSigningContext();
+      const signerName = user.user_metadata?.full_name || user.email || 'Unknown';
+      const signerEmail = user.email || '';
+      const signerRole = role === 'candidate' ? 'candidate' : 'employer';
+      const currentHash = document.v1_hash || document.v2_hash || document.document_hash || '';
+      
       const { error } = await supabase
         .from("documents")
         .update({
           status: "declined",
-          declined_at: new Date().toISOString(),
+          declined_at: signingContext.timestamp,
           decline_reason: declineReason,
         })
         .eq("id", document.id);
 
       if (error) throw error;
 
-      await supabase.from("document_audit_logs").insert({
-        document_id: document.id,
-        user_id: user.id,
-        action: "declined",
-        details: { reason: declineReason, role },
-        user_agent: navigator.userAgent,
-      });
+      // Log decline with proper audit trail function
+      await logDocumentDeclined(
+        document.id,
+        user.id,
+        signerName,
+        signerEmail,
+        signerRole as 'employer' | 'candidate',
+        declineReason,
+        currentHash
+      );
 
       toast({
         title: "Document Declined",
@@ -845,6 +963,24 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
                   <Separator />
 
+                  {/* Electronic Consent Checkbox - Required for ESIGN Act compliance */}
+                  <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                    <div className="flex items-start gap-3">
+                      <Checkbox 
+                        id="consent" 
+                        checked={consentConfirmed}
+                        onCheckedChange={(checked) => setConsentConfirmed(checked === true)}
+                      />
+                      <label htmlFor="consent" className="text-sm leading-relaxed cursor-pointer">
+                        <span className="flex items-center gap-2 font-medium mb-1">
+                          <Shield className="h-4 w-4 text-primary" />
+                          Electronic Signature Consent
+                        </span>
+                        I consent to sign this document electronically. I acknowledge that my electronic signature has the same legal effect as a handwritten signature under the ESIGN Act and UETA.
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <Button
                       variant="outline"
@@ -855,7 +991,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                     </Button>
                     <Button
                       onClick={handleSign}
-                      disabled={!signatures["positioned_signature"] || isSigning}
+                      disabled={!signatures["positioned_signature"] || !consentConfirmed || isSigning}
                       className="min-w-[150px]"
                     >
                       {isSigning ? (
@@ -940,6 +1076,24 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
                   <Separator />
 
+                  {/* Electronic Consent Checkbox */}
+                  <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                    <div className="flex items-start gap-3">
+                      <Checkbox 
+                        id="consent-legacy" 
+                        checked={consentConfirmed}
+                        onCheckedChange={(checked) => setConsentConfirmed(checked === true)}
+                      />
+                      <label htmlFor="consent-legacy" className="text-sm leading-relaxed cursor-pointer">
+                        <span className="flex items-center gap-2 font-medium mb-1">
+                          <Shield className="h-4 w-4 text-primary" />
+                          Electronic Signature Consent
+                        </span>
+                        I consent to sign this document electronically. I acknowledge that my electronic signature has the same legal effect as a handwritten signature.
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <Button
                       variant="outline"
@@ -950,7 +1104,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                     </Button>
                     <Button
                       onClick={handleSign}
-                      disabled={!allRequiredSigned() || isSigning}
+                      disabled={!allRequiredSigned() || !consentConfirmed || isSigning}
                       className="min-w-[150px]"
                     >
                       {isSigning ? (
