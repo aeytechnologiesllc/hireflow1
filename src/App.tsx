@@ -41,6 +41,7 @@ import MarketingDemo from "./pages/MarketingDemo";
 import CandidatePortalLanding from "./pages/CandidatePortalLanding";
 import CandidateAuth from "./pages/CandidateAuth";
 import VerifyDocument from "./pages/VerifyDocument";
+import OAuthGoogleCallback from "./pages/OAuthGoogleCallback";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,9 @@ const App = () => (
             
             {/* Document Verification (public, outside AppLayout) */}
             <Route path="/verify/:documentCode" element={<VerifyDocument />} />
+            
+            {/* OAuth Callback (public, outside AppLayout) */}
+            <Route path="/oauth/google/callback" element={<OAuthGoogleCallback />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
