@@ -265,30 +265,51 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     if (isDocumentLoading || !documentData?.signatureFields) return [];
     
     if (role === "candidate") {
-      // Candidate signs recipient field
-      return documentData.signatureFields.filter(f => f.id === "recipient");
+      // Candidate signs: legacy "recipient" field OR new positioned fields with type="candidate"
+      return documentData.signatureFields.filter(f => 
+        f.id === "recipient" || 
+        (isPositionedField(f) && f.type === "candidate")
+      );
     } else if (role === "employer") {
       // Employer signs employer field, but only after candidate has signed
       if (!candidateSigned) return [];
-      return documentData.signatureFields.filter(f => f.id === "employer");
+      return documentData.signatureFields.filter(f => 
+        f.id === "employer" || 
+        (isPositionedField(f) && f.type === "employer")
+      );
     }
     return [];
   };
 
   const signableFields = getSignableFields();
-  const canSign = !isDocumentLoading && signableFields.length > 0 && document?.status === "pending";
+  
+  // Check if we have positioned signature fields that the current user can sign
+  const hasPositionedSignableFields = signableFields.some(f => isPositionedField(f) && f.id.includes("signature"));
+  
+  // canSign: either legacy fields or positioned signature fields
+  const canSign = !isDocumentLoading && document?.status === "pending" && signableFields.length > 0;
 
   const allRequiredSigned = () => {
+    // For positioned signature fields, check the positioned_signature key
+    if (hasPositionedSignableFields) {
+      return !!signatures["positioned_signature"];
+    }
+    // For legacy fields, check each required field
     return signableFields
       .filter(f => f.required)
       .every(f => signatures[f.id]);
   };
 
   const handleSign = async () => {
-    if (!document || !user || !allRequiredSigned()) {
+    // For positioned fields, check positioned_signature; for legacy, check allRequiredSigned
+    const isReadyToSign = hasPositionedSignableFields 
+      ? !!signatures["positioned_signature"]
+      : allRequiredSigned();
+      
+    if (!document || !user || !isReadyToSign) {
       toast({
-        title: "Signatures Required",
-        description: "Please complete all required signature fields.",
+        title: "Signature Required",
+        description: "Please draw your signature to continue.",
         variant: "destructive",
       });
       return;
@@ -296,8 +317,19 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     
     setIsSigning(true);
     try {
+      // For positioned fields, map positioned_signature to the correct field ID
+      const finalSignatures = hasPositionedSignableFields
+        ? {
+            ...signatures,
+            ...(role === "candidate" 
+              ? { candidate_signature: signatures["positioned_signature"] }
+              : { employer_signature: signatures["positioned_signature"] }
+            ),
+          }
+        : signatures;
+
       const signatureData = JSON.stringify({
-        signatures,
+        signatures: finalSignatures,
         signedBy: user.id,
         signedAt: new Date().toISOString(),
         userAgent: navigator.userAgent,
@@ -719,6 +751,112 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                     </Button>
                   </div>
                 </motion.div>
+              ) : hasPositionedSignableFields && isUploadedDocument && documentData?.uploadedFileUrl ? (
+                /* PDF-based signing mode for positioned signature fields */
+                <div className="space-y-4">
+                  <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
+                    <PenTool className="h-8 w-8 text-primary mx-auto mb-2" />
+                    <h3 className="font-semibold">
+                      {role === "candidate" ? "Sign as Candidate" : "Countersign as Employer"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Draw your signature below, then click "Apply & Sign" to place it on the document.
+                    </p>
+                  </div>
+
+                  {/* Signature Drawing Area */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        {role === "candidate" ? <UserCheck className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
+                        Your Signature
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      {signatures["positioned_signature"] && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => clearSignature("positioned_signature")}
+                        >
+                          <Undo2 className="h-4 w-4 mr-1" />
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <canvas
+                        ref={(el) => initCanvas("positioned_signature", el)}
+                        width={500}
+                        height={100}
+                        className={`w-full border-2 rounded-lg cursor-crosshair bg-white ${
+                          signatures["positioned_signature"] 
+                            ? "border-success" 
+                            : "border-dashed border-border hover:border-primary"
+                        }`}
+                        onMouseDown={(e) => startDrawing("positioned_signature", e)}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                      />
+                      {!signatures["positioned_signature"] && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <p className="text-muted-foreground text-sm">
+                            Draw your signature here
+                          </p>
+                        </div>
+                      )}
+                      {signatures["positioned_signature"] && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="h-5 w-5 text-success" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* PDF Preview with Signature Fields */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <PdfSignaturePlacer
+                      pdfUrl={documentData.uploadedFileUrl}
+                      signatureFields={positionedSignatureFields}
+                      onFieldsChange={() => {}}
+                      readOnly={true}
+                      activeSignerId={role === "candidate" ? "candidate" : "employer"}
+                      signatures={signatures["positioned_signature"] ? {
+                        ...signatures,
+                        // Map the drawn signature to the correct positioned field IDs
+                        ...(role === "candidate" ? {
+                          candidate_signature: signatures["positioned_signature"],
+                        } : {
+                          employer_signature: signatures["positioned_signature"],
+                        })
+                      } : signatures}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowDeclineForm(true)}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Decline to Sign
+                    </Button>
+                    <Button
+                      onClick={handleSign}
+                      disabled={!signatures["positioned_signature"] || isSigning}
+                      className="min-w-[150px]"
+                    >
+                      {isSigning ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      )}
+                      {role === "candidate" ? "Apply & Sign" : "Apply & Countersign"}
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-6">
                   <div className="text-center p-4 bg-primary/5 rounded-xl border border-primary/20">
