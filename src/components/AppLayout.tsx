@@ -12,6 +12,7 @@ import OnboardingWizard from "./subscription/OnboardingWizard";
 import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { MiniAvaContainer } from "@/components/MiniAva";
 
 export default function AppLayout() {
   const navigate = useNavigate();
@@ -136,6 +137,9 @@ export default function AppLayout() {
             <Outlet />
           </main>
         </div>
+        
+        {/* Mini Ava Mascot - only for employers */}
+        {isEmployer && <MiniAvaContainer />}
       </div>
     </TooltipProvider>
   );
