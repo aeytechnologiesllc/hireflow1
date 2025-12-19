@@ -243,26 +243,61 @@ export default function GuestJobCreator() {
       <div className="relative pt-24 pb-16 min-h-screen">
         <div className="container mx-auto px-4 max-w-3xl">
           {/* Step indicators */}
-          <div className="flex items-center justify-center gap-2 mb-12">
-            {GUEST_STEPS.map((s, i) => (
-              <div key={s.id} className="flex items-center">
-                <motion.div 
-                  animate={{ 
-                    scale: step === i ? 1.1 : 1,
-                    backgroundColor: step >= i ? "hsl(160, 60%, 40%)" : "hsl(220, 15%, 15%)"
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full border border-[hsl(220,15%,20%)]"
-                >
-                  <s.icon className={`h-4 w-4 ${step >= i ? "text-white" : "text-gray-500"}`} />
-                  <span className={`text-sm font-medium ${step >= i ? "text-white" : "text-gray-500"}`}>
-                    {s.title}
-                  </span>
-                </motion.div>
-                {i < GUEST_STEPS.length - 1 && (
-                  <div className={`w-8 h-0.5 mx-1 ${step > i ? "bg-emerald-500" : "bg-[hsl(220,15%,20%)]"}`} />
-                )}
-              </div>
-            ))}
+          <div className="flex items-center justify-center px-4 overflow-x-auto mb-12">
+            {GUEST_STEPS.map((s, i) => {
+              const StepIcon = s.icon;
+              const isActive = step === i;
+              const isCompleted = step > i;
+              
+              return (
+                <div key={s.id} className="flex items-center flex-shrink-0">
+                  <motion.button
+                    onClick={() => i < step && setStep(i)}
+                    disabled={i > step}
+                    whileHover={i <= step ? { scale: 1.02 } : {}}
+                    className={`flex items-center gap-2.5 p-2 rounded-xl transition-all duration-200 ${
+                      isActive 
+                        ? "bg-emerald-500/10" 
+                        : isCompleted 
+                        ? "cursor-pointer"
+                        : "cursor-not-allowed"
+                    }`}
+                  >
+                    <motion.div 
+                      animate={isActive ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                        isActive 
+                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" 
+                          : isCompleted
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-[hsl(220,15%,15%)] text-gray-500"
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle className="h-4 w-4" />
+                      ) : (
+                        <StepIcon className="h-4 w-4" />
+                      )}
+                    </motion.div>
+                    <span className={`font-medium hidden lg:block text-sm transition-colors duration-200 ${
+                      isActive 
+                        ? "text-emerald-400" 
+                        : isCompleted 
+                        ? "text-emerald-400/70"
+                        : "text-gray-500"
+                    }`}>
+                      {s.title}
+                    </span>
+                  </motion.button>
+                  {i < GUEST_STEPS.length - 1 && (
+                    <div className={`w-8 h-1 mx-1 rounded-full transition-colors duration-300 ${
+                      isCompleted ? "bg-emerald-500" : "bg-[hsl(220,15%,18%)]"
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <AnimatePresence mode="wait">
