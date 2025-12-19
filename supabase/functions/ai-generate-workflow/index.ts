@@ -233,10 +233,37 @@ IMPORTANT:
 
     let workflowData;
     try {
-      workflowData = JSON.parse(content);
+      // Clean the content - remove potential markdown code blocks or extra whitespace
+      let cleanContent = content.trim();
+      
+      // Remove markdown code blocks if present
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.slice(7);
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.slice(3);
+      }
+      if (cleanContent.endsWith('```')) {
+        cleanContent = cleanContent.slice(0, -3);
+      }
+      cleanContent = cleanContent.trim();
+      
+      workflowData = JSON.parse(cleanContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
-      throw new Error("Failed to parse workflow data");
+      console.error("Failed to parse AI response:", content.substring(0, 500) + "...");
+      console.error("Parse error:", parseError);
+      
+      // Try to extract JSON from the response if it's wrapped in other text
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          workflowData = JSON.parse(jsonMatch[0]);
+          console.log("Successfully extracted JSON from response");
+        } catch {
+          throw new Error("Failed to parse workflow data");
+        }
+      } else {
+        throw new Error("Failed to parse workflow data");
+      }
     }
 
     console.log("Generated workflow:", {
