@@ -9,6 +9,7 @@ interface AvaWorkflowGenerationOverlayProps {
   difficulty: string;
   minDuration?: number;
   onComplete?: () => void;
+  isApiComplete?: boolean; // Parent signals when API has returned
 }
 
 // Content for typing animations
@@ -51,7 +52,8 @@ export default function AvaWorkflowGenerationOverlay({
   jobTitle, 
   difficulty,
   minDuration = 20000,
-  onComplete
+  onComplete,
+  isApiComplete = false
 }: AvaWorkflowGenerationOverlayProps) {
   const [phase, setPhase] = useState<Phase>("awakening");
   const [activeNodes, setActiveNodes] = useState<string[]>([]);
@@ -140,7 +142,7 @@ export default function AvaWorkflowGenerationOverlay({
     return () => clearInterval(pulseInterval);
   }, [isVisible, phase]);
 
-  // Progress ring animation
+  // Progress ring animation - tracks time but doesn't trigger completion
   useEffect(() => {
     if (!isVisible) return;
 
@@ -151,14 +153,22 @@ export default function AvaWorkflowGenerationOverlay({
 
       if (progress >= 100 && !animationCompleteRef.current) {
         animationCompleteRef.current = true;
-        setTimeout(() => {
-          onComplete?.();
-        }, 500);
       }
     }, 50);
 
     return () => clearInterval(progressInterval);
-  }, [isVisible, minDuration, onComplete]);
+  }, [isVisible, minDuration]);
+
+  // Only call onComplete when BOTH animation is done AND API is complete
+  useEffect(() => {
+    if (animationCompleteRef.current && isApiComplete && onComplete) {
+      // Small delay for completion burst to show
+      const timer = setTimeout(() => {
+        onComplete();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isApiComplete, onComplete, progressRing]); // progressRing triggers re-check when animation completes
 
   // Cycle through floating cards
   useEffect(() => {
