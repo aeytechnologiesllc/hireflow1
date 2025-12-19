@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, FileText, Brain, Layers, Wand2, CheckCircle, PenTool, ClipboardCheck, GitBranch } from "lucide-react";
+import { FileText, Brain, ClipboardCheck, GitBranch, Sparkles, Zap } from "lucide-react";
 import avaOrb from "@/assets/ava-orb.png";
 
 interface AvaWorkflowGenerationOverlayProps {
@@ -11,511 +11,634 @@ interface AvaWorkflowGenerationOverlayProps {
   onComplete?: () => void;
 }
 
-const GENERATION_STEPS = [
-  { 
-    icon: FileText, 
-    label: "Analyzing job requirements...",
-    sublabel: "Understanding the role",
-    duration: 3000
-  },
-  { 
-    icon: Brain, 
-    label: "Writing application questions...",
-    sublabel: "Tailoring questions to the role",
-    duration: 4000
-  },
-  { 
-    icon: Sparkles, 
-    label: "Creating screening quiz...",
-    sublabel: "Building knowledge assessments",
-    duration: 4500
-  },
-  { 
-    icon: Layers, 
-    label: "Building workflow phases...",
-    sublabel: "Designing the candidate journey",
-    duration: 3500
-  },
-  { 
-    icon: Wand2, 
-    label: "Optimizing for best candidates...",
-    sublabel: "Final polish",
-    duration: 2500
-  },
-];
-
-// Role-specific application questions
+// Content for typing animations
 const APPLICATION_QUESTIONS = [
-  "Tell us about your experience with team leadership and how you motivate others...",
-  "Describe a challenging project you successfully completed and what you learned...",
-  "How do you approach prioritizing competing deadlines and multiple stakeholders?",
-  "What motivates you to excel in your work and pursue continuous improvement?",
-  "Share an example of when you had to adapt quickly to unexpected changes...",
-  "How do you handle constructive feedback and use it to grow professionally?",
+  "Describe your experience leading cross-functional teams through challenging projects...",
+  "How do you approach prioritizing multiple competing deadlines?",
+  "Tell us about a time you turned a difficult situation into a success...",
+  "What motivates you to excel and continuously improve?",
+  "Share an example of creative problem-solving in your work...",
 ];
 
-// Quiz questions with multiple choice feel
 const QUIZ_QUESTIONS = [
   "A customer expresses frustration about a delayed order. What's your first response?",
-  "Your team disagrees on the best approach for a project. How do you facilitate consensus?",
-  "You notice a colleague struggling with their workload. What action do you take?",
-  "A deadline is approaching but the quality isn't where it should be. What do you prioritize?",
-  "You receive conflicting instructions from two managers. How do you resolve this?",
+  "Your team disagrees on the best approach. How do you facilitate consensus?",
+  "You notice a colleague struggling. What action do you take?",
+  "Quality vs deadline - how do you balance the tradeoff?",
 ];
 
-// Workflow phase labels
 const WORKFLOW_PHASES = [
   "Application Review → Initial Screening",
-  "Phone Interview → Skills Assessment",
-  "Technical Evaluation → Culture Fit",
-  "Reference Check → Final Decision",
-  "Offer Preparation → Onboarding",
+  "Skills Assessment → Technical Interview",
+  "Culture Fit → Reference Check",
+  "Final Decision → Offer",
 ];
 
-type ContentType = "application" | "quiz" | "workflow";
+// Neural network node configuration
+const NEURAL_NODES = [
+  { id: "analyze", label: "Analyze", icon: Brain, angle: -90, delay: 0.5 },
+  { id: "questions", label: "Questions", icon: FileText, angle: -30, delay: 1.2 },
+  { id: "quiz", label: "Quiz", icon: ClipboardCheck, angle: 30, delay: 1.9 },
+  { id: "workflow", label: "Workflow", icon: GitBranch, angle: 90, delay: 2.6 },
+  { id: "optimize", label: "Optimize", icon: Sparkles, angle: 150, delay: 3.3 },
+  { id: "finalize", label: "Finalize", icon: Zap, angle: 210, delay: 4.0 },
+];
+
+type Phase = "awakening" | "creation" | "completion";
 
 export default function AvaWorkflowGenerationOverlay({ 
   isVisible, 
   jobTitle, 
   difficulty,
-  minDuration = 17500,
+  minDuration = 20000,
   onComplete
 }: AvaWorkflowGenerationOverlayProps) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [progress, setProgress] = useState(0);
-  
-  // Multiple typing panels state
-  const [activePanel, setActivePanel] = useState<ContentType>("application");
-  const [applicationText, setApplicationText] = useState("");
-  const [quizText, setQuizText] = useState("");
-  const [workflowText, setWorkflowText] = useState("");
-  const [applicationIndex, setApplicationIndex] = useState(0);
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [workflowIndex, setWorkflowIndex] = useState(0);
-  const [completedItems, setCompletedItems] = useState({ application: 0, quiz: 0, workflow: 0 });
-  
+  const [phase, setPhase] = useState<Phase>("awakening");
+  const [activeNodes, setActiveNodes] = useState<string[]>([]);
+  const [energyPulseIndex, setEnergyPulseIndex] = useState(0);
+  const [counters, setCounters] = useState({ questions: 0, quiz: 0, phases: 0 });
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [typedTexts, setTypedTexts] = useState(["", "", ""]);
+  const [orbScale, setOrbScale] = useState(0);
+  const [progressRing, setProgressRing] = useState(0);
   const startTimeRef = useRef<number>(0);
+  const animationCompleteRef = useRef(false);
 
-  // Reset state when visibility changes
+  // Particle system
+  const particles = useMemo(() => 
+    Array.from({ length: 60 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 3 + 1,
+      duration: Math.random() * 4 + 3,
+      delay: Math.random() * 2,
+      color: Math.random() > 0.5 ? "primary" : "accent",
+    }))
+  , []);
+
+  // Reset everything when overlay becomes visible
   useEffect(() => {
     if (isVisible) {
       startTimeRef.current = Date.now();
-      setCurrentStep(0);
-      setProgress(0);
-      setActivePanel("application");
-      setApplicationText("");
-      setQuizText("");
-      setWorkflowText("");
-      setApplicationIndex(0);
-      setQuizIndex(0);
-      setWorkflowIndex(0);
-      setCompletedItems({ application: 0, quiz: 0, workflow: 0 });
+      animationCompleteRef.current = false;
+      setPhase("awakening");
+      setActiveNodes([]);
+      setEnergyPulseIndex(0);
+      setCounters({ questions: 0, quiz: 0, phases: 0 });
+      setActiveCardIndex(0);
+      setTypedTexts(["", "", ""]);
+      setOrbScale(0);
+      setProgressRing(0);
     }
   }, [isVisible]);
 
-  // Progress through steps with smooth timing
+  // Phase 1: Awakening (0-4s) - Orb emergence
+  useEffect(() => {
+    if (!isVisible || phase !== "awakening") return;
+
+    // Orb emergence animation
+    const orbTimer = setTimeout(() => setOrbScale(1), 300);
+    
+    // Transition to creation phase
+    const phaseTimer = setTimeout(() => setPhase("creation"), 4000);
+
+    return () => {
+      clearTimeout(orbTimer);
+      clearTimeout(phaseTimer);
+    };
+  }, [isVisible, phase]);
+
+  // Phase 2: Creation (4-16s) - Main work happens
+  useEffect(() => {
+    if (!isVisible || phase !== "creation") return;
+
+    // Activate nodes sequentially
+    const nodeTimers = NEURAL_NODES.map((node, i) => 
+      setTimeout(() => {
+        setActiveNodes(prev => [...prev, node.id]);
+      }, i * 1800)
+    );
+
+    // Transition to completion phase
+    const completionTimer = setTimeout(() => setPhase("completion"), 12000);
+
+    return () => {
+      nodeTimers.forEach(clearTimeout);
+      clearTimeout(completionTimer);
+    };
+  }, [isVisible, phase]);
+
+  // Energy pulses during creation
+  useEffect(() => {
+    if (!isVisible || phase !== "creation") return;
+
+    const pulseInterval = setInterval(() => {
+      setEnergyPulseIndex(prev => prev + 1);
+    }, 2500);
+
+    return () => clearInterval(pulseInterval);
+  }, [isVisible, phase]);
+
+  // Progress ring animation
   useEffect(() => {
     if (!isVisible) return;
-    
-    const totalDuration = GENERATION_STEPS.reduce((acc, step) => acc + step.duration, 0);
-    let elapsed = 0;
-    
+
     const progressInterval = setInterval(() => {
-      elapsed += 100;
-      const newProgress = Math.min((elapsed / totalDuration) * 100, 100);
-      setProgress(newProgress);
-      
-      // Determine current step based on elapsed time
-      let stepTime = 0;
-      for (let i = 0; i < GENERATION_STEPS.length; i++) {
-        stepTime += GENERATION_STEPS[i].duration;
-        if (elapsed < stepTime) {
-          setCurrentStep(i);
-          break;
-        }
-      }
-      
-      if (elapsed >= totalDuration) {
-        setCurrentStep(GENERATION_STEPS.length - 1);
-        clearInterval(progressInterval);
-      }
-    }, 100);
+      const elapsed = Date.now() - startTimeRef.current;
+      const progress = Math.min((elapsed / minDuration) * 100, 100);
+      setProgressRing(progress);
 
-    return () => clearInterval(progressInterval);
-  }, [isVisible]);
-
-  // Cycle through content panels
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    const panelCycle: ContentType[] = ["application", "quiz", "workflow"];
-    let panelIndex = 0;
-    
-    const cyclePanels = setInterval(() => {
-      panelIndex = (panelIndex + 1) % panelCycle.length;
-      setActivePanel(panelCycle[panelIndex]);
-    }, 5000);
-
-    return () => clearInterval(cyclePanels);
-  }, [isVisible]);
-
-  // Application questions typing
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    const question = APPLICATION_QUESTIONS[applicationIndex % APPLICATION_QUESTIONS.length];
-    let charIndex = 0;
-    setApplicationText("");
-    
-    const typeInterval = setInterval(() => {
-      if (charIndex <= question.length) {
-        setApplicationText(question.slice(0, charIndex));
-        charIndex++;
-      } else {
-        clearInterval(typeInterval);
-        setCompletedItems(prev => ({ ...prev, application: prev.application + 1 }));
+      if (progress >= 100 && !animationCompleteRef.current) {
+        animationCompleteRef.current = true;
         setTimeout(() => {
-          setApplicationIndex(prev => prev + 1);
-        }, 800);
-      }
-    }, 35);
-
-    return () => clearInterval(typeInterval);
-  }, [isVisible, applicationIndex]);
-
-  // Quiz questions typing
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    const question = QUIZ_QUESTIONS[quizIndex % QUIZ_QUESTIONS.length];
-    let charIndex = 0;
-    setQuizText("");
-    
-    const typeInterval = setInterval(() => {
-      if (charIndex <= question.length) {
-        setQuizText(question.slice(0, charIndex));
-        charIndex++;
-      } else {
-        clearInterval(typeInterval);
-        setCompletedItems(prev => ({ ...prev, quiz: prev.quiz + 1 }));
-        setTimeout(() => {
-          setQuizIndex(prev => prev + 1);
-        }, 800);
-      }
-    }, 40);
-
-    return () => clearInterval(typeInterval);
-  }, [isVisible, quizIndex]);
-
-  // Workflow phases typing
-  useEffect(() => {
-    if (!isVisible) return;
-    
-    const phase = WORKFLOW_PHASES[workflowIndex % WORKFLOW_PHASES.length];
-    let charIndex = 0;
-    setWorkflowText("");
-    
-    const typeInterval = setInterval(() => {
-      if (charIndex <= phase.length) {
-        setWorkflowText(phase.slice(0, charIndex));
-        charIndex++;
-      } else {
-        clearInterval(typeInterval);
-        setCompletedItems(prev => ({ ...prev, workflow: prev.workflow + 1 }));
-        setTimeout(() => {
-          setWorkflowIndex(prev => prev + 1);
-        }, 1000);
+          onComplete?.();
+        }, 500);
       }
     }, 50);
 
-    return () => clearInterval(typeInterval);
-  }, [isVisible, workflowIndex]);
+    return () => clearInterval(progressInterval);
+  }, [isVisible, minDuration, onComplete]);
+
+  // Cycle through floating cards
+  useEffect(() => {
+    if (!isVisible || phase === "awakening") return;
+
+    const cardInterval = setInterval(() => {
+      setActiveCardIndex(prev => (prev + 1) % 3);
+    }, 4500);
+
+    return () => clearInterval(cardInterval);
+  }, [isVisible, phase]);
+
+  // Typing animation for each card
+  useEffect(() => {
+    if (!isVisible || phase === "awakening") return;
+
+    const contents = [
+      APPLICATION_QUESTIONS[counters.questions % APPLICATION_QUESTIONS.length],
+      QUIZ_QUESTIONS[counters.quiz % QUIZ_QUESTIONS.length],
+      WORKFLOW_PHASES[counters.phases % WORKFLOW_PHASES.length],
+    ];
+
+    let charIndices = [0, 0, 0];
+    setTypedTexts(["", "", ""]);
+
+    const typeInterval = setInterval(() => {
+      setTypedTexts(prev => {
+        const newTexts = [...prev];
+        for (let i = 0; i < 3; i++) {
+          if (charIndices[i] <= contents[i].length) {
+            newTexts[i] = contents[i].slice(0, charIndices[i]);
+            charIndices[i]++;
+          }
+        }
+        return newTexts;
+      });
+    }, 40);
+
+    const counterInterval = setInterval(() => {
+      setCounters(prev => ({
+        questions: prev.questions + 1,
+        quiz: prev.quiz + 1,
+        phases: prev.phases + 1,
+      }));
+    }, 4000);
+
+    return () => {
+      clearInterval(typeInterval);
+      clearInterval(counterInterval);
+    };
+  }, [isVisible, phase, counters.questions, counters.quiz, counters.phases]);
 
   if (!isVisible) return null;
 
-  const getPanelConfig = () => {
-    switch (activePanel) {
-      case "application":
-        return {
-          icon: PenTool,
-          label: `Writing application question ${completedItems.application + 1}...`,
-          text: applicationText,
-          color: "text-purple-400",
-          bgColor: "from-purple-500/30 to-fuchsia-500/30"
-        };
-      case "quiz":
-        return {
-          icon: ClipboardCheck,
-          label: `Crafting quiz question ${completedItems.quiz + 1}...`,
-          text: quizText,
-          color: "text-fuchsia-400",
-          bgColor: "from-fuchsia-500/30 to-pink-500/30"
-        };
-      case "workflow":
-        return {
-          icon: GitBranch,
-          label: `Building phase ${completedItems.workflow + 1}...`,
-          text: workflowText,
-          color: "text-violet-400",
-          bgColor: "from-violet-500/30 to-purple-500/30"
-        };
-    }
-  };
-
-  const panelConfig = getPanelConfig();
-  const PanelIcon = panelConfig.icon;
+  const cardConfigs = [
+    { title: "Application Questions", icon: FileText, color: "from-primary/60 to-accent/60" },
+    { title: "Screening Quiz", icon: ClipboardCheck, color: "from-accent/60 to-primary/60" },
+    { title: "Workflow Phases", icon: GitBranch, color: "from-primary/40 to-accent/40" },
+  ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center"
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-[hsl(220,18%,5%)]/95 backdrop-blur-xl" />
-      
-      {/* Animated orbs - purple/fuchsia tones to match theme */}
-      <motion.div 
-        animate={{ 
-          x: [0, 50, 0], 
-          y: [0, -30, 0],
-          scale: [1, 1.2, 1],
-          opacity: [0.15, 0.25, 0.15]
-        }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-purple-600/25 blur-[150px] rounded-full" 
-      />
-      <motion.div 
-        animate={{ 
-          x: [0, -40, 0], 
-          y: [0, 40, 0],
-          scale: [1, 1.1, 1],
-          opacity: [0.15, 0.3, 0.15]
-        }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-fuchsia-600/25 blur-[130px] rounded-full" 
-      />
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.3, 1],
-          opacity: [0.1, 0.2, 0.1]
-        }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-500/15 blur-[180px] rounded-full" 
-      />
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+      >
+        {/* Deep space backdrop */}
+        <div className="absolute inset-0 bg-[hsl(220,20%,2%)]" />
 
-      {/* Floating particles */}
-      {[...Array(15)].map((_, i) => (
+        {/* Atmospheric gradient orbs */}
         <motion.div
-          key={i}
-          className="absolute w-1 h-1 bg-white/30 rounded-full"
-          initial={{ 
-            x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000), 
-            y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 800),
-            scale: Math.random() * 0.5 + 0.5
+          animate={{
+            scale: [1, 1.3, 1],
+            opacity: [0.15, 0.3, 0.15],
+            x: [0, 30, 0],
           }}
-          animate={{ 
-            y: [null, Math.random() * -200 - 100],
-            opacity: [0, 1, 0]
-          }}
-          transition={{ 
-            duration: Math.random() * 3 + 2, 
-            repeat: Infinity, 
-            delay: Math.random() * 2 
-          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[200px]"
+          style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.4), transparent)" }}
         />
-      ))}
-
-      {/* Main content */}
-      <div className="relative z-10 max-w-2xl w-full mx-4">
-        {/* AVA orb */}
         <motion.div
-          animate={{ 
-            y: [0, -15, 0],
-            rotate: [0, 5, -5, 0]
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.1, 0.25, 0.1],
+            x: [0, -40, 0],
           }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className="flex justify-center mb-6"
-        >
-          <div className="relative">
-            {/* Glow ring - purple tones */}
-            <motion.div
-              animate={{ 
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/40 via-fuchsia-500/40 to-violet-400/40 blur-xl"
-              style={{ width: 120, height: 120, margin: -20 }}
-            />
-            <img
-              src={avaOrb}
-              alt="AVA"
-              className="w-20 h-20 object-contain relative z-10"
-            />
-          </div>
-        </motion.div>
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+          className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[180px]"
+          style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.4), transparent)" }}
+        />
 
-        {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-6"
-        >
-          <h2 className="text-2xl font-bold text-white mb-2">
-            AVA is creating your workflow
-          </h2>
-          <p className="text-gray-400">
-            Building a custom hiring process for <span className="text-purple-400 font-medium">{jobTitle}</span>
-          </p>
-        </motion.div>
+        {/* Particle field */}
+        {particles.map((particle) => (
+          <motion.div
+            key={particle.id}
+            className="absolute rounded-full"
+            style={{
+              width: particle.size,
+              height: particle.size,
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              background: particle.color === "primary" 
+                ? "hsl(var(--primary) / 0.6)" 
+                : "hsl(var(--accent) / 0.6)",
+            }}
+            animate={{
+              y: [-20, -100 - Math.random() * 100],
+              x: [0, (Math.random() - 0.5) * 50],
+              opacity: [0, 0.8, 0],
+              scale: [0, 1, 0.5],
+            }}
+            transition={{
+              duration: particle.duration,
+              repeat: Infinity,
+              delay: particle.delay,
+              ease: "easeOut",
+            }}
+          />
+        ))}
 
-        {/* Two-column layout for steps and typing */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Progress steps */}
-          <div className="space-y-2">
-            {GENERATION_STEPS.map((step, i) => {
-              const StepIcon = step.icon;
-              const isActive = i === currentStep;
-              const isComplete = i < currentStep;
+        {/* Main container */}
+        <div className="relative z-10 flex flex-col items-center">
+          {/* Neural network visualization */}
+          <div className="relative w-[400px] h-[400px] md:w-[500px] md:h-[500px]">
+            {/* Connection lines (SVG) */}
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 500 500">
+              <defs>
+                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
+                  <stop offset="50%" stopColor="hsl(var(--accent))" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
+                </linearGradient>
+              </defs>
+              {NEURAL_NODES.map((node, i) => {
+                const isActive = activeNodes.includes(node.id);
+                const x1 = 250;
+                const y1 = 250;
+                const radius = 180;
+                const x2 = 250 + radius * Math.cos((node.angle * Math.PI) / 180);
+                const y2 = 250 + radius * Math.sin((node.angle * Math.PI) / 180);
+                
+                return (
+                  <motion.line
+                    key={node.id}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke="url(#lineGradient)"
+                    strokeWidth={isActive ? 2 : 1}
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ 
+                      pathLength: isActive ? 1 : 0.3, 
+                      opacity: isActive ? 1 : 0.2,
+                    }}
+                    transition={{ duration: 1.5, delay: node.delay }}
+                  />
+                );
+              })}
+              
+              {/* Data pulse traveling along lines */}
+              {activeNodes.map((nodeId) => {
+                const node = NEURAL_NODES.find(n => n.id === nodeId);
+                if (!node) return null;
+                const radius = 180;
+                const x = 250 + radius * Math.cos((node.angle * Math.PI) / 180);
+                const y = 250 + radius * Math.sin((node.angle * Math.PI) / 180);
+                
+                return (
+                  <motion.circle
+                    key={`pulse-${nodeId}`}
+                    r="4"
+                    fill="hsl(var(--primary))"
+                    initial={{ cx: 250, cy: 250, opacity: 0 }}
+                    animate={{
+                      cx: [250, x, 250],
+                      cy: [250, y, 250],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: Math.random() * 2,
+                      ease: "easeInOut",
+                    }}
+                  />
+                );
+              })}
+            </svg>
+
+            {/* Neural nodes */}
+            {NEURAL_NODES.map((node) => {
+              const isActive = activeNodes.includes(node.id);
+              const radius = 180;
+              const x = 50 + (radius * Math.cos((node.angle * Math.PI) / 180)) / 2.5;
+              const y = 50 + (radius * Math.sin((node.angle * Math.PI) / 180)) / 2.5;
+              const NodeIcon = node.icon;
 
               return (
                 <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
+                  key={node.id}
+                  className="absolute"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
+                  initial={{ scale: 0, opacity: 0 }}
                   animate={{ 
-                    opacity: isActive || isComplete ? 1 : 0.4, 
-                    x: 0 
+                    scale: isActive ? 1 : 0.7, 
+                    opacity: isActive ? 1 : 0.4,
                   }}
-                  transition={{ duration: 0.3, delay: i * 0.1 }}
-                  className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${
-                    isActive ? "bg-white/5 border border-white/10" : ""
-                  }`}
+                  transition={{ duration: 0.6, delay: node.delay, type: "spring" }}
                 >
-                  <div className="relative">
-                    {isComplete ? (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center"
-                      >
-                        <CheckCircle className="h-4 w-4 text-purple-400" />
-                      </motion.div>
-                    ) : isActive ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                        className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500/30 to-fuchsia-500/30 flex items-center justify-center"
-                      >
-                        <StepIcon className="h-4 w-4 text-purple-300" />
-                      </motion.div>
-                    ) : (
-                      <div className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center">
-                        <StepIcon className="h-3.5 w-3.5 text-gray-500" />
-                      </div>
-                    )}
+                  {/* Node glow */}
+                  {isActive && (
+                    <motion.div
+                      className="absolute inset-0 rounded-full"
+                      style={{ 
+                        background: "radial-gradient(circle, hsl(var(--primary) / 0.5), transparent)",
+                        width: 80,
+                        height: 80,
+                        left: -20,
+                        top: -20,
+                      }}
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  )}
+                  
+                  {/* Node circle */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-500 ${
+                    isActive 
+                      ? "bg-primary/20 border-primary/50 shadow-[0_0_20px_hsl(var(--primary)/0.5)]" 
+                      : "bg-muted/10 border-border/30"
+                  }`}>
+                    <NodeIcon className={`w-4 h-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium truncate ${isActive || isComplete ? "text-white" : "text-gray-500"}`}>
-                      {step.label}
-                    </p>
+                  
+                  {/* Node label */}
+                  <motion.span
+                    className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap ${
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                    animate={{ opacity: isActive ? 1 : 0.4 }}
+                  >
+                    {node.label}
+                  </motion.span>
+                </motion.div>
+              );
+            })}
+
+            {/* Central AVA orb */}
+            <motion.div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: orbScale, opacity: 1 }}
+              transition={{ duration: 1.2, type: "spring", bounce: 0.4 }}
+            >
+              {/* Progress ring */}
+              <svg className="absolute -inset-8 w-[calc(100%+64px)] h-[calc(100%+64px)]" viewBox="0 0 120 120">
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="55"
+                  fill="none"
+                  stroke="hsl(var(--border) / 0.3)"
+                  strokeWidth="2"
+                />
+                <motion.circle
+                  cx="60"
+                  cy="60"
+                  r="55"
+                  fill="none"
+                  stroke="url(#progressGradient)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={345}
+                  strokeDashoffset={345 - (345 * progressRing) / 100}
+                  transform="rotate(-90 60 60)"
+                />
+                <defs>
+                  <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" />
+                    <stop offset="100%" stopColor="hsl(var(--accent))" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              {/* Outer glow rings */}
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: "radial-gradient(circle, hsl(var(--primary) / 0.4), transparent 70%)",
+                  width: 160,
+                  height: 160,
+                  left: -40,
+                  top: -40,
+                }}
+                animate={{
+                  scale: [1, 1.3, 1],
+                  opacity: [0.3, 0.6, 0.3],
+                }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              />
+
+              {/* Energy pulses */}
+              <AnimatePresence>
+                {Array.from({ length: energyPulseIndex }).map((_, i) => (
+                  <motion.div
+                    key={`energy-${i}`}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary/50"
+                    initial={{ width: 80, height: 80, opacity: 0.8 }}
+                    animate={{ width: 300, height: 300, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 2, ease: "easeOut" }}
+                  />
+                ))}
+              </AnimatePresence>
+
+              {/* AVA orb image */}
+              <motion.div
+                animate={{ 
+                  y: [0, -8, 0],
+                  rotate: [0, 3, -3, 0],
+                }}
+                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                className="relative"
+              >
+                <div className="relative w-20 h-20">
+                  <motion.div
+                    className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 blur-xl"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                  <img
+                    src={avaOrb}
+                    alt="AVA"
+                    className="relative w-full h-full object-contain drop-shadow-[0_0_30px_hsl(var(--primary)/0.5)]"
+                  />
+                </div>
+              </motion.div>
+            </motion.div>
+          </div>
+
+          {/* Title section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1, duration: 0.8 }}
+            className="text-center mt-4 mb-8"
+          >
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+              {phase === "awakening" && "AVA is initializing..."}
+              {phase === "creation" && "Creating your workflow"}
+              {phase === "completion" && "Finalizing workflow..."}
+            </h2>
+            <p className="text-muted-foreground">
+              Building a custom hiring process for{" "}
+              <span className="text-primary font-medium">{jobTitle}</span>
+            </p>
+          </motion.div>
+
+          {/* Floating 3D content cards */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: phase !== "awakening" ? 1 : 0 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="flex flex-col md:flex-row gap-4 md:gap-6 px-4 max-w-4xl"
+          >
+            {cardConfigs.map((config, i) => {
+              const CardIcon = config.icon;
+              const isActive = activeCardIndex === i;
+              
+              return (
+                <motion.div
+                  key={config.title}
+                  className="flex-1 min-w-0"
+                  initial={{ opacity: 0, y: 30, rotateX: 15 }}
+                  animate={{
+                    opacity: 1,
+                    y: isActive ? -10 : 0,
+                    rotateX: isActive ? 0 : 5,
+                    scale: isActive ? 1.02 : 0.98,
+                  }}
+                  transition={{ delay: 4.5 + i * 0.3, duration: 0.6, type: "spring" }}
+                  style={{ perspective: 1000, transformStyle: "preserve-3d" }}
+                >
+                  <div className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${
+                    isActive 
+                      ? "bg-card/80 border-primary/30 shadow-[0_10px_40px_hsl(var(--primary)/0.2)]" 
+                      : "bg-card/40 border-border/20"
+                  }`}>
+                    {/* Card glow */}
                     {isActive && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-[10px] text-gray-400 truncate"
-                      >
-                        {step.sublabel}
-                      </motion.p>
+                      <motion.div
+                        className={`absolute inset-0 bg-gradient-to-br ${config.color} opacity-10`}
+                        animate={{ opacity: [0.05, 0.15, 0.05] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
                     )}
+                    
+                    <div className="relative p-4">
+                      {/* Card header */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <motion.div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br ${config.color}`}
+                          animate={isActive ? { scale: [1, 1.1, 1] } : {}}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <CardIcon className="w-4 h-4 text-foreground" />
+                        </motion.div>
+                        <span className="text-sm font-medium text-foreground">
+                          {config.title}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {i === 0 ? counters.questions : i === 1 ? counters.quiz : counters.phases} created
+                        </span>
+                      </div>
+                      
+                      {/* Typing content */}
+                      <div className="h-16 overflow-hidden">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {typedTexts[i]}
+                          <motion.span
+                            className="inline-block w-0.5 h-4 bg-primary ml-0.5 align-middle"
+                            animate={{ opacity: [1, 0] }}
+                            transition={{ duration: 0.5, repeat: Infinity }}
+                          />
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               );
             })}
-          </div>
+          </motion.div>
 
-          {/* Live typing panels */}
-          <div className="space-y-3">
-            {/* Active typing panel */}
-            <AnimatePresence mode="wait">
+          {/* Bottom progress indicator */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2 }}
+            className="mt-8 text-center"
+          >
+            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-card/40 border border-border/30">
               <motion.div
-                key={activePanel}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                className="bg-[hsl(220,15%,10%)]/90 border border-white/10 rounded-xl p-4 min-h-[120px]"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className={`w-6 h-6 rounded-lg bg-gradient-to-r ${panelConfig.bgColor} flex items-center justify-center`}
-                  >
-                    <PanelIcon className={`h-3.5 w-3.5 ${panelConfig.color}`} />
-                  </motion.div>
-                  <span className={`text-xs font-medium ${panelConfig.color}`}>
-                    {panelConfig.label}
-                  </span>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  {panelConfig.text}
-                  <motion.span
-                    animate={{ opacity: [1, 0] }}
-                    transition={{ duration: 0.5, repeat: Infinity }}
-                    className={`inline-block w-0.5 h-4 ${panelConfig.color.replace('text-', 'bg-')} ml-0.5 align-middle`}
-                  />
-                </p>
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Mini progress indicators */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className={`px-3 py-2 rounded-lg text-center transition-all ${
-                activePanel === "application" ? "bg-purple-500/20 border border-purple-500/30" : "bg-white/5"
-              }`}>
-                <p className="text-[10px] text-gray-400 mb-0.5">Questions</p>
-                <p className="text-sm font-bold text-purple-400">{completedItems.application}</p>
-              </div>
-              <div className={`px-3 py-2 rounded-lg text-center transition-all ${
-                activePanel === "quiz" ? "bg-fuchsia-500/20 border border-fuchsia-500/30" : "bg-white/5"
-              }`}>
-                <p className="text-[10px] text-gray-400 mb-0.5">Quiz Items</p>
-                <p className="text-sm font-bold text-fuchsia-400">{completedItems.quiz}</p>
-              </div>
-              <div className={`px-3 py-2 rounded-lg text-center transition-all ${
-                activePanel === "workflow" ? "bg-violet-500/20 border border-violet-500/30" : "bg-white/5"
-              }`}>
-                <p className="text-[10px] text-gray-400 mb-0.5">Phases</p>
-                <p className="text-sm font-bold text-violet-400">{completedItems.workflow}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div>
-          <div className="flex justify-between text-xs text-gray-400 mb-2">
-            <span className="flex items-center gap-1.5">
-              <motion.span
-                animate={{ opacity: [1, 0.5, 1] }}
+                className="w-2 h-2 rounded-full bg-primary"
+                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
-                className="w-1.5 h-1.5 rounded-full bg-purple-400"
               />
-              AVA is working...
-            </span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div className="h-2 bg-[hsl(220,15%,15%)] rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-violet-400"
-              style={{ width: `${progress}%` }}
-              transition={{ duration: 0.3 }}
-            />
-          </div>
+              <span className="text-sm text-muted-foreground">
+                {Math.round(progressRing)}% complete
+              </span>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </motion.div>
+
+        {/* Completion burst effect */}
+        <AnimatePresence>
+          {phase === "completion" && (
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Radial burst */}
+              <motion.div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  background: "radial-gradient(circle, hsl(var(--primary) / 0.3), transparent 70%)",
+                }}
+                initial={{ width: 100, height: 100, opacity: 0 }}
+                animate={{ width: 800, height: 800, opacity: [0, 0.5, 0] }}
+                transition={{ duration: 2, ease: "easeOut" }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </AnimatePresence>
   );
 }
