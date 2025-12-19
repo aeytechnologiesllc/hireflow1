@@ -919,7 +919,7 @@ export default function GuestJobCreator() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-primary" />
-                      AI Hiring Workflow
+                      Ava Hiring Workflow
                     </CardTitle>
                     <CardDescription>
                       Select screening difficulty and generate a complete hiring workflow
@@ -970,25 +970,52 @@ export default function GuestJobCreator() {
                     <div className="space-y-3">
                       <Label>Processing Mode</Label>
                       <div className="grid grid-cols-2 gap-3">
+                        {/* Auto-Pilot Button - Featured with purple gradient */}
                         <motion.button
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
                           onClick={() => setProcessingMode("auto")}
                           className={cn(
-                            "p-4 rounded-xl border-2 transition-all text-left",
+                            "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                             processingMode === "auto"
-                              ? "border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 shadow-lg shadow-emerald-500/10"
-                              : "border-border bg-card hover:border-muted-foreground/30"
+                              ? "bg-gradient-to-br from-fuchsia-950/80 via-purple-900/60 to-fuchsia-950/80"
+                              : "bg-card border border-border hover:border-purple-500/30"
                           )}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          animate={processingMode === "auto" ? {
+                            boxShadow: [
+                              "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 35px -5px rgba(168, 85, 247, 0.5), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            ]
+                          } : {}}
+                          transition={processingMode === "auto" ? {
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          } : {}}
                         >
-                          <div className="flex items-center gap-3">
+                          {/* Pulsing border glow */}
+                          {processingMode === "auto" && (
+                            <motion.div
+                              className="absolute inset-0 rounded-xl border-2 border-purple-500/70 pointer-events-none"
+                              animate={{ 
+                                opacity: [0.6, 1, 0.6],
+                              }}
+                              transition={{ 
+                                duration: 2,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            />
+                          )}
+                          <div className="relative flex items-center gap-3">
                             <div className={cn(
-                              "w-10 h-10 rounded-lg flex items-center justify-center",
+                              "p-2.5 rounded-lg",
                               processingMode === "auto" 
-                                ? "bg-gradient-to-br from-emerald-500 to-teal-500" 
-                                : "bg-secondary"
+                                ? "bg-gradient-to-br from-fuchsia-500 to-purple-600" 
+                                : "bg-muted"
                             )}>
-                              <Bot className={cn(
+                              <Zap className={cn(
                                 "h-5 w-5",
                                 processingMode === "auto" ? "text-white" : "text-muted-foreground"
                               )} />
@@ -996,42 +1023,69 @@ export default function GuestJobCreator() {
                             <div>
                               <div className={cn(
                                 "font-semibold flex items-center gap-2",
-                                processingMode === "auto" && "text-emerald-400"
+                                processingMode === "auto" && "text-white"
                               )}>
-                                Auto Processing
+                                Auto-Pilot
                                 {processingMode === "auto" && (
-                                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-primary/30 text-primary-foreground border border-primary/50">
                                     ✓
                                   </Badge>
                                 )}
                               </div>
                               <div className={cn(
                                 "text-xs",
-                                processingMode === "auto" ? "text-emerald-200/80" : "text-muted-foreground"
+                                processingMode === "auto" ? "text-purple-200/80" : "text-muted-foreground"
                               )}>
-                                AI auto-advances qualifying candidates
+                                AVA auto-screens candidates
                               </div>
                             </div>
                           </div>
                         </motion.button>
 
+                        {/* Manual Review Button - Green highlight */}
                         <motion.button
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
                           onClick={() => setProcessingMode("manual")}
                           className={cn(
-                            "p-4 rounded-xl border-2 transition-all text-left",
+                            "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                             processingMode === "manual"
-                              ? "border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 shadow-lg shadow-emerald-500/10"
-                              : "border-border bg-card hover:border-muted-foreground/30"
+                              ? "bg-gradient-to-br from-emerald-950/80 via-green-900/60 to-emerald-950/80"
+                              : "bg-card/50 border border-border hover:border-emerald-500/30"
                           )}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          animate={processingMode === "manual" ? {
+                            boxShadow: [
+                              "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 25px -5px rgba(16, 185, 129, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                            ]
+                          } : {}}
+                          transition={processingMode === "manual" ? {
+                            duration: 2.5,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          } : {}}
                         >
-                          <div className="flex items-center gap-3">
+                          {/* Pulsing border glow for manual */}
+                          {processingMode === "manual" && (
+                            <motion.div
+                              className="absolute inset-0 rounded-xl border-2 border-emerald-500/60 pointer-events-none"
+                              animate={{ 
+                                opacity: [0.5, 0.8, 0.5],
+                              }}
+                              transition={{ 
+                                duration: 2.5,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            />
+                          )}
+                          <div className="relative flex items-center gap-3">
                             <div className={cn(
-                              "w-10 h-10 rounded-lg flex items-center justify-center",
+                              "p-2.5 rounded-lg",
                               processingMode === "manual" 
-                                ? "bg-gradient-to-br from-emerald-500 to-teal-500" 
-                                : "bg-secondary"
+                                ? "bg-emerald-600" 
+                                : "bg-muted/50"
                             )}>
                               <Hand className={cn(
                                 "h-5 w-5",
@@ -1041,7 +1095,7 @@ export default function GuestJobCreator() {
                             <div>
                               <div className={cn(
                                 "font-semibold flex items-center gap-2",
-                                processingMode === "manual" && "text-emerald-400"
+                                processingMode === "manual" && "text-white"
                               )}>
                                 Manual Review
                                 {processingMode === "manual" && (
@@ -1076,7 +1130,7 @@ export default function GuestJobCreator() {
                                 <div>
                                   <Label>Passing Score</Label>
                                   <p className="text-xs text-muted-foreground">
-                                    Minimum AI score to auto-advance candidates
+                                    Minimum Ava score to auto-advance candidates
                                   </p>
                                 </div>
                                 <motion.div 
