@@ -21,13 +21,11 @@ export default function MiniAvaContainer() {
   const { mood } = useAvaContext();
   const { expression, triggerExpression } = useAvaReactions();
   
-  // Cursor tracking
-  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+  // Interaction state
   const [isHovered, setIsHovered] = useState(false);
   
   // Expanded voice mode
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   
   // Click tracking for interactions
   const clickCountRef = useRef(0);
@@ -56,22 +54,6 @@ export default function MiniAvaContainer() {
     },
   });
 
-  // Track cursor for eye movement
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setCursorPosition({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        });
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
   // Handle click interactions
   const handleClick = useCallback(() => {
     wake();
@@ -87,8 +69,8 @@ export default function MiniAvaContainer() {
       clickCountRef.current = 0;
       
       if (clicks === 1) {
-        // Single click - bounce and giggle
-        triggerExpression('poked', 600);
+        // Single click - subtle acknowledgment
+        triggerExpression('poked', 400);
       } else if (clicks === 2) {
         // Double click - toggle voice
         if (isExpanded) {
@@ -100,12 +82,8 @@ export default function MiniAvaContainer() {
           setIsExpanded(true);
         }
       } else if (clicks === 3) {
-        // Triple click - celebrate!
+        // Triple click - success pulse
         triggerAvaReaction('celebrate');
-      } else if (clicks >= 5) {
-        // Easter egg - party mode
-        triggerExpression('celebrating', 3000);
-        toast('🎉 Ava loves the attention!', { duration: 2000 });
       }
     }, 300);
   }, [wake, triggerExpression, isExpanded, isConnected, disconnect]);
@@ -117,10 +95,10 @@ export default function MiniAvaContainer() {
     } else {
       try {
         await connect();
-        triggerExpression('happy', 1500);
+        triggerExpression('happy', 1000);
       } catch (err) {
         console.error('Failed to connect:', err);
-        triggerExpression('concerned', 2000);
+        triggerExpression('concerned', 1500);
       }
     }
   }, [isConnected, connect, disconnect, triggerExpression]);
@@ -133,21 +111,8 @@ export default function MiniAvaContainer() {
     setIsExpanded(false);
   }, [isConnected, disconnect]);
 
-  // Determine voice access (simplified - just check if enterprise)
+  // Determine voice access
   const hasVoiceAccess = subscription?.plan_type === 'enterprise' || subscription?.plan_type === 'business';
-
-  // Idle blink animation
-  useEffect(() => {
-    if (personalityState === 'sleeping') return;
-    
-    const blinkInterval = setInterval(() => {
-      if (Math.random() > 0.7 && expression === 'neutral') {
-        // Random blink would be here, but we handle via CSS/framer
-      }
-    }, 4000);
-    
-    return () => clearInterval(blinkInterval);
-  }, [personalityState, expression]);
 
   return (
     <div 
@@ -159,10 +124,11 @@ export default function MiniAvaContainer() {
           // Expanded voice mode
           <motion.div
             key="expanded"
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            className="bg-card border border-border rounded-2xl p-4 shadow-xl"
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="bg-card/95 backdrop-blur-sm border border-border rounded-2xl p-4 shadow-xl"
             style={{ minWidth: 200 }}
           >
             <div className="flex items-center justify-between mb-3">
@@ -179,8 +145,10 @@ export default function MiniAvaContainer() {
               <MiniAva
                 personalityState={isConnected ? 'active' : personalityState}
                 expression={isSpeaking ? 'happy' : isListening ? 'thinking' : expression}
-                eyeTarget={cursorPosition}
                 size={56}
+                isHovered={true}
+                isListening={isListening}
+                isSpeaking={isSpeaking}
               />
               
               <div className="flex flex-col gap-2 flex-1">
@@ -229,7 +197,7 @@ export default function MiniAvaContainer() {
             )}
           </motion.div>
         ) : (
-          // Compact floating Ava
+          // Compact floating orb
           <motion.div
             key="compact"
             initial={{ scale: 0, opacity: 0 }}
@@ -239,43 +207,42 @@ export default function MiniAvaContainer() {
             onClick={handleClick}
             onMouseEnter={() => {
               setIsHovered(true);
-              setShowTooltip(true);
               wake();
             }}
             onMouseLeave={() => {
               setIsHovered(false);
-              setShowTooltip(false);
             }}
           >
-            {/* Glow ring - warm peach glow to match cartoony Ava */}
-            <motion.div
-              className="absolute inset-0 rounded-full"
+            {/* Soft shadow beneath orb */}
+            <div 
+              className="absolute inset-0 rounded-full blur-xl opacity-30"
               style={{
-                background: 'radial-gradient(circle, hsla(25, 75%, 70%, 0.4) 0%, hsla(35, 65%, 65%, 0.15) 50%, transparent 70%)',
+                background: 'hsl(160, 84%, 39%)',
+                transform: 'translateY(4px) scale(0.8)',
               }}
-              animate={{
-                scale: isHovered ? 1.6 : 1.3,
-                opacity: personalityState === 'sleeping' ? 0.25 : isHovered ? 0.9 : 0.5,
-              }}
-              transition={{ duration: 0.4 }}
             />
             
             <MiniAva
               personalityState={personalityState}
               expression={expression}
-              eyeTarget={cursorPosition}
               isHovered={isHovered}
-              size={48}
+              size={56}
+              isListening={isListening}
+              isSpeaking={isSpeaking}
             />
             
-            {/* Status indicator - warm colors */}
+            {/* Status indicator - minimal dot */}
             <motion.div
-              className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background"
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-background"
               animate={{
                 backgroundColor: personalityState === 'sleeping' 
-                  ? 'hsl(35, 30%, 45%)' 
-                  : 'hsl(145, 60%, 50%)',
+                  ? 'hsl(160, 20%, 25%)' 
+                  : 'hsl(160, 84%, 39%)',
+                boxShadow: personalityState === 'sleeping'
+                  ? 'none'
+                  : '0 0 6px hsl(160, 84%, 39%)',
               }}
+              transition={{ duration: 0.5 }}
             />
           </motion.div>
         )}
