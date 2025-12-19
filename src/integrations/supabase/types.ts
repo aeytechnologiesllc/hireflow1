@@ -966,6 +966,7 @@ export type Database = {
         | "offered"
         | "hired"
         | "rejected"
+        | "in_progress"
       document_status: "pending" | "signed" | "declined"
       interview_status: "scheduled" | "completed" | "cancelled" | "no_show"
       invitation_status: "pending" | "accepted" | "declined" | "expired"
@@ -1112,6 +1113,7 @@ export const Constants = {
         "offered",
         "hired",
         "rejected",
+        "in_progress",
       ],
       document_status: ["pending", "signed", "declined"],
       interview_status: ["scheduled", "completed", "cancelled", "no_show"],
