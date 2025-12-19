@@ -247,17 +247,17 @@ export default function MiniAvaContainer() {
               setShowTooltip(false);
             }}
           >
-            {/* Glow ring */}
+            {/* Glow ring - updated to lavender/teal */}
             <motion.div
               className="absolute inset-0 rounded-full"
               style={{
-                background: 'radial-gradient(circle, hsla(160, 60%, 45%, 0.3) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, hsla(270, 60%, 75%, 0.35) 0%, hsla(175, 50%, 65%, 0.2) 50%, transparent 70%)',
               }}
               animate={{
-                scale: isHovered ? 1.5 : 1.2,
+                scale: isHovered ? 1.6 : 1.3,
                 opacity: personalityState === 'sleeping' ? 0.3 : isHovered ? 1 : 0.6,
               }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.4 }}
             />
             
             <MiniAva
@@ -268,29 +268,13 @@ export default function MiniAvaContainer() {
               size={48}
             />
             
-            {/* Tooltip */}
-            <AnimatePresence>
-              {showTooltip && personalityState !== 'sleeping' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap"
-                >
-                  <div className="bg-popover text-popover-foreground text-xs px-3 py-1.5 rounded-full border border-border shadow-lg">
-                    Double-click to talk
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Status indicator */}
+            {/* Status indicator - updated to match new palette */}
             <motion.div
               className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background"
               animate={{
                 backgroundColor: personalityState === 'sleeping' 
-                  ? 'hsl(220, 10%, 40%)' 
-                  : 'hsl(160, 60%, 45%)',
+                  ? 'hsl(270, 30%, 50%)' 
+                  : 'hsl(185, 70%, 55%)',
               }}
             />
           </motion.div>
