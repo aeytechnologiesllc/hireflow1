@@ -315,6 +315,10 @@ export default function CreateJob() {
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   
+  // Confirmation dialog for adding both chat_interview and voice_interview
+  const [showDualInterviewConfirm, setShowDualInterviewConfirm] = useState(false);
+  const [pendingInterviewType, setPendingInterviewType] = useState<string | null>(null);
+  
   // Published job dialog state
   const [publishedJob, setPublishedJob] = useState<{
     id: string;
@@ -668,9 +672,26 @@ export default function CreateJob() {
     setWorkflowSteps(prev => prev.filter(s => s.id !== id));
   };
 
-  const addWorkflowStep = (type: string) => {
+  // Helper to check if adding this interview type would create a dual-interview scenario
+  const checkDualInterviewWarning = (type: string): boolean => {
+    const hasChatInterview = workflowSteps.some(s => s.type === 'chat_interview');
+    const hasVoiceInterview = workflowSteps.some(s => s.type === 'voice_interview');
+    
+    if (type === 'chat_interview' && hasVoiceInterview) return true;
+    if (type === 'voice_interview' && hasChatInterview) return true;
+    return false;
+  };
+
+  const addWorkflowStep = (type: string, skipConfirmation = false) => {
     const stepInfo = STEP_TYPE_INFO[type as keyof typeof STEP_TYPE_INFO];
     if (!stepInfo) return;
+    
+    // Check if we need to show confirmation for dual interview scenario
+    if (!skipConfirmation && checkDualInterviewWarning(type)) {
+      setPendingInterviewType(type);
+      setShowDualInterviewConfirm(true);
+      return;
+    }
     
     // Default config for voice_interview
     const config: Record<string, unknown> = type === 'voice_interview' 
@@ -686,28 +707,44 @@ export default function CreateJob() {
       config
     };
     
-    // Ensure chat_interview is always at the end of configurable workflow
-    // voice_interview (Ava Interview) goes after Review phase - handled separately in phase rendering
+    // Ordering: regular steps → chat_interview → voice_interview (always last)
     setWorkflowSteps(prev => {
-      const interviewTypes = ['chat_interview'];  // voice_interview handled separately after Review
-      const withoutInterviews = prev.filter(s => !interviewTypes.includes(s.type));
-      const existingInterviews = prev.filter(s => interviewTypes.includes(s.type));
+      // Remove any existing interviews from the list first
+      const regularSteps = prev.filter(s => s.type !== 'chat_interview' && s.type !== 'voice_interview');
+      const existingChatInterview = prev.find(s => s.type === 'chat_interview');
+      const existingVoiceInterview = prev.find(s => s.type === 'voice_interview');
       
-      if (interviewTypes.includes(type)) {
-        // Adding chat_interview - put at the end
-        return [...withoutInterviews, ...existingInterviews.filter(s => s.type !== type), newStep];
-      } else if (type === 'voice_interview') {
-        // voice_interview can be added anywhere since it's handled specially after Review
-        return [...prev, newStep];
-      } else if (existingInterviews.length > 0) {
-        // Adding another step while chat_interview exists - keep it at end
-        return [...withoutInterviews, newStep, ...existingInterviews];
+      // Build new array with proper ordering
+      const newRegularSteps = [...regularSteps];
+      let chatInterview = existingChatInterview;
+      let voiceInterview = existingVoiceInterview;
+      
+      // Determine where the new step goes
+      if (type === 'voice_interview') {
+        voiceInterview = newStep;
+      } else if (type === 'chat_interview') {
+        chatInterview = newStep;
       } else {
-        // No interviews exist - just append normally
-        return [...prev, newStep];
+        // Regular step - add to regular steps
+        newRegularSteps.push(newStep);
       }
+      
+      // Rebuild the array: regular steps, then chat_interview, then voice_interview
+      const result: WorkflowStep[] = [...newRegularSteps];
+      if (chatInterview) result.push(chatInterview);
+      if (voiceInterview) result.push(voiceInterview);
+      
+      return result;
     });
     toast.success(`${stepInfo.label} added to workflow`);
+  };
+
+  const confirmDualInterviewAdd = () => {
+    if (pendingInterviewType) {
+      addWorkflowStep(pendingInterviewType, true);
+    }
+    setShowDualInterviewConfirm(false);
+    setPendingInterviewType(null);
   };
 
   const updateWorkflowStepConfig = (stepId: string, configKey: string, value: unknown) => {
@@ -2145,6 +2182,47 @@ export default function CreateJob() {
               }
             }}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dual Interview Confirmation Dialog */}
+      <Dialog open={showDualInterviewConfirm} onOpenChange={setShowDualInterviewConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              <Mic className="h-5 w-5 text-violet-500" />
+              Multiple Ava Interviews
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You're about to add <strong>{pendingInterviewType === 'voice_interview' ? 'Ava Voice Interview' : 'Chat Interview with Ava'}</strong> to your workflow.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You already have <strong>{pendingInterviewType === 'voice_interview' ? 'a Chat Interview with Ava' : 'an Ava Voice Interview'}</strong> in your workflow.
+            </p>
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-sm text-amber-400">
+                <strong>Note:</strong> Having both interview types means candidates will go through:
+              </p>
+              <ul className="mt-2 text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Chat Interview with Ava (text-based) — runs before Voice Interview</li>
+                <li>Ava Voice Interview (voice/video) — runs at the very end</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowDualInterviewConfirm(false);
+              setPendingInterviewType(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmDualInterviewAdd}>
+              Add Both Interviews
             </Button>
           </DialogFooter>
         </DialogContent>
