@@ -375,6 +375,70 @@ export default function CreateJob() {
     }
   }, [isEditMode, existingJob]);
 
+  // Load guest job data from localStorage (after guest signs up/in)
+  useEffect(() => {
+    const guestDataString = localStorage.getItem("guestJobData");
+    if (guestDataString && !isEditMode) {
+      try {
+        const guestData = JSON.parse(guestDataString);
+        
+        // Populate form data
+        setFormData({
+          title: guestData.formData?.title || "",
+          description: guestData.formData?.description || "",
+          requirements: guestData.formData?.requirements || "",
+          responsibilities: guestData.formData?.responsibilities || "",
+          location: guestData.formData?.location || "",
+          job_type: guestData.formData?.job_type || "full-time",
+          experience_level: guestData.formData?.experience_level || "",
+          department: guestData.formData?.department || "",
+          salary_type: guestData.formData?.salary_type || "range",
+          salary_period: guestData.formData?.salary_period || "yearly",
+          salary_min: guestData.formData?.salary_min || "",
+          salary_max: guestData.formData?.salary_max || "",
+          salary_fixed: guestData.formData?.salary_fixed || "",
+          salary_currency: guestData.formData?.salary_currency || "USD",
+          skills_required: guestData.formData?.skills_required || "",
+          benefits: guestData.formData?.benefits || "",
+          application_deadline: null,
+        });
+        
+        // Populate workflow data
+        if (guestData.applicationQuestions) {
+          setApplicationQuestions(guestData.applicationQuestions);
+        }
+        if (guestData.quizQuestions) {
+          setQuizQuestions(guestData.quizQuestions);
+        }
+        if (guestData.workflowSteps) {
+          setWorkflowSteps(guestData.workflowSteps);
+        }
+        if (guestData.workflowDifficulty) {
+          setWorkflowDifficulty(guestData.workflowDifficulty);
+        }
+        if (guestData.processingMode) {
+          setProcessingMode(guestData.processingMode);
+        }
+        if (guestData.passingScore) {
+          setPassingScore(guestData.passingScore);
+        }
+        
+        setWorkflowGenerated(true);
+        
+        // Go to review step (step 4)
+        setCurrentStep(4);
+        
+        // Clear localStorage to prevent duplicate loads
+        localStorage.removeItem("guestJobData");
+        
+        toast.success("Welcome! Your job is ready to publish");
+      } catch (error) {
+        console.error("Error loading guest job data:", error);
+        localStorage.removeItem("guestJobData");
+      }
+    }
+  }, [isEditMode]);
+
   // Subscribe to AVA form commands for voice-controlled job creation
   useEffect(() => {
     const unsubscribe = subscribeToAvaFormCommands((command: AvaFormCommand) => {
