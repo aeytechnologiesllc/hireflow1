@@ -783,14 +783,18 @@ export default function GuestJobCreator() {
                         <Label htmlFor="salary_fixed">Salary Amount</Label>
                         <Input
                           id="salary_fixed"
-                          type="number"
-                          placeholder="75000"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="75,000"
                           className="bg-background"
-                          value={formData.salary_fixed}
-                          onChange={(e) => handleChange("salary_fixed", e.target.value)}
+                          value={formData.salary_fixed ? Number(formData.salary_fixed).toLocaleString() : ""}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/[^0-9]/g, "");
+                            handleChange("salary_fixed", rawValue);
+                          }}
                         />
                         <p className="text-xs text-muted-foreground">
-                          {formData.salary_currency} {formData.salary_period}
+                          {formData.salary_currency} {formData.salary_fixed && Number(formData.salary_fixed).toLocaleString()} {formData.salary_period}
                         </p>
                       </div>
                     ) : (
@@ -799,26 +803,34 @@ export default function GuestJobCreator() {
                           <Label htmlFor="salary_min">Minimum Salary</Label>
                           <Input
                             id="salary_min"
-                            type="number"
-                            placeholder="50000"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="50,000"
                             className="bg-background"
-                            value={formData.salary_min}
-                            onChange={(e) => handleChange("salary_min", e.target.value)}
+                            value={formData.salary_min ? Number(formData.salary_min).toLocaleString() : ""}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/[^0-9]/g, "");
+                              handleChange("salary_min", rawValue);
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="salary_max">Maximum Salary</Label>
                           <Input
                             id="salary_max"
-                            type="number"
-                            placeholder="80000"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="80,000"
                             className="bg-background"
-                            value={formData.salary_max}
-                            onChange={(e) => handleChange("salary_max", e.target.value)}
+                            value={formData.salary_max ? Number(formData.salary_max).toLocaleString() : ""}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/[^0-9]/g, "");
+                              handleChange("salary_max", rawValue);
+                            }}
                           />
                         </div>
                         <p className="col-span-2 text-xs text-muted-foreground">
-                          {formData.salary_currency} {formData.salary_period}
+                          {formData.salary_currency} {formData.salary_min && Number(formData.salary_min).toLocaleString()}{formData.salary_min && formData.salary_max && " – "}{formData.salary_max && Number(formData.salary_max).toLocaleString()} {formData.salary_period}
                         </p>
                       </div>
                     )}
@@ -1345,8 +1357,8 @@ export default function GuestJobCreator() {
                           <Label className="text-muted-foreground">Compensation</Label>
                           <p className="text-sm mt-1">
                             {formData.salary_type === "fixed" 
-                              ? `${formData.salary_currency} ${formData.salary_fixed}`
-                              : `${formData.salary_currency} ${formData.salary_min} - ${formData.salary_max}`
+                              ? `${formData.salary_currency} ${Number(formData.salary_fixed).toLocaleString()}`
+                              : `${formData.salary_currency} ${Number(formData.salary_min).toLocaleString()} – ${Number(formData.salary_max).toLocaleString()}`
                             } {formData.salary_period}
                           </p>
                         </div>
