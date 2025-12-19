@@ -44,6 +44,7 @@ interface InterviewSchedulingWizardProps {
   jobTitle?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onComplete?: () => void;
 }
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -62,6 +63,7 @@ export default function InterviewSchedulingWizard({
   jobTitle,
   open,
   onOpenChange,
+  onComplete,
 }: InterviewSchedulingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -271,6 +273,9 @@ export default function InterviewSchedulingWizard({
         description: meetingLink ? "Calendar invite and Meet link have been created." : undefined,
       });
 
+      // Call onComplete to notify parent that scheduling was successful
+      onComplete?.();
+      
       onOpenChange(false);
       resetForm();
     } catch (error: any) {
