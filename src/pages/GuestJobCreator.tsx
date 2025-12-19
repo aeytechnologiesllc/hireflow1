@@ -478,14 +478,20 @@ export default function GuestJobCreator() {
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
                   </Button>
-                  <Button 
-                    onClick={handleNext}
-                    className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white px-8"
+                  <motion.div
+                    initial={{ x: 20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.4, delay: 0.2 }}
                   >
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Generate with AVA
-                    <Sparkles className="h-4 w-4 ml-2" />
-                  </Button>
+                    <Button 
+                      onClick={handleNext}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-8 shadow-lg shadow-emerald-500/25"
+                    >
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Generate with AVA
+                      <Sparkles className="h-4 w-4 ml-2" />
+                    </Button>
+                  </motion.div>
                 </div>
               </motion.div>
             )}
@@ -513,7 +519,7 @@ export default function GuestJobCreator() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-gradient-to-r from-emerald-500/20 to-purple-500/20 border border-emerald-500/30 rounded-2xl p-6 flex items-center gap-4"
+                  className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 rounded-2xl p-6 flex items-center gap-4"
                 >
                   <motion.div
                     animate={{ rotate: [0, 360] }}
@@ -555,7 +561,7 @@ export default function GuestJobCreator() {
                   {/* Application Questions */}
                   <div className="bg-[hsl(220,15%,10%)]/80 backdrop-blur-sm border border-[hsl(220,15%,18%)] rounded-2xl p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <FileText className="h-5 w-5 text-purple-400" />
+                      <FileText className="h-5 w-5 text-emerald-400" />
                       <h3 className="text-lg font-semibold text-white">Application Questions</h3>
                       <Badge variant="secondary" className="ml-auto">
                         {generatedWorkflow.applicationQuestions.length}
@@ -603,12 +609,12 @@ export default function GuestJobCreator() {
                 {generatedWorkflow.workflowSteps.length > 0 && (
                   <div className="bg-[hsl(220,15%,10%)]/80 backdrop-blur-sm border border-[hsl(220,15%,18%)] rounded-2xl p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="h-5 w-5 text-fuchsia-400" />
+                      <Sparkles className="h-5 w-5 text-teal-400" />
                       <h3 className="text-lg font-semibold text-white">Workflow Phases</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {generatedWorkflow.workflowSteps.map((step: any, i: number) => (
-                        <Badge key={i} variant="outline" className="border-fuchsia-500/30 text-fuchsia-300">
+                        <Badge key={i} variant="outline" className="border-teal-500/30 text-teal-300">
                           {step.title}
                         </Badge>
                       ))}
