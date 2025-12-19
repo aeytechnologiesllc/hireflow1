@@ -10,6 +10,7 @@ interface ToolCallRequest {
   tool_name: string;
   parameters: Record<string, any>;
   applicationId?: string;
+  currentRoute?: string;
 }
 
 serve(async (req) => {
@@ -34,8 +35,8 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    const { tool_name, parameters, applicationId } = await req.json() as ToolCallRequest;
-    console.log("Tool call:", { tool_name, parameters, userId: user.id });
+    const { tool_name, parameters, applicationId, currentRoute } = await req.json() as ToolCallRequest;
+    console.log("Tool call:", { tool_name, parameters, userId: user.id, currentRoute });
 
     let result: any;
 
@@ -1468,6 +1469,129 @@ serve(async (req) => {
           route: `/jobs/edit/${newJob.id}`,
           message: `Job duplicated as "${newJob.title}"` 
         };
+        break;
+      }
+
+      case "describe_current_view": {
+        // Get comprehensive context based on where the user currently is
+        const route = currentRoute || '/dashboard';
+        console.log("Describing current view for route:", route);
+        
+        // Get general stats that apply to any page
+        const { data: jobs } = await supabaseClient
+          .from("jobs")
+          .select("id, title, status")
+          .eq("employer_id", user.id);
+        
+        const { data: allApps } = await supabaseClient
+          .from("applications")
+          .select("id, status, phase, ai_score, created_at, job_id, jobs!inner(employer_id)")
+          .eq("jobs.employer_id", user.id);
+        
+        const activeJobs = jobs?.filter(j => j.status === 'published') || [];
+        const totalApplicants = allApps?.length || 0;
+        
+        // Calculate pipeline breakdown
+        const statusCounts: Record<string, number> = {};
+        const phaseCounts: Record<string, number> = {};
+        (allApps || []).forEach(app => {
+          statusCounts[app.status] = (statusCounts[app.status] || 0) + 1;
+          if (app.phase) {
+            phaseCounts[app.phase] = (phaseCounts[app.phase] || 0) + 1;
+          }
+        });
+        
+        // Calculate pipeline efficiency (hired / total excluding pending)
+        const hired = statusCounts['hired'] || 0;
+        const reviewable = totalApplicants - (statusCounts['pending'] || 0);
+        const pipelineEfficiency = reviewable > 0 ? Math.round((hired / reviewable) * 100) : 0;
+        
+        // Get recent activity
+        const recentApps = (allApps || [])
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5);
+        
+        // Get pending actions
+        const inReview = statusCounts['reviewing'] || 0;
+        const pendingInterviews = (allApps || []).filter(a => a.phase === 'interview' && a.status !== 'hired' && a.status !== 'rejected').length;
+        
+        // Get unread messages count
+        const { count: unreadMessages } = await supabaseClient
+          .from("messages")
+          .select("id", { count: 'exact' })
+          .eq("receiver_id", user.id)
+          .eq("is_read", false);
+        
+        // Get today's interviews
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const { data: todaysInterviews } = await supabaseClient
+          .from("interviews")
+          .select("id, scheduled_at, application_id")
+          .gte("scheduled_at", today.toISOString())
+          .lt("scheduled_at", tomorrow.toISOString())
+          .eq("status", "scheduled");
+        
+        // Build context based on specific page
+        let pageSpecificContext = "";
+        
+        if (route === '/dashboard') {
+          pageSpecificContext = "User is on the Dashboard - show overview of their hiring activity";
+        } else if (route === '/jobs') {
+          pageSpecificContext = `User is viewing the Jobs list. They have ${jobs?.length || 0} total jobs (${activeJobs.length} active).`;
+        } else if (route === '/applicants') {
+          pageSpecificContext = `User is viewing all Applicants. ${totalApplicants} total candidates across all jobs.`;
+        } else if (route.startsWith('/applicants/')) {
+          pageSpecificContext = "User is viewing a specific applicant's details. Use the currentApplicantContext from the session.";
+        } else if (route === '/messages') {
+          pageSpecificContext = `User is in Messages. ${unreadMessages || 0} unread messages.`;
+        } else if (route === '/analytics') {
+          pageSpecificContext = "User is viewing Analytics - hiring metrics and trends.";
+        } else if (route === '/interviews') {
+          pageSpecificContext = `User is viewing Interviews. ${todaysInterviews?.length || 0} interviews scheduled for today.`;
+        } else if (route === '/documents') {
+          pageSpecificContext = "User is viewing Documents - contracts and signing workflows.";
+        } else if (route === '/team') {
+          pageSpecificContext = "User is viewing their Team members and permissions.";
+        } else if (route === '/settings') {
+          pageSpecificContext = "User is in Settings - account and preferences.";
+        }
+        
+        result = {
+          currentRoute: route,
+          pageContext: pageSpecificContext,
+          overview: {
+            activeJobs: activeJobs.length,
+            activeJobTitles: activeJobs.map(j => j.title),
+            totalApplicants,
+            pipelineEfficiency: `${pipelineEfficiency}%`,
+            statusBreakdown: statusCounts,
+            phaseBreakdown: phaseCounts
+          },
+          pendingActions: {
+            applicantsInReview: inReview,
+            pendingInterviews,
+            unreadMessages: unreadMessages || 0,
+            todaysInterviews: todaysInterviews?.length || 0
+          },
+          recentApplicants: recentApps.length,
+          suggestions: []
+        };
+        
+        // Add contextual suggestions
+        if (inReview > 0) {
+          result.suggestions.push(`${inReview} applicant${inReview > 1 ? 's' : ''} waiting in review`);
+        }
+        if ((unreadMessages || 0) > 0) {
+          result.suggestions.push(`${unreadMessages} unread message${(unreadMessages || 0) > 1 ? 's' : ''}`);
+        }
+        if ((todaysInterviews?.length || 0) > 0) {
+          result.suggestions.push(`${todaysInterviews?.length} interview${(todaysInterviews?.length || 0) > 1 ? 's' : ''} scheduled for today`);
+        }
+        
         break;
       }
 
