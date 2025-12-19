@@ -212,8 +212,13 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     const ctx = canvas.getContext("2d");
     if (ctx) {
       const rect = canvas.getBoundingClientRect();
+      // Scale coordinates to account for CSS sizing vs canvas internal dimensions
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
       ctx.beginPath();
-      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.moveTo(x, y);
     }
   };
 
@@ -226,7 +231,12 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     const ctx = canvas.getContext("2d");
     if (ctx) {
       const rect = canvas.getBoundingClientRect();
-      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      // Scale coordinates to account for CSS sizing vs canvas internal dimensions
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      ctx.lineTo(x, y);
       ctx.stroke();
     }
   };
