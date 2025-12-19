@@ -135,6 +135,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       yearlyTotal: pricing.growth.yearlyFormatted,
       features: ["3 Active Jobs", "50 Applicants/month", "Chat Interviews", "Smart Documents"],
       popular: false,
+      premium: false,
     },
     {
       name: "Business",
@@ -143,6 +144,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       yearlyTotal: pricing.business.yearlyFormatted,
       features: ["Unlimited Jobs", "Unlimited Applicants", "Voice Interviews", "Team Portal", "Advanced Analytics"],
       popular: true,
+      premium: false,
+    },
+    {
+      name: "Enterprise",
+      price: billingInterval === "monthly" ? pricing.enterprise.monthlyFormatted : pricing.enterprise.yearlyMonthly,
+      period: billingInterval === "monthly" ? "/month" : "/mo",
+      yearlyTotal: pricing.enterprise.yearlyFormatted,
+      features: ["Everything in Business", "Voice Credits Included", "Priority Support", "Custom Integrations", "Dedicated Account Manager"],
+      popular: false,
+      premium: true,
     },
   ];
 
@@ -576,7 +587,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               </div>
 
               {/* Plans */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl mb-6 md:mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mb-6 md:mb-8">
                 {PLANS.map((plan, idx) => (
                   <motion.div
                     key={plan.name}
@@ -594,6 +605,13 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                         <span className="bg-gradient-to-r from-primary to-cyan-400 text-primary-foreground text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
                           <Crown className="h-3.5 w-3.5" /> Most Popular
+                        </span>
+                      </div>
+                    )}
+                    {plan.premium && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
+                          <Sparkles className="h-3.5 w-3.5" /> Premium
                         </span>
                       </div>
                     )}
