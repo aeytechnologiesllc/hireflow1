@@ -350,6 +350,13 @@ export default function ApplicantDetails() {
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
+  
+  // Refs to store current values for the drag event handlers (fixes stale closure bug)
+  const dragPositionRef = useRef(dragPosition);
+  const effectivePhaseIndexRef = useRef(0);
+  const phasesRef = useRef<{ id: string; title: string; icon: any; type: string }[]>([]);
+  const applicationRef = useRef<ApplicationDetails | null>(null);
+  const parsedNotesRef = useRef<Record<string, any>>({});
 
   const { data: application, isLoading } = useQuery({
     queryKey: ["application", id],
@@ -510,6 +517,27 @@ export default function ApplicantDetails() {
     }
   })();
 
+  // Keep refs updated for the drag event handlers (fixes stale closure bug)
+  useEffect(() => {
+    dragPositionRef.current = dragPosition;
+  }, [dragPosition]);
+
+  useEffect(() => {
+    effectivePhaseIndexRef.current = effectivePhaseIndex;
+  }, [effectivePhaseIndex]);
+
+  useEffect(() => {
+    phasesRef.current = phases;
+  }, [phases]);
+
+  useEffect(() => {
+    applicationRef.current = application || null;
+  }, [application]);
+
+  useEffect(() => {
+    parsedNotesRef.current = parsedNotes;
+  }, [parsedNotes]);
+
   // Extract applicant display name from application answers (prioritize Full Name)
   const applicantDisplayName = (() => {
     if (parsedNotes.applicationAnswers?.length > 0) {
@@ -645,36 +673,42 @@ export default function ApplicantDetails() {
   }, [isDragging]);
 
   const handleDragEnd = async () => {
-    if (!isDragging || !application) return;
+    // Use refs to get the current values (fixes stale closure bug)
+    const currentDragPosition = dragPositionRef.current;
+    const currentPhases = phasesRef.current;
+    const currentEffectiveIndex = effectivePhaseIndexRef.current;
+    const currentApplication = applicationRef.current;
+    
+    if (!isDragging || !currentApplication) return;
     setIsDragging(false);
     
-    // Calculate nearest phase
-    const stepSize = 100 / (phases.length - 1);
-    const nearestIndex = Math.round(dragPosition / stepSize);
-    const newPhase = phases[nearestIndex];
+    // Calculate nearest phase using ref values
+    const stepSize = 100 / (currentPhases.length - 1);
+    const nearestIndex = Math.round(currentDragPosition / stepSize);
+    const newPhase = currentPhases[nearestIndex];
     
     // Debug logging to troubleshoot slider issues
     console.log("[Slider Debug]", {
-      dragPosition,
+      dragPosition: currentDragPosition,
       nearestIndex,
       newPhase: newPhase?.id,
-      currentPhase: application.phase,
-      effectivePhaseIndex,
-      phasesCount: phases.length,
+      currentPhase: currentApplication.phase,
+      effectivePhaseIndex: currentEffectiveIndex,
+      phasesCount: currentPhases.length,
       canManagePipeline,
     });
     
     // Check if the phase actually changed (comparing by index rather than just phase ID)
-    const isPhaseChange = nearestIndex !== effectivePhaseIndex;
+    const isPhaseChange = nearestIndex !== currentEffectiveIndex;
     
     if (newPhase && isPhaseChange) {
-      const currentIndex = effectivePhaseIndex;
+      const currentIndex = currentEffectiveIndex;
       
       // Check if moving backward (resetting phases)
       if (nearestIndex < currentIndex) {
         console.log("[Slider Debug] Moving backward from", currentIndex, "to", nearestIndex);
         // Get phases that will be reset
-        const phasesToReset = phases.slice(nearestIndex, currentIndex + 1);
+        const phasesToReset = currentPhases.slice(nearestIndex, currentIndex + 1);
         setPendingPhaseChange({
           newIndex: nearestIndex,
           newPhase,
@@ -699,7 +733,7 @@ export default function ApplicantDetails() {
     }
     
     // Snap to position
-    const snapPercentage = (nearestIndex / (phases.length - 1)) * 100;
+    const snapPercentage = (nearestIndex / (currentPhases.length - 1)) * 100;
     setDragPosition(snapPercentage);
   };
 
