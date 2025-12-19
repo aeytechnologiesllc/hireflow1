@@ -11,14 +11,52 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import avaOrb from "@/assets/ava-orb.png";
 
-const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
+const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai', 'me', 'tv', 'cc', 'xyz', 'club', 'site', 'store', 'blog'];
+
+// Common typos for TLDs
+const TYPO_CORRECTIONS: Record<string, string> = {
+  'coom': 'com', 'comm': 'com', 'con': 'com', 'vom': 'com', 'xom': 'com', 'comn': 'com', 'coim': 'com',
+  'orgg': 'org', 'ogr': 'org', 'oeg': 'org',
+  'nett': 'net', 'ner': 'net', 'het': 'net',
+  'eduu': 'edu', 'eud': 'edu',
+  'gob': 'gov', 'giov': 'gov',
+};
+
+const validateEmail = (email: string): { valid: boolean; error?: string; suggestion?: string } => {
+  if (!email) return { valid: true };
+  
+  // Basic format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { valid: false, error: "Please enter a valid email address" };
+  }
+  
+  const tld = email.split('.').pop()?.toLowerCase();
+  if (!tld) return { valid: false, error: "Please enter a valid email address" };
+  
+  // Check for common typos
+  if (TYPO_CORRECTIONS[tld]) {
+    return { 
+      valid: false, 
+      error: `Did you mean .${TYPO_CORRECTIONS[tld]}?`,
+      suggestion: TYPO_CORRECTIONS[tld]
+    };
+  }
+  
+  // Check if TLD is valid
+  if (!VALID_TLDS.includes(tld)) {
+    return { valid: false, error: "Please check your email domain ending" };
+  }
+  
+  return { valid: true };
+};
 
 const emailSchema = z.string()
   .email("Please enter a valid email address")
   .refine((email) => {
-    const tld = email.split('.').pop()?.toLowerCase();
-    return tld && VALID_TLDS.includes(tld);
-  }, "Please check your email - the domain ending looks incorrect (e.g., did you mean .com?)");
+    const result = validateEmail(email);
+    return result.valid;
+  }, "Please check your email - the domain ending looks incorrect");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
@@ -73,6 +111,10 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
+  
+  // Email validation state
+  const signInEmailValidation = validateEmail(signInEmail);
+  const signUpEmailValidation = validateEmail(signUpEmail);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,8 +292,11 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
                   value={signUpEmail}
                   onChange={(e) => setSignUpEmail(e.target.value)}
                   required
-                  className="h-11"
+                  className={`h-11 ${signUpEmail && !signUpEmailValidation.valid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />
+                {signUpEmail && !signUpEmailValidation.valid && (
+                  <p className="text-xs text-destructive">{signUpEmailValidation.error}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -304,8 +349,11 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
                   value={signInEmail}
                   onChange={(e) => setSignInEmail(e.target.value)}
                   required
-                  className="h-11"
+                  className={`h-11 ${signInEmail && !signInEmailValidation.valid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />
+                {signInEmail && !signInEmailValidation.valid && (
+                  <p className="text-xs text-destructive">{signInEmailValidation.error}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="signin-password">Password</Label>
