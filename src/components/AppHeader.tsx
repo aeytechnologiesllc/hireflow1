@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, LogOut, Settings, User, Menu } from "lucide-react";
 import TrialCountdownBanner from "@/components/subscription/TrialCountdownBanner";
-import AvaVoiceButton from "@/components/AvaVoiceButton";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -81,9 +80,6 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
       <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
         {/* Trial Countdown */}
         {role === 'employer' && <TrialCountdownBanner />}
-        
-        {/* AVA Voice Button - Dark glowing portal */}
-        {role === 'employer' && <AvaVoiceButton />}
         
         {/* User Menu */}
         <DropdownMenu>
