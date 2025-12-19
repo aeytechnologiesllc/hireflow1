@@ -195,7 +195,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <img src={avaOrb} alt="AVA" className="w-14 h-14" />
+              <img src={avaOrb} alt="AVA" className="w-14 h-14 object-contain" />
             </motion.div>
             <div>
               <div className="flex items-center gap-2 text-emerald-500 mb-1">
