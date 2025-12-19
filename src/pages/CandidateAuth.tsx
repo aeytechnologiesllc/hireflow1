@@ -5,13 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, Check, Circle } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Check, Circle, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { WelcomeAnimation } from "@/components/animations/WelcomeAnimation";
 
-const emailSchema = z.string().email("Please enter a valid email address");
+const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
+
+const emailSchema = z.string()
+  .email("Please enter a valid email address")
+  .refine((email) => {
+    const tld = email.split('.').pop()?.toLowerCase();
+    return tld && VALID_TLDS.includes(tld);
+  }, "Please check your email - the domain ending looks incorrect (e.g., did you mean .com?)");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
@@ -55,6 +62,8 @@ export default function CandidateAuth() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">(
     searchParams.get("tab") === "signup" ? "signup" : "signin"
   );
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -276,15 +285,24 @@ export default function CandidateAuth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signin-password" className="text-foreground">Password</Label>
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={signInPassword}
-                      onChange={(e) => setSignInPassword(e.target.value)}
-                      required
-                      className="bg-muted/50 border-border focus:border-primary h-12"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="signin-password"
+                        type={showSignInPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={signInPassword}
+                        onChange={(e) => setSignInPassword(e.target.value)}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignInPassword(!showSignInPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button 
                     type="submit" 
@@ -343,15 +361,24 @@ export default function CandidateAuth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password" className="text-foreground">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={signUpPassword}
-                      onChange={(e) => setSignUpPassword(e.target.value)}
-                      required
-                      className="bg-muted/50 border-border focus:border-primary h-12"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showSignUpPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={signUpPassword}
+                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     <PasswordRequirements password={signUpPassword} />
                   </div>
                   <Button 
