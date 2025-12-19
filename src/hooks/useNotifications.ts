@@ -111,3 +111,22 @@ export function useMarkAllNotificationsAsRead() {
     },
   });
 }
+
+export function useDeleteAllNotifications() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("user_id", user!.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
