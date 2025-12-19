@@ -299,6 +299,12 @@ export default function CreateJob() {
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+  const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
+  const [pendingWorkflowData, setPendingWorkflowData] = useState<{
+    application_questions: ApplicationQuestion[];
+    quiz_questions: QuizQuestion[];
+    workflow_steps: WorkflowStep[];
+  } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
   
   // Edit dialogs
@@ -501,6 +507,9 @@ export default function CreateJob() {
     }
 
     setIsGeneratingWorkflow(true);
+    setWorkflowApiComplete(false);
+    setPendingWorkflowData(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-workflow", {
         body: {
@@ -516,18 +525,37 @@ export default function CreateJob() {
 
       if (error) throw error;
 
-      setApplicationQuestions(data.application_questions || []);
-      setQuizQuestions(data.quiz_questions || []);
-      setWorkflowSteps(data.workflow_steps || []);
-      setWorkflowGenerated(true);
+      // Store the data but don't dismiss yet - wait for animation to complete
+      setPendingWorkflowData({
+        application_questions: data.application_questions || [],
+        quiz_questions: data.quiz_questions || [],
+        workflow_steps: data.workflow_steps || [],
+      });
+      setWorkflowApiComplete(true); // Signal to overlay that API is done
       
-      toast.success("Hiring workflow generated!");
     } catch (error) {
       console.error("Error generating workflow:", error);
       toast.error("Failed to generate workflow. Please try again.");
-    } finally {
+      // On error, dismiss immediately
       setIsGeneratingWorkflow(false);
+      setWorkflowApiComplete(false);
     }
+    // NO finally block - don't dismiss until animation completes via onComplete
+  };
+
+  // Called by overlay when BOTH animation AND API are complete
+  const handleWorkflowComplete = () => {
+    if (pendingWorkflowData) {
+      setApplicationQuestions(pendingWorkflowData.application_questions);
+      setQuizQuestions(pendingWorkflowData.quiz_questions);
+      setWorkflowSteps(pendingWorkflowData.workflow_steps);
+      setWorkflowGenerated(true);
+      toast.success("Hiring workflow generated!");
+    }
+    // Now dismiss the overlay
+    setIsGeneratingWorkflow(false);
+    setWorkflowApiComplete(false);
+    setPendingWorkflowData(null);
   };
 
   const handleSubmit = async (status: "draft" | "published") => {
@@ -2100,6 +2128,8 @@ export default function CreateJob() {
         isVisible={isGeneratingWorkflow}
         jobTitle={formData.title || "your new role"}
         difficulty={workflowDifficulty}
+        isApiComplete={workflowApiComplete}
+        onComplete={handleWorkflowComplete}
       />
 
       {/* Job Published Success Dialog */}
