@@ -285,10 +285,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 className="space-y-4 mb-8"
               >
                 <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-                  The <span className="text-gradient">Future</span> of Hiring
+                  Hire <span className="text-gradient">Smarter</span>, Not Harder
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                  Welcome to HireFlow. Where AI meets human intuition to find your next great hire.
+                  AVA handles screening, scheduling, and assessments—so you can focus on finding the perfect fit.
                 </p>
               </motion.div>
 
@@ -303,7 +303,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   className="group relative px-8 py-6 text-lg bg-card border border-primary/50 text-foreground hover:bg-card/80 shadow-[0_0_30px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_50px_hsl(var(--primary)/0.5)] transition-all duration-300"
                 >
                   <span className="relative z-10 flex items-center gap-2">
-                    Enter the Future
+                    Get Started
                     <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </span>
                 </Button>
