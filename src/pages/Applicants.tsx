@@ -42,6 +42,7 @@ import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 
 const statusColors: Record<string, string> = {
+  in_progress: "bg-orange-500/20 text-orange-500",
   pending: "bg-yellow-500/20 text-yellow-500",
   reviewing: "bg-blue-500/20 text-blue-500",
   interview: "bg-purple-500/20 text-purple-500",
@@ -65,7 +66,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
   const profile = application.profiles;
   const job = application.jobs;
   
-  // Extract applicant name from application notes (Full Name answer) or fall back to profile
+  // Extract applicant name from application notes (Full Name answer) or fall back to profile/email
   const applicantName = (() => {
     if (application.notes) {
       try {
@@ -76,9 +77,15 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
             a.question.toLowerCase() === "name"
         );
         if (fullNameAnswer?.answer) return fullNameAnswer.answer;
+        
+        // For in-progress applications, show name from initial notes or email
+        if (application.status === "in_progress") {
+          if (parsed.candidateName) return parsed.candidateName;
+          if (parsed.candidateEmail) return parsed.candidateEmail;
+        }
       } catch {}
     }
-    return profile?.full_name || "Unknown Candidate";
+    return profile?.full_name || profile?.email || "Unknown Candidate";
   })();
   
   const initials = applicantName
@@ -212,15 +219,20 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <Badge className={statusColors[application.status]}>
-                {application.status}
+                {application.status === "in_progress" ? "In Progress" : application.status}
               </Badge>
-              {phaseName && (
+              {application.status === "in_progress" && (
+                <Badge variant="outline" className="text-xs bg-orange-500/10 border-orange-500/30 text-orange-500">
+                  Filling out application
+                </Badge>
+              )}
+              {phaseName && application.status !== "in_progress" && (
                 <Badge variant="outline" className="text-xs">
                   Phase: {phaseName}
                 </Badge>
               )}
               <span className="text-sm text-muted-foreground">
-                Applied for <span className="text-foreground font-medium">{job?.title}</span>
+                {application.status === "in_progress" ? "Started application for" : "Applied for"} <span className="text-foreground font-medium">{job?.title}</span>
               </span>
             </div>
 

@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { isPast } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useCreateApplication } from "@/hooks/useApplications";
+import { useCreateApplication, useUpdateApplication, useCandidateApplications } from "@/hooks/useApplications";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
@@ -66,7 +67,10 @@ export default function CandidateApplicationWizard({
 }: CandidateApplicationWizardProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const createApplication = useCreateApplication();
+  const updateApplication = useUpdateApplication();
+  const { data: existingApplications } = useCandidateApplications();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if application deadline has passed
@@ -110,8 +114,66 @@ export default function CandidateApplicationWizard({
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   const [createdApplicationId, setCreatedApplicationId] = useState<string | null>(null);
   const [aiScore, setAiScore] = useState<number | null>(null);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
 
   const currentStepData = steps[currentStep];
+
+  // Check for existing application (draft or submitted) for this job
+  const existingApplication = existingApplications?.find(app => app.job_id === job.id);
+  const existingDraft = existingApplication?.status === "in_progress" ? existingApplication : null;
+
+  // Create draft application when wizard opens
+  useEffect(() => {
+    const createDraftApplication = async () => {
+      // Don't create if deadline passed, already creating, already have an application, or dialog not open
+      if (!open || isDeadlinePassed || isCreatingDraft || existingApplication || !user) return;
+
+      setIsCreatingDraft(true);
+      try {
+        // Fetch user profile to get email for initial notes
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, full_name")
+          .eq("user_id", user.id)
+          .single();
+
+        // Create initial notes with candidate email for visibility
+        const initialNotes = JSON.stringify({
+          applicationAnswers: [],
+          candidateEmail: profile?.email || user.email,
+          candidateName: profile?.full_name || null,
+        });
+
+        const draftApp = await createApplication.mutateAsync({
+          job_id: job.id,
+          status: "in_progress" as any,
+          phase: "application",
+          notes: initialNotes,
+        });
+
+        setCreatedApplicationId(draftApp.id);
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      } catch (error: any) {
+        // Handle duplicate application error - user already has a submitted application
+        if (error.message?.includes("applications_job_id_candidate_id_key") || error.code === "23505") {
+          // Silently ignore - the existing application will be used
+        } else {
+          console.error("Failed to create draft application:", error);
+        }
+      } finally {
+        setIsCreatingDraft(false);
+      }
+    };
+
+    createDraftApplication();
+  }, [open, job.id, user, isDeadlinePassed, existingApplication]);
+
+  // If there's an existing draft, use its ID
+  useEffect(() => {
+    if (existingDraft && !createdApplicationId) {
+      setCreatedApplicationId(existingDraft.id);
+    }
+  }, [existingDraft, createdApplicationId]);
 
   const resetWizard = () => {
     setCurrentStep(0);
@@ -515,18 +577,37 @@ Resume URL: ${resumeUrl || "Not provided"}
         }
       }
 
-      const createdApp = await createApplication.mutateAsync({
-        job_id: job.id,
-        cover_letter: coverLetter || null,
-        resume_url: resumeUrl || null,
-        ai_analysis: aiResult?.analysis || null,
-        ai_score: aiResult?.score || null,
-        notes,
-        phase: newPhase,
-        status: newStatus,
-      });
+      // Update the existing draft application or create new if somehow no draft exists
+      let finalAppId = createdApplicationId;
+      
+      if (createdApplicationId) {
+        // Update the existing draft application
+        await updateApplication.mutateAsync({
+          id: createdApplicationId,
+          cover_letter: coverLetter || null,
+          resume_url: resumeUrl || null,
+          ai_analysis: aiResult?.analysis || null,
+          ai_score: aiResult?.score || null,
+          notes,
+          phase: newPhase,
+          status: newStatus,
+        });
+      } else {
+        // Fallback: create new application if no draft exists
+        const createdApp = await createApplication.mutateAsync({
+          job_id: job.id,
+          cover_letter: coverLetter || null,
+          resume_url: resumeUrl || null,
+          ai_analysis: aiResult?.analysis || null,
+          ai_score: aiResult?.score || null,
+          notes,
+          phase: newPhase,
+          status: newStatus,
+        });
+        finalAppId = createdApp.id;
+        setCreatedApplicationId(createdApp.id);
+      }
 
-      setCreatedApplicationId(createdApp.id);
       queryClient.invalidateQueries({ queryKey: ["applications"] });
 
       if (isAutoMode && aiResult?.score !== null) {
