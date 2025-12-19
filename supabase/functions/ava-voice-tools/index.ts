@@ -899,6 +899,578 @@ serve(async (req) => {
         break;
       }
 
+      case "shortlist_applicant": {
+        const { application_id, reason } = parameters;
+
+        // Verify access
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select("id, notes, jobs!inner(employer_id)")
+          .eq("id", application_id)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (appError || !app) throw new Error("Application not found or access denied");
+
+        const currentNotes = typeof app.notes === 'string' ? JSON.parse(app.notes || '{}') : (app.notes || {});
+        currentNotes.shortlisted = true;
+        currentNotes.shortlisted_at = new Date().toISOString();
+        currentNotes.shortlist_reason = reason || 'Added by voice assistant';
+
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            notes: JSON.stringify(currentNotes),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", application_id);
+
+        result = { success: true, message: "Added to shortlist" };
+        break;
+      }
+
+      case "mark_as_top_candidate": {
+        const { application_id, reason } = parameters;
+
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select("id, notes, jobs!inner(employer_id)")
+          .eq("id", application_id)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (appError || !app) throw new Error("Application not found or access denied");
+
+        const currentNotes = typeof app.notes === 'string' ? JSON.parse(app.notes || '{}') : (app.notes || {});
+        currentNotes.top_candidate = true;
+        currentNotes.top_candidate_at = new Date().toISOString();
+        currentNotes.top_candidate_reason = reason;
+
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            notes: JSON.stringify(currentNotes),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", application_id);
+
+        result = { success: true, message: "Marked as top candidate" };
+        break;
+      }
+
+      case "add_applicant_note": {
+        const { application_id, note_content } = parameters;
+
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select("id, employer_notes, jobs!inner(employer_id)")
+          .eq("id", application_id)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (appError || !app) throw new Error("Application not found or access denied");
+
+        const existingNotes = app.employer_notes || '';
+        const timestamp = new Date().toLocaleString();
+        const newNote = existingNotes 
+          ? `${existingNotes}\n\n[${timestamp} - Ava] ${note_content}`
+          : `[${timestamp} - Ava] ${note_content}`;
+
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            employer_notes: newNote,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", application_id);
+
+        result = { success: true, message: "Note added" };
+        break;
+      }
+
+      case "get_pipeline_summary": {
+        const { job_id } = parameters;
+
+        let query = supabaseClient
+          .from("applications")
+          .select("id, status, phase, ai_score, jobs!inner(id, title, employer_id)")
+          .eq("jobs.employer_id", user.id);
+
+        if (job_id) {
+          query = query.eq("job_id", job_id);
+        }
+
+        const { data: apps, error } = await query;
+        if (error) throw error;
+
+        const summary: Record<string, { total: number, byStatus: Record<string, number>, avgScore: number }> = {};
+        
+        (apps || []).forEach((app: any) => {
+          const jobTitle = app.jobs?.title || 'Unknown';
+          if (!summary[jobTitle]) {
+            summary[jobTitle] = { total: 0, byStatus: {}, avgScore: 0 };
+          }
+          summary[jobTitle].total++;
+          summary[jobTitle].byStatus[app.status] = (summary[jobTitle].byStatus[app.status] || 0) + 1;
+          if (app.ai_score) {
+            summary[jobTitle].avgScore = (summary[jobTitle].avgScore * (summary[jobTitle].total - 1) + app.ai_score) / summary[jobTitle].total;
+          }
+        });
+
+        result = { 
+          summary,
+          total_applicants: apps?.length || 0,
+          message: `You have ${apps?.length || 0} applicants across ${Object.keys(summary).length} jobs`
+        };
+        break;
+      }
+
+      case "get_todays_interviews": {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+        const { data: interviews, error } = await supabaseClient
+          .from("interviews")
+          .select(`
+            id, scheduled_at, duration_minutes, meeting_link, status,
+            applications!inner(id, candidate_id, jobs!inner(title, employer_id))
+          `)
+          .eq("applications.jobs.employer_id", user.id)
+          .gte("scheduled_at", startOfDay.toISOString())
+          .lt("scheduled_at", endOfDay.toISOString())
+          .eq("status", "scheduled")
+          .order("scheduled_at", { ascending: true });
+
+        if (error) throw error;
+
+        // Get candidate names
+        const candidateIds = (interviews || []).map((i: any) => i.applications?.candidate_id).filter(Boolean);
+        const { data: profiles } = candidateIds.length > 0
+          ? await supabaseClient.from("profiles").select("user_id, full_name").in("user_id", candidateIds)
+          : { data: [] };
+        
+        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+
+        const formattedInterviews = (interviews || []).map((interview: any) => ({
+          id: interview.id,
+          time: new Date(interview.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          candidate: profileMap.get(interview.applications?.candidate_id) || 'Unknown',
+          job: interview.applications?.jobs?.title || 'Unknown',
+          has_meet_link: !!interview.meeting_link
+        }));
+
+        result = {
+          interviews: formattedInterviews,
+          count: formattedInterviews.length,
+          message: formattedInterviews.length === 0 
+            ? "No interviews scheduled for today"
+            : `You have ${formattedInterviews.length} interview${formattedInterviews.length > 1 ? 's' : ''} today`
+        };
+        break;
+      }
+
+      case "get_unread_messages": {
+        const { data: messages, error } = await supabaseClient
+          .from("messages")
+          .select("id, content, sender_id, created_at, application_id")
+          .eq("receiver_id", user.id)
+          .eq("is_read", false)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        // Get sender names
+        const senderIds = (messages || []).map(m => m.sender_id);
+        const { data: profiles } = senderIds.length > 0
+          ? await supabaseClient.from("profiles").select("user_id, full_name").in("user_id", senderIds)
+          : { data: [] };
+        
+        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+
+        const formattedMessages = (messages || []).map(msg => ({
+          from: profileMap.get(msg.sender_id) || 'Unknown',
+          preview: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : ''),
+          time: new Date(msg.created_at).toLocaleString()
+        }));
+
+        result = {
+          messages: formattedMessages,
+          count: messages?.length || 0,
+          message: messages?.length === 0 
+            ? "No unread messages" 
+            : `You have ${messages?.length} unread message${messages?.length > 1 ? 's' : ''}`
+        };
+        break;
+      }
+
+      case "get_pending_actions": {
+        // Get applications needing review
+        const { data: pendingApps } = await supabaseClient
+          .from("applications")
+          .select("id, status, phase, jobs!inner(title, employer_id)")
+          .eq("jobs.employer_id", user.id)
+          .eq("status", "pending")
+          .limit(5);
+
+        // Get unread messages count
+        const { count: unreadCount } = await supabaseClient
+          .from("messages")
+          .select("id", { count: 'exact', head: true })
+          .eq("receiver_id", user.id)
+          .eq("is_read", false);
+
+        // Get pending documents
+        const { count: pendingDocs } = await supabaseClient
+          .from("documents")
+          .select("id", { count: 'exact', head: true })
+          .eq("sender_id", user.id)
+          .eq("status", "pending");
+
+        // Get today's interviews
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+        const { count: todayInterviews } = await supabaseClient
+          .from("interviews")
+          .select("id", { count: 'exact', head: true })
+          .gte("scheduled_at", startOfDay.toISOString())
+          .lt("scheduled_at", endOfDay.toISOString())
+          .eq("status", "scheduled");
+
+        const actions = [];
+        if (pendingApps && pendingApps.length > 0) {
+          actions.push(`${pendingApps.length} applications to review`);
+        }
+        if (unreadCount && unreadCount > 0) {
+          actions.push(`${unreadCount} unread messages`);
+        }
+        if (pendingDocs && pendingDocs > 0) {
+          actions.push(`${pendingDocs} documents awaiting signature`);
+        }
+        if (todayInterviews && todayInterviews > 0) {
+          actions.push(`${todayInterviews} interviews today`);
+        }
+
+        result = {
+          pending_applications: pendingApps?.length || 0,
+          unread_messages: unreadCount || 0,
+          pending_documents: pendingDocs || 0,
+          todays_interviews: todayInterviews || 0,
+          actions,
+          message: actions.length === 0 
+            ? "All caught up! No pending actions" 
+            : `You have: ${actions.join(', ')}`
+        };
+        break;
+      }
+
+      case "bulk_reject": {
+        const { job_id, max_score, reason } = parameters;
+
+        // Find applicants below the score threshold
+        let query = supabaseClient
+          .from("applications")
+          .select("id, ai_score, jobs!inner(employer_id)")
+          .eq("jobs.employer_id", user.id)
+          .eq("status", "pending");
+
+        if (job_id) {
+          query = query.eq("job_id", job_id);
+        }
+        if (max_score) {
+          query = query.lte("ai_score", max_score);
+        }
+
+        const { data: apps, error } = await query;
+        if (error) throw error;
+
+        if (!apps || apps.length === 0) {
+          result = { success: true, count: 0, message: "No applicants match the criteria" };
+          break;
+        }
+
+        // Reject all matching applicants
+        const ids = apps.map(a => a.id);
+        await supabaseClient
+          .from("applications")
+          .update({ 
+            status: 'rejected',
+            employer_notes: reason || 'Bulk rejected by voice assistant',
+            updated_at: new Date().toISOString()
+          })
+          .in("id", ids);
+
+        result = { 
+          success: true, 
+          count: ids.length, 
+          message: `Rejected ${ids.length} applicant${ids.length > 1 ? 's' : ''}` 
+        };
+        break;
+      }
+
+      case "pause_job": {
+        const { job_id } = parameters;
+
+        const { error } = await supabaseClient
+          .from("jobs")
+          .update({ status: 'closed', updated_at: new Date().toISOString() })
+          .eq("id", job_id)
+          .eq("employer_id", user.id);
+
+        if (error) throw error;
+
+        result = { success: true, message: "Job paused - no longer accepting applications" };
+        break;
+      }
+
+      case "unpause_job": {
+        const { job_id } = parameters;
+
+        const { error } = await supabaseClient
+          .from("jobs")
+          .update({ status: 'published', updated_at: new Date().toISOString() })
+          .eq("id", job_id)
+          .eq("employer_id", user.id);
+
+        if (error) throw error;
+
+        result = { success: true, message: "Job is live again" };
+        break;
+      }
+
+      case "archive_job": {
+        const { job_id } = parameters;
+
+        const { error } = await supabaseClient
+          .from("jobs")
+          .update({ status: 'archived', updated_at: new Date().toISOString() })
+          .eq("id", job_id)
+          .eq("employer_id", user.id);
+
+        if (error) throw error;
+
+        result = { success: true, message: "Job archived" };
+        break;
+      }
+
+      case "reschedule_interview": {
+        const { interview_id, new_date_time } = parameters;
+
+        // Parse the new date
+        let scheduledDate = new Date(new_date_time);
+        if (isNaN(scheduledDate.getTime())) {
+          // Try parsing natural language
+          const now = new Date();
+          const lowerTime = new_date_time.toLowerCase();
+          
+          if (lowerTime.includes('tomorrow')) {
+            scheduledDate = new Date(now);
+            scheduledDate.setDate(scheduledDate.getDate() + 1);
+            const timeMatch = lowerTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+            if (timeMatch) {
+              let hours = parseInt(timeMatch[1]);
+              const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+              if (timeMatch[3].toLowerCase() === 'pm' && hours !== 12) hours += 12;
+              if (timeMatch[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+              scheduledDate.setHours(hours, minutes, 0, 0);
+            } else {
+              scheduledDate.setHours(10, 0, 0, 0);
+            }
+          } else {
+            scheduledDate = new Date(now);
+            scheduledDate.setDate(scheduledDate.getDate() + 1);
+            scheduledDate.setHours(10, 0, 0, 0);
+          }
+        }
+
+        const { error } = await supabaseClient
+          .from("interviews")
+          .update({ 
+            scheduled_at: scheduledDate.toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", interview_id);
+
+        if (error) throw error;
+
+        const formattedDate = scheduledDate.toLocaleString('en-US', {
+          weekday: 'long', month: 'short', day: 'numeric',
+          hour: 'numeric', minute: '2-digit', hour12: true
+        });
+
+        result = { success: true, message: `Interview rescheduled to ${formattedDate}` };
+        break;
+      }
+
+      case "cancel_interview": {
+        const { interview_id, reason } = parameters;
+
+        const { error } = await supabaseClient
+          .from("interviews")
+          .update({ 
+            status: 'cancelled',
+            notes: reason ? `Cancelled: ${reason}` : 'Cancelled by voice assistant',
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", interview_id);
+
+        if (error) throw error;
+
+        result = { success: true, message: "Interview cancelled" };
+        break;
+      }
+
+      case "compare_applicants": {
+        const { application_ids } = parameters;
+
+        if (!application_ids || application_ids.length < 2) {
+          throw new Error("Need at least 2 applicants to compare");
+        }
+
+        const { data: apps, error } = await supabaseClient
+          .from("applications")
+          .select(`
+            id, status, phase, ai_score, notes, candidate_id,
+            jobs!inner(title, employer_id)
+          `)
+          .in("id", application_ids)
+          .eq("jobs.employer_id", user.id);
+
+        if (error) throw error;
+
+        // Get profiles
+        const candidateIds = (apps || []).map(a => a.candidate_id);
+        const { data: profiles } = await supabaseClient
+          .from("profiles")
+          .select("user_id, full_name, skills, experience_years")
+          .in("user_id", candidateIds);
+
+        const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+
+        const comparison = (apps || []).map(app => {
+          const profile = profileMap.get(app.candidate_id);
+          const notes = typeof app.notes === 'string' ? JSON.parse(app.notes || '{}') : (app.notes || {});
+          return {
+            name: profile?.full_name || 'Unknown',
+            ai_score: app.ai_score,
+            experience: profile?.experience_years,
+            skills: profile?.skills,
+            status: app.status,
+            typing_wpm: notes.typingTestResult?.wpm,
+            quiz_score: notes.quizScore,
+            chat_score: notes.chatSimulationResult?.score,
+            sales_score: notes.salesSimulationResult?.overallScore
+          };
+        });
+
+        result = {
+          comparison,
+          count: comparison.length,
+          summary: comparison.map(c => `${c.name}: Score ${c.ai_score || 'N/A'}, ${c.experience || '?'} years exp`).join(' vs ')
+        };
+        break;
+      }
+
+      case "send_offer": {
+        const { application_id } = parameters;
+
+        // Update application status to offered
+        const { data: app, error: appError } = await supabaseClient
+          .from("applications")
+          .select("id, candidate_id, jobs!inner(title, employer_id)")
+          .eq("id", application_id)
+          .eq("jobs.employer_id", user.id)
+          .single();
+
+        if (appError || !app) throw new Error("Application not found");
+
+        await supabaseClient
+          .from("applications")
+          .update({ status: 'offered', updated_at: new Date().toISOString() })
+          .eq("id", application_id);
+
+        // Send notification
+        await supabaseClient
+          .from("notifications")
+          .insert({
+            user_id: app.candidate_id,
+            type: 'status_update',
+            title: 'Offer Extended!',
+            message: `Congratulations! You've received an offer for ${(app.jobs as any).title}.`,
+            link: `/applications/${application_id}`
+          });
+
+        result = { 
+          success: true, 
+          action: "navigate",
+          route: "/documents",
+          message: "Status updated to 'Offered'. Opening Documents to send offer letter." 
+        };
+        break;
+      }
+
+      case "get_team_activity": {
+        // Get recent team actions from notifications and updates
+        const { data: recentApps } = await supabaseClient
+          .from("applications")
+          .select("id, status, phase, updated_at, jobs!inner(title, employer_id)")
+          .eq("jobs.employer_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(10);
+
+        const activities = (recentApps || []).map(app => ({
+          action: `Application ${app.status}`,
+          job: (app as any).jobs?.title,
+          time: new Date(app.updated_at).toLocaleString()
+        }));
+
+        result = {
+          activities,
+          count: activities.length,
+          message: `${activities.length} recent activities`
+        };
+        break;
+      }
+
+      case "duplicate_job": {
+        const { job_id } = parameters;
+
+        const { data: job, error: jobError } = await supabaseClient
+          .from("jobs")
+          .select("*")
+          .eq("id", job_id)
+          .eq("employer_id", user.id)
+          .single();
+
+        if (jobError || !job) throw new Error("Job not found");
+
+        // Create duplicate with "(Copy)" suffix
+        const { id, created_at, updated_at, job_code, ...jobData } = job;
+        const { data: newJob, error: insertError } = await supabaseClient
+          .from("jobs")
+          .insert({
+            ...jobData,
+            title: `${job.title} (Copy)`,
+            status: 'draft'
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        result = { 
+          success: true, 
+          new_job_id: newJob.id,
+          action: "navigate",
+          route: `/jobs/edit/${newJob.id}`,
+          message: `Job duplicated as "${newJob.title}"` 
+        };
+        break;
+      }
+
       default:
         throw new Error(`Unknown tool: ${tool_name}`);
     }
