@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -36,10 +36,20 @@ import {
   Upload,
   FileUp,
   X,
-  File
+  File,
+  AlertTriangle
 } from "lucide-react";
 import type { ApplicationForDocument } from "@/hooks/useApplicationsForDocuments";
 import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
+import { DocumentValidationChecklist, DocumentValidationSummary } from "./DocumentValidationChecklist";
+import { 
+  validateDocument, 
+  isDocumentReady, 
+  toTitleCase, 
+  isFreeEmailDomain,
+  postProcessDocumentContent,
+  type DocumentValidation 
+} from "@/lib/documentValidation";
 
 interface DocumentWizardProps {
   open: boolean;
@@ -267,6 +277,40 @@ export function DocumentWizard({
       email: app?.profiles?.email || "",
       jobTitle: app?.jobs?.title || jobTitle,
     };
+  };
+
+  // Compute validation state
+  const documentValidation = useMemo((): DocumentValidation => {
+    const recipient = getSelectedRecipient();
+    return validateDocument({
+      documentType,
+      companyName,
+      companyEmail,
+      companyPhone,
+      companyAddress,
+      recipientName: recipient.name || recipientName,
+      recipientEmail: recipient.email || recipientEmail,
+      jobTitle: recipient.jobTitle || jobTitle,
+      salary,
+      startDate,
+      content: generatedContent,
+      signatureFields: legacySignatureFields,
+      hiringManagerName,
+      hiringManagerTitle,
+    });
+  }, [
+    documentType, companyName, companyEmail, companyPhone, companyAddress,
+    recipientName, recipientEmail, jobTitle, salary, startDate,
+    generatedContent, legacySignatureFields, hiringManagerName, hiringManagerTitle,
+    selectedApplication, isManualRecipient, applications
+  ]);
+
+  const validationReady = useMemo(() => isDocumentReady(documentValidation), [documentValidation]);
+
+  // Auto-format name on blur
+  const handleNameBlur = (setter: (value: string) => void) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const formatted = toTitleCase(e.target.value);
+    setter(formatted);
   };
 
   const getCurrentStepId = () => WIZARD_STEPS[currentStep]?.id || "";
@@ -858,6 +902,7 @@ export function DocumentWizard({
                   <Input
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
+                    onBlur={handleNameBlur(setRecipientName)}
                     placeholder="John Doe"
                   />
                 </div>
@@ -894,6 +939,7 @@ export function DocumentWizard({
                 <Input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
+                  onBlur={handleNameBlur(setCompanyName)}
                   placeholder="Acme Corporation"
                 />
               </div>
@@ -905,6 +951,7 @@ export function DocumentWizard({
                 <Input
                   value={jobTitle || getSelectedRecipient().jobTitle || ""}
                   onChange={(e) => setJobTitle(e.target.value)}
+                  onBlur={handleNameBlur(setJobTitle)}
                   placeholder="Software Engineer"
                 />
               </div>
@@ -1015,7 +1062,16 @@ export function DocumentWizard({
                     value={companyEmail}
                     onChange={(e) => setCompanyEmail(e.target.value)}
                     placeholder="hr@company.com"
+                    className={cn(
+                      isFreeEmailDomain(companyEmail) && "border-amber-500"
+                    )}
                   />
+                  {isFreeEmailDomain(companyEmail) && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Free email domains are not recommended for official documents
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-muted-foreground">
