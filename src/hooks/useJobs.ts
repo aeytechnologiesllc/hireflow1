@@ -92,10 +92,13 @@ export function usePublishedJobs() {
   return useQuery({
     queryKey: ["jobs", "published"],
     queryFn: async () => {
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("jobs")
         .select("*")
         .eq("status", "published")
+        // Filter out jobs with passed deadlines
+        .or(`application_deadline.is.null,application_deadline.gt.${now}`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

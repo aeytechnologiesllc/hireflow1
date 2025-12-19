@@ -19,9 +19,11 @@ import {
   ClipboardList,
   Send,
   X,
-  File
+  File,
+  XCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { isPast } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateApplication } from "@/hooks/useApplications";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
@@ -66,6 +68,9 @@ export default function CandidateApplicationWizard({
   const queryClient = useQueryClient();
   const createApplication = useCreateApplication();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if application deadline has passed
+  const isDeadlinePassed = job.application_deadline && isPast(new Date(job.application_deadline));
 
   // Parse application questions from job
   const applicationQuestions: ApplicationQuestion[] = Array.isArray(job.application_questions) 
@@ -435,6 +440,13 @@ Resume URL: ${resumeUrl || "Not provided"}
   };
 
   const handleSubmit = async () => {
+    // Double-check deadline hasn't passed before submitting
+    if (isDeadlinePassed) {
+      toast.error("The application deadline for this job has passed");
+      onOpenChange(false);
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
