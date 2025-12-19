@@ -27,10 +27,6 @@ export default function MiniAvaContainer() {
   // Expanded voice mode
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Click tracking for interactions
-  const clickCountRef = useRef(0);
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
   // Voice connection
   const {
     isConnected,
@@ -54,39 +50,15 @@ export default function MiniAvaContainer() {
     },
   });
 
-  // Handle click interactions
+  // Handle click - single click opens the assistant
   const handleClick = useCallback(() => {
     wake();
+    triggerExpression('poked', 300);
     
-    clickCountRef.current += 1;
-    
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
+    if (!isExpanded) {
+      setIsExpanded(true);
     }
-    
-    clickTimeoutRef.current = setTimeout(() => {
-      const clicks = clickCountRef.current;
-      clickCountRef.current = 0;
-      
-      if (clicks === 1) {
-        // Single click - subtle acknowledgment
-        triggerExpression('poked', 400);
-      } else if (clicks === 2) {
-        // Double click - toggle voice
-        if (isExpanded) {
-          if (isConnected) {
-            disconnect();
-          }
-          setIsExpanded(false);
-        } else {
-          setIsExpanded(true);
-        }
-      } else if (clicks === 3) {
-        // Triple click - success pulse
-        triggerAvaReaction('celebrate');
-      }
-    }, 300);
-  }, [wake, triggerExpression, isExpanded, isConnected, disconnect]);
+  }, [wake, triggerExpression, isExpanded]);
 
   // Handle voice toggle
   const handleVoiceToggle = useCallback(async () => {
@@ -119,7 +91,7 @@ export default function MiniAvaContainer() {
       ref={containerRef}
       className="fixed bottom-6 right-6 z-50"
     >
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {isExpanded ? (
           // Expanded voice mode
           <motion.div
