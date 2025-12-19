@@ -408,7 +408,13 @@ export default function GuestJobCreator() {
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-8"
                   >
                     Continue
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    <motion.span
+                      className="ml-2 inline-flex"
+                      animate={{ x: [0, 3, 0] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </motion.span>
                   </Button>
                 </div>
               </motion.div>
@@ -487,9 +493,21 @@ export default function GuestJobCreator() {
                       onClick={handleNext}
                       className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-8 shadow-lg shadow-emerald-500/25"
                     >
-                      <Wand2 className="h-4 w-4 mr-2" />
+                      <motion.span
+                        className="mr-2 inline-flex"
+                        whileHover={{ rotate: 10 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 16 }}
+                      >
+                        <Wand2 className="h-4 w-4" />
+                      </motion.span>
                       Generate with AVA
-                      <Sparkles className="h-4 w-4 ml-2" />
+                      <motion.span
+                        className="ml-2 inline-flex"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </motion.span>
                     </Button>
                   </motion.div>
                 </div>
@@ -642,7 +660,13 @@ export default function GuestJobCreator() {
                       className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white px-10 h-12"
                     >
                       Publish Job
-                      <ArrowRight className="h-5 w-5 ml-2" />
+                      <motion.span
+                        className="ml-2 inline-flex"
+                        animate={{ x: [0, 3, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <ArrowRight className="h-5 w-5" />
+                      </motion.span>
                     </Button>
                   </motion.div>
                 </div>
