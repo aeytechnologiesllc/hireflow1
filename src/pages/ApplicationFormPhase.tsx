@@ -253,7 +253,9 @@ export default function ApplicationFormPhase() {
     });
 
     // Validate resume if required and not already uploaded
-    if (requiresResume && !resumeFile && !application?.resume_url) {
+    // Skip this check if there's a file-type question (it handles the resume)
+    const hasFileQuestion = questions.some(q => q.type === "file");
+    if (requiresResume && !hasFileQuestion && !resumeFile && !application?.resume_url) {
       errors.resume = "Please upload your resume";
     }
 
