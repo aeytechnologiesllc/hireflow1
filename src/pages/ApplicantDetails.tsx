@@ -2197,10 +2197,10 @@ ${interviewType} Interview with AVA Results:
                   </Button>
                 </div>
                 
-                {/* Resume Preview iframe */}
+                {/* Resume Preview using Google Docs Viewer for reliable PDF display */}
                 <div className="rounded-lg overflow-hidden border border-border bg-muted h-96">
                   <iframe 
-                    src={resumeUrl}
+                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(resumeUrl)}&embedded=true`}
                     className="w-full h-full"
                     title="Resume Preview"
                   />

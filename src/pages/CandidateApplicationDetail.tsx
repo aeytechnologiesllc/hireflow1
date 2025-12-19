@@ -76,6 +76,7 @@ const phaseStatusLabels: Record<string, { label: string; color: string; icon: an
   completed: { label: "Completed", color: "bg-success/20 text-success border-success/30", icon: CheckCircle },
   awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30", icon: Play },
   under_review: { label: "Under Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
+  employer_reviewing: { label: "Employer Reviewing", color: "bg-amber-500/20 text-amber-500 border-amber-500/30", icon: Eye },
 };
 
 // Friendly action messages for each phase type
@@ -388,6 +389,7 @@ export default function CandidateApplicationDetail() {
   // Determine phase status for each step
   const getPhaseStatus = (phaseIndex: number) => {
     const phase = phases[phaseIndex];
+    const isManualMode = application?.jobs?.processing_mode === "manual";
     
     // If this phase was skipped by employer, mark as completed
     if (isEmployerSkipped(phase.id) && phaseIndex < effectivePhaseIndex) {
@@ -401,17 +403,13 @@ export default function CandidateApplicationDetail() {
         return "under_review";
       }
       
-      // For manual mode, show pending review if phase is current but employer hasn't advanced yet
-      const isManualMode = application?.jobs?.processing_mode === "manual";
-      
-      if (phase.type === "application") {
-        // Application is always completed if we're past it
-        return phaseIndex === effectivePhaseIndex ? "awaiting_action" : "completed";
-      }
-      
       // Check if phase data exists (use type-specific keys)
       let hasPhaseData = false;
-      if (phase.type === "typing_test") {
+      
+      if (phase.type === "application") {
+        // Check if application form was submitted (applicationAnswers exist in notes)
+        hasPhaseData = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+      } else if (phase.type === "typing_test") {
         hasPhaseData = !!notes.typingTestResult;
       } else if (phase.type === "chat_simulation") {
         hasPhaseData = !!notes.chatSimulationResult;
@@ -435,7 +433,9 @@ export default function CandidateApplicationDetail() {
       }
       
       if (hasPhaseData) {
-        return "pending"; // Submitted, waiting for review (both Autopilot and Manual modes)
+        // In Manual Mode, show "Employer Reviewing" - employer must manually advance
+        // In Auto Mode, show "Pending Review" - system will auto-advance
+        return isManualMode ? "employer_reviewing" : "pending";
       }
       
       return "awaiting_action"; // Needs to complete this phase
