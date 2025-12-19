@@ -81,6 +81,7 @@ const phaseStatusLabels: Record<string, { label: string; color: string; icon: an
 
 // Friendly action messages for each phase type
 const phaseActionMessages: Record<string, { buttonText: string; description: string }> = {
+  application: { buttonText: "Complete Application", description: "Fill out your application form" },
   quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
   typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
@@ -456,6 +457,9 @@ export default function CandidateApplicationDetail() {
     
     // Navigate to the appropriate phase completion page
     switch (phaseType) {
+      case "application":
+        navigate(`/applications/${id}/application/${phaseId}`);
+        break;
       case "quiz":
         navigate(`/applications/${id}/quiz/${phaseId}`);
         break;
@@ -745,11 +749,10 @@ export default function CandidateApplicationDetail() {
                     )}
                   </div>
 
-                  {/* Action Button */}
+                  {/* Action Button - show for actionable phases that are awaiting action */}
                   {isCurrent &&
                     status === "awaiting_action" &&
                     application.status !== "rejected" &&
-                    phase.type !== "application" &&
                     phase.type !== "review" &&
                     phase.type !== "interview" &&
                     phase.type !== "hired" && (
