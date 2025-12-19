@@ -343,6 +343,10 @@ export default function ApplicantDetails() {
     newIndex: number;
     newPhase: { id: string; title: string; type: string };
   } | null>(null);
+  const [pendingInterview, setPendingInterview] = useState<{
+    newIndex: number;
+    newPhase: { id: string; title: string; type: string };
+  } | null>(null);
   const [showHiringDocumentPrompt, setShowHiringDocumentPrompt] = useState(false);
   const [showDocumentWizard, setShowDocumentWizard] = useState(false);
   const [documentWizardMode, setDocumentWizardMode] = useState<"generate" | "upload" | undefined>();
@@ -357,6 +361,9 @@ export default function ApplicantDetails() {
   const phasesRef = useRef<{ id: string; title: string; icon: any; type: string }[]>([]);
   const applicationRef = useRef<ApplicationDetails | null>(null);
   const parsedNotesRef = useRef<Record<string, any>>({});
+  
+  // Ref to prevent useEffect from overriding slider position during phase change
+  const isPhaseChangeInProgressRef = useRef(false);
 
   const { data: application, isLoading } = useQuery({
     queryKey: ["application", id],
@@ -596,6 +603,9 @@ export default function ApplicantDetails() {
 
   // Calculate avatar position based on phase
   useEffect(() => {
+    // Skip if a phase change is in progress (wait for query invalidation to complete)
+    if (isPhaseChangeInProgressRef.current) return;
+    
     if (sliderRef.current && !isDragging) {
       const currentPhase = phases[effectivePhaseIndex];
       const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
@@ -735,6 +745,16 @@ export default function ApplicantDetails() {
         return;
       }
       
+      // Intercept interview phase - wait for scheduling wizard completion before updating DB
+      if (newPhase.type === "interview") {
+        setPendingInterview({ newIndex: nearestIndex, newPhase });
+        // Snap slider to interview position visually
+        const snapPercentage = (nearestIndex / (currentPhases.length - 1)) * 100;
+        setDragPosition(snapPercentage);
+        setShowInterviewWizard(true);
+        return; // Don't execute phase change yet - wait for wizard completion
+      }
+      
       await executePhaseChange(nearestIndex, newPhase, false);
     }
     
@@ -749,6 +769,9 @@ export default function ApplicantDetails() {
     isBackward: boolean
   ) => {
     if (!application) return;
+    
+    // Set flag to prevent useEffect from overriding slider position
+    isPhaseChangeInProgressRef.current = true;
     
     try {
       const currentIndex = effectivePhaseIndex;
@@ -880,25 +903,20 @@ export default function ApplicantDetails() {
         
         toast.success(`Advanced to ${newPhase.title} phase`);
         
-        // Auto-open interview scheduler when moving to interview phase
-        if (newPhase.type === "interview") {
-          setShowInterviewWizard(true);
-        }
-        
         // Show hiring document prompt when moving to hired phase
         if (newPhase.type === "hired") {
           setShowHiringDocumentPrompt(true);
         }
       }
       
-      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      // Wait for query invalidation to complete before allowing useEffect to update slider
+      await queryClient.invalidateQueries({ queryKey: ["application", id] });
     } catch (error) {
       toast.error("Failed to update phase");
+    } finally {
+      // Reset flag after query invalidation completes
+      isPhaseChangeInProgressRef.current = false;
     }
-    
-    // Snap to position
-    const snapPercentage = (newIndex / (phases.length - 1)) * 100;
-    setDragPosition(snapPercentage);
   };
 
   const handleConfirmReset = async () => {
@@ -2921,7 +2939,22 @@ ${interviewType} Interview with AVA Results:
         candidateEmail={profile?.email}
         jobTitle={job?.title}
         open={showInterviewWizard}
-        onOpenChange={setShowInterviewWizard}
+        onOpenChange={(open) => {
+          if (!open && pendingInterview) {
+            // Wizard cancelled - snap slider back to original position
+            const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
+            setDragPosition(snapPercentage);
+            setPendingInterview(null);
+          }
+          setShowInterviewWizard(open);
+        }}
+        onComplete={() => {
+          if (pendingInterview) {
+            // Wizard completed successfully - execute the phase change
+            executePhaseChange(pendingInterview.newIndex, pendingInterview.newPhase, false);
+            setPendingInterview(null);
+          }
+        }}
       />
 
       {/* Phase Reset Confirmation Dialog */}
