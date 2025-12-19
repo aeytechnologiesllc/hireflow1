@@ -10,6 +10,7 @@ import { z } from "zod";
 import { motion } from "framer-motion";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
 
@@ -182,11 +183,7 @@ export default function Auth() {
   };
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AuthLoadingScreen variant="employer" />;
   }
 
   return (
