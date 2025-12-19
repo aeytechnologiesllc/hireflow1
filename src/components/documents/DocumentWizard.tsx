@@ -580,15 +580,25 @@ export function DocumentWizard({
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Documents must be linked to an application (DB constraint + consistent audit trail)
+      if (!selectedApplication) {
+        toast({
+          title: "Select a candidate",
+          description: "Please select a candidate application before sending a document.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+
       const recipient = getSelectedRecipient();
       const app = applications.find(a => a.id === selectedApplication);
-      
+
       let fileUrl: string;
       let docName: string;
       let docType: string;
@@ -634,7 +644,7 @@ export function DocumentWizard({
       const { data: document, error: docError } = await supabase
         .from("documents")
         .insert({
-          application_id: selectedApplication || null,
+          application_id: selectedApplication,
           name: docName,
           document_type: docType,
           file_url: fileUrl,
