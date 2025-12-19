@@ -49,6 +49,7 @@ interface InterviewSchedulingWizardProps {
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.events";
+const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
 
 const timeSlots = [
   "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
@@ -90,18 +91,22 @@ export default function InterviewSchedulingWizard({
     { id: "review", title: "Review & Schedule", icon: CheckCircle },
   ];
 
-  // Check for Google OAuth callback
+  // OAuth callback is now handled by /oauth/google/callback page
+  // This effect just checks if tokens were updated after returning from OAuth
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-
-    if (code && state === "google_calendar_connect") {
-      handleGoogleCallback(code);
-      // Clean URL
-      window.history.replaceState({}, "", window.location.pathname);
+    if (open) {
+      const storedToken = localStorage.getItem("google_access_token");
+      const tokenExpiry = localStorage.getItem("google_token_expiry");
+      
+      if (storedToken && tokenExpiry) {
+        const expiry = new Date(tokenExpiry);
+        if (expiry > new Date()) {
+          setGoogleAccessToken(storedToken);
+          setIsGoogleConnected(true);
+        }
+      }
     }
-  }, []);
+  }, [open]);
 
   // Check for stored Google tokens
   useEffect(() => {
@@ -123,36 +128,7 @@ export default function InterviewSchedulingWizard({
     }
   }, [open]);
 
-  const handleGoogleCallback = async (code: string) => {
-    setIsConnectingGoogle(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("google-calendar", {
-        body: {
-          action: "exchange_token",
-          code,
-          redirectUri: window.location.origin + window.location.pathname,
-        },
-      });
-
-      if (error) throw error;
-
-      localStorage.setItem("google_access_token", data.access_token);
-      localStorage.setItem("google_refresh_token", data.refresh_token);
-      localStorage.setItem(
-        "google_token_expiry",
-        new Date(Date.now() + data.expires_in * 1000).toISOString()
-      );
-
-      setGoogleAccessToken(data.access_token);
-      setIsGoogleConnected(true);
-      toast.success("Google Calendar connected!");
-    } catch (error: any) {
-      console.error("Google OAuth error:", error);
-      toast.error("Failed to connect Google Calendar");
-    } finally {
-      setIsConnectingGoogle(false);
-    }
-  };
+  // Token exchange is now handled by OAuthGoogleCallback page
 
   const refreshGoogleToken = async (refreshToken: string) => {
     try {
@@ -189,10 +165,12 @@ export default function InterviewSchedulingWizard({
       return;
     }
 
-    const redirectUri = window.location.origin + window.location.pathname;
+    // Store current URL to return after OAuth
+    localStorage.setItem("google_oauth_return_url", window.location.pathname + window.location.search);
+
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
-    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("redirect_uri", FIXED_REDIRECT_URI);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("scope", GOOGLE_SCOPES);
     authUrl.searchParams.set("access_type", "offline");
