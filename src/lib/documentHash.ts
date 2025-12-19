@@ -209,3 +209,96 @@ export function formatTimestampWithUTC(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   return `${date.toUTCString()} (UTC)`;
 }
+
+/**
+ * Signing context interface - captures all information at the exact moment of signing
+ */
+export interface SigningContext {
+  ip: string;
+  userAgent: string;
+  timestamp: string;
+  geolocation?: {
+    city: string;
+    region: string;
+    country: string;
+  };
+}
+
+/**
+ * Capture complete signing context synchronously at the moment of signature
+ * This MUST be called immediately before database updates during signing
+ * IP address is captured at the exact moment of electronic consent/signature
+ */
+export async function captureSigningContext(): Promise<SigningContext> {
+  const timestamp = getUTCTimestamp();
+  const userAgent = getUserAgent();
+  
+  // Capture IP address synchronously - this is critical for compliance
+  let ip = 'IP unavailable at time of signing';
+  let geolocation: SigningContext['geolocation'] = undefined;
+  
+  try {
+    // Attempt to get IP and geolocation from our edge function
+    const response = await Promise.race([
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geolocate-ip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({}),
+      }),
+      new Promise<Response>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+    ]);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.ip) {
+        ip = data.ip;
+        if (data.city && data.city !== 'Unknown') {
+          geolocation = {
+            city: data.city,
+            region: data.region || 'Unknown',
+            country: data.country || 'Unknown',
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to capture IP at signing:', error);
+    // Fallback to ipify
+    try {
+      const fallbackResponse = await Promise.race([
+        fetch('https://api.ipify.org?format=json'),
+        new Promise<Response>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        )
+      ]);
+      const fallbackData = await fallbackResponse.json();
+      if (fallbackData.ip) {
+        ip = fallbackData.ip;
+      }
+    } catch {
+      // IP remains "IP unavailable at time of signing"
+    }
+  }
+  
+  return {
+    ip,
+    userAgent,
+    timestamp,
+    geolocation,
+  };
+}
+
+/**
+ * Format IP address for display - explicitly shows if unavailable
+ */
+export function formatIPAddress(ip: string | null | undefined): string {
+  if (!ip || ip === 'unknown' || ip === '') {
+    return 'IP unavailable at time of signing';
+  }
+  return ip;
+}

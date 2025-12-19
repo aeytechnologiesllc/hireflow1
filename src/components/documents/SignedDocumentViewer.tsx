@@ -353,6 +353,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     const content = documentData.content;
     const lines = content.split('\n');
     
+    // Skip signature lines in content - we'll add proper signature blocks at the end
     const candidatePatterns = [
       /^(Employee Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
       /^(Candidate Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
@@ -369,7 +370,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     ];
 
     for (const line of lines) {
-      if (yPosition > pageHeight - 40) {
+      if (yPosition > pageHeight - 80) {
         pdf.addPage();
         yPosition = margin;
       }
@@ -377,71 +378,137 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       const isCandidateLine = candidatePatterns.some(pattern => pattern.test(line.trim()));
       const isEmployerLine = employerPatterns.some(pattern => pattern.test(line.trim()));
 
-      if (isCandidateLine && candidateSignature) {
-        const labelMatch = line.match(/^([^:]+:?\s*)/);
-        const label = labelMatch ? labelMatch[1].trim() : "Employee Signature:";
-        
-        yPosition += 5;
-        pdf.setFont("helvetica", "normal");
-        pdf.text(label, margin, yPosition);
-        yPosition += 5;
-        
-        try {
-          pdf.addImage(candidateSignature, "PNG", margin, yPosition, 50, 15);
-        } catch (e) {
-          pdf.text("[Signed]", margin, yPosition + 8);
+      // Skip original signature lines - we'll add professional signature blocks at the end
+      if ((isCandidateLine && candidateSignature) || (isEmployerLine && employerSignature)) {
+        continue;
+      }
+      
+      const wrappedLines = pdf.splitTextToSize(line || " ", maxWidth);
+      for (const wrappedLine of wrappedLines) {
+        if (yPosition > pageHeight - 80) {
+          pdf.addPage();
+          yPosition = margin;
         }
-        
-        const signDate = document.candidate_signed_at 
-          ? format(new Date(document.candidate_signed_at), "MM/dd/yyyy")
-          : "";
-        pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
-        
-        yPosition += 20;
-        pdf.setDrawColor(150);
-        pdf.line(margin, yPosition, margin + 60, yPosition);
-        yPosition += 8;
-        
-      } else if (isEmployerLine && employerSignature) {
-        const labelMatch = line.match(/^([^:]+:?\s*)/);
-        const label = labelMatch ? labelMatch[1].trim() : "Company Representative:";
-        
+        pdf.text(wrappedLine, margin, yPosition);
         yPosition += 5;
-        pdf.setFont("helvetica", "normal");
-        pdf.text(label, margin, yPosition);
-        yPosition += 5;
-        
-        try {
-          pdf.addImage(employerSignature, "PNG", margin, yPosition, 50, 15);
-        } catch (e) {
-          pdf.text("[Signed]", margin, yPosition + 8);
-        }
-        
-        const signDate = document.employer_signed_at 
-          ? format(new Date(document.employer_signed_at), "MM/dd/yyyy")
-          : "";
-        pdf.text(`Date: ${signDate}`, margin + 80, yPosition + 10);
-        
-        yPosition += 20;
-        pdf.setDrawColor(150);
-        pdf.line(margin, yPosition, margin + 60, yPosition);
-        yPosition += 8;
-        
-      } else {
-        const wrappedLines = pdf.splitTextToSize(line || " ", maxWidth);
-        for (const wrappedLine of wrappedLines) {
-          if (yPosition > pageHeight - 20) {
-            pdf.addPage();
-            yPosition = margin;
-          }
-          pdf.text(wrappedLine, margin, yPosition);
-          yPosition += 5;
-        }
       }
     }
 
-    // Certificate of completion at the bottom
-    if (yPosition > pageHeight - 50) {
+    // === SIGNATURE SECTION (Non-Negotiable: Burned into PDF) ===
+    // Ensure we have enough space for signature section
+    if (yPosition > pageHeight - 120) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+    
+    yPosition += 10;
+    pdf.setDrawColor(100);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+    
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(0);
+    pdf.text("SIGNATURES", margin, yPosition);
+    yPosition += 8;
+
+    // Helper function to render professional signature block
+    const renderSignatureBlock = (
+      signatureData: string | null,
+      signerName: string,
+      signerRole: string,
+      signedAt: string | null,
+      ipAddress: string | null
+    ) => {
+      if (yPosition > pageHeight - 60) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+
+      // Signature block border
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.3);
+      pdf.rect(margin, yPosition, maxWidth, 50);
+      
+      // "Electronically signed by" header
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "italic");
+      pdf.setTextColor(100);
+      pdf.text("Electronically signed by", margin + 5, yPosition + 6);
+      
+      // Signature image
+      if (signatureData) {
+        try {
+          pdf.addImage(signatureData, "PNG", margin + 5, yPosition + 8, 50, 15);
+        } catch (e) {
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(0);
+          pdf.text("[Signature on file]", margin + 5, yPosition + 16);
+        }
+      }
+      
+      // Signer name
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(0);
+      pdf.text(signerName || "Unknown", margin + 5, yPosition + 28);
+      
+      // Role
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(60);
+      pdf.text(signerRole, margin + 5, yPosition + 34);
+      
+      // Timestamp (UTC)
+      if (signedAt) {
+        const formattedDate = format(new Date(signedAt), "MMMM d, yyyy 'at' h:mm:ss a");
+        pdf.text(`Signed on ${formattedDate} (UTC)`, margin + 5, yPosition + 40);
+      }
+      
+      // IP Address (right side) - Never silently omit
+      pdf.setFontSize(8);
+      pdf.setTextColor(120);
+      const ipDisplay = ipAddress && ipAddress !== 'unknown' 
+        ? `IP: ${ipAddress}` 
+        : 'IP unavailable at time of signing';
+      pdf.text(ipDisplay, pageWidth - margin - 5, yPosition + 46, { align: "right" });
+      
+      yPosition += 55;
+    };
+
+    // Get IP addresses from audit logs
+    const candidateSignEvent = auditLogs.find(log => log.action === 'candidate_signed');
+    const employerSignEvent = auditLogs.find(log => log.action === 'employer_countersigned');
+
+    // Render Candidate Signature Block
+    if (candidateSignature || document.candidate_signed_at) {
+      const candidateName = candidateSignEvent?.signer_name || 
+        document.applications?.profiles?.full_name || 'Candidate';
+      renderSignatureBlock(
+        candidateSignature,
+        candidateName,
+        'Candidate',
+        document.candidate_signed_at,
+        candidateSignEvent?.ip_address || null
+      );
+    }
+
+    // Render Employer Signature Block
+    if (employerSignature || document.employer_signed_at) {
+      const employerName = employerSignEvent?.signer_name || 'Employer Representative';
+      renderSignatureBlock(
+        employerSignature,
+        employerName,
+        'Employer / Hiring Manager',
+        document.employer_signed_at,
+        employerSignEvent?.ip_address || null
+      );
+    }
+
+    // === DOCUMENT INTEGRITY FOOTER ===
+    if (yPosition > pageHeight - 40) {
       pdf.addPage();
       yPosition = margin;
     }
@@ -451,18 +518,32 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += 8;
     
+    // Certificate of Completion
+    pdf.setFillColor(240, 255, 240);
+    pdf.rect(margin, yPosition - 3, maxWidth, 25, 'F');
+    pdf.setDrawColor(34, 139, 34);
+    pdf.setLineWidth(0.5);
+    pdf.rect(margin, yPosition - 3, maxWidth, 25, 'S');
+    
     pdf.setFontSize(9);
     pdf.setTextColor(34, 139, 34);
     pdf.setFont("helvetica", "bold");
-    pdf.text("✓ Certificate of Completion", margin, yPosition);
-    yPosition += 5;
+    pdf.text("✓ Certificate of Completion", margin + 5, yPosition + 3);
+    
     pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(100);
-    pdf.text("This document has been electronically signed by all parties.", margin, yPosition);
-    yPosition += 4;
-    pdf.text(`Document ID: ${getDocumentCode()}`, margin, yPosition);
-    yPosition += 4;
-    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}`, margin, yPosition);
+    pdf.setTextColor(60);
+    pdf.setFontSize(8);
+    pdf.text("This document has been electronically signed by all parties.", margin + 5, yPosition + 9);
+    pdf.text(`Document ID: ${getDocumentCode()}`, margin + 5, yPosition + 14);
+    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy 'at' h:mm:ss a") + " (UTC)" : ""}`, margin + 5, yPosition + 19);
+    
+    // Final hash (right side)
+    const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
+    if (finalHash) {
+      pdf.setFontSize(7);
+      pdf.setTextColor(100);
+      pdf.text(`SHA-256: ${finalHash.substring(0, 32)}...`, pageWidth - margin - 5, yPosition + 19, { align: "right" });
+    }
 
     pdf.save(`${document.name}.pdf`);
   };
