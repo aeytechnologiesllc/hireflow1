@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,6 +35,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -53,13 +65,21 @@ import {
   Check,
   ChevronsUpDown,
   Hand,
-  Bot
+  Bot,
+  Keyboard,
+  Video,
+  MessageSquare,
+  Upload,
+  Mic,
+  Plus,
+  Trash2,
+  Edit2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import hireflowLogo from "@/assets/hireflow-logo.png";
-import avaOrb from "@/assets/ava-orb.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
+import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
 
 interface GuestJobData {
   formData: {
@@ -90,45 +110,15 @@ interface GuestJobData {
   createdAt: number;
 }
 
-// Generation Step Component - matches CreateJob
-const GenerationStep = ({ label, delay, isActive }: { label: string; delay: number; isActive: boolean }) => {
-  const [active, setActive] = useState(false);
-  
-  useEffect(() => {
-    if (isActive) {
-      const timer = setTimeout(() => setActive(true), delay * 1000);
-      return () => clearTimeout(timer);
-    } else {
-      setActive(false);
-    }
-  }, [delay, isActive]);
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: active ? 1 : 0.3, x: 0 }}
-      transition={{ duration: 0.5, delay: delay * 0.3 }}
-      className="flex items-center gap-3"
-    >
-      {active ? (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="w-5 h-5 rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-500 flex items-center justify-center"
-        >
-          <Loader2 className="h-3 w-3 text-white animate-spin" />
-        </motion.div>
-      ) : (
-        <div className="w-5 h-5 rounded-full border border-muted-foreground/30" />
-      )}
-      <span className={cn(
-        "text-sm transition-colors",
-        active ? "text-foreground" : "text-muted-foreground/50"
-      )}>
-        {label}
-      </span>
-    </motion.div>
-  );
+// Step type info for workflow steps
+const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean }> = {
+  typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
+  video_message: { icon: Video, label: "Video Message", description: "Record a video introduction" },
+  chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
+  sales_simulation: { icon: Bot, label: "Sales Conversation", description: "Sales pitch roleplay" },
+  portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
+  chat_interview: { icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview" },
+  voice_interview: { icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true },
 };
 
 const WIZARD_STEPS = [
@@ -197,6 +187,12 @@ export default function GuestJobCreator() {
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+  const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
+  const [pendingWorkflowData, setPendingWorkflowData] = useState<{
+    application_questions: any[];
+    quiz_questions: any[];
+    workflow_steps: any[];
+  } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
   
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
@@ -212,6 +208,64 @@ export default function GuestJobCreator() {
 
   const handleChange = (field: string, value: string | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Delete functions
+  const deleteQuestion = (id: string) => {
+    setApplicationQuestions(prev => prev.filter(q => q.id !== id));
+  };
+
+  const deleteQuizQuestion = (id: string) => {
+    setQuizQuestions(prev => prev.filter(q => q.id !== id));
+  };
+
+  const deleteStep = (id: string) => {
+    setWorkflowSteps(prev => prev.filter(s => s.id !== id));
+  };
+
+  // Add workflow step
+  const addWorkflowStep = (type: string) => {
+    const stepInfo = STEP_TYPE_INFO[type as keyof typeof STEP_TYPE_INFO];
+    if (!stepInfo) return;
+    
+    const config: Record<string, unknown> = type === 'voice_interview' 
+      ? { language: 'en', language_name: 'English', language_enforcement: 'flexible' }
+      : {};
+    
+    const newStep = {
+      id: `step_${Date.now()}`,
+      type,
+      title: stepInfo.label,
+      description: stepInfo.description,
+      required: true,
+      config
+    };
+    
+    // Ordering: regular steps → chat_interview → voice_interview (always last)
+    setWorkflowSteps(prev => {
+      const regularSteps = prev.filter(s => s.type !== 'chat_interview' && s.type !== 'voice_interview');
+      const existingChatInterview = prev.find(s => s.type === 'chat_interview');
+      const existingVoiceInterview = prev.find(s => s.type === 'voice_interview');
+      
+      const newRegularSteps = [...regularSteps];
+      let chatInterview = existingChatInterview;
+      let voiceInterview = existingVoiceInterview;
+      
+      if (type === 'voice_interview') {
+        voiceInterview = newStep;
+      } else if (type === 'chat_interview') {
+        chatInterview = newStep;
+      } else {
+        newRegularSteps.push(newStep);
+      }
+      
+      const result: any[] = [...newRegularSteps];
+      if (chatInterview) result.push(chatInterview);
+      if (voiceInterview) result.push(voiceInterview);
+      
+      return result;
+    });
+    toast.success(`${stepInfo.label} added to workflow`);
   };
 
   const generateField = async (field: string) => {
@@ -291,6 +345,8 @@ export default function GuestJobCreator() {
     }
 
     setIsGeneratingWorkflow(true);
+    setWorkflowApiComplete(false);
+    
     try {
       const { data, error } = await supabase.functions.invoke("ai-generate-workflow", {
         body: {
@@ -305,18 +361,32 @@ export default function GuestJobCreator() {
 
       if (error) throw error;
 
-      setApplicationQuestions(data.application_questions || []);
-      setQuizQuestions(data.quiz_questions || []);
-      setWorkflowSteps(data.workflow_steps || []);
-      setWorkflowGenerated(true);
-      
-      toast.success("Hiring workflow generated!");
+      // Store the data and mark API as complete - let overlay animation finish
+      setPendingWorkflowData({
+        application_questions: data.application_questions || [],
+        quiz_questions: data.quiz_questions || [],
+        workflow_steps: data.workflow_steps || [],
+      });
+      setWorkflowApiComplete(true);
     } catch (error) {
       console.error("Error generating workflow:", error);
       toast.error("Failed to generate workflow. Please try again.");
-    } finally {
       setIsGeneratingWorkflow(false);
     }
+  };
+
+  const handleWorkflowComplete = () => {
+    // Apply the pending workflow data
+    if (pendingWorkflowData) {
+      setApplicationQuestions(pendingWorkflowData.application_questions);
+      setQuizQuestions(pendingWorkflowData.quiz_questions);
+      setWorkflowSteps(pendingWorkflowData.workflow_steps);
+      setWorkflowGenerated(true);
+      setPendingWorkflowData(null);
+      toast.success("Hiring workflow generated!");
+    }
+    setIsGeneratingWorkflow(false);
+    setWorkflowApiComplete(false);
   };
 
   const handlePublish = () => {
@@ -1220,7 +1290,7 @@ export default function GuestJobCreator() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {applicationQuestions.map((q, index) => (
+                          {applicationQuestions.map((q) => (
                             <div
                               key={q.id}
                               className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 group border border-border/50"
@@ -1242,6 +1312,23 @@ export default function GuestJobCreator() {
                                     )}
                                   </div>
                                 </div>
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive"
+                                        onClick={() => deleteQuestion(q.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Delete</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </div>
                             </div>
                           ))}
@@ -1308,6 +1395,17 @@ export default function GuestJobCreator() {
                                       ))}
                                     </div>
                                   )}
+                                  <div className="flex items-center justify-end pt-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      onClick={() => deleteQuizQuestion(q.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Remove
+                                    </Button>
+                                  </div>
                                 </div>
                               </AccordionContent>
                             </AccordionItem>
@@ -1319,35 +1417,150 @@ export default function GuestJobCreator() {
                     {/* Workflow Steps */}
                     <Card className="bg-card border-border">
                       <CardHeader>
-                        <CardTitle className="text-lg">Additional Workflow Steps</CardTitle>
-                        <CardDescription>
-                          {workflowSteps.length} additional evaluation steps
-                        </CardDescription>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">Additional Workflow Steps</CardTitle>
+                            <CardDescription>
+                              {workflowSteps.length} additional evaluation steps
+                            </CardDescription>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                size="sm" 
+                                className={cn(
+                                  "gap-2 px-4",
+                                  "bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500",
+                                  "hover:from-violet-400 hover:via-purple-400 hover:to-fuchsia-400",
+                                  "text-white font-semibold shadow-lg shadow-purple-500/25",
+                                  "border-0"
+                                )}
+                              >
+                                <Plus className="h-4 w-4" />
+                                Add Step
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-72 p-2 bg-card/95 backdrop-blur-md border-border/50">
+                              <div className="space-y-1">
+                                {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
+                                  const Icon = info.icon;
+                                  const alreadyAdded = workflowSteps.some(s => s.type === type);
+                                  const isVoiceInterview = type === 'voice_interview';
+                                  return (
+                                    <DropdownMenuItem
+                                      key={type}
+                                      onClick={() => addWorkflowStep(type)}
+                                      disabled={alreadyAdded}
+                                      className={cn(
+                                        "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
+                                        alreadyAdded 
+                                          ? "opacity-50" 
+                                          : isVoiceInterview
+                                            ? "hover:bg-violet-500/10"
+                                            : "hover:bg-primary/10"
+                                      )}
+                                    >
+                                      <div className={cn(
+                                        "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
+                                        alreadyAdded 
+                                          ? "bg-secondary" 
+                                          : isVoiceInterview
+                                            ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
+                                            : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
+                                      )}>
+                                        <Icon className={cn(
+                                          "h-5 w-5", 
+                                          alreadyAdded 
+                                            ? "text-muted-foreground" 
+                                            : isVoiceInterview 
+                                              ? "text-white" 
+                                              : "text-primary"
+                                        )} />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-sm flex items-center gap-2">
+                                          {info.label}
+                                          {isVoiceInterview && !alreadyAdded && (
+                                            <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-1.5 py-0 border-0 shadow-sm">
+                                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                                              Premium
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground truncate">{info.description}</div>
+                                      </div>
+                                      {alreadyAdded && (
+                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] px-2">
+                                          Added
+                                        </Badge>
+                                      )}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-2">
-                          {workflowSteps.map((step) => (
-                            <div
-                              key={step.id}
-                              className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border/50"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="h-10 w-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                                  <Sparkles className="h-5 w-5 text-violet-500" />
+                        {workflowSteps.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p className="text-sm">No additional steps added yet.</p>
+                            <p className="text-xs mt-1">Click "Add Step" to add workflow steps like Chat Simulation, Typing Test, etc.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {workflowSteps.map((step) => {
+                              const stepInfo = STEP_TYPE_INFO[step.type as keyof typeof STEP_TYPE_INFO];
+                              const Icon = stepInfo?.icon || FileText;
+                              const isVoiceInterview = step.type === 'voice_interview';
+                              return (
+                                <div
+                                  key={step.id}
+                                  className={cn(
+                                    "p-4 rounded-lg border",
+                                    isVoiceInterview 
+                                      ? "border-violet-500/50 bg-gradient-to-r from-violet-500/10 via-fuchsia-500/5 to-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" 
+                                      : "border-border bg-secondary/30"
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                      <div className={cn(
+                                        "h-10 w-10 rounded-lg flex items-center justify-center",
+                                        isVoiceInterview 
+                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30" 
+                                          : "bg-primary/10"
+                                      )}>
+                                        <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-white" : "text-primary")} />
+                                      </div>
+                                      <div>
+                                        <div className="font-medium flex items-center gap-2">
+                                          {step.title}
+                                          {isVoiceInterview && (
+                                            <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-2 py-0.5 border-0 shadow-sm">
+                                              <Sparkles className="h-3 w-3 mr-1" />
+                                              Premium
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">{step.description}</div>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-destructive"
+                                      onClick={() => deleteStep(step.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="font-medium text-sm">{step.title}</div>
-                                  <div className="text-xs text-muted-foreground">{step.description}</div>
-                                </div>
-                              </div>
-                              {step.required && (
-                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/20 text-primary border-primary/30">
-                                  Required
-                                </Badge>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </>
@@ -1523,138 +1736,14 @@ export default function GuestJobCreator() {
         </div>
       </div>
 
-      {/* AVA Generation Overlay */}
-      <AnimatePresence>
-        {isGeneratingWorkflow && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md"
-          >
-            {/* Ambient gradient orbs */}
-            <div className="absolute inset-0 overflow-hidden">
-              <motion.div
-                className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-purple-500/20 blur-[120px]"
-                animate={{ 
-                  scale: [1, 1.2, 1],
-                  x: [0, 30, 0],
-                  y: [0, -20, 0]
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.div
-                className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-fuchsia-500/20 blur-[120px]"
-                animate={{ 
-                  scale: [1.2, 1, 1.2],
-                  x: [0, -30, 0],
-                  y: [0, 20, 0]
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-              />
-              <motion.div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-primary/10 blur-[150px]"
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  opacity: [0.3, 0.5, 0.3]
-                }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </div>
-
-            {/* Content */}
-            <div className="relative z-10 text-center space-y-8">
-              {/* AVA Orb with pulsing animation */}
-              <motion.div
-                className="relative mx-auto w-32 h-32"
-                animate={{ 
-                  y: [0, -10, 0],
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                {/* Glowing rings */}
-                <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-purple-500/50"
-                  animate={{ 
-                    scale: [1, 1.3, 1],
-                    opacity: [0.8, 0, 0.8]
-                  }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                />
-                <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-fuchsia-500/50"
-                  animate={{ 
-                    scale: [1, 1.5, 1],
-                    opacity: [0.6, 0, 0.6]
-                  }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
-                />
-                
-                {/* Orb image */}
-                <img
-                  src={avaOrb}
-                  alt="AVA"
-                  className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(168,85,247,0.5)]"
-                />
-              </motion.div>
-
-              {/* Title with shimmer effect */}
-              <div className="space-y-3">
-                <motion.h2
-                  className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent bg-[length:200%_auto]"
-                  animate={{ 
-                    backgroundPosition: ["0%", "100%", "0%"]
-                  }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                >
-                  Ava is crafting your workflow
-                </motion.h2>
-                <p className="text-muted-foreground">
-                  Analyzing job requirements and designing the perfect hiring process...
-                </p>
-              </div>
-
-              {/* Generation progress indicators */}
-              <div className="flex flex-col items-center gap-3">
-                <GenerationStep 
-                  label="Application Questions" 
-                  delay={0}
-                  isActive={isGeneratingWorkflow}
-                />
-                <GenerationStep 
-                  label="Assessment Quiz" 
-                  delay={1}
-                  isActive={isGeneratingWorkflow}
-                />
-                <GenerationStep 
-                  label="Workflow Phases" 
-                  delay={2}
-                  isActive={isGeneratingWorkflow}
-                />
-              </div>
-
-              {/* Animated dots */}
-              <div className="flex justify-center gap-2">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="w-2 h-2 rounded-full bg-purple-400"
-                    animate={{ 
-                      scale: [1, 1.5, 1],
-                      opacity: [0.5, 1, 0.5]
-                    }}
-                    transition={{ 
-                      duration: 1, 
-                      repeat: Infinity, 
-                      delay: i * 0.2 
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* AVA Workflow Generation Overlay */}
+      <AvaWorkflowGenerationOverlay
+        isVisible={isGeneratingWorkflow}
+        jobTitle={formData.title || "your new role"}
+        difficulty={workflowDifficulty}
+        isApiComplete={workflowApiComplete}
+        onComplete={handleWorkflowComplete}
+      />
 
       {/* Signup Modal */}
       <PublishSignupModal
