@@ -79,6 +79,7 @@ export default function GuestJobCreator() {
   } | null>(null);
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [showTooltips, setShowTooltips] = useState(true);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
   // If user is already logged in, redirect to full creator
   useEffect(() => {
@@ -89,6 +90,35 @@ export default function GuestJobCreator() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const generateDescription = async () => {
+    if (!formData.title) {
+      toast.error("Please enter a job title first");
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-generate-job-content", {
+        body: { 
+          field: "description",
+          title: formData.title,
+          job_type: formData.job_type,
+          location: formData.location,
+        },
+      });
+
+      if (error) throw error;
+
+      handleInputChange("description", data.content);
+      toast.success("Description generated!");
+    } catch (error) {
+      console.error("Error generating description:", error);
+      toast.error("Failed to generate description");
+    } finally {
+      setIsGeneratingDescription(false);
+    }
   };
 
   const generateWorkflow = async () => {
@@ -187,17 +217,11 @@ export default function GuestJobCreator() {
             <img src={hireflowLogo} alt="HireFlow" className="w-10 h-10 rounded-lg object-cover" />
             <span className="text-xl font-bold text-white">HireFlow</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Try Mode — No signup required
-            </Badge>
-            <Link to="/auth">
-              <Button variant="ghost" className="text-gray-300 hover:text-white">
-                Sign In
-              </Button>
-            </Link>
-          </div>
+          <Link to="/auth">
+            <Button variant="ghost" className="text-gray-300 hover:text-white">
+              Sign In
+            </Button>
+          </Link>
         </div>
       </nav>
 
@@ -284,7 +308,23 @@ export default function GuestJobCreator() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-gray-200">Brief Description (optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-gray-200">Brief Description (optional)</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateDescription}
+                        disabled={!formData.title || isGeneratingDescription}
+                        className="gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 h-8 px-3"
+                      >
+                        {isGeneratingDescription ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-3.5 w-3.5" />
+                        )}
+                        Generate
+                      </Button>
+                    </div>
                     <Textarea
                       placeholder="Describe the role in a few sentences..."
                       value={formData.description}
