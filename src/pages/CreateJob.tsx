@@ -1571,7 +1571,7 @@ export default function CreateJob() {
                                   <div>
                                     <Label>Passing Score</Label>
                                     <p className="text-xs text-muted-foreground">
-                                      Minimum AI score to auto-advance candidates
+                                      Minimum Ava score to auto-advance candidates
                                     </p>
                                   </div>
                                   <motion.div 
