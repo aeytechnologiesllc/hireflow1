@@ -34,6 +34,7 @@ import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import CreateJob from "./pages/CreateJob";
+import GuestJobCreator from "./pages/GuestJobCreator";
 import NotFound from "./pages/NotFound";
 import MarketingDemo from "./pages/MarketingDemo";
 import CandidatePortalLanding from "./pages/CandidatePortalLanding";
@@ -51,6 +52,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/try-job-creator" element={<GuestJobCreator />} />
             
             {/* Candidate Portal (separate entry point) */}
             <Route path="/candidate" element={<CandidatePortalLanding />} />
