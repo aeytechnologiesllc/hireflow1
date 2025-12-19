@@ -23,13 +23,13 @@ const stats = [
   { icon: TrendingUp, value: "70%", label: "Faster Hiring", color: "text-fuchsia-400" },
   { icon: Clock, value: "95%", label: "Time Saved", color: "text-pink-400" },
   { icon: Award, value: "10x", label: "More Qualified", color: "text-purple-400" },
-  { icon: Sparkles, value: "24/7", label: "AI Screening", color: "text-violet-400" },
+  { icon: Sparkles, value: "24/7", label: "Ava Screening", color: "text-violet-400" },
 ];
 
 const features = [
   {
     icon: Sparkles,
-    title: "AI-Powered Screening",
+    title: "Ava-Powered Screening",
     description: "AVA evaluates every candidate with custom workflows and intelligent scoring in seconds",
     titleColor: "text-foreground",
     iconBg: "bg-fuchsia-500",
@@ -86,7 +86,7 @@ const features = [
   {
     icon: ChartBar,
     title: "Deep Insights",
-    description: "AI recommendations with detailed analysis for every single candidate",
+    description: "Ava recommendations with detailed analysis for every single candidate",
     titleColor: "text-emerald-400",
     iconBg: "bg-purple-500",
     detailedDescription: "Get comprehensive insights into each candidate with AVA's detailed analysis. View scoring breakdowns, competency assessments, and personalized recommendations that help you make data-driven hiring decisions with confidence.",
@@ -224,7 +224,7 @@ export default function Index() {
                 whileHover={{ scale: 1.05 }}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[hsl(220,15%,11%)] border border-[hsl(220,15%,17%)] text-gray-300 text-sm"
               >
-                Powered by AVA AI
+                Powered by Ava
                 <motion.div 
                   animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -249,7 +249,7 @@ export default function Index() {
                   ]
                 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >10x Faster</motion.span> with AI
+              >10x Faster</motion.span> with Ava
             </motion.h1>
             
             {/* Subheadlines */}
@@ -390,7 +390,7 @@ export default function Index() {
               variants={fadeInUp}
               className="text-4xl md:text-5xl font-bold text-white mb-4"
             >
-              Meet AVA — Your AI Hiring Assistant
+              Meet Ava — Your Hiring Assistant
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-gray-400 text-lg">
               Click any feature to learn more
@@ -550,7 +550,7 @@ export default function Index() {
               >
                 <Sparkles className="h-3 w-3 text-white" />
               </motion.div>
-              <span>© 2025 HireFlow. Powered by AVA AI.</span>
+              <span>© 2025 HireFlow. Powered by Ava.</span>
             </div>
             <span className="hidden md:inline">•</span>
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
