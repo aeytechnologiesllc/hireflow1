@@ -70,6 +70,7 @@ export function useSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // All hooks declared first in consistent order
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async (): Promise<SubscriptionState> => {
@@ -78,68 +79,8 @@ export function useSubscription() {
       return data;
     },
     enabled: !!user,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
   });
-
-  // Real-time subscription to relevant tables for usage updates
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Subscribe to jobs changes
-    const jobsChannel = supabase
-      .channel('subscription-jobs-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'jobs',
-          filter: `employer_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
-        }
-      )
-      .subscribe();
-
-    // Subscribe to applications changes (for applicants count and AI analyses)
-    const applicationsChannel = supabase
-      .channel('subscription-applications-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'applications',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
-        }
-      )
-      .subscribe();
-
-    // Subscribe to documents changes
-    const documentsChannel = supabase
-      .channel('subscription-documents-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'documents',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(jobsChannel);
-      supabase.removeChannel(applicationsChannel);
-      supabase.removeChannel(documentsChannel);
-    };
-  }, [user?.id, queryClient]);
 
   const createCheckoutSession = useMutation({
     mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business' | 'enterprise'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
@@ -198,6 +139,44 @@ export function useSubscription() {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
     },
   });
+
+  // Real-time subscription for usage updates - useEffect comes after all hooks
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const jobsChannel = supabase
+      .channel(`subscription-jobs-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'jobs', filter: `employer_id=eq.${user.id}` },
+        () => queryClient.invalidateQueries({ queryKey: ['subscription', user.id] })
+      )
+      .subscribe();
+
+    const applicationsChannel = supabase
+      .channel(`subscription-apps-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'applications' },
+        () => queryClient.invalidateQueries({ queryKey: ['subscription', user.id] })
+      )
+      .subscribe();
+
+    const documentsChannel = supabase
+      .channel(`subscription-docs-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'documents' },
+        () => queryClient.invalidateQueries({ queryKey: ['subscription', user.id] })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(jobsChannel);
+      supabase.removeChannel(applicationsChannel);
+      supabase.removeChannel(documentsChannel);
+    };
+  }, [user?.id, queryClient]);
 
   // Calculate trial time remaining
   const getTrialTimeRemaining = () => {
