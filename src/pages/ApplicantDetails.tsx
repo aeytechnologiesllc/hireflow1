@@ -776,13 +776,23 @@ export default function ApplicantDetails() {
         
         toast.success(`Reset to ${newPhase.title} phase. Candidate can redo cleared phases.`);
       } else {
-        // Moving forward - track skipped phases (exclude destination phase)
-        const skippedPhases = phases.slice(currentIndex + 1, newIndex).map((p) => p.id);
+        // Moving forward - track skipped phases (include origin if no data, plus all phases between)
+        const originPhase = phases[currentIndex];
+        const originHasData = hasCompletedCurrentPhase(originPhase.id, originPhase.type);
         
-        if (skippedPhases.length > 0) {
+        // Phases between origin and destination (excludes both endpoints)
+        let skippedPhaseIds = phases.slice(currentIndex + 1, newIndex).map((p) => p.id);
+        
+        // If origin phase has no data (was reset/not completed), also mark it as skipped
+        // Exception: Don't mark 'application' as skipped since it's the true starting point
+        if (!originHasData && originPhase.type !== "application") {
+          skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
+        }
+        
+        if (skippedPhaseIds.length > 0) {
           updatedNotes.employerSkippedPhases = [
             ...(updatedNotes.employerSkippedPhases || []),
-            ...skippedPhases,
+            ...skippedPhaseIds,
           ];
         }
         
@@ -860,14 +870,23 @@ export default function ApplicantDetails() {
     }
     
     try {
-      // Track skipped phases (from current position to interview, excluding destination)
+      // Track skipped phases (include origin if no data, plus phases in between)
       let updatedNotes = { ...parsedNotes };
-      const skippedPhases = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex).map(p => p.id);
+      const originPhase = phases[effectivePhaseIndex];
+      const originHasData = hasCompletedCurrentPhase(originPhase.id, originPhase.type);
       
-      if (skippedPhases.length > 0) {
+      // Phases between origin and destination
+      let skippedPhaseIds = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex).map(p => p.id);
+      
+      // If origin phase has no data, also mark it as skipped
+      if (!originHasData && originPhase.type !== "application") {
+        skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
+      }
+      
+      if (skippedPhaseIds.length > 0) {
         updatedNotes.employerSkippedPhases = [
           ...(updatedNotes.employerSkippedPhases || []),
-          ...skippedPhases,
+          ...skippedPhaseIds,
         ];
       }
       
@@ -1694,8 +1713,8 @@ ${interviewType} Interview with AVA Results:
                 background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)"
               }}
               initial={{ width: "0%" }}
-              animate={{ width: `${dragPosition}%` }}
-              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+              animate={isDragging ? false : { width: `${dragPosition}%` }}
+              transition={isDragging ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
             />
 
             {/* Phase markers */}
@@ -1756,9 +1775,9 @@ ${interviewType} Interview with AVA Results:
                 phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline && !isAwaitingReview ? "animate-bounce-subtle" : ""
               }`}
               initial={{ left: "0%" }}
-              animate={{ left: `${dragPosition}%` }}
-              transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-              style={isDragging ? { left: `${dragPosition}%` } : undefined}
+              animate={isDragging ? false : { left: `${dragPosition}%` }}
+              transition={isDragging ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
+              style={{ left: `${dragPosition}%` }}
               onMouseDown={canManagePipeline ? handleDragStart : undefined}
               onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
