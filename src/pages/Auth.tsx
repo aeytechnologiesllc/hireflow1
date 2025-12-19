@@ -60,6 +60,9 @@ export default function Auth() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
@@ -158,6 +161,44 @@ export default function Auth() {
         description: "Welcome to HireFlow. You can now start using the platform.",
       });
       navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      emailSchema.parse(forgotPasswordEmail);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({
+          variant: "destructive",
+          description: err.errors[0].message,
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+      redirectTo: `${window.location.origin}/auth?reset=true`,
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Reset Failed",
+        description: error.message,
+      });
+    } else {
+      setResetEmailSent(true);
+      toast({
+        title: "Check your email",
+        description: "We've sent you a password reset link.",
+      });
     }
 
     setIsLoading(false);
@@ -300,7 +341,83 @@ export default function Auth() {
               </button>
             </div>
 
-            {activeTab === "signin" ? (
+            {showForgotPassword ? (
+              <motion.div
+                key="forgot"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-foreground">Reset your password</h2>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    {resetEmailSent 
+                      ? "Check your email for the reset link"
+                      : "Enter your email and we'll send you a reset link"
+                    }
+                  </p>
+                </div>
+
+                {resetEmailSent ? (
+                  <div className="text-center py-6">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="h-8 w-8 text-primary" />
+                    </div>
+                    <p className="text-muted-foreground text-sm mb-6">
+                      We've sent a password reset link to <span className="font-medium text-foreground">{forgotPasswordEmail}</span>
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setResetEmailSent(false);
+                        setForgotPasswordEmail("");
+                      }}
+                      className="w-full h-12"
+                    >
+                      Back to Sign In
+                    </Button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email" className="text-foreground">Email</Label>
+                      <Input
+                        id="forgot-email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={forgotPasswordEmail}
+                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-12"
+                      />
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Send Reset Link"
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setShowForgotPassword(false)}
+                      className="w-full h-12 text-muted-foreground"
+                    >
+                      Back to Sign In
+                    </Button>
+                  </form>
+                )}
+              </motion.div>
+            ) : activeTab === "signin" ? (
               <motion.div
                 key="signin"
                 initial={{ opacity: 0, x: -10 }}
@@ -347,6 +464,18 @@ export default function Auth() {
                         {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setForgotPasswordEmail(signInEmail);
+                      }}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
                   <Button 
                     type="submit" 
