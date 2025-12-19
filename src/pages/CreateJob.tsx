@@ -1080,7 +1080,18 @@ export default function CreateJob() {
                     <Label>Salary Type</Label>
                     <RadioGroup
                       value={formData.salary_type}
-                      onValueChange={(v) => handleChange("salary_type", v)}
+                      onValueChange={(v) => {
+                        // Preserve values when switching modes
+                        if (v === "fixed" && !formData.salary_fixed && formData.salary_min) {
+                          // Copy min salary to fixed when switching to fixed
+                          setFormData(prev => ({ ...prev, salary_type: v as "fixed" | "range", salary_fixed: prev.salary_min }));
+                        } else if (v === "range" && !formData.salary_min && formData.salary_fixed) {
+                          // Copy fixed salary to min when switching to range
+                          setFormData(prev => ({ ...prev, salary_type: v as "fixed" | "range", salary_min: prev.salary_fixed }));
+                        } else {
+                          handleChange("salary_type", v);
+                        }
+                      }}
                       className="flex gap-6"
                     >
                       <div className="flex items-center space-x-2">
