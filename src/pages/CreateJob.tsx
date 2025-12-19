@@ -1275,11 +1275,12 @@ export default function CreateJob() {
                       <Label htmlFor="salary_fixed">Salary Amount</Label>
                       <Input
                         id="salary_fixed"
-                        type="number"
-                        placeholder="75000"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="75,000"
                         className="bg-background"
-                        value={formData.salary_fixed}
-                        onChange={(e) => handleChange("salary_fixed", e.target.value)}
+                        value={formData.salary_fixed ? parseInt(formData.salary_fixed).toLocaleString() : ""}
+                        onChange={(e) => handleChange("salary_fixed", e.target.value.replace(/\D/g, ""))}
                       />
                       <p className="text-xs text-muted-foreground">
                         {formData.salary_currency} {formData.salary_period}
@@ -1291,22 +1292,24 @@ export default function CreateJob() {
                         <Label htmlFor="salary_min">Minimum Salary</Label>
                         <Input
                           id="salary_min"
-                          type="number"
-                          placeholder="50000"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="50,000"
                           className="bg-background"
-                          value={formData.salary_min}
-                          onChange={(e) => handleChange("salary_min", e.target.value)}
+                          value={formData.salary_min ? parseInt(formData.salary_min).toLocaleString() : ""}
+                          onChange={(e) => handleChange("salary_min", e.target.value.replace(/\D/g, ""))}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="salary_max">Maximum Salary</Label>
                         <Input
                           id="salary_max"
-                          type="number"
-                          placeholder="80000"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="80,000"
                           className="bg-background"
-                          value={formData.salary_max}
-                          onChange={(e) => handleChange("salary_max", e.target.value)}
+                          value={formData.salary_max ? parseInt(formData.salary_max).toLocaleString() : ""}
+                          onChange={(e) => handleChange("salary_max", e.target.value.replace(/\D/g, ""))}
                         />
                       </div>
                       <p className="col-span-2 text-xs text-muted-foreground">

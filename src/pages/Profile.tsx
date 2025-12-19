@@ -154,10 +154,19 @@ export default function Profile() {
             <Input 
               id="phone" 
               type="tel" 
-              placeholder="+1 (555) 123-4567" 
+              placeholder="555-123-4567" 
               className="bg-background"
               value={formData.phone}
-              onChange={(e) => handleChange("phone", e.target.value)}
+              onChange={(e) => {
+                const numbers = e.target.value.replace(/\D/g, "");
+                if (numbers.length <= 3) {
+                  handleChange("phone", numbers);
+                } else if (numbers.length <= 6) {
+                  handleChange("phone", `${numbers.slice(0, 3)}-${numbers.slice(3)}`);
+                } else {
+                  handleChange("phone", `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`);
+                }
+              }}
             />
           </div>
           <div className="space-y-2">

@@ -919,8 +919,11 @@ export function DocumentWizard({
                   </Label>
                   <Input
                     value={salary}
-                    onChange={(e) => setSalary(e.target.value)}
-                    placeholder="$120,000"
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, "");
+                      setSalary(raw ? parseInt(raw, 10).toLocaleString() : "");
+                    }}
+                    placeholder="120,000"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1021,8 +1024,17 @@ export function DocumentWizard({
                   </Label>
                   <Input
                     value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                    placeholder="(555) 123-4567"
+                    onChange={(e) => {
+                      const numbers = e.target.value.replace(/\D/g, "");
+                      if (numbers.length <= 3) {
+                        setCompanyPhone(numbers);
+                      } else if (numbers.length <= 6) {
+                        setCompanyPhone(`${numbers.slice(0, 3)}-${numbers.slice(3)}`);
+                      } else {
+                        setCompanyPhone(`${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`);
+                      }
+                    }}
+                    placeholder="555-123-4567"
                   />
                 </div>
               </div>
