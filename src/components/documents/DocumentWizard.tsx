@@ -165,6 +165,7 @@ export function DocumentWizard({
   const [documentName, setDocumentName] = useState("");
   const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false);
   const [totalPdfPages, setTotalPdfPages] = useState(1);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   
   // Optional fields
   const [hiringManagerName, setHiringManagerName] = useState("");
@@ -813,7 +814,10 @@ export function DocumentWizard({
               return (
                 <button
                   key={type.value}
-                  onClick={() => setDocumentType(type.value)}
+                  onClick={() => {
+                    setDocumentType(type.value);
+                    setCurrentStep(prev => prev + 1);
+                  }}
                   className={`p-4 rounded-xl border-2 text-left transition-all hover:border-primary/50 ${
                     documentType === type.value
                       ? "border-primary bg-primary/5"
@@ -881,7 +885,13 @@ export function DocumentWizard({
                   {applications.map((app) => (
                     <button
                       key={app.id}
-                      onClick={() => setSelectedApplication(app.id)}
+                      onClick={() => {
+                        setSelectedApplication(app.id);
+                        if (app.profiles?.full_name) setRecipientName(app.profiles.full_name);
+                        if (app.profiles?.email) setRecipientEmail(app.profiles.email);
+                        if (app.jobs?.title) setJobTitle(app.jobs.title);
+                        setCurrentStep(prev => prev + 1);
+                      }}
                       className={`p-4 rounded-xl border-2 text-left transition-all ${
                         selectedApplication === app.id
                           ? "border-primary bg-primary/5"
@@ -988,7 +998,7 @@ export function DocumentWizard({
                     <CalendarIcon className="h-4 w-4" />
                     Start Date
                   </Label>
-                  <Popover>
+                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -1005,7 +1015,10 @@ export function DocumentWizard({
                       <CalendarComponent
                         mode="single"
                         selected={startDate}
-                        onSelect={setStartDate}
+                        onSelect={(date) => {
+                          setStartDate(date);
+                          setIsDatePickerOpen(false);
+                        }}
                         initialFocus
                         className={cn("p-3 pointer-events-auto")}
                       />
