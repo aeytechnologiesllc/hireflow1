@@ -262,7 +262,7 @@ export default function Index() {
             
             {/* CTA Button */}
             <motion.div variants={fadeInUp}>
-              <Link to="/auth">
+              <Link to="/try-job-creator">
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.98 }}
@@ -280,12 +280,21 @@ export default function Index() {
                     size="lg" 
                     className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,17%)] rounded-xl px-8 py-6 text-lg h-auto"
                   >
-                    <Rocket className="mr-2 h-5 w-5" />
-                    Start Hiring for Free
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    Create a Job with AVA
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </motion.div>
               </Link>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mt-3 text-sm text-emerald-400 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                No signup required — see AVA in action first
+              </motion.p>
             </motion.div>
             
             {/* Trust badges */}
