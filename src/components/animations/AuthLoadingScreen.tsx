@@ -150,23 +150,6 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
             </motion.p>
           </AnimatePresence>
         </div>
-
-        {/* Progress dots */}
-        <div className="flex gap-2 mt-6">
-          {messages.map((_, i) => (
-            <motion.div
-              key={i}
-              className="w-2 h-2 rounded-full"
-              animate={{
-                backgroundColor: i === messageIndex 
-                  ? "hsl(var(--primary))" 
-                  : "hsl(var(--primary) / 0.2)",
-                scale: i === messageIndex ? 1.2 : 1,
-              }}
-              transition={{ duration: 0.3 }}
-            />
-          ))}
-        </div>
       </motion.div>
     </div>
   );
