@@ -15,6 +15,8 @@ interface UseAvaVoiceOptions {
   countryCode?: string;
   voiceMinutesRemaining?: number;
   isFirstUse?: boolean;
+  // Current route for context-aware responses
+  currentRoute?: string;
   // Google Calendar integration
   googleCalendarConnected?: boolean;
   googleRefreshToken?: string;
@@ -278,6 +280,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
         countryCode: optionsRef.current.countryCode,
         voiceMinutesRemaining: optionsRef.current.voiceMinutesRemaining,
         isFirstUse: optionsRef.current.isFirstUse,
+        // Current route for context-aware responses
+        currentRoute: optionsRef.current.currentRoute,
         // Google Calendar integration
         googleCalendarConnected: optionsRef.current.googleCalendarConnected,
         googleRefreshToken: optionsRef.current.googleRefreshToken,
@@ -505,6 +509,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   tool_name: event.name,
                   parameters: args,
                   applicationId: optionsRef.current.applicationId,
+                  currentRoute: optionsRef.current.currentRoute,
                 },
               });
 

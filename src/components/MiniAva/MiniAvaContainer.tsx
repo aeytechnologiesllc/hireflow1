@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MiniAva from './MiniAva';
 import { useAvaPersonality } from './useAvaPersonality';
 import { useAvaContext } from './useAvaContext';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 
 export default function MiniAvaContainer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const { subscription } = useSubscription();
   
@@ -38,6 +39,7 @@ export default function MiniAvaContainer() {
     error: voiceError,
   } = useAvaVoice({
     mode: 'assistant',
+    currentRoute: location.pathname,
     onTranscript: (transcript, isFinal) => {
       if (isFinal) {
         console.log('Ava heard:', transcript);
