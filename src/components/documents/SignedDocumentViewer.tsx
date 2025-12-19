@@ -27,7 +27,8 @@ import {
   Edit,
   Hash,
   FileJson,
-  Award
+  Award,
+  AlertTriangle
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
@@ -109,23 +110,65 @@ const getActionLabel = (action: string) => {
     case "sent":
       return "Document Sent";
     case "viewed":
+    case "document_viewed":
       return "Document Viewed";
     case "candidate_signed":
       return "Signed by Candidate";
     case "employer_countersigned":
       return "Countersigned by Employer";
     case "declined":
+    case "document_declined":
       return "Document Declined";
     case "edited":
       return "Document Edited";
     case "electronic_consent_confirmed":
       return "Electronic Consent Confirmed";
+    case "signing_session_started":
+      return "Signing Session Started";
     case "employer_review_confirmed":
       return "Employer Review Confirmed";
     case "document_completed":
       return "Document Completed";
     default:
       return action.replace(/_/g, " ");
+  }
+};
+
+/**
+ * Transform raw audit events into human-readable narrative descriptions
+ * This replaces raw JSON display with clean, professional text
+ */
+const formatAuditEventDescription = (log: AuditLog): string => {
+  const details = log.details as Record<string, unknown> | null;
+  const signatureType = log.signature_method === 'drawn' ? 'drawn signature' : 'typed signature';
+  
+  switch (log.action) {
+    case 'document_created':
+    case 'created':
+      return 'Document created and ready for signing workflow.';
+    case 'document_viewed':
+    case 'viewed':
+      return `Document opened for viewing by ${log.signer_role === 'candidate' ? 'candidate' : 'employer'}.`;
+    case 'signing_session_started':
+      return `${log.signer_role === 'candidate' ? 'Candidate' : 'Employer'} initiated signing session.`;
+    case 'electronic_consent_confirmed':
+      return 'Electronic signature consent confirmed. Signer acknowledged legal equivalence of electronic signature.';
+    case 'candidate_signed':
+      return `Candidate signed the document using ${signatureType}. Document hash updated.`;
+    case 'employer_review_confirmed':
+      return 'Employer reviewed document and verified candidate signature before countersigning.';
+    case 'employer_countersigned':
+      return `Employer countersigned the document using ${signatureType}. Document is now fully executed.`;
+    case 'document_completed':
+      return 'All signatures collected. Document is now fully executed and locked from further changes.';
+    case 'document_declined':
+    case 'declined':
+      const reason = details?.decline_reason || details?.reason || 'Not specified';
+      return `Document was declined. Reason: ${reason}`;
+    case 'sent':
+      return 'Document was sent to the recipient for review and signing.';
+    default:
+      return details?.event ? String(details.event) : 'Activity recorded.';
   }
 };
 
@@ -507,8 +550,8 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       );
     }
 
-    // === DOCUMENT INTEGRITY FOOTER ===
-    if (yPosition > pageHeight - 40) {
+    // === EMBEDDED CERTIFICATE OF COMPLETION (CRITICAL - Burned into PDF) ===
+    if (yPosition > pageHeight - 80) {
       pdf.addPage();
       yPosition = margin;
     }
@@ -518,32 +561,54 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += 8;
     
-    // Certificate of Completion
+    // Enhanced Certificate Box
+    const certHeight = 55;
     pdf.setFillColor(240, 255, 240);
-    pdf.rect(margin, yPosition - 3, maxWidth, 25, 'F');
+    pdf.rect(margin, yPosition - 3, maxWidth, certHeight, 'F');
     pdf.setDrawColor(34, 139, 34);
     pdf.setLineWidth(0.5);
-    pdf.rect(margin, yPosition - 3, maxWidth, 25, 'S');
+    pdf.rect(margin, yPosition - 3, maxWidth, certHeight, 'S');
     
-    pdf.setFontSize(9);
+    // Certificate Header
+    pdf.setFontSize(10);
     pdf.setTextColor(34, 139, 34);
     pdf.setFont("helvetica", "bold");
-    pdf.text("✓ Certificate of Completion", margin + 5, yPosition + 3);
+    pdf.text("✓ CERTIFICATE OF COMPLETION", margin + 5, yPosition + 4);
     
+    pdf.setFontSize(7);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(60);
-    pdf.setFontSize(8);
-    pdf.text("This document has been electronically signed by all parties.", margin + 5, yPosition + 9);
-    pdf.text(`Document ID: ${getDocumentCode()}`, margin + 5, yPosition + 14);
-    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy 'at' h:mm:ss a") + " (UTC)" : ""}`, margin + 5, yPosition + 19);
     
-    // Final hash (right side)
+    // Left column - Document Info
+    pdf.text(`Certificate ID: ${completionCert?.certificate_id || 'CERT-' + getDocumentCode()}`, margin + 5, yPosition + 11);
+    pdf.text(`Document ID: ${getDocumentCode()}`, margin + 5, yPosition + 16);
+    pdf.text(`Status: FULLY EXECUTED`, margin + 5, yPosition + 21);
+    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy 'at' h:mm:ss a") + " (UTC)" : ""}`, margin + 5, yPosition + 26);
+    
+    // Signing Order
+    pdf.text(`Signing Order: Candidate (1) → Employer (2)`, margin + 5, yPosition + 31);
+    pdf.text(`Jurisdiction: ESIGN Act (15 U.S.C. § 7001) & UETA`, margin + 5, yPosition + 36);
+    
+    // Right column - Integrity Info
+    const rightCol = pageWidth / 2 + 10;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("DOCUMENT INTEGRITY", rightCol, yPosition + 11);
+    pdf.setFont("helvetica", "normal");
+    
     const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
+    pdf.text(`Hash Algorithm: SHA-256`, rightCol, yPosition + 16);
     if (finalHash) {
-      pdf.setFontSize(7);
-      pdf.setTextColor(100);
-      pdf.text(`SHA-256: ${finalHash.substring(0, 32)}...`, pageWidth - margin - 5, yPosition + 19, { align: "right" });
+      pdf.setFontSize(6);
+      pdf.text(`Final Hash: ${finalHash.substring(0, 32)}...`, rightCol, yPosition + 21);
+      pdf.text(`             ${finalHash.substring(32)}`, rightCol, yPosition + 25);
     }
+    
+    // Warning text
+    pdf.setFontSize(6);
+    pdf.setTextColor(100);
+    pdf.setFont("helvetica", "italic");
+    pdf.text("⚠ Any modification to this document will invalidate the above hash.", margin + 5, yPosition + 44);
+    pdf.text("This certificate verifies that all parties have electronically signed as indicated above.", margin + 5, yPosition + 48);
 
     pdf.save(`${document.name}.pdf`);
   };
@@ -897,6 +962,21 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 </div>
               </DialogHeader>
 
+              {/* Phase Label */}
+              <div className="px-6 py-2 border-b border-border">
+                {document.status === 'signed' ? (
+                  <Badge className="bg-success/20 text-success font-medium">
+                    <CheckCircle className="h-3 w-3 mr-1.5" />
+                    Finalized Audit Trail
+                  </Badge>
+                ) : (
+                  <Badge className="bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium">
+                    <Clock className="h-3 w-3 mr-1.5" />
+                    Signing in Progress
+                  </Badge>
+                )}
+              </div>
+
               {/* Document Identity Bar in Audit View */}
               <div className="px-6 py-3 bg-muted/50 border-b border-border">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -906,7 +986,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Status</p>
-                    <Badge variant="default" className="mt-0.5">Fully Executed</Badge>
+                    <Badge variant="default" className="mt-0.5">
+                      {document.status === 'signed' ? 'Fully Executed' : 'Pending Signatures'}
+                    </Badge>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Final Hash (SHA-256)</p>
@@ -952,36 +1034,43 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                                   {log.signer_name} ({log.signer_role || 'Unknown role'})
                                 </p>
                               )}
-                              {log.details && typeof log.details === "object" && (
-                                <div className="mt-1 text-sm text-muted-foreground">
-                                  {(log.details as Record<string, unknown>).reason && (
-                                    <p>Reason: {String((log.details as Record<string, unknown>).reason)}</p>
-                                  )}
-                                </div>
-                              )}
+                              {/* Human-readable event description - NO raw JSON */}
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {formatAuditEventDescription(log)}
+                              </p>
                             </div>
                             <div className="text-right shrink-0">
                               <p className="text-sm font-medium text-muted-foreground">
                                 {format(new Date(log.created_at), "MMM d, yyyy")}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {format(new Date(log.created_at), "h:mm:ss a")}
+                                {format(new Date(log.created_at), "h:mm:ss a 'UTC'")}
                               </p>
                             </div>
                           </div>
                           
                           <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                              {log.ip_address && (
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <Globe className="h-3 w-3" />
-                                  <span>IP: {log.ip_address}</span>
-                                </div>
-                              )}
+                              {/* Always show IP - never silently omit */}
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Globe className="h-3 w-3" />
+                                <span>
+                                  {log.ip_address && log.ip_address !== 'unknown' 
+                                    ? `IP: ${log.ip_address}` 
+                                    : 'IP unavailable at time of signing'}
+                                </span>
+                              </div>
                               {log.location_city && log.location_city !== 'Unknown' && (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                   <Globe className="h-3 w-3" />
                                   <span>{log.location_city}, {log.location_region}, {log.location_country}</span>
+                                </div>
+                              )}
+                              {/* VPN/Proxy Warning - Informational Only */}
+                              {(log.details as Record<string, unknown>)?.connectionWarning && (
+                                <div className="flex items-center gap-2 text-amber-500 col-span-2">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>{String((log.details as Record<string, unknown>).connectionWarning)}</span>
                                 </div>
                               )}
                               {log.user_agent && (
@@ -992,12 +1081,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                               )}
                               <div className="flex items-center gap-2 text-muted-foreground">
                                 <Calendar className="h-3 w-3" />
-                                <span>{format(new Date(log.created_at), "PPpp")}</span>
+                                <span>{format(new Date(log.created_at), "PPpp 'UTC'")}</span>
                               </div>
                               {log.document_hash && (
                                 <div className="flex items-center gap-2 text-muted-foreground col-span-2">
                                   <Hash className="h-3 w-3" />
-                                  <span className="font-mono">Hash: {log.document_hash.substring(0, 20)}...</span>
+                                  <span className="font-mono">Hash: {log.document_hash.substring(0, 24)}...</span>
                                 </div>
                               )}
                             </div>
