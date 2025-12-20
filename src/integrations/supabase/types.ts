@@ -183,6 +183,77 @@ export type Database = {
           },
         ]
       }
+      document_requests: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          created_at: string
+          custom_document_name: string | null
+          description: string | null
+          document_type: string
+          due_date: string | null
+          employer_id: string
+          file_name: string | null
+          file_url: string | null
+          id: string
+          is_required: boolean
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          created_at?: string
+          custom_document_name?: string | null
+          description?: string | null
+          document_type: string
+          due_date?: string | null
+          employer_id: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_required?: boolean
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          created_at?: string
+          custom_document_name?: string | null
+          description?: string | null
+          document_type?: string
+          due_date?: string | null
+          employer_id?: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_required?: boolean
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_requests_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_templates: {
         Row: {
           content: string
