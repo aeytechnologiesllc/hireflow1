@@ -183,7 +183,7 @@ export function DocumentRequestCard({
                 )}
 
                 {/* Employer actions - view and download only (no approve/reject for document requests) */}
-                {isEmployer && request.status === "submitted" && (
+                {isEmployer && (request.status === "submitted" || request.status === "reviewed") && (
                   <>
                     {onView && (
                       <Button size="icon" variant="ghost" onClick={() => onView(request)}>
