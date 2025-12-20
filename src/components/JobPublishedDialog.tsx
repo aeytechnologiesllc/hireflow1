@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
@@ -49,6 +50,7 @@ interface JobPublishedDialogProps {
 
 export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -328,6 +330,8 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               Done
             </Button>
             <Button onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["employer-jobs"] });
+              queryClient.invalidateQueries({ queryKey: ["jobs"] });
               onClose();
               navigate("/jobs");
             }} className="flex-1 gap-2">

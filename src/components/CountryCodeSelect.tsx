@@ -30,10 +30,10 @@ export default function CountryCodeSelect({
 }: CountryCodeSelectProps) {
   const [open, setOpen] = useState(false);
 
-  // Find the selected country
-  const selectedCountry = countryCodes.find(
-    (c) => c.code === value
-  ) || defaultCountry;
+  // Find the selected country - prioritize US for +1 since it's the default
+  const selectedCountry = value === "+1" 
+    ? defaultCountry 
+    : countryCodes.find((c) => c.code === value) || defaultCountry;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
