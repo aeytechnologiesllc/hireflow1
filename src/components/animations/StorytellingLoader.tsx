@@ -2,30 +2,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { AnimatedProgressRing } from "./AnimatedProgressRing";
-
-// Import AVA poses
-import avaThinking from "@/assets/ava-thinking.png";
-import avaSpeaking from "@/assets/ava-speaking.png";
-
-export type AvaExpression = "thinking" | "speaking";
+import { PremiumOrb } from "./PremiumOrb";
 
 interface StorytellingLoaderProps {
   messages: string[];
-  avaExpression?: AvaExpression;
   messageInterval?: number;
   className?: string;
   showProgress?: boolean;
   title?: string;
 }
 
-const avaImages: Record<AvaExpression, string> = {
-  thinking: avaThinking,
-  speaking: avaSpeaking,
-};
-
 export function StorytellingLoader({
   messages,
-  avaExpression = "thinking",
   messageInterval = 2500,
   className = "",
   showProgress = true,
@@ -49,47 +37,20 @@ export function StorytellingLoader({
       <GradientOrbs count={3} />
       <FloatingParticles count={15} intensity="subtle" />
 
-      {/* AVA with glow */}
+      {/* Premium Orb with glow */}
       <motion.div
         className="relative mb-8"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        {/* Glow behind AVA */}
-        <motion.div
-          className="absolute inset-0 rounded-full blur-2xl"
-          style={{
-            background: `radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)`,
-            transform: "scale(1.5)",
-          }}
-          animate={{
-            opacity: [0.4, 0.6, 0.4],
-            scale: [1.4, 1.6, 1.4],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
+        <PremiumOrb 
+          mode="processing" 
+          size={128}
+          showIcon={true}
         />
 
-        {/* AVA image */}
-        <motion.img
-          src={avaImages[avaExpression]}
-          alt="Ava"
-          className="relative w-32 h-32 object-contain"
-          animate={{
-            y: [0, -5, 0],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        {/* Progress ring around AVA */}
+        {/* Progress ring around orb */}
         {showProgress && (
           <div className="absolute -inset-4">
             <AnimatedProgressRing size={160} strokeWidth={3} />

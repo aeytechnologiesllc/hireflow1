@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import avaCelebrating from "@/assets/ava-celebrating.png";
+import { PremiumOrb } from "./PremiumOrb";
 
 interface PremiumCelebrationProps {
   name: string;
@@ -297,7 +297,7 @@ export default function PremiumCelebration({
 
           {/* Content container */}
           <div className="relative z-10 flex flex-col items-center text-center px-6">
-            {/* AVA Avatar */}
+            {/* Premium Orb */}
             <motion.div
               initial={{ scale: 0.5, opacity: 0, y: 20 }}
               animate={{
@@ -311,24 +311,10 @@ export default function PremiumCelebration({
               }}
               className="relative mb-8"
             >
-              {/* Glow behind avatar */}
-              <motion.div
-                className="absolute inset-0 rounded-full"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ 
-                  opacity: phase !== "anticipation" ? [0, 0.6, 0.3] : 0,
-                  scale: phase !== "anticipation" ? [0.8, 1.5, 1.3] : 0.8,
-                }}
-                transition={{ duration: 1.5 }}
-                style={{
-                  background: "radial-gradient(circle, rgba(251,191,36,0.4) 0%, transparent 70%)",
-                  filter: "blur(20px)",
-                }}
-              />
-              <img
-                src={avaCelebrating}
-                alt="AVA Celebrating"
-                className="w-32 h-32 object-contain relative z-10"
+              <PremiumOrb 
+                mode="celebration" 
+                size={128}
+                showIcon={true}
               />
             </motion.div>
 
