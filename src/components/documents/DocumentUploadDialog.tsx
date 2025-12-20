@@ -171,19 +171,32 @@ export function DocumentUploadDialog({
       await simulatePhase("securing", 800);
       setProgress(85);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("requested-documents")
-        .getPublicUrl(fileName);
+      // Get a signed URL for viewing - store the path instead of public URL
+      // since bucket is private
+      const storagePath = `requested-documents/${fileName}`;
 
-      // Update document request
+      // Update document request with the storage path
       await updateRequest.mutateAsync({
         id: request.id,
-        file_url: urlData.publicUrl,
+        file_url: storagePath,
         file_name: selectedFile.name,
         status: "submitted",
         submitted_at: new Date().toISOString(),
       });
+
+      // Create notification for employer
+      try {
+        await supabase.from("notifications").insert({
+          user_id: request.employer_id,
+          type: "system",
+          title: "Document Received",
+          message: `${user.email} has uploaded their ${documentLabel}.`,
+          link: "/documents",
+          is_read: false,
+        });
+      } catch (notifError) {
+        console.error("Failed to create employer notification:", notifError);
+      }
 
       setProgress(100);
       setPhase("complete");

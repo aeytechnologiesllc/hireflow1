@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
-import { useDocumentRequests, useUpdateDocumentRequest, useDeleteDocumentRequest, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
+import { useDocumentRequests, useDeleteDocumentRequest, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewe
 import { DocumentRequestWizard } from "@/components/documents/DocumentRequestWizard";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
+import { DocumentRequestViewerDialog } from "@/components/documents/DocumentRequestViewerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
@@ -69,7 +70,6 @@ export default function Documents() {
   const { data: documents, isLoading } = useDocuments();
   const { data: applications = [] } = useApplicationsForDocuments();
   const { data: documentRequests = [], isLoading: isLoadingRequests } = useDocumentRequests();
-  const updateDocumentRequest = useUpdateDocumentRequest();
   const deleteDocumentRequest = useDeleteDocumentRequest();
   
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -77,12 +77,11 @@ export default function Documents() {
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [requestViewerOpen, setRequestViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithApplication | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<DocumentRequestWithDetails | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<DocumentWithApplication | null>(null);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -128,6 +127,10 @@ export default function Documents() {
   // Filter document requests for candidates (show only their pending requests)
   const candidatePendingRequests = documentRequests.filter(r => r.status === "pending" || r.status === "rejected");
 
+  // Split document requests for employer tabs
+  const pendingUploadRequests = documentRequests.filter(r => r.status === "pending");
+  const receivedRequests = documentRequests.filter(r => r.status === "submitted");
+
   const hasActiveFilters = searchQuery.trim() || dateRange?.from;
 
   // Document request handlers
@@ -138,51 +141,36 @@ export default function Documents() {
 
   const handleViewRequest = (request: DocumentRequestWithDetails) => {
     if (request.file_url) {
-      window.open(request.file_url, "_blank");
+      setSelectedRequest(request);
+      setRequestViewerOpen(true);
     }
   };
 
   const handleDownloadRequest = async (request: DocumentRequestWithDetails) => {
-    if (request.file_url) {
+    if (!request.file_url) return;
+
+    try {
+      // Extract the file path - stored as "requested-documents/user_id/request_id/timestamp.ext"
+      const filePath = request.file_url.replace("requested-documents/", "");
+      
+      const { data, error } = await supabase.storage
+        .from("requested-documents")
+        .createSignedUrl(filePath, 60); // 1 minute for download
+
+      if (error) throw error;
+      
       const link = document.createElement("a");
-      link.href = request.file_url;
+      link.href = data.signedUrl;
       link.download = request.file_name || "document";
       link.click();
+    } catch (err) {
+      console.error("Download error:", err);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the document. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
-
-  const handleApproveRequest = async (request: DocumentRequestWithDetails) => {
-    await updateDocumentRequest.mutateAsync({
-      id: request.id,
-      status: "approved",
-      reviewed_at: new Date().toISOString(),
-    });
-    toast({
-      title: "Document Approved",
-      description: "The document has been approved.",
-    });
-  };
-
-  const handleRejectRequest = (request: DocumentRequestWithDetails) => {
-    setSelectedRequest(request);
-    setRejectionReason("");
-    setRejectDialogOpen(true);
-  };
-
-  const handleConfirmReject = async () => {
-    if (!selectedRequest) return;
-    await updateDocumentRequest.mutateAsync({
-      id: selectedRequest.id,
-      status: "rejected",
-      rejection_reason: rejectionReason || "Document rejected by employer",
-      reviewed_at: new Date().toISOString(),
-    });
-    setRejectDialogOpen(false);
-    setSelectedRequest(null);
-    toast({
-      title: "Document Rejected",
-      description: "The document has been rejected.",
-    });
   };
 
   const handleDeleteRequest = async (request: DocumentRequestWithDetails) => {
@@ -442,7 +430,10 @@ export default function Documents() {
               <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
               <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
               {isEmployer && (
-                <TabsTrigger value="requested">Requested ({documentRequests.length})</TabsTrigger>
+                <>
+                  <TabsTrigger value="pending-uploads">Pending Uploads ({pendingUploadRequests.length})</TabsTrigger>
+                  <TabsTrigger value="received">Received ({receivedRequests.length})</TabsTrigger>
+                </>
               )}
             </TabsList>
 
@@ -459,24 +450,38 @@ export default function Documents() {
               {declinedDocs.length > 0 ? declinedDocs.map(renderDocumentCard) : <EmptyState message="No declined documents" />}
             </TabsContent>
             {isEmployer && (
-              <TabsContent value="requested" className="space-y-4">
-                {documentRequests.length > 0 ? (
-                  documentRequests.map((request) => (
-                    <DocumentRequestCard
-                      key={request.id}
-                      request={request}
-                      isEmployer={true}
-                      onView={handleViewRequest}
-                      onDownload={handleDownloadRequest}
-                      onApprove={handleApproveRequest}
-                      onReject={handleRejectRequest}
-                      onDelete={handleDeleteRequest}
-                    />
-                  ))
-                ) : (
-                  <EmptyState message="No document requests" />
-                )}
-              </TabsContent>
+              <>
+                <TabsContent value="pending-uploads" className="space-y-4">
+                  {pendingUploadRequests.length > 0 ? (
+                    pendingUploadRequests.map((request) => (
+                      <DocumentRequestCard
+                        key={request.id}
+                        request={request}
+                        isEmployer={true}
+                        onDelete={handleDeleteRequest}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState message="No pending document requests" />
+                  )}
+                </TabsContent>
+                <TabsContent value="received" className="space-y-4">
+                  {receivedRequests.length > 0 ? (
+                    receivedRequests.map((request) => (
+                      <DocumentRequestCard
+                        key={request.id}
+                        request={request}
+                        isEmployer={true}
+                        onView={handleViewRequest}
+                        onDownload={handleDownloadRequest}
+                        onDelete={handleDeleteRequest}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState message="No documents received yet" />
+                  )}
+                </TabsContent>
+              </>
             )}
           </Tabs>
         </motion.div>
@@ -512,16 +517,22 @@ export default function Documents() {
       <DocumentRequestWizard open={requestWizardOpen} onOpenChange={setRequestWizardOpen} applications={applications} />
       <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
       <SignedDocumentViewer document={selectedDocument} open={viewerOpen} onOpenChange={setViewerOpen} />
-      {selectedRequest && (
-        <DocumentUploadDialog 
-          request={selectedRequest} 
-          open={uploadDialogOpen} 
-          onOpenChange={(open) => {
-            setUploadDialogOpen(open);
-            if (!open) setSelectedRequest(null);
-          }} 
-        />
-      )}
+      <DocumentUploadDialog 
+        request={selectedRequest} 
+        open={uploadDialogOpen} 
+        onOpenChange={(open) => {
+          setUploadDialogOpen(open);
+          if (!open) setSelectedRequest(null);
+        }} 
+      />
+      <DocumentRequestViewerDialog
+        request={selectedRequest}
+        open={requestViewerOpen}
+        onOpenChange={(open) => {
+          setRequestViewerOpen(open);
+          if (!open) setSelectedRequest(null);
+        }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -563,35 +574,6 @@ export default function Documents() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reject Confirmation Dialog */}
-      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <XCircle className="h-5 w-5" />
-              Reject Document
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <p className="mb-4">Please provide a reason for rejecting this document.</p>
-              <Input
-                placeholder="Reason for rejection..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-              />
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmReject}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              Reject
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </motion.div>
   );
 }

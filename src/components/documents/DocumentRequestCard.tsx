@@ -177,7 +177,7 @@ export function DocumentRequestCard({
                   </Button>
                 )}
 
-                {/* Employer actions */}
+                {/* Employer actions - view and download only (no approve/reject for document requests) */}
                 {isEmployer && request.status === "submitted" && (
                   <>
                     {onView && (
@@ -188,18 +188,6 @@ export function DocumentRequestCard({
                     {onDownload && (
                       <Button size="icon" variant="ghost" onClick={() => onDownload(request)}>
                         <Download className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {onApprove && (
-                      <Button size="sm" variant="default" className="bg-success hover:bg-success/90" onClick={() => onApprove(request)}>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
-                      </Button>
-                    )}
-                    {onReject && (
-                      <Button size="sm" variant="outline" className="text-destructive border-destructive/50 hover:bg-destructive/10" onClick={() => onReject(request)}>
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
                       </Button>
                     )}
                   </>

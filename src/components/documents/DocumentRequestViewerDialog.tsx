@@ -1,0 +1,212 @@
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SecurityBadge } from "./SecurityBadge";
+import { DocumentRequestWithDetails, getDocumentTypeLabel } from "@/hooks/useDocumentRequests";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import {
+  FileText,
+  Download,
+  Calendar,
+  User,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  AlertCircle,
+} from "lucide-react";
+
+interface DocumentRequestViewerDialogProps {
+  request: DocumentRequestWithDetails | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function DocumentRequestViewerDialog({
+  request,
+  open,
+  onOpenChange,
+}: DocumentRequestViewerDialogProps) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+
+  useEffect(() => {
+    if (open && request?.file_url) {
+      fetchSignedUrl();
+    } else {
+      setSignedUrl(null);
+      setError(null);
+      setZoom(1);
+      setRotation(0);
+    }
+  }, [open, request?.file_url]);
+
+  const fetchSignedUrl = async () => {
+    if (!request?.file_url) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Extract the file path from the URL
+      const urlParts = request.file_url.split("/requested-documents/");
+      if (urlParts.length < 2) {
+        throw new Error("Invalid file URL format");
+      }
+      const filePath = urlParts[1];
+
+      const { data, error: signError } = await supabase.storage
+        .from("requested-documents")
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      if (signError) throw signError;
+      setSignedUrl(data.signedUrl);
+    } catch (err: any) {
+      console.error("Error fetching signed URL:", err);
+      setError(err.message || "Failed to load document");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!signedUrl || !request) return;
+
+    const link = document.createElement("a");
+    link.href = signedUrl;
+    link.download = request.file_name || "document";
+    link.click();
+  };
+
+  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.5));
+  const handleRotate = () => setRotation((r) => (r + 90) % 360);
+
+  if (!request) return null;
+
+  const documentLabel = request.custom_document_name || getDocumentTypeLabel(request.document_type);
+  const candidateName = request.candidate_profile?.full_name || request.candidate_profile?.email || "Unknown";
+  const initials = candidateName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const isImage = request.file_name?.match(/\.(jpg|jpeg|png|webp|gif)$/i);
+  const isPdf = request.file_name?.match(/\.pdf$/i);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            {documentLabel}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Document info bar */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6">
+                <AvatarImage src={request.candidate_profile?.avatar_url || undefined} />
+                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">{candidateName}</span>
+            </div>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              <span>Uploaded {request.submitted_at && format(new Date(request.submitted_at), "MMM d, yyyy 'at' h:mm a")}</span>
+            </div>
+            <SecurityBadge variant="encrypted" size="sm" />
+          </div>
+          <div className="flex items-center gap-2">
+            {isImage && (
+              <>
+                <Button size="icon" variant="ghost" onClick={handleZoomOut}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={handleZoomIn}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={handleRotate}>
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            <Button size="sm" variant="outline" onClick={handleDownload} disabled={!signedUrl}>
+              <Download className="h-4 w-4 mr-1" />
+              Download
+            </Button>
+          </div>
+        </div>
+
+        {/* Document viewer */}
+        <div className="flex-1 min-h-[400px] rounded-lg bg-secondary/30 border border-border overflow-auto flex items-center justify-center">
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading document...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 text-destructive">
+              <AlertCircle className="h-8 w-8" />
+              <p>{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchSignedUrl}>
+                Try Again
+              </Button>
+            </div>
+          ) : signedUrl ? (
+            isImage ? (
+              <motion.img
+                src={signedUrl}
+                alt={documentLabel}
+                className="max-w-full max-h-full object-contain transition-transform duration-200"
+                style={{
+                  transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              />
+            ) : isPdf ? (
+              <iframe
+                src={signedUrl}
+                className="w-full h-full min-h-[500px] rounded-lg"
+                title={documentLabel}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <FileText className="h-16 w-16" />
+                <p className="font-medium">{request.file_name}</p>
+                <Button onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download to View
+                </Button>
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <FileText className="h-16 w-16" />
+              <p>No document available</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
