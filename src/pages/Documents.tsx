@@ -63,7 +63,7 @@ const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => 
 };
 
 export default function Documents() {
-  const { role, isTeamMember } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
   const canSendDocuments = !isTeamMember || permissions?.canSendDocuments;
@@ -132,35 +132,44 @@ export default function Documents() {
   const receivedRequests = documentRequests.filter(r => r.status === "submitted" || r.status === "reviewed");
 
   const hasActiveFilters = searchQuery.trim() || dateRange?.from;
-  
-  // Track if we've already marked documents as reviewed this session
-  const hasMarkedReviewed = useRef(false);
 
-  // Mark submitted documents as reviewed when employer views the Documents page
+  // Mark submitted document-requests as reviewed immediately when the employer is on /documents
+  const submittedRequestIds = useMemo(
+    () => documentRequests.filter(r => r.status === "submitted").map(r => r.id),
+    [documentRequests]
+  );
+  const reviewedIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    if (!isEmployer || hasMarkedReviewed.current) return;
-    
-    const submittedRequests = documentRequests.filter(r => r.status === "submitted");
-    if (submittedRequests.length === 0) return;
+    if (!isEmployer || !user) return;
+    if (submittedRequestIds.length === 0) return;
 
-    const markAsReviewed = async () => {
-      hasMarkedReviewed.current = true;
-      const submittedIds = submittedRequests.map(r => r.id);
-      
-      await supabase
+    const idsToMark = submittedRequestIds.filter((id) => !reviewedIdsRef.current.has(id));
+    if (idsToMark.length === 0) return;
+
+    idsToMark.forEach((id) => reviewedIdsRef.current.add(id));
+
+    void (async () => {
+      const { error } = await supabase
         .from("document_requests")
-        .update({ status: "reviewed" })
-        .in("id", submittedIds);
-      
-      // Invalidate to update counts
+        .update({
+          status: "reviewed",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user.id,
+        })
+        .in("id", idsToMark);
+
+      if (error) {
+        // allow retry on next render
+        idsToMark.forEach((id) => reviewedIdsRef.current.delete(id));
+        console.error("Failed to mark document requests as reviewed:", error);
+        return;
+      }
+
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
       queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
-    };
-    
-    // Small delay so user can see the documents before badge disappears
-    const timer = setTimeout(markAsReviewed, 1500);
-    return () => clearTimeout(timer);
-  }, [isEmployer, documentRequests, queryClient]);
+    })();
+  }, [isEmployer, user, submittedRequestIds, queryClient]);
 
   // Document request handlers
   const handleUploadRequest = (request: DocumentRequestWithDetails) => {
