@@ -171,9 +171,8 @@ export function DocumentUploadDialog({
       await simulatePhase("securing", 800);
       setProgress(85);
 
-      // Get a signed URL for viewing - store the path instead of public URL
-      // since bucket is private
-      const storagePath = `requested-documents/${fileName}`;
+      // Store just the file path (without bucket prefix) for createSignedUrl
+      const storagePath = fileName;
 
       // Update document request with the storage path
       await updateRequest.mutateAsync({

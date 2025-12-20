@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -129,9 +129,38 @@ export default function Documents() {
 
   // Split document requests for employer tabs
   const pendingUploadRequests = documentRequests.filter(r => r.status === "pending");
-  const receivedRequests = documentRequests.filter(r => r.status === "submitted");
+  const receivedRequests = documentRequests.filter(r => r.status === "submitted" || r.status === "reviewed");
 
   const hasActiveFilters = searchQuery.trim() || dateRange?.from;
+  
+  // Track if we've already marked documents as reviewed this session
+  const hasMarkedReviewed = useRef(false);
+
+  // Mark submitted documents as reviewed when employer views the Documents page
+  useEffect(() => {
+    if (!isEmployer || hasMarkedReviewed.current) return;
+    
+    const submittedRequests = documentRequests.filter(r => r.status === "submitted");
+    if (submittedRequests.length === 0) return;
+
+    const markAsReviewed = async () => {
+      hasMarkedReviewed.current = true;
+      const submittedIds = submittedRequests.map(r => r.id);
+      
+      await supabase
+        .from("document_requests")
+        .update({ status: "reviewed" })
+        .in("id", submittedIds);
+      
+      // Invalidate to update counts
+      queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
+    };
+    
+    // Small delay so user can see the documents before badge disappears
+    const timer = setTimeout(markAsReviewed, 1500);
+    return () => clearTimeout(timer);
+  }, [isEmployer, documentRequests, queryClient]);
 
   // Document request handlers
   const handleUploadRequest = (request: DocumentRequestWithDetails) => {
@@ -150,8 +179,18 @@ export default function Documents() {
     if (!request.file_url) return;
 
     try {
-      // Extract the file path - stored as "requested-documents/user_id/request_id/timestamp.ext"
-      const filePath = request.file_url.replace("requested-documents/", "");
+      let filePath: string;
+
+      // Handle different URL formats
+      if (request.file_url.includes('supabase.co')) {
+        const urlParts = request.file_url.split("/requested-documents/");
+        if (urlParts.length < 2) throw new Error("Invalid file URL format");
+        filePath = urlParts[1];
+      } else if (request.file_url.startsWith('requested-documents/')) {
+        filePath = request.file_url.replace('requested-documents/', '');
+      } else {
+        filePath = request.file_url;
+      }
       
       const { data, error } = await supabase.storage
         .from("requested-documents")
