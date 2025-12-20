@@ -14,7 +14,7 @@ export interface DocumentRequest {
   description: string | null;
   is_required: boolean;
   due_date: string | null;
-  status: "pending" | "submitted" | "approved" | "rejected";
+  status: "pending" | "submitted" | "reviewed" | "approved" | "rejected";
   file_url: string | null;
   file_name: string | null;
   submitted_at: string | null;

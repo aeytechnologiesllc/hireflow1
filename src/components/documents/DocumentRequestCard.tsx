@@ -31,16 +31,21 @@ interface DocumentRequestCardProps {
   onDelete?: (request: DocumentRequestWithDetails) => void;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
   pending: {
     color: "bg-yellow-500/20 text-yellow-500",
     icon: Clock,
     label: "Pending Upload",
   },
   submitted: {
-    color: "bg-blue-500/20 text-blue-500",
-    icon: Upload,
-    label: "Awaiting Review",
+    color: "bg-success/20 text-success",
+    icon: CheckCircle,
+    label: "Received",
+  },
+  reviewed: {
+    color: "bg-success/20 text-success",
+    icon: CheckCircle,
+    label: "Received",
   },
   approved: {
     color: "bg-success/20 text-success",

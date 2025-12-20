@@ -61,12 +61,23 @@ export function DocumentRequestViewerDialog({
     setError(null);
 
     try {
-      // Extract the file path from the URL
-      const urlParts = request.file_url.split("/requested-documents/");
-      if (urlParts.length < 2) {
-        throw new Error("Invalid file URL format");
+      let filePath: string;
+
+      // Handle different URL formats:
+      // 1. Full Supabase URL: https://xxx.supabase.co/storage/.../requested-documents/path
+      // 2. Old format with bucket prefix: requested-documents/path
+      // 3. New format: just the path (userId/requestId/timestamp.ext)
+      if (request.file_url.includes('supabase.co')) {
+        const urlParts = request.file_url.split("/requested-documents/");
+        if (urlParts.length < 2) {
+          throw new Error("Invalid file URL format");
+        }
+        filePath = urlParts[1];
+      } else if (request.file_url.startsWith('requested-documents/')) {
+        filePath = request.file_url.replace('requested-documents/', '');
+      } else {
+        filePath = request.file_url;
       }
-      const filePath = urlParts[1];
 
       const { data, error: signError } = await supabase.storage
         .from("requested-documents")
