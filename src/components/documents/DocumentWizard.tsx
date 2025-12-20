@@ -50,6 +50,8 @@ import {
   postProcessDocumentContent,
   type DocumentValidation 
 } from "@/lib/documentValidation";
+import { generateV1Hash } from "@/lib/documentHash";
+import { generatePdfHash } from "@/lib/pdfSignatureBurner";
 
 interface DocumentWizardProps {
   open: boolean;
@@ -603,10 +605,27 @@ export function DocumentWizard({
       let fileUrl: string;
       let docName: string;
       let docType: string;
+      let v1Hash: string | null = null;
 
       if (documentSource === "upload") {
         // For uploaded documents, store the URL and metadata
         const isPdf = uploadedFile?.type === "application/pdf";
+        
+        // Generate v1 hash from the actual PDF bytes for uploaded documents
+        if (isPdf && uploadedFileUrl) {
+          try {
+            const response = await fetch(uploadedFileUrl);
+            if (response.ok) {
+              const pdfBytes = await response.arrayBuffer();
+              v1Hash = await generatePdfHash(pdfBytes);
+              console.log('Generated v1 hash for uploaded PDF:', v1Hash.substring(0, 16) + '...');
+            }
+          } catch (e) {
+            console.error('Error generating v1 hash for PDF:', e);
+            // Continue without v1 hash - not a blocking error
+          }
+        }
+        
         const documentData = {
           content: null,
           uploadedFileUrl,
@@ -623,7 +642,11 @@ export function DocumentWizard({
         docName = documentName || uploadedFile?.name || "Uploaded Document";
         docType = "custom";
       } else {
-        // For AI-generated documents
+        // For AI-generated documents, generate v1 hash from content
+        if (generatedContent) {
+          v1Hash = await generateV1Hash(generatedContent);
+        }
+        
         const documentData = {
           content: generatedContent,
           signatureFields: legacySignatureFields,
@@ -641,7 +664,7 @@ export function DocumentWizard({
         docType = documentType;
       }
 
-      // Create document record
+      // Create document record with v1_hash
       const { data: document, error: docError } = await supabase
         .from("documents")
         .insert({
@@ -653,6 +676,8 @@ export function DocumentWizard({
           sender_id: user.id,
           recipient_id: app?.candidate_id || null,
           expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          v1_hash: v1Hash,
+          version_number: 1,
         } as any)
         .select()
         .single();
@@ -669,8 +694,11 @@ export function DocumentWizard({
           generatedWithAI: documentSource === "generate",
           uploaded: documentSource === "upload",
           recipient: recipient.email || recipientEmail,
+          v1_hash: v1Hash,
         },
         user_agent: navigator.userAgent,
+        document_hash: v1Hash,
+        document_version: 1,
       });
 
       // Notify candidate if applicable

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
 import { QRCodeCanvas } from "qrcode.react";
+import { useToast } from "@/hooks/use-toast";
 import { 
   FileText, 
   Download, 
@@ -28,7 +29,8 @@ import {
   Hash,
   FileJson,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
@@ -36,6 +38,7 @@ import { AuditCertificate } from "./AuditCertificate";
 import { downloadAuditTrailPDF, downloadAuditTrailJSON, AuditExportData, AuditExportEntry } from "@/lib/auditExport";
 import { generateCompletionCertificate, CompletionCertificate } from "@/lib/completionCertificate";
 import { downloadCertificatePDF } from "@/lib/certificatePDF";
+import { burnSignaturesIntoPdf, type SignatureOverlay, type CertificateData } from "@/lib/pdfSignatureBurner";
 
 interface AuditLog {
   id: string;
@@ -60,9 +63,12 @@ interface AuditLog {
 }
 
 interface DocumentData {
-  content: string;
-  signatureFields?: { id: string; label: string; required: boolean }[];
+  content: string | null;
+  signatureFields?: { id: string; label: string; required: boolean; x?: number; y?: number; page?: number; width?: number; height?: number; type?: string }[];
   metadata?: Record<string, unknown>;
+  uploadedFileUrl?: string;
+  uploadedFileName?: string;
+  uploadedFileType?: string;
 }
 
 interface SignedDocumentViewerProps {
@@ -179,7 +185,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
   const [completionCert, setCompletionCert] = useState<CompletionCertificate | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (document && open) {
@@ -343,8 +351,151 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   const handleDownload = async () => {
-    if (!document || !documentData) return;
+    if (!document) return;
     
+    setIsDownloading(true);
+    
+    try {
+      // Check if this is an uploaded PDF with positioned signatures
+      const isUploadedPdf = documentData?.uploadedFileUrl && documentData?.metadata?.hasPositionedSignatures;
+      
+      if (isUploadedPdf && documentData?.uploadedFileUrl) {
+        // Download and burn signatures into uploaded PDF
+        await handleDownloadSignedUploadedPdf();
+        return;
+      }
+      
+      // For AI-generated documents, use existing jsPDF logic
+      await handleDownloadGeneratedPdf();
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        title: "Download Error", 
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadSignedUploadedPdf = async () => {
+    if (!document || !documentData?.uploadedFileUrl) return;
+
+    // Fetch original PDF
+    const response = await fetch(documentData.uploadedFileUrl);
+    if (!response.ok) throw new Error("Failed to fetch original PDF");
+    const originalPdfBytes = await response.arrayBuffer();
+
+    // Get signature positions from stored fields
+    const signatureFields = documentData.signatureFields || [];
+    
+    // Find candidate signature field and data
+    let candidateOverlay: SignatureOverlay | null = null;
+    let employerOverlay: SignatureOverlay | null = null;
+
+    const candidateField = signatureFields.find(f => f.type === 'candidate' && f.id?.includes('signature'));
+    const employerField = signatureFields.find(f => f.type === 'employer' && f.id?.includes('signature'));
+
+    // Parse candidate signature
+    if (document.candidate_signature_data && candidateField) {
+      try {
+        const parsed = JSON.parse(document.candidate_signature_data);
+        const sigDataUrl = parsed.signatures?.candidate_signature || parsed.signatures?.positioned_signature || parsed.signatures?.recipient;
+        if (sigDataUrl) {
+          candidateOverlay = {
+            signatureDataUrl: sigDataUrl,
+            x: candidateField.x || 10,
+            y: candidateField.y || 80,
+            width: candidateField.width || 25,
+            height: candidateField.height || 8,
+            page: candidateField.page || 1,
+            signerName: parsed.signerName || document.applications?.profiles?.full_name || 'Candidate',
+            signedAt: document.candidate_signed_at || '',
+            ipAddress: parsed.ipAddress,
+            signerRole: 'candidate',
+          };
+        }
+      } catch (e) {
+        console.error("Error parsing candidate signature:", e);
+      }
+    }
+
+    // Parse employer signature
+    if (document.employer_signature_data && employerField) {
+      try {
+        const parsed = JSON.parse(document.employer_signature_data);
+        const sigDataUrl = parsed.signatures?.employer_signature || parsed.signatures?.positioned_signature || parsed.signatures?.employer;
+        if (sigDataUrl) {
+          employerOverlay = {
+            signatureDataUrl: sigDataUrl,
+            x: employerField.x || 55,
+            y: employerField.y || 80,
+            width: employerField.width || 25,
+            height: employerField.height || 8,
+            page: employerField.page || 1,
+            signerName: parsed.signerName || 'Employer',
+            signedAt: document.employer_signed_at || '',
+            ipAddress: parsed.ipAddress,
+            signerRole: 'employer',
+          };
+        }
+      } catch (e) {
+        console.error("Error parsing employer signature:", e);
+      }
+    }
+
+    // Get names from audit logs
+    const candidateSignEvent = auditLogs.find(log => log.action === 'candidate_signed');
+    const employerSignEvent = auditLogs.find(log => log.action === 'employer_countersigned');
+
+    // Prepare certificate data
+    const certData: CertificateData = {
+      documentId: document.id,
+      documentCode: getDocumentCode(),
+      documentName: document.name,
+      documentType: document.document_type,
+      completedAt: document.signed_at,
+      candidateName: candidateSignEvent?.signer_name || document.applications?.profiles?.full_name || 'Candidate',
+      candidateEmail: candidateSignEvent?.signer_email,
+      candidateSignedAt: document.candidate_signed_at,
+      candidateIp: candidateSignEvent?.ip_address || undefined,
+      employerName: employerSignEvent?.signer_name || 'Employer',
+      employerEmail: employerSignEvent?.signer_email,
+      employerSignedAt: document.employer_signed_at,
+      employerIp: employerSignEvent?.ip_address || undefined,
+      v1Hash: document.v1_hash,
+      v2Hash: document.v2_hash,
+      v3Hash: document.v3_hash,
+      auditEntriesCount: auditLogs.length,
+    };
+
+    // Burn signatures into PDF
+    const signedPdfBytes = await burnSignaturesIntoPdf(
+      originalPdfBytes,
+      candidateOverlay,
+      employerOverlay,
+      certData
+    );
+
+    // Download the signed PDF
+    const blob = new Blob([new Uint8Array(signedPdfBytes).buffer as ArrayBuffer], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url;
+    a.download = `${document.name}_Signed.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Download Complete",
+      description: "Signed PDF with embedded certificate downloaded.",
+    });
+  };
+
+  const handleDownloadGeneratedPdf = async () => {
+    if (!document || !documentData?.content) return;
+
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -396,34 +547,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     const content = documentData.content;
     const lines = content.split('\n');
     
-    // Skip signature lines in content - we'll add proper signature blocks at the end
-    const candidatePatterns = [
-      /^(Employee Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Candidate Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Recipient Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Employee:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-    ];
-    
-    const employerPatterns = [
-      /^(Company Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Employer Signature:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Authorized Representative:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(Authorized Signatory:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-      /^(For .*?:?\s*)([_\s]+)(Date:?\s*)([_\s]*)$/i,
-    ];
-
     for (const line of lines) {
       if (yPosition > pageHeight - 80) {
         pdf.addPage();
         yPosition = margin;
-      }
-
-      const isCandidateLine = candidatePatterns.some(pattern => pattern.test(line.trim()));
-      const isEmployerLine = employerPatterns.some(pattern => pattern.test(line.trim()));
-
-      // Skip original signature lines - we'll add professional signature blocks at the end
-      if ((isCandidateLine && candidateSignature) || (isEmployerLine && employerSignature)) {
-        continue;
       }
       
       const wrappedLines = pdf.splitTextToSize(line || " ", maxWidth);
@@ -437,8 +564,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       }
     }
 
-    // === SIGNATURE SECTION (Non-Negotiable: Burned into PDF) ===
-    // Ensure we have enough space for signature section
+    // Signature section
     if (yPosition > pageHeight - 120) {
       pdf.addPage();
       yPosition = margin;
@@ -454,161 +580,34 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor(0);
     pdf.text("SIGNATURES", margin, yPosition);
-    yPosition += 8;
+    yPosition += 15;
 
-    // Helper function to render professional signature block
-    const renderSignatureBlock = (
-      signatureData: string | null,
-      signerName: string,
-      signerRole: string,
-      signedAt: string | null,
-      ipAddress: string | null
-    ) => {
-      if (yPosition > pageHeight - 60) {
-        pdf.addPage();
-        yPosition = margin;
-      }
-
-      // Signature block border
-      pdf.setDrawColor(180);
-      pdf.setLineWidth(0.3);
-      pdf.rect(margin, yPosition, maxWidth, 50);
-      
-      // "Electronically signed by" header
-      pdf.setFontSize(8);
-      pdf.setFont("helvetica", "italic");
-      pdf.setTextColor(100);
-      pdf.text("Electronically signed by", margin + 5, yPosition + 6);
-      
-      // Signature image
-      if (signatureData) {
-        try {
-          pdf.addImage(signatureData, "PNG", margin + 5, yPosition + 8, 50, 15);
-        } catch (e) {
-          pdf.setFontSize(10);
-          pdf.setFont("helvetica", "normal");
-          pdf.setTextColor(0);
-          pdf.text("[Signature on file]", margin + 5, yPosition + 16);
-        }
-      }
-      
-      // Signer name
-      pdf.setFontSize(11);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(0);
-      pdf.text(signerName || "Unknown", margin + 5, yPosition + 28);
-      
-      // Role
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(60);
-      pdf.text(signerRole, margin + 5, yPosition + 34);
-      
-      // Timestamp (UTC)
-      if (signedAt) {
-        const formattedDate = format(new Date(signedAt), "MMMM d, yyyy 'at' h:mm:ss a");
-        pdf.text(`Signed on ${formattedDate} (UTC)`, margin + 5, yPosition + 40);
-      }
-      
-      // IP Address (right side) - Never silently omit
-      pdf.setFontSize(8);
-      pdf.setTextColor(120);
-      const ipDisplay = ipAddress && ipAddress !== 'unknown' 
-        ? `IP: ${ipAddress}` 
-        : 'IP unavailable at time of signing';
-      pdf.text(ipDisplay, pageWidth - margin - 5, yPosition + 46, { align: "right" });
-      
-      yPosition += 55;
-    };
-
-    // Get IP addresses from audit logs
+    // Add signature blocks
     const candidateSignEvent = auditLogs.find(log => log.action === 'candidate_signed');
     const employerSignEvent = auditLogs.find(log => log.action === 'employer_countersigned');
 
-    // Render Candidate Signature Block
-    if (candidateSignature || document.candidate_signed_at) {
-      const candidateName = candidateSignEvent?.signer_name || 
-        document.applications?.profiles?.full_name || 'Candidate';
-      renderSignatureBlock(
-        candidateSignature,
-        candidateName,
-        'Candidate',
-        document.candidate_signed_at,
-        candidateSignEvent?.ip_address || null
-      );
+    if (candidateSignature) {
+      pdf.setFontSize(10);
+      pdf.text("Candidate:", margin, yPosition);
+      try {
+        pdf.addImage(candidateSignature, "PNG", margin, yPosition + 2, 50, 15);
+      } catch {}
+      yPosition += 25;
     }
 
-    // Render Employer Signature Block
-    if (employerSignature || document.employer_signed_at) {
-      const employerName = employerSignEvent?.signer_name || 'Employer Representative';
-      renderSignatureBlock(
-        employerSignature,
-        employerName,
-        'Employer / Hiring Manager',
-        document.employer_signed_at,
-        employerSignEvent?.ip_address || null
-      );
+    if (employerSignature) {
+      pdf.setFontSize(10);
+      pdf.text("Employer:", margin, yPosition);
+      try {
+        pdf.addImage(employerSignature, "PNG", margin, yPosition + 2, 50, 15);
+      } catch {}
+      yPosition += 25;
     }
 
-    // === EMBEDDED CERTIFICATE OF COMPLETION (CRITICAL - Burned into PDF) ===
-    if (yPosition > pageHeight - 80) {
-      pdf.addPage();
-      yPosition = margin;
-    }
-    
-    yPosition += 10;
-    pdf.setDrawColor(200);
-    pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 8;
-    
-    // Enhanced Certificate Box
-    const certHeight = 55;
-    pdf.setFillColor(240, 255, 240);
-    pdf.rect(margin, yPosition - 3, maxWidth, certHeight, 'F');
-    pdf.setDrawColor(34, 139, 34);
-    pdf.setLineWidth(0.5);
-    pdf.rect(margin, yPosition - 3, maxWidth, certHeight, 'S');
-    
-    // Certificate Header
-    pdf.setFontSize(10);
-    pdf.setTextColor(34, 139, 34);
-    pdf.setFont("helvetica", "bold");
-    pdf.text("✓ CERTIFICATE OF COMPLETION", margin + 5, yPosition + 4);
-    
-    pdf.setFontSize(7);
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(60);
-    
-    // Left column - Document Info
-    pdf.text(`Certificate ID: ${completionCert?.certificate_id || 'CERT-' + getDocumentCode()}`, margin + 5, yPosition + 11);
-    pdf.text(`Document ID: ${getDocumentCode()}`, margin + 5, yPosition + 16);
-    pdf.text(`Status: FULLY EXECUTED`, margin + 5, yPosition + 21);
-    pdf.text(`Completed: ${document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy 'at' h:mm:ss a") + " (UTC)" : ""}`, margin + 5, yPosition + 26);
-    
-    // Signing Order
-    pdf.text(`Signing Order: Candidate (1) → Employer (2)`, margin + 5, yPosition + 31);
-    pdf.text(`Jurisdiction: ESIGN Act (15 U.S.C. § 7001) & UETA`, margin + 5, yPosition + 36);
-    
-    // Right column - Integrity Info
-    const rightCol = pageWidth / 2 + 10;
-    pdf.setFont("helvetica", "bold");
-    pdf.text("DOCUMENT INTEGRITY", rightCol, yPosition + 11);
-    pdf.setFont("helvetica", "normal");
-    
-    const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
-    pdf.text(`Hash Algorithm: SHA-256`, rightCol, yPosition + 16);
-    if (finalHash) {
-      pdf.setFontSize(6);
-      pdf.text(`Final Hash: ${finalHash.substring(0, 32)}...`, rightCol, yPosition + 21);
-      pdf.text(`             ${finalHash.substring(32)}`, rightCol, yPosition + 25);
-    }
-    
-    // Warning text
-    pdf.setFontSize(6);
+    // Certificate footer
+    pdf.setFontSize(8);
     pdf.setTextColor(100);
-    pdf.setFont("helvetica", "italic");
-    pdf.text("⚠ Any modification to this document will invalidate the above hash.", margin + 5, yPosition + 44);
-    pdf.text("This certificate verifies that all parties have electronically signed as indicated above.", margin + 5, yPosition + 48);
+    pdf.text(`Document ID: ${getDocumentCode()} | Hash: ${document.v3_hash?.substring(0, 32) || 'N/A'}...`, margin, pageHeight - 10);
 
     pdf.save(`${document.name}.pdf`);
   };
