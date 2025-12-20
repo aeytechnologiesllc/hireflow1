@@ -187,11 +187,30 @@ export function useCreateDocumentRequest() {
         .select();
 
       if (error) throw error;
+
+      // Create notifications for each candidate
+      const candidateIds = [...new Set(requests.map((r) => r.candidate_id))];
+      const documentCount = requests.length;
+      const documentWord = documentCount === 1 ? "document" : "documents";
+
+      const notifications = candidateIds.map((candidateId) => ({
+        user_id: candidateId,
+        type: "system" as const,
+        title: "New Document Request",
+        message: `You have ${documentCount} new ${documentWord} to upload. Please submit the required documents.`,
+        link: "/documents",
+        is_read: false,
+      }));
+
+      // Insert notifications (don't fail if this errors)
+      await supabase.from("notifications").insert(notifications);
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
       queryClient.invalidateQueries({ queryKey: ["pending-document-requests-count"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       toast({
         title: "Request Sent",
         description: "Document request has been sent to the candidate.",
