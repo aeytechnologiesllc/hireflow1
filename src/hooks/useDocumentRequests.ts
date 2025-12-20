@@ -60,8 +60,9 @@ export function getDocumentTypeLabel(type: string): string {
 
 export function useDocumentRequests(statusFilter?: string) {
   const { user, role } = useAuth();
+  const queryClient = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["document-requests", user?.id, role, statusFilter],
     queryFn: async () => {
       // Fetch document requests
@@ -110,6 +111,34 @@ export function useDocumentRequests(statusFilter?: string) {
     },
     enabled: !!user,
   });
+
+  // Real-time subscription for document requests
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("document-requests-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "document_requests",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["pending-document-requests-count"] });
+          queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
+
+  return query;
 }
 
 export function usePendingDocumentRequestsCount() {
