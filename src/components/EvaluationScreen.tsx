@@ -44,7 +44,6 @@ export function EvaluationScreen({
           >
             <StorytellingLoader
               messages={evaluatingMessages}
-              avaExpression="thinking"
               title="We're reviewing your submission"
               showProgress={true}
             />

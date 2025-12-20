@@ -1,8 +1,6 @@
 import { motion } from "framer-motion";
 import { FloatingParticles } from "./FloatingParticles";
-
-// Import AVA empathetic
-import avaEmpathetic from "@/assets/ava-empathetic.png";
+import { PremiumOrb } from "./PremiumOrb";
 
 interface EmpathyAnimationProps {
   title: string;
@@ -36,7 +34,7 @@ export function EmpathyAnimation({
         colors={["hsl(var(--muted-foreground) / 0.3)", "hsl(var(--primary) / 0.2)"]}
       />
 
-      {/* AVA empathetic */}
+      {/* Premium Orb - empathy mode */}
       <motion.div
         className="relative mb-6"
         initial={{ scale: 0.8, opacity: 0 }}
@@ -48,36 +46,10 @@ export function EmpathyAnimation({
           delay: 0.2 
         }}
       >
-        {/* Soft glow - muted colors */}
-        <motion.div
-          className="absolute inset-0 rounded-full blur-2xl"
-          style={{
-            background: `radial-gradient(circle, hsl(var(--muted) / 0.6) 0%, transparent 70%)`,
-            transform: "scale(1.8)",
-          }}
-          animate={{
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        {/* AVA image with gentle breathing animation */}
-        <motion.img
-          src={avaEmpathetic}
-          alt="Ava"
-          className="relative w-32 h-32 object-contain"
-          animate={{
-            scale: [1, 1.02, 1],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
+        <PremiumOrb 
+          mode="empathy" 
+          size={128}
+          showIcon={true}
         />
       </motion.div>
 

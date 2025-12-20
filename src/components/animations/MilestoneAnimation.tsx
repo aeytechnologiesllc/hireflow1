@@ -2,11 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { AnimatedProgressRing } from "./AnimatedProgressRing";
-
-// Import AVA poses
-import avaCelebrating from "@/assets/ava-celebrating.png";
-import avaProud from "@/assets/ava-proud.png";
-import avaEncouraging from "@/assets/ava-encouraging.png";
+import { PremiumOrb } from "./PremiumOrb";
 
 export type MilestoneType = "success" | "celebration" | "completion" | "encouragement";
 export type MilestoneIntensity = "subtle" | "medium" | "major";
@@ -25,12 +21,12 @@ interface MilestoneAnimationProps {
   children?: React.ReactNode;
 }
 
-const avaImagesByType: Record<MilestoneType, string> = {
-  success: avaCelebrating,
-  celebration: avaCelebrating,
-  completion: avaProud,
-  encouragement: avaEncouraging,
-};
+const orbModeByType = {
+  success: "success",
+  celebration: "celebration",
+  completion: "success",
+  encouragement: "celebration",
+} as const;
 
 export function MilestoneAnimation({
   type,
@@ -60,7 +56,8 @@ export function MilestoneAnimation({
 
   const particleCount = intensity === "subtle" ? 10 : intensity === "major" ? 30 : 20;
   const showOrbs = intensity !== "subtle";
-  const avaImage = avaImagesByType[type];
+  const orbMode = orbModeByType[type];
+  const orbSize = intensity === "major" ? 160 : 140;
 
   return (
     <AnimatePresence>
@@ -91,7 +88,7 @@ export function MilestoneAnimation({
               delay: 0.1 
             }}
           >
-            {/* AVA celebration */}
+            {/* Premium Orb */}
             <motion.div
               className="relative mb-6"
               initial={{ scale: 0, rotate: -10 }}
@@ -103,57 +100,10 @@ export function MilestoneAnimation({
                 delay: 0.2 
               }}
             >
-              {/* Glow effect */}
-              <motion.div
-                className="absolute inset-0 rounded-full blur-3xl"
-                style={{
-                  background: `radial-gradient(circle, hsl(var(--primary) / 0.4) 0%, transparent 60%)`,
-                  transform: "scale(2)",
-                }}
-                animate={{
-                  opacity: [0.4, 0.7, 0.4],
-                  scale: [1.8, 2.2, 1.8],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-
-              {/* Celebration pulse rings */}
-              {intensity === "major" && (
-                <>
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute inset-0 rounded-full border-2 border-primary/30"
-                      initial={{ scale: 0.8, opacity: 0.8 }}
-                      animate={{ scale: 2.5, opacity: 0 }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        delay: i * 0.4,
-                        ease: "easeOut",
-                      }}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* AVA image */}
-              <motion.img
-                src={avaImage}
-                alt="Ava celebrating"
-                className="relative w-36 h-36 object-contain"
-                animate={{
-                  y: [0, -8, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
+              <PremiumOrb 
+                mode={orbMode} 
+                size={orbSize}
+                showIcon={true}
               />
             </motion.div>
 
