@@ -39,7 +39,7 @@ export function useEmployerPendingDocumentsCount() {
       // 2. Candidate HAS signed (candidate_signed_at is not null)
       // 3. Employer has NOT signed yet (employer_signed_at is null)
       // This means only documents awaiting the employer's countersignature are counted
-      const { count, error: docError } = await supabase
+      const { count: docCount, error: docError } = await supabase
         .from("documents")
         .select("id", { count: "exact", head: true })
         .in("application_id", applicationIds)
@@ -48,12 +48,22 @@ export function useEmployerPendingDocumentsCount() {
         .is("employer_signed_at", null);
 
       if (docError) throw docError;
-      return count || 0;
+
+      // Also count document requests that have been submitted (received from candidates)
+      const { count: requestCount, error: reqError } = await supabase
+        .from("document_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("employer_id", user!.id)
+        .eq("status", "submitted");
+
+      if (reqError) throw reqError;
+
+      return (docCount || 0) + (requestCount || 0);
     },
     enabled: !!user && role === "employer",
   });
 
-  // Real-time subscription for document changes
+  // Real-time subscription for document and document_requests changes
   useEffect(() => {
     if (!user || role !== "employer") return;
 
@@ -70,6 +80,19 @@ export function useEmployerPendingDocumentsCount() {
           // Invalidate the count query when any document changes
           queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
           queryClient.invalidateQueries({ queryKey: ["documents"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "document_requests",
+        },
+        () => {
+          // Invalidate when document requests change (e.g., candidate uploads)
+          queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
+          queryClient.invalidateQueries({ queryKey: ["document-requests"] });
         }
       )
       .subscribe();
