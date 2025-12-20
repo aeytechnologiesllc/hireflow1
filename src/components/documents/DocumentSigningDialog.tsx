@@ -34,6 +34,7 @@ import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
 import { captureSigningContext, generateV1Hash, generateV2Hash, generateV3Hash } from "@/lib/documentHash";
+import { generatePdfHash } from "@/lib/pdfSignatureBurner";
 import { 
   logElectronicConsentConfirmed, 
   logCandidateSigned, 
@@ -358,7 +359,23 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       const signerRole = role === 'candidate' ? 'candidate' : 'employer';
       
       // Get document content for hash generation
-      const documentContent = documentData?.content || '';
+      // For uploaded PDFs, fetch the actual PDF bytes for proper hashing
+      let documentContent = documentData?.content || '';
+      
+      if (isUploadedDocument && documentData?.uploadedFileUrl) {
+        try {
+          const response = await fetch(documentData.uploadedFileUrl);
+          if (response.ok) {
+            const pdfBytes = await response.arrayBuffer();
+            // Use PDF bytes as base64 for hash content
+            documentContent = await generatePdfHash(pdfBytes);
+            console.log('Using PDF hash as document content for signing');
+          }
+        } catch (e) {
+          console.error('Error fetching PDF for hash:', e);
+        }
+      }
+      
       const currentHash = document.v1_hash || await generateV1Hash(documentContent);
       
       // For positioned fields, map positioned_signature to the correct field ID
