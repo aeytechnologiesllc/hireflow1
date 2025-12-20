@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { useDocumentRequests, useUpdateDocumentRequest, useDeleteDocumentRequest, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,13 +23,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { DocumentSigningDialog } from "@/components/documents/DocumentSigningDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
+import { DocumentRequestWizard } from "@/components/documents/DocumentRequestWizard";
+import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
+import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
@@ -64,12 +68,21 @@ export default function Documents() {
   const canSendDocuments = !isTeamMember || permissions?.canSendDocuments;
   const { data: documents, isLoading } = useDocuments();
   const { data: applications = [] } = useApplicationsForDocuments();
+  const { data: documentRequests = [], isLoading: isLoadingRequests } = useDocumentRequests();
+  const updateDocumentRequest = useUpdateDocumentRequest();
+  const deleteDocumentRequest = useDeleteDocumentRequest();
+  
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [requestWizardOpen, setRequestWizardOpen] = useState(false);
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentWithApplication | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<DocumentRequestWithDetails | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<DocumentWithApplication | null>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -112,7 +125,69 @@ export default function Documents() {
   const signedDocs = filteredDocuments.filter(d => d.status === "signed");
   const declinedDocs = filteredDocuments.filter(d => d.status === "declined");
 
+  // Filter document requests for candidates (show only their pending requests)
+  const candidatePendingRequests = documentRequests.filter(r => r.status === "pending" || r.status === "rejected");
+
   const hasActiveFilters = searchQuery.trim() || dateRange?.from;
+
+  // Document request handlers
+  const handleUploadRequest = (request: DocumentRequestWithDetails) => {
+    setSelectedRequest(request);
+    setUploadDialogOpen(true);
+  };
+
+  const handleViewRequest = (request: DocumentRequestWithDetails) => {
+    if (request.file_url) {
+      window.open(request.file_url, "_blank");
+    }
+  };
+
+  const handleDownloadRequest = async (request: DocumentRequestWithDetails) => {
+    if (request.file_url) {
+      const link = document.createElement("a");
+      link.href = request.file_url;
+      link.download = request.file_name || "document";
+      link.click();
+    }
+  };
+
+  const handleApproveRequest = async (request: DocumentRequestWithDetails) => {
+    await updateDocumentRequest.mutateAsync({
+      id: request.id,
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+    });
+    toast({
+      title: "Document Approved",
+      description: "The document has been approved.",
+    });
+  };
+
+  const handleRejectRequest = (request: DocumentRequestWithDetails) => {
+    setSelectedRequest(request);
+    setRejectionReason("");
+    setRejectDialogOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!selectedRequest) return;
+    await updateDocumentRequest.mutateAsync({
+      id: selectedRequest.id,
+      status: "rejected",
+      rejection_reason: rejectionReason || "Document rejected by employer",
+      reviewed_at: new Date().toISOString(),
+    });
+    setRejectDialogOpen(false);
+    setSelectedRequest(null);
+    toast({
+      title: "Document Rejected",
+      description: "The document has been rejected.",
+    });
+  };
+
+  const handleDeleteRequest = async (request: DocumentRequestWithDetails) => {
+    await deleteDocumentRequest.mutateAsync(request.id);
+  };
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -240,10 +315,16 @@ export default function Documents() {
           </p>
         </div>
         {isEmployer && canSendDocuments && (
-          <Button className="gap-2" onClick={() => setWizardOpen(true)}>
-            <Wand2 className="h-4 w-4" />
-            Create Document
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setRequestWizardOpen(true)}>
+              <ClipboardList className="h-4 w-4" />
+              Request Document
+            </Button>
+            <Button className="gap-2" onClick={() => setWizardOpen(true)}>
+              <Wand2 className="h-4 w-4" />
+              Create Document
+            </Button>
+          </div>
         )}
         {isTeamMember && !canSendDocuments && (
           <Badge variant="outline" className="gap-1 text-muted-foreground">
@@ -314,12 +395,45 @@ export default function Documents() {
         </motion.div>
       )}
 
-      {isLoading ? (
+      {/* Candidate Pending Requests Banner */}
+      {!isEmployer && candidatePendingRequests.length > 0 && (
+        <motion.div variants={staggerItem}>
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">
+                    {candidatePendingRequests.length} document{candidatePendingRequests.length > 1 ? "s" : ""} requested
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Your employer has requested documents from you
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-3">
+                {candidatePendingRequests.map((request) => (
+                  <DocumentRequestCard
+                    key={request.id}
+                    request={request}
+                    isEmployer={false}
+                    onUpload={handleUploadRequest}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {isLoading || isLoadingRequests ? (
         <motion.div variants={staggerItem} className="space-y-4">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </motion.div>
-      ) : documents && documents.length > 0 ? (
+      ) : documents && documents.length > 0 || (isEmployer && documentRequests.length > 0) ? (
         <motion.div variants={staggerItem}>
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="mb-4">
@@ -327,6 +441,9 @@ export default function Documents() {
               <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
               <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
               <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
+              {isEmployer && (
+                <TabsTrigger value="requested">Requested ({documentRequests.length})</TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="all" className="space-y-4">
@@ -341,6 +458,26 @@ export default function Documents() {
             <TabsContent value="declined" className="space-y-4">
               {declinedDocs.length > 0 ? declinedDocs.map(renderDocumentCard) : <EmptyState message="No declined documents" />}
             </TabsContent>
+            {isEmployer && (
+              <TabsContent value="requested" className="space-y-4">
+                {documentRequests.length > 0 ? (
+                  documentRequests.map((request) => (
+                    <DocumentRequestCard
+                      key={request.id}
+                      request={request}
+                      isEmployer={true}
+                      onView={handleViewRequest}
+                      onDownload={handleDownloadRequest}
+                      onApprove={handleApproveRequest}
+                      onReject={handleRejectRequest}
+                      onDelete={handleDeleteRequest}
+                    />
+                  ))
+                ) : (
+                  <EmptyState message="No document requests" />
+                )}
+              </TabsContent>
+            )}
           </Tabs>
         </motion.div>
       ) : (
@@ -351,14 +488,20 @@ export default function Documents() {
               <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
               <p className="text-muted-foreground max-w-md mx-auto mb-6">
               {isEmployer 
-                ? (canSendDocuments ? "Create AI-generated documents like NDAs and offer letters." : "Documents will appear here when created.")
+                ? (canSendDocuments ? "Create AI-generated documents or request documents from candidates." : "Documents will appear here when created.")
                 : "Documents will appear here."}
               </p>
               {isEmployer && canSendDocuments && (
-                <Button onClick={() => setWizardOpen(true)}>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Create Your First Document
-                </Button>
+                <div className="flex items-center justify-center gap-2">
+                  <Button variant="outline" onClick={() => setRequestWizardOpen(true)}>
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Request Document
+                  </Button>
+                  <Button onClick={() => setWizardOpen(true)}>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Create Document
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -366,8 +509,19 @@ export default function Documents() {
       )}
 
       <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
+      <DocumentRequestWizard open={requestWizardOpen} onOpenChange={setRequestWizardOpen} applications={applications} />
       <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
       <SignedDocumentViewer document={selectedDocument} open={viewerOpen} onOpenChange={setViewerOpen} />
+      {selectedRequest && (
+        <DocumentUploadDialog 
+          request={selectedRequest} 
+          open={uploadDialogOpen} 
+          onOpenChange={(open) => {
+            setUploadDialogOpen(open);
+            if (!open) setSelectedRequest(null);
+          }} 
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -404,6 +558,36 @@ export default function Documents() {
                   Delete Permanently
                 </>
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Confirmation Dialog */}
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              Reject Document
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p className="mb-4">Please provide a reason for rejecting this document.</p>
+              <Input
+                placeholder="Reason for rejection..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmReject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Reject
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

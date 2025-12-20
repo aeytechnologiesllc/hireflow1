@@ -8,8 +8,10 @@ export interface ApplicationForDocument {
   profiles: {
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
   } | null;
   jobs: {
+    id: string;
     title: string;
   } | null;
 }
@@ -51,7 +53,7 @@ export function useApplicationsForDocuments() {
       const candidateIds = [...new Set(applications.map(a => a.candidate_id))];
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, full_name, email")
+        .select("user_id, full_name, email, avatar_url")
         .in("user_id", candidateIds);
 
       if (profilesError) throw profilesError;
