@@ -44,7 +44,7 @@ export function useApplicationsForDocuments() {
           job_id
         `)
         .in("job_id", jobIds)
-        .in("status", ["reviewing", "interview", "hired"]);
+        .in("status", ["pending", "in_progress", "reviewing", "interview", "offered", "hired"]);
 
       if (appsError) throw appsError;
       if (!applications || applications.length === 0) return [];
