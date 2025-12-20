@@ -3217,8 +3217,10 @@ ${interviewType} Interview with AVA Results:
           profiles: {
             full_name: profile?.full_name || null,
             email: profile?.email || "",
+            avatar_url: profile?.avatar_url || null,
           },
           jobs: {
+            id: job?.id || "",
             title: job?.title || "",
           },
         }] : []}
