@@ -12,8 +12,6 @@ interface EvaluationScreenProps {
   onStartNextPhase?: () => void;
   onDoLater?: () => void;
   nextPhaseName?: string;
-  score?: number;
-  passingScore?: number;
 }
 
 const evaluatingMessages = [
@@ -28,8 +26,6 @@ export function EvaluationScreen({
   onStartNextPhase,
   onDoLater,
   nextPhaseName,
-  score,
-  passingScore = 60,
 }: EvaluationScreenProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
@@ -61,8 +57,6 @@ export function EvaluationScreen({
                 ? "You've successfully completed this phase and can move on to the next step."
                 : "You've completed all candidate phases! The employer will review your application and may invite you to an Ava Interview."
             }
-            score={score}
-            passingScore={passingScore}
           >
             <div className="space-y-3 pt-2">
               {nextPhaseName && onStartNextPhase && (
@@ -107,8 +101,6 @@ export function EvaluationScreen({
             <EmpathyAnimation
               title="This one wasn't the right fit"
               subtitle="We encourage you to apply for other opportunities that match your skills. Every application is a step forward."
-              score={score}
-              passingScore={passingScore}
             >
               {onDoLater && (
                 <Button 

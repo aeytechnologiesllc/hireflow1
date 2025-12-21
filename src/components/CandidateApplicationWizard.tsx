@@ -697,8 +697,6 @@ Resume URL: ${resumeUrl || "Not provided"}
         onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
         onDoLater={handleDoLater}
         nextPhaseName={nextPhaseInfo?.title}
-        score={aiScore ?? undefined}
-        passingScore={job.passing_score || 60}
       />
     );
   }

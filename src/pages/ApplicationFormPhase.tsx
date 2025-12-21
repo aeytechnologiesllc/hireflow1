@@ -385,8 +385,6 @@ export default function ApplicationFormPhase() {
     return (
       <EvaluationScreen
         state={evaluationState}
-        score={aiScore ?? undefined}
-        passingScore={application.jobs?.passing_score || 60}
         nextPhaseName={nextPhaseInfo?.title}
         onStartNextPhase={handleEvaluationComplete}
         onDoLater={handleEvaluationComplete}

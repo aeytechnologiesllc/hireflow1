@@ -625,7 +625,7 @@ export default function ChatSimulationPhase() {
             // Note: ChatSimulation uses toast instead of EvaluationScreen so no nextPhaseInfo needed
           }
           toast.success("Chat simulation completed!", {
-            description: `You scored ${evaluation.score}%. You've advanced to the next phase.`,
+            description: "Great work! You've advanced to the next phase.",
           });
         } else {
           newStatus = "rejected";
@@ -717,7 +717,6 @@ export default function ChatSimulationPhase() {
       <PhaseAlreadySubmitted
         applicationId={id!}
         phaseName="Chat Simulation"
-        score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );

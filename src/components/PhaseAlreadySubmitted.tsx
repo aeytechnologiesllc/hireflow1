@@ -7,7 +7,6 @@ interface PhaseAlreadySubmittedProps {
   applicationId: string;
   phaseName: string;
   submittedAt?: string;
-  score?: number;
   isManualMode?: boolean;
 }
 
@@ -15,7 +14,6 @@ export function PhaseAlreadySubmitted({
   applicationId,
   phaseName,
   submittedAt,
-  score,
   isManualMode = true,
 }: PhaseAlreadySubmittedProps) {
   const navigate = useNavigate();
@@ -36,13 +34,6 @@ export function PhaseAlreadySubmitted({
               Thank you for completing this phase. Your submission has been recorded.
             </p>
           </div>
-
-          {score !== undefined && (
-            <div className="bg-muted/30 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Your Score</p>
-              <p className="text-2xl font-bold text-foreground">{score}%</p>
-            </div>
-          )}
 
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <Clock className="h-4 w-4" />

@@ -752,7 +752,6 @@ export default function ChatInterviewPhase() {
       <PhaseAlreadySubmitted
         applicationId={id!}
         phaseName="Professional Interview"
-        score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );

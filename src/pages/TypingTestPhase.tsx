@@ -460,7 +460,6 @@ export default function TypingTestPhase() {
       <PhaseAlreadySubmitted
         applicationId={id!}
         phaseName="Typing Test"
-        score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -491,8 +490,6 @@ export default function TypingTestPhase() {
         onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
         onDoLater={handleDoLater}
         nextPhaseName={nextPhaseInfo?.title}
-        score={results?.score}
-        passingScore={passingScore}
       />
     );
   }
@@ -646,18 +643,18 @@ export default function TypingTestPhase() {
                   <p className="text-muted-foreground">
                     {results.passed
                       ? isAutoMode
-                        ? `You passed with a score of ${results.score}%. After you submit, the next phase will unlock automatically.`
-                        : `You passed with a score of ${results.score}%. The employer will review your overall application next.`
+                        ? "You passed! After you submit, the next phase will unlock automatically."
+                        : "You passed! The employer will review your overall application next."
                       : isAutoMode
-                        ? `You scored ${results.score}% (required ${passingScore}%). After you submit, your application for this role will be automatically rejected.`
-                        : `You scored ${results.score}% (required ${passingScore}%). Your results have been recorded for the employer to review.`
+                        ? "Your results have been recorded. After you submit, your application will be processed."
+                        : "Your results have been recorded for the employer to review."
                     }
                   </p>
                 </div>
               </div>
 
-              {/* Score Cards */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Performance Stats - no scores, just metrics */}
+              <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-muted/30 border-border">
                   <CardContent className="p-4 text-center">
                     <Zap className="h-6 w-6 mx-auto text-primary mb-2" />
@@ -670,15 +667,6 @@ export default function TypingTestPhase() {
                     <Target className="h-6 w-6 mx-auto text-primary mb-2" />
                     <p className="text-2xl font-bold text-foreground">{results.accuracy}%</p>
                     <p className="text-xs text-muted-foreground">Accuracy</p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-muted/30 border-border">
-                  <CardContent className="p-4 text-center">
-                    <CheckCircle className={`h-6 w-6 mx-auto mb-2 ${
-                      results.passed ? "text-success" : "text-destructive"
-                    }`} />
-                    <p className="text-2xl font-bold text-foreground">{results.score}%</p>
-                    <p className="text-xs text-muted-foreground">Overall Score</p>
                   </CardContent>
                 </Card>
               </div>

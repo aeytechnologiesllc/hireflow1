@@ -639,7 +639,7 @@ export default function SalesSimulationPhase() {
             // Note: SalesSimulation uses toast instead of EvaluationScreen
           }
           toast.success("Sales simulation completed!", {
-            description: `You scored ${evaluation.score}%. Prospect verdict: ${evaluation.wouldBuy === "yes" ? "Would buy!" : evaluation.wouldBuy === "maybe" ? "Might buy" : "Wouldn't buy"}`,
+            description: `Great work! You've completed this phase.`,
           });
         } else {
           newStatus = "rejected";
@@ -731,7 +731,6 @@ export default function SalesSimulationPhase() {
       <PhaseAlreadySubmitted
         applicationId={id!}
         phaseName="Sales Simulation"
-        score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
