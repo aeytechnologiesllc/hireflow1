@@ -618,7 +618,7 @@ export default function ChatInterviewPhase() {
             // Note: ChatInterview uses toast instead of EvaluationScreen
           }
           toast.success("Interview completed!", {
-            description: `You scored ${evaluation.score}%. You've advanced to the next phase.`,
+            description: "Your responses have been recorded. You've advanced to the next phase.",
           });
         } else {
           newStatus = "rejected";
