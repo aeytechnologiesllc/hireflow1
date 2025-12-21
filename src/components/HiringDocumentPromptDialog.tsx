@@ -6,7 +6,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Upload, PartyPopper } from "lucide-react";
+import { FileText, Sparkles, Upload, PartyPopper, Package } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface HiringDocumentPromptDialogProps {
@@ -16,6 +16,7 @@ interface HiringDocumentPromptDialogProps {
   jobTitle: string;
   onCreateDocument: () => void;
   onUploadDocument: () => void;
+  onCreatePackage: () => void;
   onSkip: () => void;
 }
 
@@ -26,6 +27,7 @@ export function HiringDocumentPromptDialog({
   jobTitle,
   onCreateDocument,
   onUploadDocument,
+  onCreatePackage,
   onSkip,
 }: HiringDocumentPromptDialogProps) {
   return (
@@ -58,21 +60,32 @@ export function HiringDocumentPromptDialog({
 
         <div className="space-y-3">
           <Button
-            onClick={onCreateDocument}
+            onClick={onCreatePackage}
             className="w-full bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-primary-foreground"
           >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Create with AI
+            <Package className="mr-2 h-4 w-4" />
+            Create Hiring Package
           </Button>
 
-          <Button
-            onClick={onUploadDocument}
-            variant="secondary"
-            className="w-full"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Upload Document
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={onCreateDocument}
+              variant="secondary"
+              className="w-full"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Single Document
+            </Button>
+
+            <Button
+              onClick={onUploadDocument}
+              variant="secondary"
+              className="w-full"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload
+            </Button>
+          </div>
 
           <Button
             onClick={onSkip}

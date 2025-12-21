@@ -183,6 +183,53 @@ export type Database = {
           },
         ]
       }
+      document_packages: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          completed_at: string | null
+          created_at: string
+          employer_id: string
+          id: string
+          name: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          completed_at?: string | null
+          created_at?: string
+          employer_id: string
+          id?: string
+          name?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          completed_at?: string | null
+          created_at?: string
+          employer_id?: string
+          id?: string
+          name?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_packages_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_requests: {
         Row: {
           application_id: string
@@ -197,6 +244,7 @@ export type Database = {
           file_url: string | null
           id: string
           is_required: boolean
+          package_id: string | null
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -217,6 +265,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           is_required?: boolean
+          package_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -237,6 +286,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           is_required?: boolean
+          package_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -250,6 +300,13 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_requests_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "document_packages"
             referencedColumns: ["id"]
           },
         ]
@@ -306,6 +363,7 @@ export type Database = {
           is_voided: boolean | null
           locked_at: string | null
           name: string
+          package_id: string | null
           recipient_id: string | null
           reminder_sent_at: string | null
           sender_id: string | null
@@ -343,6 +401,7 @@ export type Database = {
           is_voided?: boolean | null
           locked_at?: string | null
           name: string
+          package_id?: string | null
           recipient_id?: string | null
           reminder_sent_at?: string | null
           sender_id?: string | null
@@ -380,6 +439,7 @@ export type Database = {
           is_voided?: boolean | null
           locked_at?: string | null
           name?: string
+          package_id?: string | null
           recipient_id?: string | null
           reminder_sent_at?: string | null
           sender_id?: string | null
@@ -402,6 +462,13 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "document_packages"
             referencedColumns: ["id"]
           },
         ]
