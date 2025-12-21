@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
-import { AnimatedProgressRing } from "./AnimatedProgressRing";
 import { PremiumOrb } from "./PremiumOrb";
 
 export type MilestoneType = "success" | "celebration" | "completion" | "encouragement";
@@ -12,8 +11,6 @@ interface MilestoneAnimationProps {
   intensity?: MilestoneIntensity;
   title: string;
   subtitle?: string;
-  score?: number;
-  passingScore?: number;
   onComplete?: () => void;
   autoHide?: boolean;
   autoHideDelay?: number;
@@ -33,8 +30,6 @@ export function MilestoneAnimation({
   intensity = "medium",
   title,
   subtitle,
-  score,
-  passingScore,
   onComplete,
   autoHide = false,
   autoHideDelay = 3000,
@@ -42,7 +37,6 @@ export function MilestoneAnimation({
   children,
 }: MilestoneAnimationProps) {
   const [isVisible, setIsVisible] = useState(true);
-  const [scoreAnimationComplete, setScoreAnimationComplete] = useState(false);
 
   useEffect(() => {
     if (autoHide) {
@@ -106,45 +100,6 @@ export function MilestoneAnimation({
                 showIcon={true}
               />
             </motion.div>
-
-            {/* Score reveal (if provided) */}
-            {score !== undefined && (
-              <motion.div
-                className="mb-4"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
-              >
-                <div className="relative">
-                  <AnimatedProgressRing 
-                    size={100} 
-                    strokeWidth={6} 
-                    progress={scoreAnimationComplete ? score : 0} 
-                  />
-                  <motion.div
-                    className="absolute inset-0 flex items-center justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.8 }}
-                    onAnimationComplete={() => setScoreAnimationComplete(true)}
-                  >
-                    <span className="text-2xl font-bold text-foreground">
-                      {score}%
-                    </span>
-                  </motion.div>
-                </div>
-                {passingScore && (
-                  <motion.p
-                    className="text-sm text-muted-foreground mt-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1 }}
-                  >
-                    Passing: {passingScore}%
-                  </motion.p>
-                )}
-              </motion.div>
-            )}
 
             {/* Title with stagger */}
             <motion.h2

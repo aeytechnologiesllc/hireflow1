@@ -459,7 +459,6 @@ const handleFinishQuiz = () => {
       <PhaseAlreadySubmitted
         applicationId={id!}
         phaseName="Quiz"
-        score={existingResult.score}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -512,8 +511,6 @@ const handleFinishQuiz = () => {
         onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
         onDoLater={handleDoLater}
         nextPhaseName={nextPhaseInfo?.title}
-        score={results?.score}
-        passingScore={application?.jobs?.passing_score || 60}
       />
     );
   }

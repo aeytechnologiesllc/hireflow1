@@ -435,8 +435,6 @@ export default function PortfolioUploadPhase() {
         onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
         onDoLater={handleDoLater}
         nextPhaseName={nextPhaseInfo?.title}
-        score={100}
-        passingScore={application?.jobs?.passing_score || 60}
       />
     );
   }

@@ -5,8 +5,6 @@ import { PremiumOrb } from "./PremiumOrb";
 interface EmpathyAnimationProps {
   title: string;
   subtitle?: string;
-  score?: number;
-  passingScore?: number;
   children?: React.ReactNode;
   className?: string;
 }
@@ -14,8 +12,6 @@ interface EmpathyAnimationProps {
 export function EmpathyAnimation({
   title,
   subtitle,
-  score,
-  passingScore,
   children,
   className = "",
 }: EmpathyAnimationProps) {
@@ -73,23 +69,6 @@ export function EmpathyAnimation({
         >
           {subtitle}
         </motion.p>
-      )}
-
-      {/* Score display - gentle, not harsh */}
-      {score !== undefined && passingScore !== undefined && (
-        <motion.div
-          className="mb-6 p-4 rounded-xl bg-muted/30 border border-border"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.4 }}
-        >
-          <p className="text-sm text-muted-foreground">
-            Your score: <span className="font-medium text-foreground">{score}%</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Required: {passingScore}%
-          </p>
-        </motion.div>
       )}
 
       {/* Action buttons */}
