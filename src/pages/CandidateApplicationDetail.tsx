@@ -788,35 +788,6 @@ export default function CandidateApplicationDetail() {
         </CardContent>
       </Card>
 
-
-      {/* AI Score Display */}
-      {application.ai_score && (
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <span className="font-semibold text-foreground">Your Application Score</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-32 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      application.ai_score >= passingScore ? "bg-success" : "bg-yellow-500"
-                    }`}
-                    style={{ width: `${application.ai_score}%` }}
-                  />
-                </div>
-                <span className={`text-2xl font-bold ${
-                  application.ai_score >= passingScore ? "text-success" : "text-yellow-500"
-                }`}>
-                  {application.ai_score}%
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
       </div>
     </>
   );

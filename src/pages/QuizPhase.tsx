@@ -666,12 +666,6 @@ const handleFinishQuiz = () => {
                 </div>
               </div>
 
-              {/* Score Display */}
-              <div className="bg-muted/30 rounded-lg p-6 text-center">
-                <p className="text-4xl font-bold text-foreground">{results?.score}%</p>
-                <p className="text-sm text-muted-foreground mt-1">Overall Score</p>
-              </div>
-
               {/* Actions */}
               <div className="flex justify-center gap-4">
                 <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">

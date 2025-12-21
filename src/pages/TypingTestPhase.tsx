@@ -541,7 +541,7 @@ export default function TypingTestPhase() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Zap className="h-4 w-4 mt-1 text-primary" />
-                    <span>Your score is based on speed (WPM) and accuracy</span>
+                    <span>Your performance is measured by speed (WPM) and accuracy</span>
                   </li>
                 </ul>
                 <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
