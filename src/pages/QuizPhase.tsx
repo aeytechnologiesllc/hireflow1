@@ -661,7 +661,7 @@ const handleFinishQuiz = () => {
                     {results?.passed ? "Quiz Passed!" : "Quiz Complete"}
                   </h3>
                   <p className="text-muted-foreground">
-                    You answered {results?.correct} out of {results?.total} questions correctly
+                    Your answers have been recorded. Thank you for completing the assessment!
                   </p>
                 </div>
               </div>
