@@ -199,20 +199,6 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                {application.ai_score && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs font-medium text-muted-foreground">Score:</div>
-                    <div className="flex items-center gap-1">
-                      <div className="h-2 w-16 bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${application.ai_score}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium text-primary">{application.ai_score}%</span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Action Indicator - Clickable button to jump to phase */}

@@ -665,7 +665,11 @@ export default function TypingTestPhase() {
                 <Card className="bg-muted/30 border-border">
                   <CardContent className="p-4 text-center">
                     <Target className="h-6 w-6 mx-auto text-primary mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{results.accuracy}%</p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {results.accuracy >= 95 ? "Excellent" : 
+                       results.accuracy >= 85 ? "Great" : 
+                       results.accuracy >= 70 ? "Good" : "Keep Practicing"}
+                    </p>
                     <p className="text-xs text-muted-foreground">Accuracy</p>
                   </CardContent>
                 </Card>
