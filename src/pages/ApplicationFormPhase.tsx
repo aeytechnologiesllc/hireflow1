@@ -303,9 +303,9 @@ export default function ApplicationFormPhase() {
         setNextPhaseInfo({ id: nextStep.id, title: nextStep.title });
       }
 
-      // Trigger AI analysis if in autopilot mode
+      // Always trigger AVA analysis (for both manual and auto modes)
       if (isAutoPilot) {
-        // Trigger analysis and evaluate
+        // Trigger analysis and evaluate - wait for it in auto mode
         await triggerAvaAnalysis(id!);
         
         // Fetch updated score
@@ -325,7 +325,8 @@ export default function ApplicationFormPhase() {
           setEvaluationState("failed");
         }
       } else {
-        // Manual mode - just show success
+        // Manual mode - trigger analysis in background and navigate
+        triggerAvaAnalysis(id!).catch(console.error);
         toast.success("Application submitted successfully!");
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         navigate(`/applications/${id}`);
