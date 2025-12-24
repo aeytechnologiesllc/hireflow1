@@ -3,11 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, isFuture } from "date-fns";
-import { Calendar, Clock, Video, Check, RefreshCw, Loader2, ExternalLink } from "lucide-react";
+import { Calendar, Clock, Video, Check, RefreshCw, Loader2, ExternalLink, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
+import { getTimezoneAbbreviation } from "@/lib/timezone";
 
 interface Interview {
   id: string;
@@ -140,11 +141,20 @@ export function CandidateInterviewConfirmationCard({
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span>{format(new Date(interview.scheduled_at), "h:mm a")}</span>
+              <span>
+                {format(new Date(interview.scheduled_at), "h:mm a")}{" "}
+                <span className="text-muted-foreground">({getTimezoneAbbreviation()})</span>
+              </span>
               {interview.duration_minutes && (
-                <span className="text-muted-foreground">({interview.duration_minutes} min)</span>
+                <span className="text-muted-foreground">• {interview.duration_minutes} min</span>
               )}
             </div>
+          </div>
+
+          {/* Timezone Note for Candidates */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+            <Globe className="h-3 w-3" />
+            <span>Times shown in your local timezone</span>
           </div>
 
           <p className="text-sm text-muted-foreground mb-4">{statusDisplay.message}</p>
