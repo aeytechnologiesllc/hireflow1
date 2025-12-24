@@ -45,12 +45,10 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch application data with job and candidate info
     const { data: application, error: appError } = await supabase
       .from('applications')
       .select(`
@@ -82,7 +80,6 @@ serve(async (req) => {
       );
     }
 
-    // Get candidate profile
     const { data: candidateApp } = await supabase
       .from('applications')
       .select('candidate_id')
@@ -95,7 +92,6 @@ serve(async (req) => {
       .eq('user_id', candidateApp?.candidate_id)
       .single();
 
-    // Parse notes for phase data
     let parsedNotes: any = {};
     try {
       if (application.notes) {
@@ -105,125 +101,110 @@ serve(async (req) => {
       console.log('Could not parse notes as JSON');
     }
 
-    // Build comprehensive context for AI
     const applicationContext = buildApplicationContext(application, parsedNotes, profile);
 
-    // Call Lovable AI for comprehensive analysis
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are an expert career coach and HR professional creating a comprehensive performance report for a job candidate. Your analysis must be:
-1. DEEPLY PERSONALIZED - Reference specific quotes, scores, and behaviors from their application
-2. ACTIONABLE - Provide specific resources, websites, and exercises they can use
-3. ENCOURAGING BUT HONEST - Celebrate strengths while being direct about improvement areas
-4. COMPREHENSIVE - Cover personality, communication, technical skills, and career advice
+    // NEW: Coaching-focused prompt for Personal Improvement Blueprint
+    const systemPrompt = `You are a supportive career mentor helping a candidate understand why their application wasn't successful and providing actionable guidance for improvement. You are NOT a recruiter making judgments—you are a coach providing genuine support.
 
-You MUST return a valid JSON object with this exact structure:
+Your tone must be:
+- Warm, empathetic, and encouraging (like a trusted mentor)
+- Direct and honest about what didn't work (no sugar-coating)
+- Specific and actionable (not generic platitudes)
+- Focused on growth, not evaluation
+
+CRITICAL: This is for candidates who were rejected. Acknowledge this respectfully, explain clearly why, and pivot to growth.
+
+Return a valid JSON object with this exact structure:
 {
-  "executiveSummary": {
-    "headline": "A 1-2 sentence powerful summary of their candidacy",
-    "overallAssessment": "3-4 sentences with personalized assessment based on their actual performance",
-    "standoutMoments": ["Array of 2-3 specific positive moments from their application"],
-    "criticalGrowthAreas": ["Array of 2-3 areas that need the most attention"]
+  "honestReflection": {
+    "whatHappened": "2-3 sentences honestly explaining why this application didn't move forward. Be specific about the key factor(s). Use 'we' language sparingly—focus on what was observed in their performance.",
+    "scoreContext": "1-2 sentences explaining what their score means in practical terms (not just a number)",
+    "keyInsight": "One powerful, specific takeaway that anchors the entire report—something they can immediately understand and act on"
   },
-  "personalityProfile": {
-    "primaryTraits": [
-      { "trait": "Trait name", "score": 0-100, "description": "How this manifested in their application" }
+  "strengthsToLeverage": {
+    "identified": [
+      {
+        "strength": "Specific strength name",
+        "evidence": "Direct quote or specific observation from their application",
+        "futureStrategy": "How to better present this strength in future applications—be specific with examples"
+      }
     ],
-    "communicationStyle": {
-      "style": "e.g., Direct, Analytical, Expressive, Amiable",
-      "strengths": ["Communication strengths observed"],
-      "developmentAreas": ["Areas to improve in communication"]
-    },
-    "workStyleInsights": "2-3 sentences about how they'd likely work based on their responses"
+    "hiddenEdge": "Something unique they demonstrated that many candidates don't have—frame it as their competitive advantage"
   },
-  "phaseAnalysis": [
+  "improvementCoaching": [
     {
-      "phaseName": "Phase name",
-      "score": 0-100,
-      "status": "excellent/good/needs-improvement/concerning",
-      "summary": "1-2 sentence summary",
-      "whatWentWell": ["Specific positives with examples"],
-      "areasForImprovement": ["Specific improvements needed with context"],
-      "keyMoments": ["Direct quotes or specific behaviors observed"],
-      "coachingTip": "One actionable tip for this specific phase"
+      "area": "What needs improvement (clear, non-judgmental label)",
+      "whatWasObserved": "Specific, factual observation of what happened—use their actual behavior/responses",
+      "whyThisMatters": "1-2 sentences explaining how this commonly affects hiring decisions—help them understand employer perspective",
+      "improvementStrategy": {
+        "framework": "A named method or framework they can follow (e.g., STAR method, 2-minute rule)",
+        "practiceScript": "An example script or response structure they can literally practice",
+        "dailyHabit": "One small daily action (5-10 min) that builds this skill"
+      },
+      "resource": {
+        "name": "Specific resource name",
+        "url": "Real URL (use typingtest.com, pramp.com, interviewing.io, toastmasters.org, coursera.org, etc.)",
+        "whyHelpful": "One sentence on why this specific resource addresses their gap"
+      }
     }
   ],
-  "skillsBreakdown": {
-    "technicalSkills": [
-      { "skill": "Skill name", "score": 0-100, "evidence": "What demonstrated this" }
-    ],
-    "softSkills": [
-      { "skill": "Skill name", "score": 0-100, "evidence": "What demonstrated this" }
-    ],
-    "communicationMetrics": {
-      "clarity": 0-100,
-      "articulation": 0-100,
-      "confidence": 0-100,
-      "professionalTone": 0-100
+  "thirtyDayPlan": {
+    "week1": {
+      "focus": "Primary skill to work on",
+      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
+      "successMetric": "How they'll know they've made progress"
+    },
+    "week2": {
+      "focus": "Secondary skill to work on",
+      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
+      "successMetric": "How they'll know they've made progress"
+    },
+    "week3": {
+      "focus": "Integration and practice",
+      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
+      "successMetric": "How they'll know they've made progress"
+    },
+    "week4": {
+      "focus": "Application preparation",
+      "dailyActions": ["Update resume with new skills", "Practice mock interview", "Identify 3 new opportunities to apply"],
+      "successMetric": "Ready to submit a stronger application"
     }
   },
-  "interviewDeepDive": {
-    "overallImpression": "2-3 sentences on interview performance",
-    "questionBreakdown": [
-      {
-        "question": "The question asked",
-        "responseQuality": "excellent/good/fair/poor",
-        "notableQuote": "Direct quote from their response",
-        "whatWorked": "What was good about their answer",
-        "whatToImprove": "How they could have answered better",
-        "idealApproach": "Brief example of a stronger answer"
-      }
-    ],
-    "bodyLanguageAndTone": "Observations about delivery if available",
-    "missedOpportunities": ["Things they could have mentioned but didn't"]
-  },
-  "growthRoadmap": {
-    "immediate": [
-      {
-        "title": "Action item title",
-        "priority": "high/medium/low",
-        "timeframe": "e.g., This week, Next 30 days",
-        "description": "Why this matters",
-        "actionSteps": ["Step 1", "Step 2", "Step 3"],
-        "resources": [
-          { "name": "Resource name", "url": "https://...", "description": "How this helps" }
-        ],
-        "successMetric": "How to know when you've improved"
-      }
-    ],
-    "shortTerm": [],
-    "longTerm": []
-  },
-  "motivationalClose": {
-    "personalizedMessage": "3-4 sentences of genuine encouragement based on their specific strengths",
-    "nextSteps": ["3-5 immediate action items they should take"],
-    "inspirationalQuote": { "quote": "Relevant quote", "author": "Author name" }
+  "closingMessage": {
+    "personalNote": "3-4 sentences of genuine encouragement. Reference something SPECIFIC from their application that shows potential. Avoid generic 'you've got this!' language. Be real.",
+    "immediateActions": ["5 specific, actionable items they can do TODAY or this week—not vague advice"],
+    "finalThought": "One sentence that leaves them feeling capable and motivated—not a generic quote"
   }
 }
 
-IMPORTANT: 
-- Use their ACTUAL scores, quotes, and data - not generic placeholders
-- Include REAL resource URLs (typingtest.com, keybr.com, pramp.com, interviewing.io, toastmasters.org, coursera.org, udemy.com, etc.)
-- Be specific and reference their actual performance
-- If data is missing for a section, create reasonable inferences but note the limitation`;
+IMPORTANT GUIDELINES:
+- Reference their ACTUAL scores, quotes, and specific behaviors from the application data
+- Include REAL resource URLs that directly address their specific gaps
+- Be honest about what didn't work—candidates respect directness over vague feedback
+- Make the 30-day plan SPECIFIC to their weaknesses—not generic career advice
+- Each improvement area must have a concrete strategy they can implement immediately
+- Avoid: "stay positive", "believe in yourself", "great things ahead"—be more substantive
+- If data is limited, acknowledge it: "Based on the available data..."`;
 
-    const userPrompt = `Analyze this candidate's job application and create a comprehensive performance report:
+    const userPrompt = `Create a Personal Improvement Blueprint for this rejected candidate. Be their mentor, not their judge.
 
 ${applicationContext}
 
-Create a deeply personalized report that:
-1. References their specific scores, quotes, and behaviors
-2. Provides actionable improvement advice with real resource links
-3. Analyzes their personality based on their responses
-4. Gives honest but encouraging feedback
-5. Creates a practical growth roadmap with timelines
+REMEMBER:
+1. They were rejected—acknowledge this with empathy but be clear about why
+2. Give them actionable strategies, not just identification of problems
+3. The 30-day plan should target their specific weaknesses
+4. Every piece of advice should be concrete enough to implement TODAY
+5. Leave them feeling informed and empowered, not discouraged
 
 Return ONLY the JSON object, no markdown or extra text.`;
 
-    console.log('Calling Lovable AI for performance report analysis...');
+    console.log('Calling Lovable AI for improvement blueprint analysis...');
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -238,7 +219,7 @@ Return ONLY the JSON object, no markdown or extra text.`;
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
-        max_tokens: 8000,
+        max_tokens: 6000,
       }),
     });
 
@@ -268,10 +249,8 @@ Return ONLY the JSON object, no markdown or extra text.`;
       throw new Error('No content in AI response');
     }
 
-    // Parse the JSON response
     let reportData;
     try {
-      // Remove any markdown code blocks if present
       const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
       reportData = JSON.parse(cleanedContent);
     } catch (parseError) {
@@ -279,7 +258,6 @@ Return ONLY the JSON object, no markdown or extra text.`;
       throw new Error('Failed to parse AI analysis');
     }
 
-    // Add metadata
     const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
@@ -290,7 +268,7 @@ Return ONLY the JSON object, no markdown or extra text.`;
       applicationId: applicationId,
     };
 
-    console.log('Successfully generated performance report');
+    console.log('Successfully generated improvement blueprint');
 
     return new Response(
       JSON.stringify(reportData),
@@ -298,7 +276,7 @@ Return ONLY the JSON object, no markdown or extra text.`;
     );
 
   } catch (error: any) {
-    console.error('Error generating performance report:', error);
+    console.error('Error generating improvement blueprint:', error);
     return new Response(
       JSON.stringify({ error: error?.message || 'Failed to generate report' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -309,16 +287,14 @@ Return ONLY the JSON object, no markdown or extra text.`;
 function buildApplicationContext(application: any, parsedNotes: any, profile: any): string {
   const sections: string[] = [];
 
-  // Basic info
   sections.push(`## Candidate Information
 - Name: ${profile?.full_name || 'Unknown'}
 - Email: ${profile?.email || 'Unknown'}
 - Position Applied: ${application.jobs?.title || 'Unknown'}
 - Application Status: ${application.status}
-- Overall AI Score: ${application.ai_score || 'Not scored'}
+- Overall AI Score: ${application.ai_score || 'Not scored'}/100
 `);
 
-  // Job requirements
   if (application.jobs) {
     sections.push(`## Job Details
 - Title: ${application.jobs.title}
@@ -328,44 +304,36 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
 `);
   }
 
-  // Cover letter
   if (application.cover_letter) {
     sections.push(`## Cover Letter
 ${application.cover_letter}
 `);
   }
 
-  // AI Analysis
   if (application.ai_analysis) {
     sections.push(`## Previous AI Analysis
 ${application.ai_analysis}
 `);
   }
 
-  // Typing test results
   if (parsedNotes?.typingTestResult) {
     const typing = parsedNotes.typingTestResult;
     sections.push(`## Typing Test Results
 - Words Per Minute (WPM): ${typing.wpm || 'N/A'}
 - Accuracy: ${typing.accuracy || 'N/A'}%
-- Raw WPM: ${typing.rawWpm || 'N/A'}
-- Characters Typed: ${typing.charactersTyped || 'N/A'}
 - Errors: ${typing.errors || 0}
 `);
   }
 
-  // Quiz results
   if (parsedNotes?.quizResult) {
     const quiz = parsedNotes.quizResult;
     sections.push(`## Quiz Results
 - Score: ${quiz.score || 'N/A'}%
 - Correct Answers: ${quiz.correctAnswers || 'N/A'}
 - Total Questions: ${quiz.totalQuestions || 'N/A'}
-- Time Taken: ${quiz.timeTaken || 'N/A'}
 `);
   }
 
-  // Application questions/answers
   if (parsedNotes?.answers && Array.isArray(parsedNotes.answers)) {
     sections.push(`## Application Questions & Answers`);
     parsedNotes.answers.forEach((qa: any, i: number) => {
@@ -376,25 +344,14 @@ Answer: ${qa.answer || 'No answer provided'}
     });
   }
 
-  // Video intro
-  if (parsedNotes?.videoIntroUrl) {
-    sections.push(`## Video Introduction
-- Video submitted: Yes
-- URL: ${parsedNotes.videoIntroUrl}
-`);
-  }
-
-  // Portfolio
   if (parsedNotes?.portfolioResult) {
     const portfolio = parsedNotes.portfolioResult;
     sections.push(`## Portfolio Assessment
 - Overall Score: ${portfolio.overallScore || 'N/A'}
-- Files Submitted: ${portfolio.filesCount || 'N/A'}
 - AI Feedback: ${portfolio.feedback || 'No feedback available'}
 `);
   }
 
-  // Chat interview
   if (parsedNotes?.chatInterviewResult) {
     const chat = parsedNotes.chatInterviewResult;
     sections.push(`## Chat Interview Results
@@ -403,7 +360,6 @@ Answer: ${qa.answer || 'No answer provided'}
 `);
   }
 
-  // Sales simulation
   if (parsedNotes?.salesSimulationResult) {
     const sales = parsedNotes.salesSimulationResult;
     sections.push(`## Sales Simulation Results
@@ -414,10 +370,9 @@ Answer: ${qa.answer || 'No answer provided'}
 `);
   }
 
-  // Voice interview results (the richest data source)
   if (application.voice_interview_result) {
     const voice = application.voice_interview_result;
-    sections.push(`## Voice Interview Results (IMPORTANT - USE THIS DATA)
+    sections.push(`## Voice Interview Results (PRIMARY DATA SOURCE)
 
 ### Overall Assessment
 - Overall Score: ${voice.overall_score || 'N/A'}/100
@@ -444,18 +399,14 @@ Question ${i + 1}: ${q.question || 'Unknown'}
 - Assessment: ${q.assessment || 'No assessment'}
 - Missed Opportunities: ${q.missed_opportunities?.join(', ') || 'None noted'}
 `).join('\n') : 'No question breakdown available'}
-
-### Suggested Follow-up Areas
-${voice.suggested_followups ? voice.suggested_followups.map((f: string) => `- ${f}`).join('\n') : 'None suggested'}
 `);
   }
 
-  // Voice interview transcript
   if (application.voice_interview_transcript) {
     const transcript = application.voice_interview_transcript;
     if (Array.isArray(transcript) && transcript.length > 0) {
       sections.push(`## Voice Interview Transcript Excerpts`);
-      transcript.slice(0, 10).forEach((entry: any, i: number) => {
+      transcript.slice(0, 8).forEach((entry: any) => {
         sections.push(`${entry.role || 'Unknown'}: "${entry.content || entry.text || 'No content'}"`);
       });
     }
