@@ -3338,7 +3338,7 @@ ${interviewType} Interview with AVA Results:
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
-                if (!scheduledInterview) return;
+                if (!scheduledInterview || !application) return;
                 try {
                   const { error } = await supabase
                     .from("interviews")
@@ -3346,6 +3346,16 @@ ${interviewType} Interview with AVA Results:
                     .eq("id", scheduledInterview.id);
                   
                   if (error) throw error;
+                  
+                  // Send email notification to candidate
+                  const { notifyInterviewCancelled } = await import("@/utils/emailNotifications");
+                  const originalDate = format(new Date(scheduledInterview.scheduled_at), "EEEE, MMMM d, yyyy 'at' h:mm a");
+                  await notifyInterviewCancelled(
+                    application.candidate_id,
+                    application.jobs?.title || "Position",
+                    originalDate,
+                    application.jobs?.employer_id ? undefined : undefined
+                  );
                   
                   queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
                   queryClient.invalidateQueries({ queryKey: ["interviews"] });

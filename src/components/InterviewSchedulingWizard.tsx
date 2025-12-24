@@ -301,6 +301,24 @@ export default function InterviewSchedulingWizard({
         status: "interview",
       });
 
+      // Send email notification to candidate
+      const { data: appData } = await supabase
+        .from("applications")
+        .select("candidate_id, jobs(title, employer_id, profiles:employer_id(company_name))")
+        .eq("id", applicationId)
+        .single();
+
+      if (appData) {
+        const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
+        await notifyInterviewScheduled(
+          appData.candidate_id,
+          (appData.jobs as any)?.title || jobTitle || "Position",
+          format(scheduledAt, "EEEE, MMMM d, yyyy"),
+          formatTimeToAMPM(selectedTime),
+          undefined
+        );
+      }
+
       // Invalidate interview queries so ApplicantDetails updates
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
