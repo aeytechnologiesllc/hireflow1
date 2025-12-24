@@ -42,6 +42,8 @@ import {
 } from "@/hooks/useDocumentPackages";
 import { useProfile } from "@/hooks/useProfile";
 import { useQueryClient } from "@tanstack/react-query";
+import { DocumentWizard } from "./DocumentWizard";
+import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 
 interface HiringPackageWizardProps {
   open: boolean;
@@ -130,12 +132,18 @@ export function HiringPackageWizard({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  
+  // State for DocumentWizard integration
+  const [showDocumentWizard, setShowDocumentWizard] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const createPackage = useCreateDocumentPackage();
   const sendPackage = useSendDocumentPackage();
+  
+  // Fetch applications for DocumentWizard
+  const { data: applications = [] } = useApplicationsForDocuments();
 
   // Reset when dialog opens
   useEffect(() => {
@@ -183,9 +191,32 @@ export function HiringPackageWizard({
     setPackageName("");
     setItems([]);
     setShowDocumentCreator(false);
+    setShowDocumentWizard(false);
     setSelectedDocType(null);
     setSelectedRequestTypes([]);
     onOpenChange(false);
+  };
+
+  // Handle when DocumentWizard creates a document - add it to the package
+  const handleDocumentCreated = (document: { id: string; name: string; document_type: string; file_url: string }) => {
+    const newDoc: TempDocument = {
+      id: document.id, // Use the actual document ID from the database
+      type: "document",
+      name: document.name,
+      document_type: document.document_type,
+      file_url: document.file_url,
+      mode: "generate",
+    };
+    
+    setItems((prev) => [...prev, newDoc]);
+    setShowDocumentWizard(false);
+    setShowDocumentCreator(false);
+    setSelectedDocType(null);
+    
+    toast({
+      title: "Document Created",
+      description: `${document.name} has been added to the package.`,
+    });
   };
 
   // Generate document with AI
@@ -607,20 +638,10 @@ export function HiringPackageWizard({
                 {documentMode === "generate" ? (
                   <Button
                     className="w-full"
-                    onClick={() => handleGenerateDocument(selectedDocType!)}
-                    disabled={isGenerating}
+                    onClick={() => setShowDocumentWizard(true)}
                   >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate Document
-                      </>
-                    )}
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Document
                   </Button>
                 ) : (
                   <div className="space-y-3">
@@ -971,6 +992,17 @@ export function HiringPackageWizard({
           )}
         </div>
       </DialogContent>
+      
+      {/* DocumentWizard for detailed document generation flow */}
+      <DocumentWizard
+        open={showDocumentWizard}
+        onOpenChange={setShowDocumentWizard}
+        applications={applications}
+        preSelectedApplicationId={applicationId}
+        initialMode="generate"
+        preSelectedDocumentType={selectedDocType || undefined}
+        onDocumentCreated={handleDocumentCreated}
+      />
     </Dialog>
   );
 }

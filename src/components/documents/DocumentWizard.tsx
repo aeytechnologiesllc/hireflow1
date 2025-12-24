@@ -53,12 +53,22 @@ import {
 import { generateV1Hash } from "@/lib/documentHash";
 import { generatePdfHash } from "@/lib/pdfSignatureBurner";
 
+interface CreatedDocumentData {
+  id: string;
+  name: string;
+  document_type: string;
+  file_url: string;
+}
+
 interface DocumentWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   applications: ApplicationForDocument[];
   preSelectedApplicationId?: string;
   initialMode?: "generate" | "upload";
+  preSelectedDocumentType?: string;
+  embedded?: boolean; // When true, won't show its own Dialog wrapper
+  onDocumentCreated?: (document: CreatedDocumentData) => void; // Callback when document is created
 }
 
 const DOCUMENT_TYPES = [
@@ -137,6 +147,9 @@ export function DocumentWizard({
   applications,
   preSelectedApplicationId,
   initialMode,
+  preSelectedDocumentType,
+  embedded = false,
+  onDocumentCreated,
 }: DocumentWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [documentSource, setDocumentSource] = useState<"generate" | "upload" | "">("");
@@ -204,14 +217,28 @@ export function DocumentWizard({
     }
   }, [open, profile]);
 
-  // Handle pre-selection when props are provided
+  // Handle pre-selection when props are provided - must run after application data is loaded
   useEffect(() => {
     if (open && initialMode) {
       setDocumentSource(initialMode);
-      // Skip the source selection step (step 0) by starting at step 1
-      setCurrentStep(1);
+      
+      if (preSelectedDocumentType) {
+        setDocumentType(preSelectedDocumentType);
+      }
+      
+      // Determine which step to skip to based on what's pre-selected
+      if (preSelectedDocumentType && preSelectedApplicationId && applications.length > 0) {
+        // If mode, type, AND application are pre-selected, skip to details step (step 3)
+        setCurrentStep(3);
+      } else if (preSelectedDocumentType) {
+        // If mode and type are pre-selected, skip to recipient step (step 2)
+        setCurrentStep(2);
+      } else {
+        // Just mode is pre-selected, skip to type selection step (step 1)
+        setCurrentStep(1);
+      }
     }
-  }, [open, initialMode]);
+  }, [open, initialMode, preSelectedDocumentType, preSelectedApplicationId, applications.length]);
 
   useEffect(() => {
     if (open && preSelectedApplicationId && applications.length > 0) {
@@ -710,6 +737,16 @@ export function DocumentWizard({
           type: "system" as const,
           link: "/documents",
         }]);
+      }
+
+      // If callback is provided, call it with the created document
+      if (onDocumentCreated) {
+        onDocumentCreated({
+          id: document.id,
+          name: docName,
+          document_type: docType,
+          file_url: fileUrl,
+        });
       }
 
       toast({
@@ -1570,112 +1607,127 @@ export function DocumentWizard({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
-        {/* Progress Header */}
-        <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-primary/10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                {documentSource === "upload" ? (
-                  <Upload className="h-5 w-5 text-primary" />
-                ) : (
-                  <Wand2 className="h-5 w-5 text-primary" />
-                )}
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">{WIZARD_STEPS[currentStep]?.title || "Create Document"}</h2>
-                <p className="text-sm text-muted-foreground">{WIZARD_STEPS[currentStep]?.subtitle || ""}</p>
-              </div>
+  const wizardContent = (
+    <>
+      {/* Progress Header */}
+      <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-primary/10">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+              {documentSource === "upload" ? (
+                <Upload className="h-5 w-5 text-primary" />
+              ) : (
+                <Wand2 className="h-5 w-5 text-primary" />
+              )}
             </div>
-            <span className="text-sm text-muted-foreground">
-              Step {currentStep + 1} of {WIZARD_STEPS.length}
-            </span>
+            <div>
+              <h2 className="text-lg font-semibold">{WIZARD_STEPS[currentStep]?.title || "Create Document"}</h2>
+              <p className="text-sm text-muted-foreground">{WIZARD_STEPS[currentStep]?.subtitle || ""}</p>
+            </div>
           </div>
-          
-          {/* Progress Bar */}
-          <div className="flex gap-2">
-            {WIZARD_STEPS.map((step, index) => (
-              <div
-                key={step.id}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  index <= currentStep ? "bg-primary" : "bg-border"
-                }`}
-              />
-            ))}
-          </div>
+          <span className="text-sm text-muted-foreground">
+            Step {currentStep + 1} of {WIZARD_STEPS.length}
+          </span>
         </div>
-
-        {/* Content Area */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          <AnimatePresence mode="wait">
-            {renderStepContent()}
-          </AnimatePresence>
+        
+        {/* Progress Bar */}
+        <div className="flex gap-2">
+          {WIZARD_STEPS.map((step, index) => (
+            <div
+              key={step.id}
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                index <= currentStep ? "bg-primary" : "bg-border"
+              }`}
+            />
+          ))}
         </div>
+      </div>
 
-        {/* Footer Actions */}
-        <div className="border-t border-border p-4 flex items-center justify-between bg-background">
-          <Button
-            variant="outline"
-            onClick={currentStep === 0 ? handleClose : handleBack}
-            disabled={isGenerating || isSubmitting || isUploading}
-          >
-            {currentStep === 0 ? (
-              "Cancel"
+      {/* Content Area */}
+      <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <AnimatePresence mode="wait">
+          {renderStepContent()}
+        </AnimatePresence>
+      </div>
+
+      {/* Footer Actions */}
+      <div className="border-t border-border p-4 flex items-center justify-between bg-background">
+        <Button
+          variant="outline"
+          onClick={currentStep === 0 ? handleClose : handleBack}
+          disabled={isGenerating || isSubmitting || isUploading}
+        >
+          {currentStep === 0 ? (
+            "Cancel"
+          ) : (
+            <>
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              Back
+            </>
+          )}
+        </Button>
+
+        {getCurrentStepId() === "source" ? (
+          <div /> // Empty div for spacing on source step
+        ) : getCurrentStepId() === "review" ? (
+          <Button onClick={handleSubmit} disabled={!canProceed() || isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Creating...
+              </>
             ) : (
               <>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Back
+                <Send className="h-4 w-4 mr-2" />
+                Send for Signature
               </>
             )}
           </Button>
+        ) : (
+          <Button 
+            onClick={handleNext} 
+            disabled={!canProceed() || isGenerating || isUploading}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : getCurrentStepId() === "generate" ? (
+              <>
+                <Wand2 className="h-4 w-4 mr-2" />
+                Generate
+              </>
+            ) : (
+              <>
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </>
+  );
 
-          {getCurrentStepId() === "source" ? (
-            <div /> // Empty div for spacing on source step
-          ) : getCurrentStepId() === "review" ? (
-            <Button onClick={handleSubmit} disabled={!canProceed() || isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Send for Signature
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleNext} 
-              disabled={!canProceed() || isGenerating || isUploading}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : isUploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : getCurrentStepId() === "generate" ? (
-                <>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Generate
-                </>
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+  // When embedded, just return the content without Dialog wrapper
+  if (embedded) {
+    return (
+      <div className="max-w-4xl max-h-[90vh] overflow-hidden bg-background rounded-lg border border-border">
+        {wizardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+        {wizardContent}
       </DialogContent>
     </Dialog>
   );
