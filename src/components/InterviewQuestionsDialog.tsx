@@ -198,7 +198,7 @@ Please generate 5-7 tailored interview questions. For each question, include:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] bg-card border-border">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -209,7 +209,7 @@ Please generate 5-7 tailored interview questions. For each question, include:
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[55vh] pr-4">
+        <ScrollArea className="flex-1 min-h-[200px] max-h-[65vh] pr-4 overflow-y-auto">
           {parsedQuestions.length > 0 ? (
             <div className="space-y-4">
               {parsedQuestions.map((q, index) => (
