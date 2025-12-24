@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { detectResumeUrl, parseApplicationNotes } from "./detectResumeUrl";
 
 export interface EvaluationResult {
   score: number | null;
@@ -32,12 +33,11 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
     }
 
     // Parse notes to get all phase data
-    let parsedNotes: Record<string, any> = {};
-    try {
-      parsedNotes = application.notes ? JSON.parse(application.notes) : {};
-    } catch {
-      parsedNotes = {};
-    }
+    const parsedNotes = parseApplicationNotes(application.notes);
+    
+    // Detect resume URL from canonical field OR application answers
+    const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
+    console.log("[triggerAvaAnalysis] Detected resume URL:", detectedResumeUrl);
 
     // Build content string from all available phase data (same logic as handleReanalyze)
     const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
@@ -68,7 +68,7 @@ ${applicationAnswersText}
 Cover Letter:
 ${application.cover_letter || "Not provided"}
 
-Resume URL: ${application.resume_url || "Not provided"}
+Resume URL: ${detectedResumeUrl || "Not provided"}
 `;
 
     // Add Typing Test results if available
@@ -169,7 +169,7 @@ ${interviewType} Interview with AVA Results:
       body: {
         type: "resume",
         content,
-        resumeUrl: application.resume_url || null,
+        resumeUrl: detectedResumeUrl,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
