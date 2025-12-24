@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
-import { LiquidBlobLoader } from "./LiquidBlobLoader";
+import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
 
 interface StorytellingLoaderProps {
   messages: string[];
@@ -36,14 +36,14 @@ export function StorytellingLoader({
       <GradientOrbs count={3} />
       <FloatingParticles count={15} intensity="subtle" />
 
-      {/* Liquid Blob Loader */}
+      {/* Staggered Bars Loader */}
       <motion.div
         className="relative mb-8"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <LiquidBlobLoader size={140} showGlow={true} showParticles={showProgress} />
+        <StaggeredBarsLoader size="lg" />
       </motion.div>
 
       {/* Title */}

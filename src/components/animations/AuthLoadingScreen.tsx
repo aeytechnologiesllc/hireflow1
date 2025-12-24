@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
-import { LiquidBlobLoader } from "./LiquidBlobLoader";
+import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
@@ -55,9 +55,9 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
         animate={{ opacity: 1 }}
         className="relative z-10 flex flex-col items-center"
       >
-        {/* Liquid Blob Loader */}
+        {/* Staggered Bars Loader */}
         <div className="mb-8">
-          <LiquidBlobLoader size={120} showGlow={true} showParticles={true} />
+          <StaggeredBarsLoader size="lg" />
         </div>
         {/* Rotating messages */}
         <div className="h-8 overflow-hidden relative">
