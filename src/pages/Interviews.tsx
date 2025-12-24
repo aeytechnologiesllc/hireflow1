@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview } from "@/hooks/useInterviews";
+import { supabase } from "@/integrations/supabase/client";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,25 @@ function InterviewCard({ interview, isEmployer, canScheduleInterviews, onStatusC
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {/* Show candidate response status for employers */}
+                {isEmployer && interview.candidate_response && (
+                  <Badge className={
+                    interview.candidate_response === 'confirmed' 
+                      ? 'bg-success/20 text-success border-success/30' 
+                      : interview.candidate_response === 'reschedule_requested'
+                      ? 'bg-amber-500/20 text-amber-500 border-amber-500/30'
+                      : 'bg-muted text-muted-foreground'
+                  }>
+                    {interview.candidate_response === 'confirmed' ? 'Candidate Confirmed' : 
+                     interview.candidate_response === 'reschedule_requested' ? 'Reschedule Requested' : 
+                     'Awaiting Response'}
+                  </Badge>
+                )}
+                {isEmployer && !interview.candidate_response && interview.status === 'scheduled' && (
+                  <Badge className="bg-muted text-muted-foreground">
+                    Awaiting Response
+                  </Badge>
+                )}
                 <Badge className={statusColors[interview.status]}>
                   {interview.status}
                 </Badge>
@@ -152,6 +172,29 @@ export default function Interviews() {
   const updateInterview = useUpdateInterview();
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<InterviewWithDetails | null>(null);
+
+  // Real-time subscription for interview updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('interviews-realtime-page')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'interviews',
+        },
+        (payload) => {
+          console.log('Interview changed in real-time:', payload);
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
