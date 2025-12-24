@@ -947,6 +947,7 @@ export default function ApplicantDetails() {
           }
           if (phase.type === "portfolio_upload") {
             delete updatedNotes[phase.id];
+            delete updatedNotes.portfolioResult; // Also clear the global portfolioResult key
           }
           // Remove from employer-skipped list if it was there
           if (updatedNotes.employerSkippedPhases) {
@@ -1176,7 +1177,8 @@ export default function ApplicantDetails() {
         delete updatedNotes.videoIntroResult;
       }
       if (phaseType === "portfolio_upload") {
-        // Already deleted via updatedNotes[phaseId]
+        // Already deleted via updatedNotes[phaseId] above, but also clear global key
+        delete updatedNotes.portfolioResult;
       }
       if (phaseType === "voice_interview") {
         // Voice interview result is stored separately

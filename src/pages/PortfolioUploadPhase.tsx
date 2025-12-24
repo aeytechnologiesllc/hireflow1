@@ -387,12 +387,13 @@ export default function PortfolioUploadPhase() {
 
   const handleDoLater = () => navigate(`/applications/${id}`);
 
-  // Check if already submitted
+  // Check if already submitted - check both stepId key and global portfolioResult key
   const existingResult = (() => {
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);
-      return notes.portfolioResult || null;
+      // Check both the stepId key and the global portfolioResult key
+      return notes[stepId!] || notes.portfolioResult || null;
     } catch {
       return null;
     }
