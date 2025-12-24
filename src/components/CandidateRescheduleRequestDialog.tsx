@@ -41,6 +41,7 @@ interface CandidateRescheduleRequestDialogProps {
   interviewId: string;
   applicationId: string;
   currentScheduledAt: string;
+  onSuccess?: () => void;
 }
 
 export function CandidateRescheduleRequestDialog({
@@ -49,6 +50,7 @@ export function CandidateRescheduleRequestDialog({
   interviewId,
   applicationId,
   currentScheduledAt,
+  onSuccess,
 }: CandidateRescheduleRequestDialogProps) {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,6 +121,10 @@ export function CandidateRescheduleRequestDialog({
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
 
       toast.success("Reschedule request sent to employer");
+      
+      // Call success callback for optimistic UI update
+      onSuccess?.();
+      
       onOpenChange(false);
       
       // Reset form
