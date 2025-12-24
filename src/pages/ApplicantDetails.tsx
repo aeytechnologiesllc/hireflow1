@@ -59,6 +59,7 @@ import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
+import { extractPdfTextFromUrl } from "@/utils/pdfText";
 interface WorkflowStep {
   id: string;
   title: string;
@@ -1377,21 +1378,31 @@ ${interviewType} Interview with AVA Results:
 - Summary: ${vr.summary || 'Not provided'}
 - Concerns: ${vr.concerns?.join(', ') || 'None noted'}
 `;
-      }
+       }
 
-      const { data, error } = await supabase.functions.invoke("ai-analyze", {
-        body: {
-          type: "resume",
-          content,
-          resumeUrl: detectedResumeUrl,
-          context: {
-            skills_required: application.jobs?.skills_required,
-            experience_level: application.jobs?.experience_level,
-            job_title: application.jobs?.title,
-            job_type: application.jobs?.job_type,
-          },
-        },
-      });
+       // If we can, extract resume text client-side so AVA can actually score the resume.
+       if (detectedResumeUrl) {
+         const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
+         if (extracted) {
+           content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
+         } else {
+           content += `\n\n[Note: Resume was provided but its text could not be extracted (image-based/scanned/designed PDF). Please analyze using the other application data.]`;
+         }
+       }
+
+       const { data, error } = await supabase.functions.invoke("ai-analyze", {
+         body: {
+           type: "resume",
+           content,
+           resumeUrl: detectedResumeUrl,
+           context: {
+             skills_required: application.jobs?.skills_required,
+             experience_level: application.jobs?.experience_level,
+             job_title: application.jobs?.title,
+             job_type: application.jobs?.job_type,
+           },
+         },
+       });
 
       if (error) throw error;
 
