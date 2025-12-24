@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,7 +41,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
+import InterviewSchedulingWizard, { type SavedWizardState } from "@/components/InterviewSchedulingWizard";
 import ApplicantNotesDialog from "@/components/ApplicantNotesDialog";
 import ApplicantMessageDialog from "@/components/ApplicantMessageDialog";
 import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
@@ -305,6 +305,7 @@ function AIAnalysisContent({ content }: { content: string }) {
 
 export default function ApplicantDetails() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const updateApplication = useUpdateApplication();
@@ -326,6 +327,7 @@ export default function ApplicantDetails() {
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
   const [showInterviewWizard, setShowInterviewWizard] = useState(false);
+  const [wizardInitialState, setWizardInitialState] = useState<SavedWizardState | null>(null);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
@@ -368,6 +370,37 @@ export default function ApplicantDetails() {
   
   // Ref to prevent useEffect from overriding slider position during phase change
   const isPhaseChangeInProgressRef = useRef(false);
+
+  // Check for OAuth return and auto-open wizard with restored state
+  useEffect(() => {
+    const openWizard = searchParams.get("openWizard");
+    if (openWizard === "true") {
+      // Check for saved wizard state
+      const savedStateStr = localStorage.getItem("interview_wizard_state");
+      if (savedStateStr) {
+        try {
+          const savedState: SavedWizardState = JSON.parse(savedStateStr);
+          // Check if state is still valid (not expired)
+          const WIZARD_STATE_EXPIRY = 30 * 60 * 1000; // 30 minutes
+          if (Date.now() - savedState.savedAt < WIZARD_STATE_EXPIRY) {
+            setWizardInitialState(savedState);
+            setShowInterviewWizard(true);
+            toast.success("Google Calendar connected! Continue scheduling your interview.");
+          }
+          // Clear the saved state after use
+          localStorage.removeItem("interview_wizard_state");
+        } catch (e) {
+          console.error("Failed to parse wizard state:", e);
+        }
+      } else {
+        // No saved state, but still open wizard (Google connected)
+        setShowInterviewWizard(true);
+      }
+      // Remove the query param
+      searchParams.delete("openWizard");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: application, isLoading } = useQuery({
     queryKey: ["application", id],
@@ -2980,6 +3013,7 @@ ${interviewType} Interview with AVA Results:
         candidateEmail={profile?.email}
         jobTitle={job?.title}
         open={showInterviewWizard}
+        initialState={wizardInitialState}
         onOpenChange={(open) => {
           if (!open && pendingInterview) {
             // Wizard cancelled - snap slider back to original position
@@ -2988,6 +3022,9 @@ ${interviewType} Interview with AVA Results:
             setPendingInterview(null);
           }
           setShowInterviewWizard(open);
+          if (!open) {
+            setWizardInitialState(null);
+          }
         }}
         onComplete={() => {
           if (pendingInterview) {
