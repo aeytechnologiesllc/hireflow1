@@ -158,15 +158,15 @@ export function EmployerRescheduleReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Reschedule Request</DialogTitle>
           <DialogDescription>
             The candidate has requested to reschedule this interview.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
           {/* Original Time */}
           <Card className="bg-muted/50">
             <CardContent className="p-4">
@@ -222,7 +222,7 @@ export function EmployerRescheduleReviewDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0 pt-4 border-t border-border">
           <Button
             variant="outline"
             onClick={handleMessageCandidate}
