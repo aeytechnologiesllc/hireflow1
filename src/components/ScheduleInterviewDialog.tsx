@@ -37,7 +37,7 @@ export default function ScheduleInterviewDialog({
   onOpenChange,
 }: ScheduleInterviewDialogProps) {
   const [scheduledAt, setScheduledAt] = useState("");
-  const [duration, setDuration] = useState("60");
+  const [duration, setDuration] = useState("15");
   const [interviewType, setInterviewType] = useState("video");
   const [meetingLink, setMeetingLink] = useState("");
   const [notes, setNotes] = useState("");
@@ -109,6 +109,7 @@ export default function ScheduleInterviewDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border">
+                  <SelectItem value="15">15 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">1 hour</SelectItem>

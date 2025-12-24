@@ -111,7 +111,7 @@ export default function InterviewSchedulingWizard({
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState("");
-  const [duration, setDuration] = useState("60");
+  const [duration, setDuration] = useState("15");
   const [interviewType, setInterviewType] = useState("video");
   const [notes, setNotes] = useState("");
   const [generateMeetLink, setGenerateMeetLink] = useState(true);
