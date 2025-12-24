@@ -581,13 +581,10 @@ export default function ApplicantDetails() {
         });
       });
       
-      // Add Review phase - only in Autopilot mode
-      const isAutoPilotMode = application?.jobs?.processing_mode === "auto";
-      if (isAutoPilotMode) {
-        allPhases.push(
-          { id: "review", title: "Review", icon: Eye, type: "review" }
-        );
-      }
+      // Add Review phase - in both Manual and Autopilot modes
+      allPhases.push(
+        { id: "review", title: "Review", icon: Eye, type: "review" }
+      );
       
       // Add Ava Interview AFTER review if it exists in workflow
       if (voiceInterviewStep) {
@@ -722,6 +719,7 @@ export default function ApplicantDetails() {
     
     if (sliderRef.current && !isDragging) {
       const currentPhase = phases[effectivePhaseIndex];
+      const nextPhase = phases[effectivePhaseIndex + 1];
       const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
       const isLastPhase = effectivePhaseIndex === phases.length - 1;
       
@@ -730,13 +728,22 @@ export default function ApplicantDetails() {
         currentPhase?.type === "voice_interview" && 
         !!application?.voice_interview_result;
       
-      // Await review in Manual mode for any phase, OR in Autopilot after Ava Interview
-      const awaitingReview = isComplete && !isLastPhase && (isManualMode || isVoiceInterviewCompleted);
+      // In Manual mode: when the next phase is Review, go directly to Review (no halfway)
+      // Otherwise, show halfway for completed phases
+      const nextIsReview = nextPhase?.type === "review";
+      
+      // Await review (halfway) logic:
+      // - In Manual mode: show halfway UNLESS the next phase is Review
+      // - In Autopilot: only show halfway after Ava Interview completes
+      const awaitingReview = isComplete && !isLastPhase && 
+        (isManualMode ? !nextIsReview : isVoiceInterviewCompleted);
       
       // Debug logging for slider position issues
       console.log('[Slider Position Debug]', {
         currentPhase: currentPhase?.id,
         phaseType: currentPhase?.type,
+        nextPhase: nextPhase?.id,
+        nextIsReview,
         isComplete,
         isLastPhase,
         isManualMode,
