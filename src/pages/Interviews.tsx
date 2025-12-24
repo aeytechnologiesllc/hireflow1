@@ -22,6 +22,7 @@ import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import { useNavigate } from "react-router-dom";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
+import { getTimezoneAbbreviation } from "@/lib/timezone";
 
 // Human-readable status labels
 const statusLabels: Record<string, string> = {
@@ -187,7 +188,7 @@ function InterviewCard({
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                <span>{format(new Date(interview.scheduled_at), "h:mm a")}</span>
+                <span>{format(new Date(interview.scheduled_at), "h:mm a")} ({getTimezoneAbbreviation()})</span>
               </div>
               {interview.duration_minutes && (
                 <span>{interview.duration_minutes} min</span>

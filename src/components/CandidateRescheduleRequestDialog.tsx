@@ -24,11 +24,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, Clock, Loader2, Plus, X } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Plus, X, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { getTimezoneAbbreviation } from "@/lib/timezone";
 
 interface ProposedTime {
   date: Date | undefined;
@@ -157,11 +158,15 @@ export function CandidateRescheduleRequestDialog({
         <DialogHeader>
           <DialogTitle>Request Reschedule</DialogTitle>
           <DialogDescription>
-            Current interview: {format(new Date(currentScheduledAt), "EEEE, MMMM d, yyyy 'at' h:mm a")}
+            Current interview: {format(new Date(currentScheduledAt), "EEEE, MMMM d, yyyy 'at' h:mm a")} ({getTimezoneAbbreviation()})
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Globe className="h-3 w-3" />
+            <span>All times are shown in your local timezone ({getTimezoneAbbreviation()})</span>
+          </div>
           <p className="text-sm text-muted-foreground">
             Please provide at least 2 alternative times that work for you. The employer will review your request.
           </p>

@@ -16,6 +16,7 @@ import { Calendar, Clock, Loader2, MessageSquare, Check, X } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { getTimezoneAbbreviation } from "@/lib/timezone";
 
 // Helper to safely format dates
 const safeFormatDate = (dateStr: string | null | undefined, formatStr: string): string => {
@@ -192,7 +193,7 @@ export function EmployerRescheduleReviewDialog({
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{safeFormatDate(currentScheduledAt, "h:mm a")}</span>
+                  <span>{safeFormatDate(currentScheduledAt, "h:mm a")} ({getTimezoneAbbreviation()})</span>
                 </div>
               </div>
             </CardContent>
@@ -225,7 +226,7 @@ export function EmployerRescheduleReviewDialog({
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>{safeFormatDate(time.datetime, "h:mm a")}</span>
+                          <span>{safeFormatDate(time.datetime, "h:mm a")} ({getTimezoneAbbreviation()})</span>
                         </div>
                       </div>
                     </Label>
