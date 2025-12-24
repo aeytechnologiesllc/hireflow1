@@ -54,7 +54,15 @@ export function EmployerRescheduleReviewDialog({
     }
 
     setIsSubmitting(true);
+    setAction("accept");
     try {
+      // First get the application to find candidate_id
+      const { data: interview } = await supabase
+        .from("interviews")
+        .select("applications(candidate_id, jobs(title))")
+        .eq("id", interviewId)
+        .single();
+
       const { error } = await supabase
         .from("interviews")
         .update({
@@ -66,6 +74,20 @@ export function EmployerRescheduleReviewDialog({
         .eq("id", interviewId);
 
       if (error) throw error;
+
+      // Create notification for candidate
+      const candidateId = (interview?.applications as any)?.candidate_id;
+      const jobTitle = (interview?.applications as any)?.jobs?.title || "Interview";
+      
+      if (candidateId) {
+        await supabase.from("notifications").insert({
+          user_id: candidateId,
+          type: "interview",
+          title: "Interview Rescheduled",
+          message: `Your interview for ${jobTitle} has been rescheduled to a new time. Please confirm.`,
+          link: `/applications`,
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
@@ -82,7 +104,15 @@ export function EmployerRescheduleReviewDialog({
 
   const handleKeepOriginal = async () => {
     setIsSubmitting(true);
+    setAction("keep");
     try {
+      // First get the application to find candidate_id
+      const { data: interview } = await supabase
+        .from("interviews")
+        .select("applications(candidate_id, jobs(title)), scheduled_at")
+        .eq("id", interviewId)
+        .single();
+
       const { error } = await supabase
         .from("interviews")
         .update({
@@ -93,6 +123,20 @@ export function EmployerRescheduleReviewDialog({
         .eq("id", interviewId);
 
       if (error) throw error;
+
+      // Create notification for candidate
+      const candidateId = (interview?.applications as any)?.candidate_id;
+      const jobTitle = (interview?.applications as any)?.jobs?.title || "Interview";
+      
+      if (candidateId) {
+        await supabase.from("notifications").insert({
+          user_id: candidateId,
+          type: "interview",
+          title: "Interview Time Confirmed",
+          message: `The employer has kept the original interview time for ${jobTitle}. Please confirm your attendance.`,
+          link: `/applications`,
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
