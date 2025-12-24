@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { CandidatePerformanceReport } from "@/components/CandidatePerformanceReport";
+import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { usePerformanceReport } from "@/hooks/usePerformanceReport";
@@ -612,7 +612,7 @@ export default function CandidateApplicationDetail() {
         />
       )}
 
-      {/* Application Status - Rejected with Performance Report */}
+      {/* Application Status - Rejected with Improvement Blueprint */}
       {isRejected && (
         <div className="space-y-4">
           <Card className="bg-destructive/10 border-destructive/40">
@@ -621,17 +621,15 @@ export default function CandidateApplicationDetail() {
               <div>
                 <h3 className="font-semibold text-destructive">Application Closed</h3>
                 <p className="text-sm text-muted-foreground">
-                  Based on your latest assessment results, this application has been closed. You can still
-                  review your previous phases, but no further steps are required.
+                  This application didn't advance to the next stage. Download your personalized improvement
+                  blueprint below to strengthen your next application.
                 </p>
               </div>
             </CardContent>
           </Card>
           
-          {/* Performance Report Download */}
-          <CandidatePerformanceReport
-            applicationId={application.id}
-          />
+          {/* Improvement Blueprint Download */}
+          <ImprovementBlueprintCard applicationId={application.id} />
         </div>
       )}
 
