@@ -31,32 +31,45 @@ interface DocumentRequestCardProps {
   onDelete?: (request: DocumentRequestWithDetails) => void;
 }
 
-const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
-  pending: {
-    color: "bg-yellow-500/20 text-yellow-500",
-    icon: Clock,
-    label: "Pending Upload",
-  },
-  submitted: {
-    color: "bg-success/20 text-success",
-    icon: CheckCircle,
-    label: "Received",
-  },
-  reviewed: {
-    color: "bg-success/20 text-success",
-    icon: CheckCircle,
-    label: "Received",
-  },
-  approved: {
-    color: "bg-success/20 text-success",
-    icon: CheckCircle,
-    label: "Approved",
-  },
-  rejected: {
-    color: "bg-destructive/20 text-destructive",
-    icon: XCircle,
-    label: "Rejected",
-  },
+// Status labels vary by role - candidates see "Completed" after uploading
+const getStatusConfig = (status: string, isEmployer: boolean): { color: string; icon: typeof Clock; label: string } => {
+  const configs: Record<string, { color: string; icon: typeof Clock; label: string; candidateLabel?: string }> = {
+    pending: {
+      color: "bg-yellow-500/20 text-yellow-500",
+      icon: Clock,
+      label: "Pending Upload",
+    },
+    submitted: {
+      color: "bg-success/20 text-success",
+      icon: CheckCircle,
+      label: "Received",
+      candidateLabel: "Completed",
+    },
+    reviewed: {
+      color: "bg-success/20 text-success",
+      icon: CheckCircle,
+      label: "Reviewed",
+      candidateLabel: "Completed",
+    },
+    approved: {
+      color: "bg-success/20 text-success",
+      icon: CheckCircle,
+      label: "Approved",
+      candidateLabel: "Completed",
+    },
+    rejected: {
+      color: "bg-destructive/20 text-destructive",
+      icon: XCircle,
+      label: "Rejected",
+    },
+  };
+  
+  const config = configs[status] || configs.pending;
+  return {
+    color: config.color,
+    icon: config.icon,
+    label: !isEmployer && config.candidateLabel ? config.candidateLabel : config.label,
+  };
 };
 
 export function DocumentRequestCard({
@@ -69,7 +82,7 @@ export function DocumentRequestCard({
   onReject,
   onDelete,
 }: DocumentRequestCardProps) {
-  const status = statusConfig[request.status];
+  const status = getStatusConfig(request.status, isEmployer);
   const StatusIcon = status.icon;
   const candidateName = request.candidate_profile?.full_name || request.candidate_profile?.email || "Unknown";
   const initials = candidateName
