@@ -54,6 +54,7 @@ import { MediaPlayer } from "@/components/MediaPlayer";
 import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import { RescheduleInterviewDialog } from "@/components/RescheduleInterviewDialog";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
+import { RejectedStampAnimation } from "@/components/animations/RejectedStampAnimation";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -355,6 +356,7 @@ export default function ApplicantDetails() {
   const [showCancelInterviewConfirm, setShowCancelInterviewConfirm] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
+  const [showRejectAnimation, setShowRejectAnimation] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   
   // Refs to store current values for the drag event handlers (fixes stale closure bug)
@@ -1107,11 +1109,16 @@ export default function ApplicantDetails() {
   const handleReject = async () => {
     if (!application) return;
     try {
+      // Trigger animation FIRST
+      setShowRejectAnimation(true);
+      
+      // Update database in background
       await updateApplication.mutateAsync({ id: application.id, status: "rejected" });
       queryClient.invalidateQueries({ queryKey: ["application", id] });
-      toast.success("Candidate rejected");
-      navigate("/applicants");
+      
+      // No navigation - animation handles feedback
     } catch (error) {
+      setShowRejectAnimation(false);
       toast.error("Failed to reject candidate");
     }
   };
@@ -1755,15 +1762,21 @@ ${interviewType} Interview with AVA Results:
         transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
       >
       <Card className={`bg-card border-border overflow-hidden ${isRejected ? 'relative' : ''}`}>
-        {/* Rejected Overlay */}
-        {isRejected && (
+        {/* Rejected Stamp Animation */}
+        <RejectedStampAnimation 
+          isVisible={showRejectAnimation} 
+          onComplete={() => setShowRejectAnimation(false)}
+        />
+        
+        {/* Static Rejected Overlay (after animation completes) */}
+        {isRejected && !showRejectAnimation && (
           <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] z-30 flex items-center justify-center pointer-events-none">
             <div className="transform -rotate-12 border-4 border-destructive/50 rounded-lg px-8 py-3">
               <span className="text-4xl font-bold text-destructive/70 tracking-widest">REJECTED</span>
             </div>
           </div>
         )}
-        <CardContent className={`p-6 ${isRejected ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+        <CardContent className={`p-6 ${isRejected && !showRejectAnimation ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
