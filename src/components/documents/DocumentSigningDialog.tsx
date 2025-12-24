@@ -43,6 +43,7 @@ import {
   logDocumentDeclined,
   logDocumentViewed
 } from "@/lib/auditTrail";
+import { notifyDocumentSigned } from "@/utils/emailNotifications";
 
 interface SignatureField {
   id: string;
@@ -514,6 +515,16 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
           type: "system" as const,
           link: "/documents",
         });
+
+        // Send email notification to employer
+        (async () => {
+          try {
+            const candidateName = user?.user_metadata?.full_name || user?.email || "A candidate";
+            notifyDocumentSigned(document.sender_id, candidateName, document.name);
+          } catch (err) {
+            console.error("Failed to send document signed email notification:", err);
+          }
+        })();
       }
 
       toast({

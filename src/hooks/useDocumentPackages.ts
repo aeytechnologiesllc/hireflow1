@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { notifyDocumentSent } from "@/utils/emailNotifications";
 
 export interface DocumentPackage {
   id: string;
@@ -307,7 +308,7 @@ export function useSendDocumentPackage() {
       // Get package details
       const { data: pkg, error: pkgError } = await supabase
         .from("document_packages")
-        .select("*, applications(candidate_id, jobs(title))")
+        .select("*, applications(candidate_id, jobs(title, employer_id))")
         .eq("id", packageId)
         .single();
 
@@ -347,6 +348,24 @@ export function useSendDocumentPackage() {
         link: "/documents",
         is_read: false,
       });
+
+      // Send email notification asynchronously
+      (async () => {
+        try {
+          const employerId = (pkg.applications as any)?.jobs?.employer_id;
+          if (employerId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("company_name")
+              .eq("user_id", employerId)
+              .single();
+
+            notifyDocumentSent(pkg.candidate_id, pkg.name || "Hiring Package", profile?.company_name);
+          }
+        } catch (err) {
+          console.error("Failed to send document package email notification:", err);
+        }
+      })();
 
       return pkg;
     },
