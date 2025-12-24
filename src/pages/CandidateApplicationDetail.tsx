@@ -178,36 +178,39 @@ export default function CandidateApplicationDetail() {
         (payload) => {
           console.log("Application updated:", payload);
           const newStatus = payload.new.status as string;
-          const oldStatus = payload.old?.status as string;
+          // Use previousStatusRef as fallback when payload.old.status is undefined
+          const oldStatus = payload.old?.status as string || previousStatusRef.current;
           const newPhase = payload.new.phase;
-          const oldPhase = payload.old?.phase;
+          const oldPhase = payload.old?.phase || previousPhaseRef.current;
           
           refetch();
           
           // Detect reconsideration (rejected → reviewing)
           if (newStatus === "reviewing" && oldStatus === "rejected") {
             setStatusScreen("reconsidered");
+            previousStatusRef.current = newStatus;
+            previousPhaseRef.current = newPhase as string;
             return; // Don't process other status changes
           }
           
           // Detect status changes and show appropriate screen
-          // Note: payload.old might be empty if REPLICA IDENTITY isn't FULL, so also check payload.new directly
-          const statusChanged = newStatus !== oldStatus || !oldStatus;
+          const statusChanged = newStatus !== oldStatus;
           
-          if (newStatus === "rejected" && statusChanged) {
-            setStatusScreen("rejected");
-          } else if (newStatus === "hired" && statusChanged) {
-            setStatusScreen("hired");
-          } else if (newStatus === "interview" && statusChanged) {
-            fetchInterviewDetails(id);
-            setStatusScreen("interview_scheduled");
+          if (statusChanged) {
+            if (newStatus === "rejected") {
+              setStatusScreen("rejected");
+            } else if (newStatus === "hired") {
+              setStatusScreen("hired");
+            } else if (newStatus === "interview") {
+              fetchInterviewDetails(id);
+              setStatusScreen("interview_scheduled");
+            }
           }
           
           // Detect phase changes - specifically for Ava Interview unlock
           const phaseChanged = newPhase !== oldPhase && oldPhase;
           if (phaseChanged && !statusChanged) {
             // Check if advanced to voice_interview phase (Ava Interview)
-            // We need to fetch the latest application to get the workflow steps
             const checkVoiceInterview = async () => {
               const { data: app } = await supabase
                 .from("applications")
@@ -228,6 +231,10 @@ export default function CandidateApplicationDetail() {
             };
             checkVoiceInterview();
           }
+          
+          // Always update refs after processing
+          previousStatusRef.current = newStatus;
+          previousPhaseRef.current = newPhase as string;
         }
       )
       .subscribe();
