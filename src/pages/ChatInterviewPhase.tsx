@@ -658,8 +658,10 @@ export default function ChatInterviewPhase() {
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Trigger AVA analysis in background (fire-and-forget)
-      triggerAvaAnalysis(id!).catch(console.error);
+      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
+      supabase.functions.invoke("trigger-ava-analysis", {
+        body: { applicationId: id! },
+      }).catch(err => console.error("[ChatInterviewPhase] AVA analysis trigger failed:", err));
 
       // Show rejection screen for failed autopilot, otherwise complete
       if (isAutoMode && !passed) {

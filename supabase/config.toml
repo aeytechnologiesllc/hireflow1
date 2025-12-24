@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.candidate-interview-response]
 verify_jwt = true
+
+[functions.trigger-ava-analysis]
+verify_jwt = true

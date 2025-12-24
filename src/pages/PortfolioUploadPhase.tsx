@@ -348,7 +348,11 @@ export default function PortfolioUploadPhase() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-      triggerAvaAnalysis(id!).catch(console.error);
+      
+      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
+      supabase.functions.invoke("trigger-ava-analysis", {
+        body: { applicationId: id! },
+      }).catch(err => console.error("[PortfolioUploadPhase] AVA analysis trigger failed:", err));
 
       if (isAutoMode) {
         setEvaluationState("passed");

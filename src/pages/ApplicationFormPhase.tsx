@@ -360,10 +360,12 @@ export default function ApplicationFormPhase() {
         .update({ phase: newPhase })
         .eq("id", id!);
 
-      // Always trigger AVA analysis (for both manual and auto modes)
+      // Always trigger AVA analysis via backend edge function (bypasses RLS issues)
       if (isAutoPilot) {
         // Trigger analysis and evaluate - wait for it in auto mode
-        await triggerAvaAnalysis(id!);
+        await supabase.functions.invoke("trigger-ava-analysis", {
+          body: { applicationId: id! },
+        });
         
         // Fetch updated score
         const { data: updatedApp } = await supabase
@@ -383,7 +385,9 @@ export default function ApplicationFormPhase() {
         }
       } else {
         // Manual mode - trigger analysis in background and navigate
-        triggerAvaAnalysis(id!).catch(console.error);
+        supabase.functions.invoke("trigger-ava-analysis", {
+          body: { applicationId: id! },
+        }).catch(err => console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err));
         toast.success("Application submitted successfully!");
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         navigate(`/applications/${id}`);
