@@ -485,6 +485,32 @@ export default function ApplicantDetails() {
     };
   }, [id, queryClient]);
 
+  // Real-time subscription for interview updates (candidate confirms, reschedules, etc.)
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`interview-employer-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'interviews',
+          filter: `application_id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Interview updated in real-time:', payload);
+          queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, queryClient]);
+
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;

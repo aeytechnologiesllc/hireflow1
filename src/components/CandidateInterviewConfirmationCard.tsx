@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,14 @@ export function CandidateInterviewConfirmationCard({
   const queryClient = useQueryClient();
   const [isConfirming, setIsConfirming] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  
+  // Local state for optimistic UI updates
+  const [localCandidateResponse, setLocalCandidateResponse] = useState(interview.candidate_response);
+  
+  // Sync local state when prop changes
+  useEffect(() => {
+    setLocalCandidateResponse(interview.candidate_response);
+  }, [interview.candidate_response]);
 
   const handleConfirm = async () => {
     setIsConfirming(true);
@@ -43,6 +51,9 @@ export function CandidateInterviewConfirmationCard({
         .eq("id", interview.id);
 
       if (error) throw error;
+
+      // Optimistic update - immediately show confirmed state
+      setLocalCandidateResponse("confirmed");
 
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
@@ -55,7 +66,8 @@ export function CandidateInterviewConfirmationCard({
     }
   };
 
-  const candidateResponse = interview.candidate_response || "pending";
+  // Use local state for immediate UI feedback
+  const candidateResponse = localCandidateResponse || "pending";
   const isScheduled = interview.status === "scheduled";
   const isFutureInterview = isFuture(new Date(interview.scheduled_at));
 
