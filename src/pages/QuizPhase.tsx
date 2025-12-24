@@ -244,14 +244,34 @@ const handleFinishQuiz = () => {
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       
       // Create answers summary
-      const answersSummary = questions.map(q => ({
-        questionId: q.id,
-        question: q.question,
-        selectedAnswer: answers[q.id],
-        selectedAnswerText: q.options[answers[q.id]] || "Not answered",
-        correctAnswer: q.correctAnswer,
-        isCorrect: answers[q.id] === q.correctAnswer,
-      }));
+      const answersSummary = questions.map(q => {
+        const userAnswer = answers[q.id];
+        
+        // Get correct answer - handle both field names and formats (same logic as calculateResults)
+        let correctAnswerIndex: number | undefined;
+        
+        if (q.correctAnswer !== undefined) {
+          correctAnswerIndex = q.correctAnswer;
+        } else if (q.correct_answer !== undefined) {
+          if (typeof q.correct_answer === 'number') {
+            correctAnswerIndex = q.correct_answer;
+          } else if (typeof q.correct_answer === 'string') {
+            correctAnswerIndex = q.options.findIndex(
+              opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
+            );
+            if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
+          }
+        }
+        
+        return {
+          questionId: q.id,
+          question: q.question,
+          selectedAnswer: userAnswer,
+          selectedAnswerText: q.options[userAnswer] || "Not answered",
+          correctAnswer: correctAnswerIndex,
+          isCorrect: userAnswer !== undefined && correctAnswerIndex !== undefined && userAnswer === correctAnswerIndex,
+        };
+      });
       
       // Add quiz results
       const updatedNotes = {
