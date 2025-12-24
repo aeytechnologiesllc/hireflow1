@@ -502,6 +502,22 @@ export default function ApplicantDetails() {
         (payload) => {
           console.log('Interview updated in real-time:', payload);
           queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
+          
+          // Show toast notifications for interview changes
+          const newData = payload.new as any;
+          const oldData = payload.old as any;
+          
+          if (newData?.candidate_response === "reschedule_requested" && 
+              oldData?.candidate_response !== "reschedule_requested") {
+            toast.info("Candidate has requested to reschedule", {
+              description: "Review their proposed times and respond.",
+            });
+          } else if (newData?.candidate_response === "confirmed" && 
+                     oldData?.candidate_response !== "confirmed") {
+            toast.success("Candidate confirmed the interview!", {
+              description: "The interview is now confirmed.",
+            });
+          }
         }
       )
       .subscribe();

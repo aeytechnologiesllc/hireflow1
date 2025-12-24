@@ -180,6 +180,7 @@ export function CandidateInterviewConfirmationCard({
         interviewId={interview.id}
         applicationId={applicationId}
         currentScheduledAt={interview.scheduled_at}
+        onSuccess={() => setLocalCandidateResponse("reschedule_requested")}
       />
     </>
   );

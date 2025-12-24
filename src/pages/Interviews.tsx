@@ -187,6 +187,18 @@ export default function Interviews() {
         (payload) => {
           console.log('Interview changed in real-time:', payload);
           refetch();
+          
+          // Show toast notifications for interview changes
+          const newData = payload.new as any;
+          const oldData = payload.old as any;
+          
+          if (newData?.candidate_response === "reschedule_requested" && 
+              oldData?.candidate_response !== "reschedule_requested") {
+            toast.info("A candidate has requested to reschedule an interview");
+          } else if (newData?.candidate_response === "confirmed" && 
+                     oldData?.candidate_response !== "confirmed") {
+            toast.success("A candidate has confirmed their interview!");
+          }
         }
       )
       .subscribe();
