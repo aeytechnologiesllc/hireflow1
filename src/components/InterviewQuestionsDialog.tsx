@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Sparkles, Copy, Check } from "lucide-react";
+import { Loader2, Sparkles, Copy, Check, Target, CheckCircle, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
@@ -22,6 +22,82 @@ interface InterviewQuestionsDialogProps {
   onQuestionsGenerated?: (questions: string[]) => void;
 }
 
+interface ParsedQuestion {
+  question: string;
+  assesses: string;
+  lookFor: string;
+}
+
+// Parse AI-generated markdown into structured questions
+function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
+  const questions: ParsedQuestion[] = [];
+  
+  // Split by question numbers (1., 2., 3., etc.)
+  const questionBlocks = markdown.split(/(?=\d+\.\s)/);
+  
+  for (const block of questionBlocks) {
+    if (!block.trim()) continue;
+    
+    // Extract question text (first line after the number)
+    const lines = block.split('\n').filter(l => l.trim());
+    if (lines.length === 0) continue;
+    
+    // Get the question (remove the number prefix and any ** markers)
+    let questionText = lines[0].replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').trim();
+    if (!questionText) continue;
+    
+    let assesses = '';
+    let lookFor = '';
+    
+    // Look for "What it assesses" or similar patterns
+    const fullBlock = block.toLowerCase();
+    
+    // Find "assesses" content
+    const assessIndex = fullBlock.indexOf('assess');
+    if (assessIndex !== -1) {
+      const afterAssess = block.substring(assessIndex);
+      const assessMatch = afterAssess.match(/assess[es]*[:\s]*([^\n]+)/i);
+      if (assessMatch) {
+        assesses = assessMatch[1].replace(/\*\*/g, '').replace(/^[:\s-]+/, '').trim();
+      }
+    }
+    
+    // Find "look for" content
+    const lookForIndex = fullBlock.indexOf('look for');
+    if (lookForIndex !== -1) {
+      const afterLookFor = block.substring(lookForIndex);
+      const lookForMatch = afterLookFor.match(/look for[:\s]*([^\n]+(?:\n(?![0-9]+\.|###)[^\n]+)*)/i);
+      if (lookForMatch) {
+        lookFor = lookForMatch[1].replace(/\*\*/g, '').replace(/^[:\s-]+/, '').replace(/\n/g, ' ').trim();
+      }
+    }
+    
+    // If no structured content found, check for bullet points
+    if (!assesses && !lookFor) {
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].replace(/\*\*/g, '').replace(/^[-•*]\s*/, '').trim();
+        if (line.toLowerCase().includes('assess')) {
+          assesses = line.replace(/assess[es]*[:\s]*/i, '').trim();
+        } else if (line.toLowerCase().includes('look for')) {
+          lookFor = line.replace(/look for[:\s]*/i, '').trim();
+        } else if (!assesses && line.length > 10) {
+          assesses = line;
+        } else if (!lookFor && line.length > 10) {
+          lookFor = line;
+        }
+      }
+    }
+    
+    questions.push({
+      question: questionText,
+      assesses: assesses || 'Evaluates candidate skills and experience relevant to the role',
+      lookFor: lookFor || 'Clear, specific examples with measurable outcomes',
+    });
+  }
+  
+  return questions;
+}
+
 export default function InterviewQuestionsDialog({
   interview,
   open,
@@ -29,7 +105,7 @@ export default function InterviewQuestionsDialog({
   onQuestionsGenerated,
 }: InterviewQuestionsDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [questions, setQuestions] = useState<string | null>(
+  const [rawQuestions, setRawQuestions] = useState<string | null>(
     interview?.ai_questions?.join("\n\n") || null
   );
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -37,6 +113,12 @@ export default function InterviewQuestionsDialog({
   const application = interview?.applications;
   const job = application?.jobs;
   const profile = application?.profiles as any;
+
+  // Parse questions into structured format
+  const parsedQuestions = useMemo(() => {
+    if (!rawQuestions) return [];
+    return parseQuestionsFromMarkdown(rawQuestions);
+  }, [rawQuestions]);
 
   const handleGenerate = async () => {
     if (!interview || !job) return;
@@ -57,6 +139,11 @@ Background: ${profile?.bio || "Not provided"}
 
 Interview Type: ${interview.interview_type || "Video"}
 Duration: ${interview.duration_minutes || 60} minutes
+
+Please generate 5-7 tailored interview questions. For each question, include:
+1. The question itself
+2. What it assesses (skills/competencies being evaluated)
+3. What to look for in a good answer
       `;
 
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
@@ -71,7 +158,7 @@ Duration: ${interview.duration_minutes || 60} minutes
 
       if (error) throw error;
 
-      setQuestions(data.analysis);
+      setRawQuestions(data.analysis);
 
       // Split questions for saving
       const questionsList = data.analysis
@@ -100,8 +187,11 @@ Duration: ${interview.duration_minutes || 60} minutes
   };
 
   const handleCopyAll = async () => {
-    if (questions) {
-      await navigator.clipboard.writeText(questions);
+    if (parsedQuestions.length > 0) {
+      const allText = parsedQuestions
+        .map((q, i) => `${i + 1}. ${q.question}\n   Assesses: ${q.assesses}\n   Look for: ${q.lookFor}`)
+        .join('\n\n');
+      await navigator.clipboard.writeText(allText);
       toast.success("All questions copied to clipboard");
     }
   };
@@ -115,43 +205,85 @@ Duration: ${interview.duration_minutes || 60} minutes
             AI Interview Questions
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Generate tailored interview questions for {profile?.full_name || "this candidate"}
+            Tailored interview questions for {profile?.full_name || "this candidate"} - {job?.title || "position"}
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[50vh] pr-4">
-          {questions ? (
-            <Card className="bg-secondary/30 border-border">
-              <CardContent className="p-4">
-                <pre className="text-sm text-foreground whitespace-pre-wrap font-sans">
-                  {questions}
-                </pre>
-              </CardContent>
-            </Card>
+        <ScrollArea className="max-h-[55vh] pr-4">
+          {parsedQuestions.length > 0 ? (
+            <div className="space-y-4">
+              {parsedQuestions.map((q, index) => (
+                <Card key={index} className="bg-secondary/20 border-border overflow-hidden">
+                  <CardHeader className="bg-primary/5 py-3 px-4 border-b border-border">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary font-semibold text-sm">{index + 1}</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-foreground text-sm leading-relaxed">
+                          {q.question}
+                        </h4>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground flex-shrink-0"
+                        onClick={() => handleCopy(q.question, index)}
+                      >
+                        {copiedIndex === index ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex gap-3">
+                      <Target className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-blue-500 mb-1">What it Assesses</p>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{q.assesses}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-green-500 mb-1">What to Look For</p>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{q.lookFor}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : (
             <div className="py-12 text-center">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">
-                Click "Generate Questions" to create tailored interview questions based on the job requirements and candidate profile.
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                <HelpCircle className="h-8 w-8 text-primary/50" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">Generate Interview Questions</h3>
+              <p className="text-muted-foreground max-w-sm mx-auto">
+                Create tailored questions based on the job requirements and candidate profile to conduct an effective interview.
               </p>
             </div>
           )}
         </ScrollArea>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          {questions && (
-            <Button variant="outline" onClick={handleCopyAll} className="sm:mr-auto">
-              <Copy className="h-4 w-4 mr-2" />
-              Copy All
+          {parsedQuestions.length > 0 && (
+            <Button variant="outline" onClick={handleCopyAll} className="sm:mr-auto gap-2">
+              <Copy className="h-4 w-4" />
+              Copy All Questions
             </Button>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button onClick={handleGenerate} disabled={isGenerating}>
-            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Sparkles className="mr-2 h-4 w-4" />
-            {questions ? "Regenerate" : "Generate Questions"}
+          <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+            {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Sparkles className="h-4 w-4" />
+            {parsedQuestions.length > 0 ? "Regenerate" : "Generate Questions"}
           </Button>
         </DialogFooter>
       </DialogContent>

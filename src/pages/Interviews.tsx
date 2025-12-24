@@ -1,19 +1,20 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useInterviews, useUpdateInterview } from "@/hooks/useInterviews";
+import { useInterviews, useUpdateInterview, useDeleteInterview } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles, EyeOff, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles, EyeOff, AlertCircle, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format, isPast, isFuture } from "date-fns";
@@ -44,6 +45,7 @@ interface InterviewCardProps {
   onStatusChange: (id: string, status: string) => void;
   onGenerateQuestions: (interview: InterviewWithDetails) => void;
   onReviewReschedule: (interview: InterviewWithDetails) => void;
+  onDeleteInterview: (id: string) => void;
 }
 
 function InterviewCard({ 
@@ -52,7 +54,8 @@ function InterviewCard({
   canScheduleInterviews, 
   onStatusChange, 
   onGenerateQuestions,
-  onReviewReschedule 
+  onReviewReschedule,
+  onDeleteInterview
 }: InterviewCardProps) {
   const application = interview.applications;
   const job = application?.jobs;
@@ -132,22 +135,45 @@ function InterviewCard({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-popover border-border">
-                      <DropdownMenuItem onClick={() => onGenerateQuestions(interview)}>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        AI Questions
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onStatusChange(interview.id, "completed")}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark as Completed
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onStatusChange(interview.id, "no_show")} className="text-yellow-500">
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Mark as No Show
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onStatusChange(interview.id, "cancelled")} className="text-destructive">
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Cancel Interview
-                      </DropdownMenuItem>
+                      {/* AI Questions - only for non-cancelled interviews */}
+                      {interview.status !== "cancelled" && (
+                        <DropdownMenuItem onClick={() => onGenerateQuestions(interview)}>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          AI Questions
+                        </DropdownMenuItem>
+                      )}
+                      
+                      {/* Status actions - only for scheduled interviews */}
+                      {interview.status === "scheduled" && (
+                        <>
+                          <DropdownMenuItem onClick={() => onStatusChange(interview.id, "completed")}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Mark as Completed
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onStatusChange(interview.id, "no_show")} className="text-yellow-500">
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Mark as No Show
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onStatusChange(interview.id, "cancelled")} className="text-destructive">
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancel Interview
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      
+                      {/* Delete option - only for cancelled/completed/no_show interviews */}
+                      {(interview.status === "cancelled" || interview.status === "completed" || interview.status === "no_show") && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => onDeleteInterview(interview.id)} 
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Interview
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -206,6 +232,7 @@ export default function Interviews() {
   const canScheduleInterviews = !isTeamMember || permissions?.canScheduleInterviews;
   const { data: interviews, isLoading, refetch } = useInterviews();
   const updateInterview = useUpdateInterview();
+  const deleteInterview = useDeleteInterview();
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<InterviewWithDetails | null>(null);
   const [rescheduleInterview, setRescheduleInterview] = useState<InterviewWithDetails | null>(null);
@@ -288,6 +315,15 @@ export default function Interviews() {
     setRescheduleInterview(interview);
   };
 
+  const handleDeleteInterview = async (id: string) => {
+    try {
+      await deleteInterview.mutateAsync(id);
+      toast.success("Interview deleted");
+    } catch (error) {
+      toast.error("Failed to delete interview");
+    }
+  };
+
   const handleQuestionsGenerated = async (questions: string[]) => {
     if (!selectedInterview) return;
     try {
@@ -367,6 +403,7 @@ export default function Interviews() {
                   onStatusChange={handleStatusChange}
                   onGenerateQuestions={handleGenerateQuestions}
                   onReviewReschedule={handleReviewReschedule}
+                  onDeleteInterview={handleDeleteInterview}
                 />
               ))}
             </div>
@@ -385,6 +422,7 @@ export default function Interviews() {
                   onStatusChange={handleStatusChange}
                   onGenerateQuestions={handleGenerateQuestions}
                   onReviewReschedule={handleReviewReschedule}
+                  onDeleteInterview={handleDeleteInterview}
                 />
               ))}
             </div>
