@@ -306,8 +306,10 @@ export default function VideoIntroPhase() {
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Trigger AVA analysis in background (fire-and-forget)
-      triggerAvaAnalysis(id!).catch(console.error);
+      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
+      supabase.functions.invoke("trigger-ava-analysis", {
+        body: { applicationId: id! },
+      }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
 
       if (isAutoMode) {
         // Show passed evaluation screen
@@ -336,7 +338,9 @@ export default function VideoIntroPhase() {
           if (checkNotes[stepId!]?.videoUrl || checkNotes.videoIntroUrl) {
             // Actually succeeded!
             queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-            triggerAvaAnalysis(id!).catch(console.error);
+            supabase.functions.invoke("trigger-ava-analysis", {
+              body: { applicationId: id! },
+            }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
 
             if (isAutoMode) {
               setEvaluationState("passed");

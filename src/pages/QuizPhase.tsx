@@ -391,8 +391,10 @@ const handleFinishQuiz = () => {
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Always trigger AVA analysis (for both manual and auto modes)
-      triggerAvaAnalysis(id!).catch(console.error);
+      // Always trigger AVA analysis via backend edge function (bypasses RLS issues)
+      supabase.functions.invoke("trigger-ava-analysis", {
+        body: { applicationId: id! },
+      }).catch(err => console.error("[QuizPhase] AVA analysis trigger failed:", err));
 
       if (isAutoMode) {
         // Run evaluation and show result screen
