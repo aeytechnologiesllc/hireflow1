@@ -36,21 +36,34 @@ export function CandidateInterviewConfirmationCard({
   
   // Local state for optimistic UI updates
   const [localCandidateResponse, setLocalCandidateResponse] = useState(interview.candidate_response);
+  const [localProposedTimesCount, setLocalProposedTimesCount] = useState<number>(
+    Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0
+  );
+  const [localCandidateNote, setLocalCandidateNote] = useState<string | null>(interview.candidate_note);
   
   // Sync local state when prop changes
   useEffect(() => {
     setLocalCandidateResponse(interview.candidate_response);
-  }, [interview.candidate_response]);
+    setLocalProposedTimesCount(Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0);
+    setLocalCandidateNote(interview.candidate_note);
+  }, [interview.candidate_response, interview.proposed_times, interview.candidate_note]);
 
   const handleConfirm = async () => {
     setIsConfirming(true);
     try {
-      const { error } = await supabase
-        .from("interviews")
-        .update({ candidate_response: "confirmed" })
-        .eq("id", interview.id);
+      // Call edge function for confirmation
+      const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
+        body: {
+          action: "confirm",
+          interviewId: interview.id,
+        },
+      });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to confirm interview");
+      }
 
       // Optimistic update - immediately show confirmed state
       setLocalCandidateResponse("confirmed");
@@ -64,6 +77,13 @@ export function CandidateInterviewConfirmationCard({
     } finally {
       setIsConfirming(false);
     }
+  };
+
+  const handleRescheduleSuccess = ({ proposedTimesCount, candidateNote }: { proposedTimesCount: number; candidateNote: string | null }) => {
+    // Optimistic update with the actual count
+    setLocalCandidateResponse("reschedule_requested");
+    setLocalProposedTimesCount(proposedTimesCount);
+    setLocalCandidateNote(candidateNote);
   };
 
   // Use local state for immediate UI feedback
@@ -164,9 +184,9 @@ export function CandidateInterviewConfirmationCard({
 
             {candidateResponse === "reschedule_requested" && (
               <div className="text-sm text-muted-foreground">
-                You proposed {interview.proposed_times?.length || 0} alternative time(s).
-                {interview.candidate_note && (
-                  <p className="mt-1 italic">"{interview.candidate_note}"</p>
+                You proposed {localProposedTimesCount} alternative time(s).
+                {localCandidateNote && (
+                  <p className="mt-1 italic">"{localCandidateNote}"</p>
                 )}
               </div>
             )}
@@ -180,7 +200,7 @@ export function CandidateInterviewConfirmationCard({
         interviewId={interview.id}
         applicationId={applicationId}
         currentScheduledAt={interview.scheduled_at}
-        onSuccess={() => setLocalCandidateResponse("reschedule_requested")}
+        onSuccess={handleRescheduleSuccess}
       />
     </>
   );

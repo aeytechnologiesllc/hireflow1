@@ -13,7 +13,7 @@ import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard"
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MiniAvaContainer } from "@/components/MiniAva";
-
+import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -101,6 +101,9 @@ export default function AppLayout() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full">
+        {/* Global notification toasts listener */}
+        <GlobalNotificationToasts />
+        
         {/* Premium gradient orbs - smaller on mobile */}
         <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
