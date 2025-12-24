@@ -1,8 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
-import { AnimatedProgressRing } from "./AnimatedProgressRing";
-import { PremiumOrb } from "./PremiumOrb";
+import { LiquidBlobLoader } from "./LiquidBlobLoader";
 
 interface StorytellingLoaderProps {
   messages: string[];
@@ -37,25 +36,14 @@ export function StorytellingLoader({
       <GradientOrbs count={3} />
       <FloatingParticles count={15} intensity="subtle" />
 
-      {/* Premium Orb with glow */}
+      {/* Liquid Blob Loader */}
       <motion.div
         className="relative mb-8"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <PremiumOrb 
-          mode="processing" 
-          size={128}
-          showIcon={true}
-        />
-
-        {/* Progress ring around orb */}
-        {showProgress && (
-          <div className="absolute -inset-4">
-            <AnimatedProgressRing size={160} strokeWidth={3} />
-          </div>
-        )}
+        <LiquidBlobLoader size={140} showGlow={true} showParticles={showProgress} />
       </motion.div>
 
       {/* Title */}
