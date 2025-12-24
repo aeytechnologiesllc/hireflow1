@@ -679,7 +679,14 @@ export default function ApplicantDetails() {
       return !!(application?.cover_letter || parsedNotes.applicationAnswers?.length > 0);
     }
     if (phaseType === "quiz") {
-      return !!(parsedNotes.quizAnswers?.[phaseId] || parsedNotes.quizAnswers);
+      // QuizPhase saves to parsedNotes[stepId] with type: "quiz" and answers array
+      // Also check parsedNotes.quizResult for the summary
+      const stepData = parsedNotes[phaseId];
+      const hasQuizData = stepData?.type === "quiz" && stepData?.answers;
+      const hasQuizResult = !!parsedNotes.quizResult;
+      // Legacy fallback
+      const hasLegacyQuizAnswers = !!(parsedNotes.quizAnswers?.[phaseId] || parsedNotes.quizAnswers);
+      return hasQuizData || hasQuizResult || hasLegacyQuizAnswers;
     }
     if (phaseType === "typing_test") {
       return !!parsedNotes.typingTestResult;
