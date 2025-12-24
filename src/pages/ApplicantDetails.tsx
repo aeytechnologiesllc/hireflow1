@@ -2473,17 +2473,50 @@ ${interviewType} Interview with AVA Results:
                 <ScrollArea className="max-h-[60vh] pr-4">
                   {dialogData.content ? (
                     <div className="space-y-4">
-                      {dialogData.type === "quiz" && Array.isArray(dialogData.content) && (
-                        dialogData.content.map((item: any, index: number) => (
-                          <div key={index} className="space-y-2">
-                            <p className="text-sm font-medium text-foreground">
-                              {index + 1}. {item.question}
-                            </p>
-                            <div className="p-3 bg-muted/50 rounded-lg text-sm">
-                              {item.answer || <span className="text-muted-foreground italic">No answer</span>}
+                      {dialogData.type === "quiz" && dialogData.content && (
+                        <div className="space-y-4">
+                          {/* Quiz Summary */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className="text-xl font-bold text-primary">{dialogData.content.correct || 0}/{dialogData.content.total || 0}</p>
+                              <p className="text-xs text-muted-foreground">Correct</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className="text-xl font-bold text-foreground">{dialogData.content.score || 0}%</p>
+                              <p className="text-xs text-muted-foreground">Score</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg text-center">
+                              <p className={`text-xl font-bold ${dialogData.content.passed ? "text-success" : "text-destructive"}`}>
+                                {dialogData.content.passed ? "PASSED" : "FAILED"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Result</p>
                             </div>
                           </div>
-                        ))
+                          
+                          {/* Questions and Answers */}
+                          <div className="border-t border-border pt-4">
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-3">Questions & Answers</h4>
+                            <div className="space-y-4">
+                              {(dialogData.content.answers || []).map((item: any, index: number) => (
+                                <div key={index} className="space-y-2">
+                                  <div className="flex items-start gap-2">
+                                    <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                                      item.isCorrect ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
+                                    }`}>
+                                      {item.isCorrect ? "✓" : "✗"}
+                                    </span>
+                                    <p className="text-sm font-medium text-foreground">{item.question}</p>
+                                  </div>
+                                  <div className={`p-3 rounded-lg text-sm ml-7 ${
+                                    item.isCorrect ? "bg-success/10 border border-success/20" : "bg-destructive/10 border border-destructive/20"
+                                  }`}>
+                                    {item.selectedAnswerText || item.answer || <span className="text-muted-foreground italic">No answer</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       )}
                       
                       {dialogData.type === "typing_test" && (
