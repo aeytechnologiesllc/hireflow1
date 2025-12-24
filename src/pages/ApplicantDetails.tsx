@@ -1116,6 +1116,15 @@ export default function ApplicantDetails() {
       await updateApplication.mutateAsync({ id: application.id, status: "rejected" });
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       
+      // Create notification for candidate so they get a real-time pop-up
+      await supabase.from("notifications").insert({
+        user_id: application.candidate_id,
+        type: "status_update" as const,
+        title: "Application Update",
+        message: `Your application for ${application.jobs?.title || "this position"} has been reviewed.`,
+        link: `/applications/${application.id}`,
+      });
+      
       // No navigation - animation handles feedback
     } catch (error) {
       setShowRejectAnimation(false);
