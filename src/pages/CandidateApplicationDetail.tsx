@@ -102,10 +102,11 @@ export default function CandidateApplicationDetail() {
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
   
   // Status screen state
-  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | null>(null);
+  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | "interview_cancelled" | "interview_rescheduled" | null>(null);
   const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
+  const previousInterviewRef = useRef<{ scheduled_at: string; status: string } | null>(null);
 
   // Fetch application with job details
   const { data: application, isLoading, refetch } = useQuery({
@@ -244,7 +245,7 @@ export default function CandidateApplicationDetail() {
     };
   }, [id, refetch]);
 
-  // Subscribe to real-time updates for interview changes
+  // Subscribe to real-time updates for interview changes (cancel/reschedule detection)
   useEffect(() => {
     if (!id) return;
 
@@ -261,6 +262,37 @@ export default function CandidateApplicationDetail() {
         (payload) => {
           console.log("Interview updated:", payload);
           refetchInterview();
+          
+          const newData = payload.new as any;
+          const oldData = payload.old as any;
+          const prevInterview = previousInterviewRef.current;
+          
+          // Detect cancellation: status changed to "cancelled"
+          if (newData?.status === "cancelled" && (oldData?.status === "scheduled" || prevInterview?.status === "scheduled")) {
+            setStatusScreen("interview_cancelled");
+          }
+          // Detect reschedule: scheduled_at changed while still scheduled
+          else if (
+            newData?.status === "scheduled" && 
+            prevInterview?.status === "scheduled" &&
+            newData?.scheduled_at !== prevInterview?.scheduled_at
+          ) {
+            // Update interview details with new time
+            setInterviewDetails({
+              scheduledAt: newData.scheduled_at,
+              meetingLink: newData.meeting_link || undefined,
+              durationMinutes: newData.duration_minutes || undefined,
+            });
+            setStatusScreen("interview_rescheduled");
+          }
+          
+          // Update the ref with latest interview data
+          if (newData) {
+            previousInterviewRef.current = {
+              scheduled_at: newData.scheduled_at,
+              status: newData.status,
+            };
+          }
         }
       )
       .subscribe();
@@ -311,6 +343,16 @@ export default function CandidateApplicationDetail() {
     previousStatusRef.current = application.status;
     previousPhaseRef.current = application.phase;
   }, [application]);
+
+  // Initialize previous interview ref when interview data loads
+  useEffect(() => {
+    if (candidateInterview && !previousInterviewRef.current) {
+      previousInterviewRef.current = {
+        scheduled_at: candidateInterview.scheduled_at,
+        status: candidateInterview.status,
+      };
+    }
+  }, [candidateInterview]);
 
   // Handle report download from status screen
   const { downloadReport, isGenerating: isGeneratingReportHook } = usePerformanceReport();

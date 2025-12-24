@@ -14,7 +14,10 @@ import {
   Mic,
   Trophy,
   Star,
-  Crown
+  Crown,
+  XCircle,
+  RefreshCw,
+  Info
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
@@ -32,7 +35,7 @@ interface InterviewDetails {
 }
 
 interface CandidateStatusScreenProps {
-  state: "rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | null;
+  state: "rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | "interview_cancelled" | "interview_rescheduled" | null;
   jobTitle?: string;
   companyName?: string;
   interviewDetails?: InterviewDetails;
@@ -355,15 +358,26 @@ export function CandidateStatusScreen({
                   </motion.div>
                 )}
 
-                {/* Encouragement */}
-                <motion.p
+                {/* What's Next Section */}
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
-                  className="text-muted-foreground"
+                  className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left"
                 >
-                  Prepare, breathe, and show them what you've got!
-                </motion.p>
+                  <div className="flex items-start gap-2 mb-2">
+                    <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
+                    <p className="text-sm font-medium text-foreground">What's Next?</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Your interview details are on your application page. From there you can:
+                  </p>
+                  <ul className="text-sm text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                    <li>Confirm your attendance</li>
+                    <li>Request a reschedule if needed</li>
+                    <li>Join the meeting when it's time</li>
+                  </ul>
+                </motion.div>
 
                 {/* Action button */}
                 <motion.div
@@ -372,7 +386,7 @@ export function CandidateStatusScreen({
                   transition={{ delay: 0.6 }}
                 >
                   <Button onClick={onClose} className="gap-2">
-                    View Details
+                    Go to Interview Details
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>
@@ -777,6 +791,161 @@ export function CandidateStatusScreen({
                   <p className="text-sm text-muted-foreground italic">
                     "Every setback is a setup for a comeback."
                   </p>
+                </motion.div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Interview Cancelled State */}
+          {state === "interview_cancelled" && (
+            <Card className="bg-card border-border overflow-hidden">
+              {/* Decorative top gradient - amber/warning */}
+              <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
+              
+              <CardContent className="p-8 text-center space-y-6">
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
+                >
+                  <XCircle className="h-10 w-10 text-amber-500" />
+                </motion.div>
+
+                {/* Headline */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <h2 className="text-2xl font-bold text-foreground">
+                    Interview Cancelled
+                  </h2>
+                  <p className="text-amber-400">
+                    The employer has cancelled your scheduled interview
+                  </p>
+                </motion.div>
+
+                {/* What's Next Section */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-left"
+                >
+                  <p className="text-sm font-medium text-foreground mb-2">What's Next?</p>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span>•</span>
+                      <span>Check your messages for more information from the employer</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span>•</span>
+                      <span>The employer may reach out to reschedule or provide next steps</span>
+                    </li>
+                  </ul>
+                </motion.div>
+
+                {/* Action button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Button onClick={onClose} variant="outline" className="gap-2">
+                    Got It
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Interview Rescheduled State */}
+          {state === "interview_rescheduled" && (
+            <Card className="bg-card border-border overflow-hidden">
+              {/* Decorative top gradient - blue/info */}
+              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-blue-500/50" />
+              
+              <CardContent className="p-8 text-center space-y-6">
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
+                >
+                  <RefreshCw className="h-10 w-10 text-blue-500" />
+                </motion.div>
+
+                {/* Headline */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <h2 className="text-2xl font-bold text-foreground">
+                    Interview Rescheduled
+                  </h2>
+                  <p className="text-blue-400">
+                    The employer has changed your interview time
+                  </p>
+                </motion.div>
+
+                {/* New Interview Details Card */}
+                {interviewDetails && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Card className="bg-blue-500/10 border-blue-500/30">
+                      <CardContent className="p-4 space-y-3">
+                        <p className="text-sm font-medium text-blue-400">📅 New Time:</p>
+                        {interviewDetails.scheduledAt && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Date & Time</span>
+                            <span className="font-medium text-foreground">
+                              {format(new Date(interviewDetails.scheduledAt), "EEEE, MMM d 'at' h:mm a")}
+                            </span>
+                          </div>
+                        )}
+                        {interviewDetails.durationMinutes && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Duration</span>
+                            <span className="font-medium text-foreground">
+                              {interviewDetails.durationMinutes} minutes
+                            </span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+
+                {/* Guidance */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="text-muted-foreground text-sm"
+                >
+                  Please confirm your availability for the new time from your Interview card below.
+                </motion.p>
+
+                {/* Action button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <Button onClick={onClose} className="gap-2">
+                    View Interview Details
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </motion.div>
               </CardContent>
             </Card>
