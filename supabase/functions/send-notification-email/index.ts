@@ -562,7 +562,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Sending email to ${profile.email}`);
 
     const emailResponse = await resend.emails.send({
-      from: "HireFlow <onboarding@resend.dev>",
+      from: "HireFlow <notifications@hireflownow.com>",
       to: [profile.email],
       subject: emailContent.subject,
       html: emailContent.html,
