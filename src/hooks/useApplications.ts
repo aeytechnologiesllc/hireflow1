@@ -2,6 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import {
+  notifyApplicationReceived,
+  notifyNewApplication,
+  notifyStatusRejected,
+  notifyStatusHired,
+  notifyPhaseAdvanced,
+  notifyPhaseCompleted,
+} from "@/utils/emailNotifications";
 
 export type Application = Tables<"applications">;
 export type ApplicationInsert = TablesInsert<"applications">;
@@ -141,6 +149,32 @@ export function useCreateApplication() {
         .single();
 
       if (error) throw error;
+
+      // Send email notifications asynchronously (don't block on failure)
+      (async () => {
+        try {
+          // Get job details for email content
+          const { data: job } = await supabase
+            .from("jobs")
+            .select("title, employer_id, profiles:employer_id(company_name)")
+            .eq("id", application.job_id)
+            .single();
+
+          if (job) {
+            const companyName = (job as any).profiles?.company_name;
+            
+            // Notify candidate their application was received
+            notifyApplicationReceived(user!.id, job.title, companyName);
+            
+            // Notify employer about new application
+            const candidateName = user?.user_metadata?.full_name || user?.email || "A candidate";
+            notifyNewApplication(job.employer_id, candidateName, job.title);
+          }
+        } catch (err) {
+          console.error("Failed to send application email notifications:", err);
+        }
+      })();
+
       return data;
     },
     onSuccess: () => {
@@ -154,6 +188,13 @@ export function useUpdateApplication() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Application> & { id: string }) => {
+      // Get the current application state before update
+      const { data: currentApp } = await supabase
+        .from("applications")
+        .select("status, phase, phase_ai_analysis, candidate_id, job_id")
+        .eq("id", id)
+        .single();
+
       const { data, error } = await supabase
         .from("applications")
         .update(updates)
@@ -162,6 +203,57 @@ export function useUpdateApplication() {
         .single();
 
       if (error) throw error;
+
+      // Send email notifications for status/phase changes asynchronously
+      if (currentApp) {
+        (async () => {
+          try {
+            // Get job details for email content
+            const { data: job } = await supabase
+              .from("jobs")
+              .select("title, employer_id, profiles:employer_id(company_name)")
+              .eq("id", currentApp.job_id)
+              .single();
+
+            if (job) {
+              const companyName = (job as any).profiles?.company_name;
+
+              // Status changed to rejected
+              if (updates.status === "rejected" && currentApp.status !== "rejected") {
+                notifyStatusRejected(currentApp.candidate_id, job.title, companyName);
+              }
+
+              // Status changed to hired
+              if (updates.status === "hired" && currentApp.status !== "hired") {
+                notifyStatusHired(currentApp.candidate_id, job.title, companyName);
+              }
+
+              // Phase advanced (only if phase actually changed)
+              if (updates.phase && updates.phase !== currentApp.phase) {
+                notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, companyName);
+              }
+
+              // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)
+              // This signals candidate finished the current phase assessment
+              if (updates.phase_ai_analysis && updates.phase_ai_analysis !== currentApp.phase_ai_analysis) {
+                // Get candidate profile for name
+                const { data: candidateProfile } = await supabase
+                  .from("profiles")
+                  .select("full_name, email")
+                  .eq("user_id", currentApp.candidate_id)
+                  .single();
+                
+                const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
+                const phaseName = currentApp.phase || "a phase";
+                notifyPhaseCompleted(job.employer_id, candidateName, phaseName, job.title);
+              }
+            }
+          } catch (err) {
+            console.error("Failed to send application update email notifications:", err);
+          }
+        })();
+      }
+
       return data;
     },
     onSuccess: () => {

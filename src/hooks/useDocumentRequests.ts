@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { notifyDocumentRequested } from "@/utils/emailNotifications";
 
 export interface DocumentRequest {
   id: string;
@@ -233,6 +234,34 @@ export function useCreateDocumentRequest() {
 
       // Insert notifications (don't fail if this errors)
       await supabase.from("notifications").insert(notifications);
+
+      // Send email notifications asynchronously for each unique candidate
+      (async () => {
+        try {
+          // Get employer profile for company name
+          const employerId = requests[0]?.employer_id;
+          if (employerId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("company_name")
+              .eq("user_id", employerId)
+              .single();
+
+            const companyName = profile?.company_name;
+            
+            // Send email to each candidate
+            for (const candidateId of candidateIds) {
+              const candidateRequests = requests.filter(r => r.candidate_id === candidateId);
+              const docName = candidateRequests.length === 1 
+                ? (candidateRequests[0].custom_document_name || getDocumentTypeLabel(candidateRequests[0].document_type))
+                : `${candidateRequests.length} documents`;
+              notifyDocumentRequested(candidateId, docName, companyName);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to send document request email notifications:", err);
+        }
+      })();
 
       return data;
     },
