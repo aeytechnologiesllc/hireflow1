@@ -1601,13 +1601,30 @@ ${interviewType} Interview with AVA Results:
                   size="sm" 
                   onClick={async () => {
                     try {
+                      // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
+                      const reviewPhase = phases.find(p => p.type === "review") || phases[1];
+                      const reviewPhaseId = reviewPhase?.id || "review";
+                      
                       await updateApplication.mutateAsync({ 
                         id: application.id, 
-                        status: "reviewing" 
+                        status: "reviewing",
+                        phase: reviewPhaseId,  // Reset phase to review
+                        phase_ai_analysis: null,  // Clear for fresh review
                       });
+                      
+                      // Create notification for candidate about reconsideration
+                      await supabase.from("notifications").insert({
+                        user_id: application.candidate_id,
+                        type: "status_update",
+                        title: "Great News! You're Being Reconsidered",
+                        message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
+                        link: `/applications/${application.id}`,
+                      });
+                      
                       queryClient.invalidateQueries({ queryKey: ["application", id] });
-                      toast.success("Candidate moved back to reviewing");
+                      toast.success("Candidate moved back to review phase and notified");
                     } catch (error) {
+                      console.error("Failed to reconsider candidate:", error);
                       toast.error("Failed to reconsider candidate");
                     }
                   }}

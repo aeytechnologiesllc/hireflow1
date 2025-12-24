@@ -102,7 +102,7 @@ export default function CandidateApplicationDetail() {
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
   
   // Status screen state
-  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | null>(null);
+  const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | null>(null);
   const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
@@ -183,6 +183,12 @@ export default function CandidateApplicationDetail() {
           const oldPhase = payload.old?.phase;
           
           refetch();
+          
+          // Detect reconsideration (rejected → reviewing)
+          if (newStatus === "reviewing" && oldStatus === "rejected") {
+            setStatusScreen("reconsidered");
+            return; // Don't process other status changes
+          }
           
           // Detect status changes and show appropriate screen
           // Note: payload.old might be empty if REPLICA IDENTITY isn't FULL, so also check payload.new directly

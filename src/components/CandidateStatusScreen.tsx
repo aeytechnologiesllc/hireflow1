@@ -32,7 +32,7 @@ interface InterviewDetails {
 }
 
 interface CandidateStatusScreenProps {
-  state: "rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | null;
+  state: "rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | null;
   jobTitle?: string;
   companyName?: string;
   interviewDetails?: InterviewDetails;
@@ -95,6 +95,14 @@ export function CandidateStatusScreen({
         spread: 80,
         origin: { y: 0.6 },
         colors: ['#10B981', '#14B8A6', '#06B6D4', '#8B5CF6', '#A78BFA'],
+      });
+    } else if (state === "reconsidered" && showContent) {
+      // Celebration for reconsideration - blue/cyan colors for fresh start
+      confetti({
+        particleCount: 120,
+        spread: 75,
+        origin: { y: 0.6 },
+        colors: ['#3B82F6', '#60A5FA', '#93C5FD', '#06B6D4', '#22D3EE'],
       });
     } else if (state === "hired" && showContent) {
       // Epic 5-second multi-burst celebration with golden colors
@@ -650,6 +658,128 @@ export function CandidateStatusScreen({
                 </motion.div>
               </div>
             </motion.div>
+          )}
+
+          {/* Reconsidered State - Fresh Start Celebration */}
+          {state === "reconsidered" && (
+            <Card className="bg-card border-border overflow-hidden relative">
+              {/* Animated sparkles background */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute"
+                    initial={{ 
+                      x: Math.random() * 100 + "%", 
+                      y: Math.random() * 100 + "%",
+                      opacity: 0,
+                      scale: 0 
+                    }}
+                    animate={{ 
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0],
+                      rotate: [0, 180]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: Math.random() * 2,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 text-blue-400/50" />
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Decorative top gradient */}
+              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-cyan-500/50 to-blue-500/50" />
+              
+              <CardContent className="p-8 text-center space-y-6 relative z-10">
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
+                >
+                  <motion.div
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
+                    <Sparkles className="h-10 w-10 text-blue-400" />
+                  </motion.div>
+                </motion.div>
+
+                {/* Headline */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
+                    🎉 Great News!
+                  </h2>
+                  <p className="text-blue-400 font-semibold text-lg">
+                    You're Being Reconsidered!
+                  </p>
+                </motion.div>
+
+                {/* Message */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-muted-foreground leading-relaxed"
+                >
+                  The employer has decided to give your application another look. 
+                  Your application for <span className="text-foreground font-medium">{jobTitle || "this position"}</span> is now back under review.
+                </motion.p>
+
+                {/* Encouragement */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    This is your fresh start! The employer saw something special in your application and wants to explore it further.
+                  </p>
+                </motion.div>
+
+                {/* Action button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <Button 
+                    size="lg"
+                    onClick={onClose} 
+                    className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  >
+                    View Application
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+
+                {/* Motivational quote */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                  className="pt-4 border-t border-border"
+                >
+                  <p className="text-sm text-muted-foreground italic">
+                    "Every setback is a setup for a comeback."
+                  </p>
+                </motion.div>
+              </CardContent>
+            </Card>
           )}
         </motion.div>
       </motion.div>
