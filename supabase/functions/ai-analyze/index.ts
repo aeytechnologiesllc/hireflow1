@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs";
 
 const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
 
@@ -224,14 +225,24 @@ serve(async (req) => {
         const pdfResponse = await fetch(resumeUrl);
         if (pdfResponse.ok) {
           const pdfBuffer = await pdfResponse.arrayBuffer();
-          
-          // Use pdf-parse library to extract text
-          const pdfParse = (await import("https://esm.sh/pdf-parse@1.1.1")).default;
-          const pdfData = await pdfParse(new Uint8Array(pdfBuffer));
-          const extractedText = pdfData.text?.trim() || "";
-          
+
+          // Deno-compatible PDF text extraction via pdf.js
+          const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer, disableWorker: true } as any);
+          const pdf = await loadingTask.promise;
+
+          let extractedText = "";
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            extractedText +=
+              textContent.items
+                .map((item: any) => (typeof item?.str === "string" ? item.str : ""))
+                .join(" ") + "\n";
+          }
+
+          extractedText = extractedText.trim();
           console.log("Resume text extraction result, length:", extractedText.length);
-          
+
           // Check if extraction returned meaningful content (at least 100 chars of text)
           if (extractedText.length >= 100) {
             console.log("Successfully extracted resume text");
@@ -239,7 +250,9 @@ serve(async (req) => {
             pdfExtracted = true;
           } else {
             // Image-based PDF or minimal text - graceful fallback
-            console.log("Resume appears to be image-based (extracted text < 100 chars). Proceeding with application data only.");
+            console.log(
+              "Resume appears to be image-based (extracted text < 100 chars). Proceeding with application data only."
+            );
             resumeContent = `\n\n[Note: This resume appears to be image-based or uses non-extractable text (like graphics/scanned documents). Text extraction returned minimal content (${extractedText.length} characters). Please analyze this candidate based on the other application data provided above. The resume was uploaded successfully but its contents cannot be automatically extracted for analysis.]`;
             pdfExtracted = false;
           }
@@ -249,7 +262,10 @@ serve(async (req) => {
         }
       } catch (err) {
         console.error("Error extracting resume text:", err);
-        resumeContent = "\n\n[Note: Resume file could not be parsed. This may be an image-based PDF or an unsupported format. Please analyze based on other application data provided. Error details: " + (err instanceof Error ? err.message : "Unknown") + "]";
+        resumeContent =
+          "\n\n[Note: Resume file could not be parsed. This may be an image-based PDF or an unsupported format. Please analyze based on other application data provided. Error details: " +
+          (err instanceof Error ? err.message : "Unknown") +
+          "]";
       }
     }
 
