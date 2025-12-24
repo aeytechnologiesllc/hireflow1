@@ -243,16 +243,23 @@ export default function VideoIntroPhase() {
 
       // Determine next phase (video always passes since it's completion-based)
       let newPhase = application.phase;
-      if (isAutoMode && currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        const nextPhase = allPhases[currentIndex + 1];
-        newPhase = nextPhase.id;
-        
-        // DON'T show "Start Next Phase" button if next phase is review
-        if (nextPhase.type !== "review") {
-          setNextPhaseInfo({
-            id: nextPhase.id,
-            title: nextPhase.title,
-          });
+      let nextPhase: { id: string; type: string; title: string } | null = null;
+      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        nextPhase = allPhases[currentIndex + 1];
+      }
+      
+      // Advance to next phase in auto mode, OR if next phase is review (last candidate step)
+      if (isAutoMode || nextPhase?.type === "review") {
+        if (nextPhase) {
+          newPhase = nextPhase.id;
+          
+          // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
+          if (isAutoMode && nextPhase.type !== "review") {
+            setNextPhaseInfo({
+              id: nextPhase.id,
+              title: nextPhase.title,
+            });
+          }
         }
       }
 

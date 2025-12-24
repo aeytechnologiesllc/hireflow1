@@ -294,14 +294,71 @@ export default function ApplicationFormPhase() {
         status: "pending",
       });
 
-      // Get workflow steps to find next phase
+      // Get workflow steps to find next phase - build full phases list
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const currentIndex = workflowSteps.findIndex((s: any) => s.type === "application" || s.id === stepId);
-      const nextStep = workflowSteps[currentIndex + 1];
-
-      if (nextStep) {
-        setNextPhaseInfo({ id: nextStep.id, title: nextStep.title });
+      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
+      
+      // Extract voice_interview step (goes AFTER review)
+      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
+      
+      const allPhases: { id: string; type: string; title?: string }[] = [
+        { id: "application", type: "application", title: "Application" },
+      ];
+      
+      // Add quiz phase if quiz_questions exist
+      if (quizQuestions && quizQuestions.length > 0) {
+        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
+      
+      // Add workflow steps EXCEPT voice_interview (which goes after Review)
+      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
+        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
+      });
+      
+      // Add Review phase
+      allPhases.push({ id: "review", type: "review", title: "Review" });
+      
+      // Add voice_interview AFTER Review if it exists
+      if (voiceInterviewStep) {
+        allPhases.push({ 
+          id: (voiceInterviewStep as any).id, 
+          type: "voice_interview", 
+          title: (voiceInterviewStep as any).title || "Ava Interview" 
+        });
+      }
+      
+      // Add final phases
+      allPhases.push(
+        { id: "interview", type: "interview", title: "Interview" },
+        { id: "hired", type: "hired", title: "Hired" }
+      );
+      
+      // Find current step index
+      let currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);
+      
+      // Determine next phase
+      let nextPhase: { id: string; type: string; title?: string } | null = null;
+      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        nextPhase = allPhases[currentIndex + 1];
+      }
+
+      if (nextPhase && nextPhase.type !== "review") {
+        setNextPhaseInfo({ id: nextPhase.id, title: nextPhase.title || nextPhase.type });
+      }
+      
+      // Determine new phase - advance to next if auto mode OR if next phase is review
+      let newPhase = application.phase || "application";
+      if (isAutoPilot || nextPhase?.type === "review") {
+        if (nextPhase) {
+          newPhase = nextPhase.id;
+        }
+      }
+      
+      // Update the phase in the database
+      await supabase
+        .from("applications")
+        .update({ phase: newPhase })
+        .eq("id", id!);
 
       // Always trigger AVA analysis (for both manual and auto modes)
       if (isAutoPilot) {
