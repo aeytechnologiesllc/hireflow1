@@ -610,10 +610,15 @@ export default function ChatInterviewPhase() {
       let newPhase = application.phase;
       let newStatus = application.status;
 
+      // Determine next phase
+      let nextPhase: { id: string; type: string } | null = null;
+      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        nextPhase = allPhases[currentIndex + 1];
+      }
+
       if (isAutoMode) {
         if (passed) {
-          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-            const nextPhase = allPhases[currentIndex + 1];
+          if (nextPhase) {
             newPhase = nextPhase.id;
             // Note: ChatInterview uses toast instead of EvaluationScreen
           }
@@ -629,6 +634,10 @@ export default function ChatInterviewPhase() {
           });
         }
       } else {
+        // Manual mode - only advance to review phase if it's the next step
+        if (nextPhase?.type === "review") {
+          newPhase = nextPhase.id;
+        }
         toast.success("Interview completed!", {
           description: "Your responses have been recorded. The employer will review your interview.",
         });

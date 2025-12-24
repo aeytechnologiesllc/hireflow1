@@ -311,13 +311,19 @@ export default function PortfolioUploadPhase() {
       
       let newPhase = application.phase;
 
-      if (isAutoMode) {
-        if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-          const nextPhase = allPhases[currentIndex + 1];
+      // Determine next phase
+      let nextPhase: { id: string; type: string; title?: string } | null = null;
+      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        nextPhase = allPhases[currentIndex + 1];
+      }
+
+      // Advance to next phase in auto mode, OR if next phase is review (last candidate step)
+      if (isAutoMode || nextPhase?.type === "review") {
+        if (nextPhase) {
           newPhase = nextPhase.id;
           
-          // DON'T show "Start Next Phase" button if next phase is review
-          if (nextPhase.type !== "review") {
+          // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
+          if (isAutoMode && nextPhase.type !== "review") {
             setNextPhaseInfo({
               id: nextPhase.id,
               title: nextPhase.title || nextPhase.type,

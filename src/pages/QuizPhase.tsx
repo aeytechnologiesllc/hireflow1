@@ -343,11 +343,16 @@ const handleFinishQuiz = () => {
       let newPhase = application.phase;
       let newStatus = application.status;
       
+      // Determine next phase
+      let nextPhase: { id: string; type: string; title: string } | null = null;
+      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
+        nextPhase = allPhases[currentIndex + 1];
+      }
+      
       if (isAutoMode) {
         if (results.passed) {
           // Advance to next phase
-          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-            const nextPhase = allPhases[currentIndex + 1];
+          if (nextPhase) {
             newPhase = nextPhase.id;
             
             // DON'T show "Start Next Phase" button if next phase is review
@@ -363,6 +368,11 @@ const handleFinishQuiz = () => {
         } else {
           // Failed - reject the application
           newStatus = "rejected";
+        }
+      } else {
+        // Manual mode - only advance to review phase if it's the next step
+        if (nextPhase?.type === "review") {
+          newPhase = nextPhase.id;
         }
       }
 
