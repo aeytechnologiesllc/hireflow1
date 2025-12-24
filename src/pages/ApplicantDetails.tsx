@@ -425,20 +425,36 @@ export default function ApplicantDetails() {
     enabled: !!id && !!user,
   });
 
-  // Fetch scheduled interview for this application
+  // Fetch scheduled interview for this application - prioritize active interviews
   const { data: scheduledInterview } = useQuery({
     queryKey: ["interview", "application", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First try to find an active (scheduled) interview
+      const { data: activeInterview, error: activeError } = await supabase
         .from("interviews")
         .select("*")
         .eq("application_id", id!)
-        .order("scheduled_at", { ascending: false })
+        .eq("status", "scheduled")
+        .order("scheduled_at", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (activeError) throw activeError;
+      
+      // If there's an active interview, return it
+      if (activeInterview) return activeInterview;
+      
+      // Otherwise, return the most recently created interview (for history)
+      const { data: latestInterview, error: latestError } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("application_id", id!)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestError) throw latestError;
+      return latestInterview;
     },
     enabled: !!id,
   });
