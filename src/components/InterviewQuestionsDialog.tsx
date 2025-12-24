@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -105,10 +105,17 @@ export default function InterviewQuestionsDialog({
   onQuestionsGenerated,
 }: InterviewQuestionsDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [rawQuestions, setRawQuestions] = useState<string | null>(
-    interview?.ai_questions?.join("\n\n") || null
-  );
+  const [rawQuestions, setRawQuestions] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Sync rawQuestions with interview prop when dialog opens or interview changes
+  useEffect(() => {
+    if (open && interview?.ai_questions) {
+      setRawQuestions(interview.ai_questions.join("\n\n"));
+    } else if (open && !interview?.ai_questions) {
+      setRawQuestions(null);
+    }
+  }, [open, interview?.ai_questions]);
 
   const application = interview?.applications;
   const job = application?.jobs;
