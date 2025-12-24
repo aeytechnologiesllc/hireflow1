@@ -517,14 +517,33 @@ Resume URL: ${resumeUrl || "Not provided"}
       setAiScore(aiResult?.score || null);
 
       // Prepare notes with application answers
+      const applicationAnswers = Object.entries(answers).map(([id, answer]) => {
+        const question = applicationQuestions.find(q => q.id === id);
+        return { question: question?.question || id, answer };
+      });
+      
       const notes = applicationQuestions.length > 0
-        ? JSON.stringify({
-            applicationAnswers: Object.entries(answers).map(([id, answer]) => {
-              const question = applicationQuestions.find(q => q.id === id);
-              return { question: question?.question || id, answer };
-            }),
-          })
+        ? JSON.stringify({ applicationAnswers })
         : null;
+
+      // Detect resume URL: use state if set, otherwise look in file question answers
+      let finalResumeUrl = resumeUrl || null;
+      if (!finalResumeUrl) {
+        // Look for resume in file question answers
+        for (const [questionId, fileUrl] of Object.entries(questionFileUrls)) {
+          const question = applicationQuestions.find(q => q.id === questionId);
+          if (question?.type === "file") {
+            const questionText = (question.question || questionId).toLowerCase();
+            const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
+            // If it's a resume question OR it's the only file question, use it
+            if (isResumeQuestion || applicationQuestions.filter(q => q.type === "file").length === 1) {
+              finalResumeUrl = fileUrl;
+              console.log("[CandidateApplicationWizard] Detected resume from file question:", fileUrl);
+              break;
+            }
+          }
+        }
+      }
 
       // Determine if autopilot mode and what the next phase should be
       const isAutoMode = job.processing_mode !== "manual";
@@ -585,7 +604,7 @@ Resume URL: ${resumeUrl || "Not provided"}
         await updateApplication.mutateAsync({
           id: createdApplicationId,
           cover_letter: coverLetter || null,
-          resume_url: resumeUrl || null,
+          resume_url: finalResumeUrl,
           ai_analysis: aiResult?.analysis || null,
           ai_score: aiResult?.score || null,
           notes,
@@ -597,7 +616,7 @@ Resume URL: ${resumeUrl || "Not provided"}
         const createdApp = await createApplication.mutateAsync({
           job_id: job.id,
           cover_letter: coverLetter || null,
-          resume_url: resumeUrl || null,
+          resume_url: finalResumeUrl,
           ai_analysis: aiResult?.analysis || null,
           ai_score: aiResult?.score || null,
           notes,

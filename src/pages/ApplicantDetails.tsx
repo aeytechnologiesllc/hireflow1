@@ -58,6 +58,7 @@ import { RejectedStampAnimation } from "@/components/animations/RejectedStampAni
 import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
+import { detectResumeUrl } from "@/utils/detectResumeUrl";
 interface WorkflowStep {
   id: string;
   title: string;
@@ -1268,6 +1269,10 @@ export default function ApplicantDetails() {
         ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
         : "Not provided";
 
+      // Detect resume URL from canonical field OR application answers
+      const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
+      console.log("[handleReanalyze] Detected resume URL:", detectedResumeUrl);
+
       let content = `
 Job Title: ${application.jobs?.title || "Unknown"}
 Job Description: ${application.jobs?.description || "Not provided"}
@@ -1289,7 +1294,7 @@ ${applicationAnswersText}
 Cover Letter:
 ${application.cover_letter || "Not provided"}
 
-Resume URL: ${application.resume_url || "Not provided"}
+Resume URL: ${detectedResumeUrl || "Not provided"}
 `;
 
       // Add Typing Test results if available
@@ -1378,7 +1383,7 @@ ${interviewType} Interview with AVA Results:
         body: {
           type: "resume",
           content,
-          resumeUrl: application.resume_url || null,
+          resumeUrl: detectedResumeUrl,
           context: {
             skills_required: application.jobs?.skills_required,
             experience_level: application.jobs?.experience_level,

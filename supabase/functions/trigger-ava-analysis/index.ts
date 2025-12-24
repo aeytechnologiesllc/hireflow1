@@ -6,6 +6,67 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Resume detection utilities (inline since we can't import from src)
+const RESUME_KEYWORDS = ['resume', 'cv', 'curriculum vitae', 'curriculum', 'résumé'];
+
+function isFileUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const filePatterns = ['/storage/v1/object/', '/resumes/', '/documents/', '.pdf', '.doc', '.docx'];
+  const lowerUrl = url.toLowerCase();
+  return filePatterns.some(pattern => lowerUrl.includes(pattern));
+}
+
+function isResumeQuestion(questionText: string): boolean {
+  if (!questionText || typeof questionText !== 'string') return false;
+  const lowerQuestion = questionText.toLowerCase();
+  return RESUME_KEYWORDS.some(keyword => lowerQuestion.includes(keyword));
+}
+
+function detectResumeUrl(
+  resumeUrlField: string | null | undefined,
+  parsedNotes: Record<string, any> | null | undefined
+): string | null {
+  // Priority 1: Use canonical resume_url field if it exists
+  if (resumeUrlField && typeof resumeUrlField === 'string' && resumeUrlField.trim()) {
+    console.log('[detectResumeUrl] Using canonical resume_url field:', resumeUrlField);
+    return resumeUrlField.trim();
+  }
+
+  // Priority 2: Look for resume in applicationAnswers
+  const answers = parsedNotes?.applicationAnswers;
+  if (!answers || !Array.isArray(answers)) {
+    console.log('[detectResumeUrl] No applicationAnswers found');
+    return null;
+  }
+
+  // First pass: Look for answers that are file URLs AND have resume-related question text
+  for (const answer of answers) {
+    if (isFileUrl(answer.answer) && isResumeQuestion(answer.question)) {
+      console.log('[detectResumeUrl] Found resume in applicationAnswers (resume question):', answer.answer);
+      return answer.answer;
+    }
+  }
+
+  // Second pass: If only one file URL exists, treat it as the resume
+  const fileUrlAnswers = answers.filter((a: any) => isFileUrl(a.answer));
+  if (fileUrlAnswers.length === 1) {
+    console.log('[detectResumeUrl] Found single file upload, treating as resume:', fileUrlAnswers[0].answer);
+    return fileUrlAnswers[0].answer;
+  }
+
+  // Third pass: Look for any answer that is a URL containing /resumes/ bucket
+  for (const answer of answers) {
+    if (answer.answer && typeof answer.answer === 'string' && 
+        answer.answer.toLowerCase().includes('/resumes/')) {
+      console.log('[detectResumeUrl] Found file in resumes bucket:', answer.answer);
+      return answer.answer;
+    }
+  }
+
+  console.log('[detectResumeUrl] No resume URL found');
+  return null;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -56,6 +117,10 @@ serve(async (req) => {
       parsedNotes = {};
     }
 
+    // Detect resume URL from canonical field OR application answers
+    const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
+    console.log("[trigger-ava-analysis] Detected resume URL:", detectedResumeUrl);
+
     // Build content string from all available phase data
     const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
       ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
@@ -85,7 +150,7 @@ ${applicationAnswersText}
 Cover Letter:
 ${application.cover_letter || "Not provided"}
 
-Resume URL: ${application.resume_url || "Not provided"}
+Resume URL: ${detectedResumeUrl || "Not provided"}
 `;
 
     // Add Typing Test results if available
@@ -185,7 +250,7 @@ ${interviewType} Interview with AVA Results:
       body: {
         type: "resume",
         content,
-        resumeUrl: application.resume_url || null,
+        resumeUrl: detectedResumeUrl,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
