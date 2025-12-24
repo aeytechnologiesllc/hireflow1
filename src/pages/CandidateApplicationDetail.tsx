@@ -404,13 +404,11 @@ export default function CandidateApplicationDetail() {
       });
     }
 
-    // Add Review phase - only in Autopilot mode
-    const isAutoPilotMode = application?.jobs?.processing_mode === "auto";
-    if (isAutoPilotMode) {
-      allPhases.push(
-        { id: "review", title: "Final Review", icon: Eye, type: "review" }
-      );
-    }
+    // Add Review phase - in BOTH autopilot AND manual modes
+    // In manual mode, once all candidate phases are done, they wait for employer review
+    allPhases.push(
+      { id: "review", title: "Employer Review", icon: Eye, type: "review" }
+    );
     
     // Add Ava Interview AFTER review if it exists in workflow
     if (voiceInterviewStep) {
