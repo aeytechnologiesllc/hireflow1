@@ -238,7 +238,7 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
 
   // Strengths cards
   (strengthsToLeverage?.identified || []).slice(0, 4).forEach((item) => {
-    const cardHeight = 42;
+    const cardHeight = 55;
     setFillColor(doc, COLORS.successBg);
     roundedRect(doc, margin, y, contentWidth, cardHeight, 3, 'F');
     
@@ -248,25 +248,24 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
     doc.setFont("helvetica", "bold");
     doc.text(item.strength || "Strength", margin + 8, y + 10);
     
-    // Evidence
+    // Evidence - allow 2 lines
     setColor(doc, COLORS.body);
     doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     const evidenceLines = wrapText(doc, `"${item.evidence || ''}"`, contentWidth - 16);
-    evidenceLines.slice(0, 1).forEach((line, i) => {
+    evidenceLines.slice(0, 2).forEach((line, i) => {
       doc.text(line, margin + 8, y + 18 + (i * 4));
     });
     
-    // Future strategy
+    // Future strategy - allow 2 lines
     setColor(doc, COLORS.dark);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text("→ Future strategy:", margin + 8, y + 28);
+    doc.text("→ Future strategy:", margin + 8, y + 32);
     const strategyLines = wrapText(doc, item.futureStrategy || "", contentWidth - 50);
-    doc.text(strategyLines[0] || "", margin + 40, y + 28);
-    if (strategyLines[1]) {
-      doc.text(strategyLines[1], margin + 8, y + 34);
-    }
+    strategyLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, i === 0 ? margin + 40 : margin + 8, y + 32 + (i * 5));
+    });
     
     y += cardHeight + 6;
     
@@ -312,7 +311,7 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
 
   // Improvement coaching cards (max 3)
   (improvementCoaching || []).slice(0, 3).forEach((item, idx) => {
-    const cardHeight = 62;
+    const cardHeight = 80;
     
     // Check if we need new page
     if (y + cardHeight > pageHeight - 20) {
@@ -338,34 +337,45 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
     doc.setFontSize(11);
     doc.text(item.area || "Area", margin + 28, y + 13);
     
-    // What was observed
+    // What was observed - allow 2 lines
     setColor(doc, COLORS.body);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     const obsLines = wrapText(doc, `Observed: ${item.whatWasObserved || ''}`, contentWidth - 16);
-    doc.text(obsLines[0] || "", margin + 8, y + 23);
+    obsLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, margin + 8, y + 23 + (i * 4));
+    });
     
-    // Why this matters
+    // Why this matters - allow 2 lines
     setColor(doc, COLORS.muted);
     doc.setFont("helvetica", "italic");
     const whyLines = wrapText(doc, item.whyThisMatters || "", contentWidth - 16);
-    doc.text(whyLines[0] || "", margin + 8, y + 30);
+    whyLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, margin + 8, y + 35 + (i * 4));
+    });
     
     // Strategy box
     setColor(doc, COLORS.success);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text(`Strategy: ${item.improvementStrategy?.framework || ''}`, margin + 8, y + 40);
+    const strategyLines = wrapText(doc, `Strategy: ${item.improvementStrategy?.framework || ''}`, contentWidth - 16);
+    strategyLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, margin + 8, y + 48 + (i * 4));
+    });
     
     setColor(doc, COLORS.body);
     doc.setFont("helvetica", "normal");
     const habitLines = wrapText(doc, `Daily habit: ${item.improvementStrategy?.dailyHabit || ''}`, contentWidth - 16);
-    doc.text(habitLines[0] || "", margin + 8, y + 48);
+    habitLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, margin + 8, y + 60 + (i * 4));
+    });
     
     // Resource
     setColor(doc, COLORS.primary);
     doc.setFontSize(7);
-    doc.text(`Resource: ${item.resource?.name || ''} (${item.resource?.url || ''})`, margin + 8, y + 56);
+    const resourceText = `Resource: ${item.resource?.name || ''} (${item.resource?.url || ''})`;
+    const resourceLines = wrapText(doc, resourceText, contentWidth - 16);
+    doc.text(resourceLines[0] || "", margin + 8, y + 72);
     
     y += cardHeight + 6;
   });
@@ -389,7 +399,7 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
 
   // Week cards - 2x2 grid
   const weekWidth = (contentWidth - 8) / 2;
-  const weekHeight = 52;
+  const weekHeight = 75;
   const weeks = [
     { ...thirtyDayPlan?.week1, label: "Week 1" },
     { ...thirtyDayPlan?.week2, label: "Week 2" },
@@ -414,30 +424,41 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
     doc.setFont("helvetica", "bold");
     doc.text(week.label, x + 25, wy + 11, { align: 'center' });
     
-    // Focus
+    // Focus - use wrapText instead of substring
     setColor(doc, COLORS.dark);
     doc.setFontSize(9);
-    doc.text((week.focus || "Focus area").substring(0, 25), x + 50, wy + 11);
+    const focusLines = wrapText(doc, week.focus || "Focus area", weekWidth - 55);
+    focusLines.slice(0, 1).forEach((line, i) => {
+      doc.text(line, x + 50, wy + 11 + (i * 4));
+    });
     
-    // Daily actions
+    // Daily actions - use wrapText for each action
     setColor(doc, COLORS.body);
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
-    (week.dailyActions || []).slice(0, 3).forEach((action, i) => {
-      doc.text(`• ${(action || "").substring(0, 38)}`, x + 8, wy + 22 + (i * 7));
+    let actionY = wy + 20;
+    (week.dailyActions || []).slice(0, 3).forEach((action) => {
+      const actionLines = wrapText(doc, `• ${action || ""}`, weekWidth - 16);
+      actionLines.slice(0, 2).forEach((line, i) => {
+        doc.text(line, x + 8, actionY + (i * 5));
+      });
+      actionY += Math.min(actionLines.length, 2) * 5 + 3;
     });
     
-    // Success metric
+    // Success metric - use wrapText instead of substring
     setColor(doc, COLORS.success);
     doc.setFontSize(7);
-    doc.text(`✓ ${(week.successMetric || "").substring(0, 40)}`, x + 8, wy + 46);
+    const metricLines = wrapText(doc, `✓ ${week.successMetric || ""}`, weekWidth - 16);
+    metricLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, x + 8, wy + weekHeight - 12 + (i * 5));
+    });
   });
 
   y += (weekHeight * 2) + 20;
 
   // Closing message
   setFillColor(doc, COLORS.primary);
-  const closingHeight = 55;
+  const closingHeight = 70;
   roundedRect(doc, margin, y, contentWidth, closingHeight, 4, 'F');
   
   setColor(doc, COLORS.white);
@@ -448,34 +469,42 @@ export function generateImprovementBlueprint(data: ImprovementBlueprintData) {
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   const noteLines = wrapText(doc, closingMessage?.personalNote || "Keep pushing forward!", contentWidth - 16);
-  noteLines.slice(0, 3).forEach((line, i) => {
+  noteLines.slice(0, 4).forEach((line, i) => {
     doc.text(line, margin + 8, y + 22 + (i * 5));
   });
   
   // Final thought
   doc.setFontSize(10);
   doc.setFont("helvetica", "italic");
-  doc.text(closingMessage?.finalThought || "", margin + 8, y + 48);
+  const finalLines = wrapText(doc, closingMessage?.finalThought || "", contentWidth - 16);
+  finalLines.slice(0, 2).forEach((line, i) => {
+    doc.text(line, margin + 8, y + 55 + (i * 5));
+  });
 
   y += closingHeight + 10;
 
   // Immediate Actions checklist
-  if (y + 50 < pageHeight) {
+  if (y + 60 < pageHeight) {
     setColor(doc, COLORS.dark);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("Do This Today", margin, y);
     y += 7;
     
-    (closingMessage?.immediateActions || []).slice(0, 5).forEach((action, i) => {
+    let actionY = y;
+    (closingMessage?.immediateActions || []).slice(0, 5).forEach((action) => {
       setDrawColor(doc, COLORS.primary);
       doc.setLineWidth(0.5);
-      doc.rect(margin, y + (i * 9), 4, 4, 'S');
+      doc.rect(margin, actionY, 4, 4, 'S');
       
       setColor(doc, COLORS.body);
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text((action || "").substring(0, 80), margin + 8, y + 4 + (i * 9));
+      const actionLines = wrapText(doc, action || "", contentWidth - 16);
+      actionLines.slice(0, 2).forEach((line, i) => {
+        doc.text(line, margin + 8, actionY + 4 + (i * 5));
+      });
+      actionY += Math.min(actionLines.length, 2) * 5 + 4;
     });
   }
 
