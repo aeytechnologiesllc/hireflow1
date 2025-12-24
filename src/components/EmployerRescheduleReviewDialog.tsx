@@ -11,11 +11,23 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { Calendar, Clock, Loader2, MessageSquare, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+
+// Helper to safely format dates
+const safeFormatDate = (dateStr: string | null | undefined, formatStr: string): string => {
+  if (!dateStr) return "Not specified";
+  try {
+    const date = typeof dateStr === 'string' ? parseISO(dateStr) : new Date(dateStr);
+    if (!isValid(date)) return "Invalid date";
+    return format(date, formatStr);
+  } catch {
+    return "Invalid date";
+  }
+};
 
 interface ProposedTime {
   datetime: string;
@@ -173,14 +185,14 @@ export function EmployerRescheduleReviewDialog({
               <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
                 Original Time
               </p>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{format(new Date(currentScheduledAt), "EEEE, MMMM d, yyyy")}</span>
+                  <span>{safeFormatDate(currentScheduledAt, "EEEE, MMMM d, yyyy")}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{format(new Date(currentScheduledAt), "h:mm a")}</span>
+                  <span>{safeFormatDate(currentScheduledAt, "h:mm a")}</span>
                 </div>
               </div>
             </CardContent>
@@ -195,31 +207,37 @@ export function EmployerRescheduleReviewDialog({
           )}
 
           {/* Proposed Times */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Candidate's Proposed Times</p>
-            <RadioGroup value={selectedTime} onValueChange={setSelectedTime}>
-              {proposedTimes.map((time, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
-                >
-                  <RadioGroupItem value={time.datetime} id={`time-${index}`} />
-                  <Label htmlFor={`time-${index}`} className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{format(new Date(time.datetime), "EEEE, MMMM d, yyyy")}</span>
+          {proposedTimes && proposedTimes.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Candidate's Proposed Times</p>
+              <RadioGroup value={selectedTime} onValueChange={setSelectedTime}>
+                {proposedTimes.filter(time => time?.datetime).map((time, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <RadioGroupItem value={time.datetime} id={`time-${index}`} />
+                    <Label htmlFor={`time-${index}`} className="flex-1 cursor-pointer">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>{safeFormatDate(time.datetime, "EEEE, MMMM d, yyyy")}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>{safeFormatDate(time.datetime, "h:mm a")}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span>{format(new Date(time.datetime), "h:mm a")}</span>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground italic p-4 bg-muted/30 rounded-lg">
+              No alternative times proposed by the candidate.
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0 pt-4 border-t border-border">
