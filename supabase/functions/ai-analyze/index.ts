@@ -1,6 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs";
 
 const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
 
@@ -216,61 +215,18 @@ serve(async (req) => {
 
     console.log(`Processing ${type} analysis request`);
 
-    // For resume analysis, fetch and parse PDF content
+    // Resume parsing is handled client-side (browser) to avoid Deno runtime incompatibilities.
+    // If resume text isn't available, we gracefully continue based on the other application data.
     let resumeContent = "";
     let pdfExtracted = false;
+
     if (type === "resume" && resumeUrl) {
-      console.log("Fetching resume from:", resumeUrl);
-      try {
-        const pdfResponse = await fetch(resumeUrl);
-        if (pdfResponse.ok) {
-          const pdfBuffer = await pdfResponse.arrayBuffer();
-
-          // Deno-compatible PDF text extraction via pdf.js
-          const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer, disableWorker: true } as any);
-          const pdf = await loadingTask.promise;
-
-          let extractedText = "";
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            extractedText +=
-              textContent.items
-                .map((item: any) => (typeof item?.str === "string" ? item.str : ""))
-                .join(" ") + "\n";
-          }
-
-          extractedText = extractedText.trim();
-          console.log("Resume text extraction result, length:", extractedText.length);
-
-          // Check if extraction returned meaningful content (at least 100 chars of text)
-          if (extractedText.length >= 100) {
-            console.log("Successfully extracted resume text");
-            resumeContent = `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${extractedText}\n--- END RESUME CONTENT ---`;
-            pdfExtracted = true;
-          } else {
-            // Image-based PDF or minimal text - graceful fallback
-            console.log(
-              "Resume appears to be image-based (extracted text < 100 chars). Proceeding with application data only."
-            );
-            resumeContent = `\n\n[Note: This resume appears to be image-based or uses non-extractable text (like graphics/scanned documents). Text extraction returned minimal content (${extractedText.length} characters). Please analyze this candidate based on the other application data provided above. The resume was uploaded successfully but its contents cannot be automatically extracted for analysis.]`;
-            pdfExtracted = false;
-          }
-        } else {
-          console.warn("Failed to fetch resume:", pdfResponse.status);
-          resumeContent = "\n\n[Note: Could not access resume file - HTTP " + pdfResponse.status + ". Please analyze based on other application data.]";
-        }
-      } catch (err) {
-        console.error("Error extracting resume text:", err);
-        resumeContent =
-          "\n\n[Note: Resume file could not be parsed. This may be an image-based PDF or an unsupported format. Please analyze based on other application data provided. Error details: " +
-          (err instanceof Error ? err.message : "Unknown") +
-          "]";
-      }
+      resumeContent = `\n\n[Resume file URL provided: ${resumeUrl}. If resume text is not included above, proceed based on the other application data.]`;
+      pdfExtracted = false;
     }
 
     let userContent = content + resumeContent;
-    
+
     if (context) {
       userContent += `\n\nAdditional Context:\n${JSON.stringify(context, null, 2)}`;
     }
