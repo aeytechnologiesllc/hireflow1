@@ -381,6 +381,9 @@ const handleFinishQuiz = () => {
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
+      // Always trigger AVA analysis (for both manual and auto modes)
+      triggerAvaAnalysis(id!).catch(console.error);
+
       if (isAutoMode) {
         // Run evaluation and show result screen
         await evaluatePhaseSubmission(id!, results.score, passingScore);
