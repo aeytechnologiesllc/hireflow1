@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { CalendarIcon, Clock, Loader2, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,13 +35,18 @@ interface ProposedTime {
   time: string;
 }
 
+interface RescheduleSuccessData {
+  proposedTimesCount: number;
+  candidateNote: string | null;
+}
+
 interface CandidateRescheduleRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   interviewId: string;
   applicationId: string;
   currentScheduledAt: string;
-  onSuccess?: () => void;
+  onSuccess?: (data: RescheduleSuccessData) => void;
 }
 
 export function CandidateRescheduleRequestDialog({
@@ -105,16 +110,21 @@ export function CandidateRescheduleRequestDialog({
         return { datetime: datetime.toISOString() };
       });
 
-      const { error } = await supabase
-        .from("interviews")
-        .update({
-          candidate_response: "reschedule_requested",
-          proposed_times: formattedTimes,
-          candidate_note: note || null,
-        })
-        .eq("id", interviewId);
+      // Call edge function for reschedule request
+      const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
+        body: {
+          action: "reschedule_requested",
+          interviewId,
+          proposedTimes: formattedTimes,
+          candidateNote: note || null,
+        },
+      });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to submit reschedule request");
+      }
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
@@ -122,8 +132,11 @@ export function CandidateRescheduleRequestDialog({
 
       toast.success("Reschedule request sent to employer");
       
-      // Call success callback for optimistic UI update
-      onSuccess?.();
+      // Call success callback with optimistic data
+      onSuccess?.({
+        proposedTimesCount: formattedTimes.length,
+        candidateNote: note || null,
+      });
       
       onOpenChange(false);
       

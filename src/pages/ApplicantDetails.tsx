@@ -512,6 +512,8 @@ export default function ApplicantDetails() {
             toast.info("Candidate has requested to reschedule", {
               description: "Review their proposed times and respond.",
             });
+            // Auto-open the reschedule review dialog
+            setShowRescheduleReviewDialog(true);
           } else if (newData?.candidate_response === "confirmed" && 
                      oldData?.candidate_response !== "confirmed") {
             toast.success("Candidate confirmed the interview!", {
