@@ -52,10 +52,32 @@ const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.events";
 const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
 
 const timeSlots = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
-  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+  { value: "09:00", label: "9:00 AM" },
+  { value: "09:30", label: "9:30 AM" },
+  { value: "10:00", label: "10:00 AM" },
+  { value: "10:30", label: "10:30 AM" },
+  { value: "11:00", label: "11:00 AM" },
+  { value: "11:30", label: "11:30 AM" },
+  { value: "12:00", label: "12:00 PM" },
+  { value: "12:30", label: "12:30 PM" },
+  { value: "13:00", label: "1:00 PM" },
+  { value: "13:30", label: "1:30 PM" },
+  { value: "14:00", label: "2:00 PM" },
+  { value: "14:30", label: "2:30 PM" },
+  { value: "15:00", label: "3:00 PM" },
+  { value: "15:30", label: "3:30 PM" },
+  { value: "16:00", label: "4:00 PM" },
+  { value: "16:30", label: "4:30 PM" },
+  { value: "17:00", label: "5:00 PM" },
+  { value: "17:30", label: "5:30 PM" },
 ];
+
+const formatTimeToAMPM = (time24: string): string => {
+  const [hours, minutes] = time24.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12;
+  return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+};
 
 export default function InterviewSchedulingWizard({
   applicationId,
@@ -369,16 +391,16 @@ export default function InterviewSchedulingWizard({
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">Select Time</Label>
                     <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-2">
-                      {timeSlots.map((time) => (
+                      {timeSlots.map((slot) => (
                         <Button
-                          key={time}
+                          key={slot.value}
                           type="button"
-                          variant={selectedTime === time ? "default" : "outline"}
+                          variant={selectedTime === slot.value ? "default" : "outline"}
                           size="sm"
                           className="w-full"
-                          onClick={() => setSelectedTime(time)}
+                          onClick={() => setSelectedTime(slot.value)}
                         >
-                          {time}
+                          {slot.label}
                         </Button>
                       ))}
                     </div>
@@ -390,7 +412,7 @@ export default function InterviewSchedulingWizard({
                     <div className="flex items-center gap-2 text-primary">
                       <CheckCircle className="h-5 w-5" />
                       <span className="font-medium">
-                        {format(selectedDate, "EEEE, MMMM d, yyyy")} at {selectedTime}
+                        {format(selectedDate, "EEEE, MMMM d, yyyy")} at {formatTimeToAMPM(selectedTime)}
                       </span>
                     </div>
                   </div>
@@ -604,7 +626,7 @@ export default function InterviewSchedulingWizard({
                       <div>
                         <p className="text-sm text-muted-foreground">Date & Time</p>
                         <p className="font-medium">
-                          {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""} at {selectedTime}
+                          {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""} at {formatTimeToAMPM(selectedTime)}
                         </p>
                       </div>
                     </div>
