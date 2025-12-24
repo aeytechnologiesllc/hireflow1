@@ -24,6 +24,7 @@ export default function OAuthGoogleCallback() {
       if (error) {
         setStatus("error");
         setMessage(`Google authorization failed: ${error}`);
+        localStorage.removeItem("interview_wizard_state");
         setTimeout(() => navigate(returnUrl), 2000);
         return;
       }
@@ -31,6 +32,7 @@ export default function OAuthGoogleCallback() {
       if (!code || state !== "google_calendar_connect") {
         setStatus("error");
         setMessage("Invalid OAuth callback");
+        localStorage.removeItem("interview_wizard_state");
         setTimeout(() => navigate(returnUrl), 2000);
         return;
       }
@@ -63,12 +65,14 @@ export default function OAuthGoogleCallback() {
         setMessage("Google Calendar connected successfully!");
         toast.success("Google Calendar connected!");
         
-        // Navigate back to the original page
-        setTimeout(() => navigate(returnUrl), 1500);
+        // Navigate back with query param to reopen wizard
+        const separator = returnUrl.includes("?") ? "&" : "?";
+        setTimeout(() => navigate(`${returnUrl}${separator}openWizard=true`), 1000);
       } catch (err: any) {
         console.error("Google OAuth error:", err);
         setStatus("error");
         setMessage(err.message || "Failed to connect Google Calendar");
+        localStorage.removeItem("interview_wizard_state");
         toast.error("Failed to connect Google Calendar");
         setTimeout(() => navigate(returnUrl), 2000);
       }
@@ -90,7 +94,7 @@ export default function OAuthGoogleCallback() {
           <>
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
             <p className="text-lg text-foreground">{message}</p>
-            <p className="text-sm text-muted-foreground">Redirecting...</p>
+            <p className="text-sm text-muted-foreground">Returning to wizard...</p>
           </>
         )}
         {status === "error" && (
