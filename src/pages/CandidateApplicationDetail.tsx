@@ -30,7 +30,8 @@ import {
   AlertCircle,
   FastForward,
   Hand,
-  Mic
+  Mic,
+  FileUp
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -39,6 +40,9 @@ import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { usePerformanceReport } from "@/hooks/usePerformanceReport";
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
+import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
+import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
+import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 
 interface WorkflowStep {
   id: string;
@@ -100,6 +104,7 @@ export default function CandidateApplicationDetail() {
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
+  const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
   
   // Status screen state
   const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | "interview_cancelled" | "interview_rescheduled" | null>(null);
@@ -107,6 +112,9 @@ export default function CandidateApplicationDetail() {
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
   const previousInterviewRef = useRef<{ scheduled_at: string; status: string } | null>(null);
+  
+  // Fetch document requests for this application
+  const { data: documentRequests = [], refetch: refetchDocumentRequests } = useDocumentRequests();
 
   // Fetch application with job details
   const { data: application, isLoading, refetch } = useQuery({
@@ -676,18 +684,69 @@ export default function CandidateApplicationDetail() {
       )}
 
       {isHired && (
-        <Card className="bg-success/10 border-success/40">
-          <CardContent className="p-4 flex items-start gap-3">
-            <CheckCircle className="h-5 w-5 text-success mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-success">You&apos;re Hired!</h3>
-              <p className="text-sm text-muted-foreground">
-                Congratulations! This application has been marked as hired. The employer will contact you
-                with next steps.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <>
+          <Card className="bg-success/10 border-success/40">
+            <CardContent className="p-4 flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-success mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-success">You&apos;re Hired!</h3>
+                <p className="text-sm text-muted-foreground">
+                  Congratulations! This application has been marked as hired. The employer will contact you
+                  with next steps.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Document Requests Section for Hired Candidates */}
+          {(() => {
+            const applicationDocRequests = documentRequests.filter(
+              (req) => req.application_id === id
+            );
+            const pendingRequests = applicationDocRequests.filter(
+              (req) => req.status === "pending" || req.status === "rejected"
+            );
+            const completedRequests = applicationDocRequests.filter(
+              (req) => req.status === "submitted" || req.status === "reviewed" || req.status === "approved"
+            );
+            
+            if (applicationDocRequests.length === 0) return null;
+            
+            return (
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileUp className="h-5 w-5 text-primary" />
+                    Required Documents
+                    {pendingRequests.length > 0 && (
+                      <Badge variant="destructive" className="ml-2">
+                        {pendingRequests.length} pending
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {pendingRequests.length > 0 && (
+                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 mb-4">
+                      <p className="text-sm text-foreground">
+                        <strong>Action Required:</strong> Please upload the following documents to complete your onboarding.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {applicationDocRequests.map((request) => (
+                    <DocumentRequestCard
+                      key={request.id}
+                      request={request}
+                      isEmployer={false}
+                      onUpload={() => setUploadDialogRequest(request)}
+                    />
+                  ))}
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </>
       )}
 
       {/* Progress Overview */}
@@ -842,6 +901,18 @@ export default function CandidateApplicationDetail() {
       </Card>
 
       </div>
+
+      {/* Document Upload Dialog */}
+      <DocumentUploadDialog
+        open={!!uploadDialogRequest}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUploadDialogRequest(null);
+            refetchDocumentRequests();
+          }
+        }}
+        request={uploadDialogRequest}
+      />
     </>
   );
 }
