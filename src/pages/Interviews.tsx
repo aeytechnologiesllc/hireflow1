@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, Sparkles, EyeOff, AlertCircle, Trash2 } from "lucide-react";
+import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, EyeOff, AlertCircle, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format, isPast, isFuture } from "date-fns";
-import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
+
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import { useNavigate } from "react-router-dom";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
@@ -44,7 +44,7 @@ interface InterviewCardProps {
   isEmployer: boolean;
   canScheduleInterviews: boolean;
   onStatusChange: (id: string, status: string) => void;
-  onGenerateQuestions: (interview: InterviewWithDetails) => void;
+  
   onReviewReschedule: (interview: InterviewWithDetails) => void;
   onDeleteInterview: (id: string) => void;
 }
@@ -54,7 +54,6 @@ function InterviewCard({
   isEmployer, 
   canScheduleInterviews, 
   onStatusChange, 
-  onGenerateQuestions,
   onReviewReschedule,
   onDeleteInterview
 }: InterviewCardProps) {
@@ -136,13 +135,6 @@ function InterviewCard({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-popover border-border">
-                      {/* AI Questions - only for non-cancelled interviews */}
-                      {interview.status !== "cancelled" && (
-                        <DropdownMenuItem onClick={() => onGenerateQuestions(interview)}>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          AI Questions
-                        </DropdownMenuItem>
-                      )}
                       
                       {/* Status actions - only for scheduled interviews */}
                       {interview.status === "scheduled" && (
@@ -208,12 +200,6 @@ function InterviewCard({
                   </a>
                 </Button>
               )}
-              {interview.ai_questions && interview.ai_questions.length > 0 && (
-                <div className="flex items-center gap-1 text-primary">
-                  <Sparkles className="h-4 w-4" />
-                  <span>{interview.ai_questions.length} AI questions</span>
-                </div>
-              )}
             </div>
 
             {interview.notes && (
@@ -235,8 +221,6 @@ export default function Interviews() {
   const { data: interviews, isLoading, refetch } = useInterviews();
   const updateInterview = useUpdateInterview();
   const deleteInterview = useDeleteInterview();
-  const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
-  const [selectedInterview, setSelectedInterview] = useState<InterviewWithDetails | null>(null);
   const [rescheduleInterview, setRescheduleInterview] = useState<InterviewWithDetails | null>(null);
 
   // Real-time subscription for interview updates
@@ -308,11 +292,6 @@ export default function Interviews() {
     }
   };
 
-  const handleGenerateQuestions = (interview: InterviewWithDetails) => {
-    setSelectedInterview(interview);
-    setQuestionsDialogOpen(true);
-  };
-
   const handleReviewReschedule = (interview: InterviewWithDetails) => {
     setRescheduleInterview(interview);
   };
@@ -326,18 +305,6 @@ export default function Interviews() {
     }
   };
 
-  const handleQuestionsGenerated = async (questions: string[]) => {
-    if (!selectedInterview) return;
-    try {
-      await updateInterview.mutateAsync({
-        id: selectedInterview.id,
-        ai_questions: questions,
-      });
-      refetch();
-    } catch (error) {
-      console.error("Failed to save questions:", error);
-    }
-  };
 
   const handleMessageCandidate = () => {
     if (rescheduleInterview?.applications?.candidate_id) {
@@ -403,7 +370,6 @@ export default function Interviews() {
                   isEmployer={isEmployer}
                   canScheduleInterviews={!!canScheduleInterviews}
                   onStatusChange={handleStatusChange}
-                  onGenerateQuestions={handleGenerateQuestions}
                   onReviewReschedule={handleReviewReschedule}
                   onDeleteInterview={handleDeleteInterview}
                 />
@@ -422,7 +388,6 @@ export default function Interviews() {
                   isEmployer={isEmployer}
                   canScheduleInterviews={!!canScheduleInterviews}
                   onStatusChange={handleStatusChange}
-                  onGenerateQuestions={handleGenerateQuestions}
                   onReviewReschedule={handleReviewReschedule}
                   onDeleteInterview={handleDeleteInterview}
                 />
@@ -444,12 +409,6 @@ export default function Interviews() {
         </Card>
       )}
 
-      <InterviewQuestionsDialog
-        interview={selectedInterview}
-        open={questionsDialogOpen}
-        onOpenChange={setQuestionsDialogOpen}
-        onQuestionsGenerated={handleQuestionsGenerated}
-      />
 
       <EmployerRescheduleReviewDialog
         open={!!rescheduleInterview}
