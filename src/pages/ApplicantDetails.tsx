@@ -55,6 +55,8 @@ import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import { RescheduleInterviewDialog } from "@/components/RescheduleInterviewDialog";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import { RejectedStampAnimation } from "@/components/animations/RejectedStampAnimation";
+import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
+import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
 interface WorkflowStep {
   id: string;
@@ -359,6 +361,7 @@ export default function ApplicantDetails() {
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
   const [showRejectAnimation, setShowRejectAnimation] = useState(false);
+  const [showInterviewQuestionsDialog, setShowInterviewQuestionsDialog] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   
   // Refs to store current values for the drag event handlers (fixes stale closure bug)
@@ -458,6 +461,20 @@ export default function ApplicantDetails() {
     },
     enabled: !!id,
   });
+
+  // Computed InterviewWithDetails object for the InterviewQuestionsDialog
+  const interviewWithDetails = useMemo<InterviewWithDetails | null>(() => {
+    if (!scheduledInterview || !application) return null;
+    return {
+      ...scheduledInterview,
+      applications: {
+        id: application.id,
+        candidate_id: application.candidate_id,
+        jobs: application.jobs,
+        profiles: application.profiles,
+      },
+    } as InterviewWithDetails;
+  }, [scheduledInterview, application]);
 
   // Real-time subscription for this application - syncs when AVA or external sources update it
   useEffect(() => {
@@ -1817,6 +1834,21 @@ ${interviewType} Interview with AVA Results:
                   >
                     <Clock className="h-4 w-4" />
                     Review Request
+                  </Button>
+                )}
+                
+                {/* AI Questions Button */}
+                {scheduledInterview.status === "scheduled" && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowInterviewQuestionsDialog(true)}
+                    className="gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {scheduledInterview.ai_questions?.length 
+                      ? `${scheduledInterview.ai_questions.length} AI Questions` 
+                      : "AI Questions"}
                   </Button>
                 )}
                 
@@ -3451,6 +3483,25 @@ ${interviewType} Interview with AVA Results:
           proposedTimes={((scheduledInterview as any).proposed_times as any[]) || []}
           candidateNote={(scheduledInterview as any).candidate_note || null}
           onMessageCandidate={() => setShowMessageDialog(true)}
+        />
+      )}
+
+      {/* AI Interview Questions Dialog */}
+      {interviewWithDetails && (
+        <InterviewQuestionsDialog
+          interview={interviewWithDetails}
+          open={showInterviewQuestionsDialog}
+          onOpenChange={setShowInterviewQuestionsDialog}
+          onQuestionsGenerated={async (questions) => {
+            if (scheduledInterview) {
+              await supabase
+                .from("interviews")
+                .update({ ai_questions: questions })
+                .eq("id", scheduledInterview.id);
+              queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
+              toast.success("Questions saved!");
+            }
+          }}
         />
       )}
     </div>

@@ -201,8 +201,9 @@ function InterviewCard({
                 <span className="capitalize">{interview.interview_type || "Video"} Interview</span>
               </div>
               {interview.meeting_link && isUpcoming && (
-                <Button variant="link" size="sm" className="h-auto p-0" asChild>
+                <Button size="sm" className="gap-1" asChild>
                   <a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
+                    <Video className="h-4 w-4" />
                     Join Meeting
                   </a>
                 </Button>
