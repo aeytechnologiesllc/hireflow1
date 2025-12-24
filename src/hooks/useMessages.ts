@@ -377,6 +377,27 @@ export function useSendMessage() {
         .single();
 
       if (error) throw error;
+      
+      // Send email notification to the receiver
+      try {
+        // Get sender's profile for the name
+        const { data: senderProfile } = await supabase
+          .from("profiles")
+          .select("full_name, company_name")
+          .eq("user_id", user!.id)
+          .single();
+        
+        const senderName = senderProfile?.company_name || senderProfile?.full_name || "Someone";
+        const { notifyNewMessage } = await import("@/utils/emailNotifications");
+        await notifyNewMessage(
+          receiver_id,
+          senderName,
+          content?.substring(0, 100)
+        );
+      } catch (emailError) {
+        console.error("Failed to send message notification email:", emailError);
+      }
+      
       return data;
     },
     onSuccess: (_, variables) => {

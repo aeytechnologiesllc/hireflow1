@@ -81,6 +81,23 @@ export function RescheduleInterviewDialog({
 
       if (error) throw error;
 
+      // Get application details to send email
+      const { data: appData } = await supabase
+        .from("applications")
+        .select("candidate_id, jobs(title)")
+        .eq("id", applicationId)
+        .single();
+
+      if (appData) {
+        const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+        await notifyInterviewRescheduled(
+          appData.candidate_id,
+          (appData.jobs as any)?.title || "Position",
+          format(scheduledAt, "EEEE, MMMM d, yyyy"),
+          format(scheduledAt, "h:mm a")
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
       toast.success("Interview rescheduled successfully");
