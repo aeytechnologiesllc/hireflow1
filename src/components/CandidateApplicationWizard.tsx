@@ -501,6 +501,18 @@ Resume URL: ${resumeUrl || "Not provided"}
         }
       }
 
+      // Prepare structured application answers for cross-reference
+      const structuredAnswers = Object.entries(answers).map(([id, answer]) => {
+        const question = applicationQuestions.find(q => q.id === id);
+        return { question: question?.question || id, answer: String(answer) };
+      });
+
+      // Extract name from answers if available (name field usually first)
+      const nameAnswer = Object.entries(answers).find(([id]) => 
+        id.toLowerCase().includes('name') || applicationQuestions.find(q => q.id === id)?.question.toLowerCase().includes('name')
+      );
+      const applicantName = nameAnswer ? String(nameAnswer[1]) : undefined;
+
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
           type: "application",
@@ -508,6 +520,10 @@ Resume URL: ${resumeUrl || "Not provided"}
           resumeUrl,
           resumeImage,
           resumeText,
+          // Cross-reference data for enhanced verification
+          applicantName,
+          applicationAnswers: structuredAnswers,
+          coverLetter: coverLetter || undefined,
           context: {
             skills_required: job.skills_required,
             experience_level: job.experience_level,

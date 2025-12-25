@@ -1409,6 +1409,14 @@ ${interviewType} Interview with AVA Results:
          }
        }
 
+       // Prepare structured application answers for cross-reference
+       const structuredAnswers = parsedNotes.applicationAnswers 
+         ? Object.entries(parsedNotes.applicationAnswers).map(([question, answer]) => ({
+             question,
+             answer: String(answer)
+           }))
+         : [];
+
        const { data, error } = await supabase.functions.invoke("ai-analyze", {
          body: {
            type: "resume",
@@ -1416,6 +1424,10 @@ ${interviewType} Interview with AVA Results:
            resumeUrl: detectedResumeUrl,
            resumeImage,
            resumeText,
+           // Cross-reference data for enhanced verification
+           applicantName: applicantDisplayName,
+           applicationAnswers: structuredAnswers,
+           coverLetter: application.cover_letter || undefined,
            context: {
              skills_required: application.jobs?.skills_required,
              experience_level: application.jobs?.experience_level,

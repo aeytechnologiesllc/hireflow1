@@ -15,26 +15,154 @@ interface AnalyzeRequest {
   resumeUrl?: string;
   resumeText?: string;
   resumeImage?: string; // Base64-encoded image for vision analysis
+  applicantName?: string; // For cross-reference verification
+  applicationAnswers?: Array<{ question: string; answer: string }>; // Structured answers
+  coverLetter?: string; // Separate cover letter for cross-reference
 }
 
 const systemPrompts: Record<string, string> = {
-  "application": `You are an expert HR analyst. Analyze the provided job application and resume.
-Evaluate the candidate based on:
-1. Skills match with job requirements
-2. Experience relevance
-3. Education and certifications
-4. Overall fit for the role
+  "application": `You are AIVA (AI Virtual Assistant), an expert HR analyst specializing in comprehensive candidate evaluation with advanced verification capabilities.
 
-Provide a structured analysis with:
-- Overall Score (0-100)
-- Key Strengths (bullet points)
-- Areas of Concern (bullet points)
-- Recommendation (Highly Recommended, Recommended, Consider, Not Recommended)
-- Brief Summary (2-3 sentences)
+IMPORTANT INSTRUCTION FOR UNEXTRACTABLE RESUMES:
+If the resume text could not be extracted (image-based PDF, scanned document, designed PDF, or parsing error), you MUST:
+1. Use status RESUME_UNAVAILABLE for Document Validation (NOT INVALID_DOCUMENT)
+2. Proceed to analyze the candidate based on ALL OTHER application data provided
+3. Provide a complete and helpful analysis using whatever data IS available
+4. Do NOT penalize the candidate - many legitimate resumes are image-based or designed PDFs
 
-Be objective, fair, and focus on qualifications rather than personal characteristics.`,
+CRITICAL: You must perform ALL of the following analyses:
 
-  "resume": `You are an expert HR analyst specializing in comprehensive resume evaluation and document verification.
+## 1. DOCUMENT VALIDATION
+First, determine if this is actually a resume/CV:
+- Is this a legitimate resume document or something else (random text, unrelated document, spam)?
+- Does it contain expected resume sections (contact info, experience, education, skills)?
+- Rate document validity:
+  * VALID_RESUME: Resume text was extracted and appears legitimate
+  * SUSPICIOUS: Resume was extracted but content seems questionable
+  * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume (spam, unrelated content)
+  * RESUME_UNAVAILABLE: Resume file could not be parsed (image-based PDF, scanned doc, designed resume)
+
+## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
+Compare information across ALL provided sources (resume, cover letter, application answers):
+
+**Name Verification:**
+- Does the name on the resume match the applicant name provided?
+- Are there any discrepancies in how the name appears across documents?
+
+**Experience Consistency:**
+- Do job titles/companies mentioned in application answers match what's on the resume?
+- Are the years of experience claimed consistent across all sources?
+- Do specific projects or achievements mentioned in answers appear on the resume?
+
+**Skills Consistency:**
+- Do skills mentioned in application answers align with skills listed on the resume?
+- Are there skills claimed in answers that don't appear on the resume?
+- Are there contradictions between claimed proficiency levels?
+
+**Timeline Verification:**
+- Are dates consistent across resume and any mentioned timeframes in answers?
+- Do career gaps or transitions mentioned match the resume timeline?
+
+**Claim Verification:**
+- Do specific claims in the cover letter match evidence on the resume?
+- Are quantifiable achievements (percentages, numbers) consistent?
+
+## 3. AI-GENERATED CONTENT DETECTION
+Check for signs of AI-generated or template content:
+- ChatGPT-style writing patterns (overly formal, perfect grammar, generic phrasing)
+- Cookie-cutter phrases like "I am writing to express my interest" or "I believe I would be a great fit"
+- Lack of specific personal details or unique examples
+- Buzzword stuffing without substance
+- Inconsistent writing quality between resume and application answers
+- Perfect but impersonal language
+- Generic achievements without specifics
+- Placeholder text that wasn't replaced
+Rate AI-generation likelihood: AUTHENTIC, POSSIBLY_AI_ASSISTED, LIKELY_AI_GENERATED
+
+## 4. AUTHENTICITY ASSESSMENT
+Check for signs of fake or fabricated content:
+- Unrealistic career progression (e.g., CEO at age 22 with 10 years experience)
+- Impossible timelines or overlapping dates
+- Vague descriptions without specifics
+- Claims that seem exaggerated or unverifiable
+- Inconsistencies in writing style or formatting
+Rate authenticity: AUTHENTIC, QUESTIONABLE, or LIKELY_FABRICATED
+
+## 5. SKILLS & EXPERIENCE ANALYSIS
+- Relevant work experience and years of experience
+- Technical skills and proficiencies
+- Education and certifications
+- Career progression and growth
+- Achievements and quantifiable results
+- Red flags (employment gaps, job hopping, demotions)
+
+## 6. PERSONALITY INDICATORS
+Based on writing style, word choices, and presentation:
+- Communication style (formal/casual, concise/verbose)
+- Attention to detail (formatting, spelling, grammar)
+- Self-presentation (confident, humble, boastful)
+- Inferred traits (analytical, creative, leadership-oriented, team player)
+
+## 7. JOB FIT ASSESSMENT
+Evaluate match with job requirements provided in context.
+
+REQUIRED OUTPUT FORMAT:
+---
+**DOCUMENT VALIDATION**
+Status: [VALID_RESUME/SUSPICIOUS/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
+Confidence: [0-100]%
+Notes: [explanation]
+
+**CROSS-REFERENCE VERIFICATION**
+Name Match: [MATCH/MISMATCH/CANNOT_VERIFY] - [details]
+Experience Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
+- [list specific matches or discrepancies found]
+Skills Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
+- [list specific matches or discrepancies found]
+Timeline Consistency: [CONSISTENT/INCONSISTENT/CANNOT_VERIFY]
+Discrepancies Found: [list any conflicts between resume, cover letter, and application answers, or "None detected"]
+Cross-Reference Score: [0-100]%
+
+**AI-GENERATED CONTENT DETECTION**
+Resume: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
+Cover Letter: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED/NOT_PROVIDED] - [evidence]
+Application Answers: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
+Overall Authenticity: [AUTHENTIC/MIXED/LIKELY_AI_GENERATED]
+AI Detection Notes: [specific patterns or phrases that triggered concern]
+
+**AUTHENTICITY ASSESSMENT**
+Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED/CANNOT_ASSESS]
+Confidence: [0-100]%
+Red Flags: [list any concerns or "None detected"]
+
+**PERSONALITY PROFILE**
+Communication Style: [description]
+Key Traits: [list 3-5 inferred personality traits]
+Work Style: [description]
+Leadership Potential: [Low/Medium/High]
+
+**SKILLS MATCH**
+Matching Skills: [list]
+Missing Skills: [list]
+Match Rate: [0-100]%
+
+**EXPERIENCE SUMMARY**
+Years Relevant Experience: [number or "Unknown - based on application data"]
+Key Achievements: [bullet points]
+Career Trajectory: [Ascending/Stable/Declining/Unclear]
+
+**OVERALL ASSESSMENT**
+Overall Score: [0-100]
+Verification Score: [0-100] (based on cross-reference and authenticity checks)
+Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
+Key Strengths: [bullet points]
+Areas of Concern: [bullet points]
+Summary: [2-3 sentences including any verification concerns]
+---
+
+Be thorough, objective, and fair. Flag any inconsistencies but don't automatically disqualify - some may be innocent errors.`,
+
+  "resume": `You are AIVA (AI Virtual Assistant), an expert HR analyst specializing in comprehensive resume evaluation with advanced verification capabilities.
 
 IMPORTANT INSTRUCTION FOR UNEXTRACTABLE RESUMES:
 If the user message indicates that the resume text could not be extracted (image-based PDF, scanned document, designed PDF, or parsing error), you MUST:
@@ -61,7 +189,44 @@ When marking as RESUME_UNAVAILABLE:
 - Still provide a complete assessment with scores based on available information
 - Note in summary that assessment is based on application data rather than resume
 
-## 2. AUTHENTICITY ASSESSMENT
+## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
+Compare information across ALL provided sources (resume, cover letter, application answers):
+
+**Name Verification:**
+- Does the name on the resume match the applicant name provided?
+- Are there any discrepancies in how the name appears across documents?
+
+**Experience Consistency:**
+- Do job titles/companies mentioned in application answers match what's on the resume?
+- Are the years of experience claimed consistent across all sources?
+- Do specific projects or achievements mentioned in answers appear on the resume?
+
+**Skills Consistency:**
+- Do skills mentioned in application answers align with skills listed on the resume?
+- Are there skills claimed in answers that don't appear on the resume?
+- Are there contradictions between claimed proficiency levels?
+
+**Timeline Verification:**
+- Are dates consistent across resume and any mentioned timeframes in answers?
+- Do career gaps or transitions mentioned match the resume timeline?
+
+**Claim Verification:**
+- Do specific claims in the cover letter match evidence on the resume?
+- Are quantifiable achievements (percentages, numbers) consistent?
+
+## 3. AI-GENERATED CONTENT DETECTION
+Check for signs of AI-generated or template content:
+- ChatGPT-style writing patterns (overly formal, perfect grammar, generic phrasing)
+- Cookie-cutter phrases like "I am writing to express my interest" or "I believe I would be a great fit"
+- Lack of specific personal details or unique examples
+- Buzzword stuffing without substance
+- Inconsistent writing quality between resume and application answers
+- Perfect but impersonal language
+- Generic achievements without specifics
+- Placeholder text that wasn't replaced
+Rate AI-generation likelihood: AUTHENTIC, POSSIBLY_AI_ASSISTED, LIKELY_AI_GENERATED
+
+## 4. AUTHENTICITY ASSESSMENT
 Check for signs of fake or fabricated content:
 - Unrealistic career progression (e.g., CEO at age 22 with 10 years experience)
 - Impossible timelines or overlapping dates
@@ -73,7 +238,7 @@ Check for signs of fake or fabricated content:
 Rate authenticity: AUTHENTIC, QUESTIONABLE, or LIKELY_FABRICATED
 Note: If resume text unavailable, base this on other application data or mark as CANNOT_ASSESS
 
-## 3. SKILLS & EXPERIENCE ANALYSIS
+## 5. SKILLS & EXPERIENCE ANALYSIS
 - Relevant work experience and years of experience
 - Technical skills and proficiencies
 - Education and certifications
@@ -82,7 +247,7 @@ Note: If resume text unavailable, base this on other application data or mark as
 - Red flags (employment gaps, job hopping, demotions)
 Note: If resume unavailable, extract what you can from cover letter and application answers
 
-## 4. PERSONALITY INDICATORS
+## 6. PERSONALITY INDICATORS
 Based on writing style, word choices, and presentation:
 - Communication style (formal/casual, concise/verbose)
 - Attention to detail (formatting, spelling, grammar)
@@ -90,7 +255,7 @@ Based on writing style, word choices, and presentation:
 - Inferred traits (analytical, creative, leadership-oriented, team player)
 - Work style preferences (independent vs collaborative)
 
-## 5. JOB FIT ASSESSMENT
+## 7. JOB FIT ASSESSMENT
 Evaluate match with job requirements provided in context.
 
 REQUIRED OUTPUT FORMAT:
@@ -100,10 +265,27 @@ Status: [VALID_RESUME/SUSPICIOUS/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
 Confidence: [0-100]%
 Notes: [explanation]
 
+**CROSS-REFERENCE VERIFICATION**
+Name Match: [MATCH/MISMATCH/CANNOT_VERIFY] - [details]
+Experience Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
+- [list specific matches or discrepancies found]
+Skills Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
+- [list specific matches or discrepancies found]
+Timeline Consistency: [CONSISTENT/INCONSISTENT/CANNOT_VERIFY]
+Discrepancies Found: [list any conflicts between resume, cover letter, and application answers, or "None detected"]
+Cross-Reference Score: [0-100]%
+
+**AI-GENERATED CONTENT DETECTION**
+Resume: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
+Cover Letter: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED/NOT_PROVIDED] - [evidence]
+Application Answers: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
+Overall Authenticity: [AUTHENTIC/MIXED/LIKELY_AI_GENERATED]
+AI Detection Notes: [specific patterns or phrases that triggered concern]
+
 **AUTHENTICITY ASSESSMENT**
 Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED/CANNOT_ASSESS]
 Confidence: [0-100]%
-Red Flags: [list any concerns]
+Red Flags: [list any concerns or "None detected"]
 
 **PERSONALITY PROFILE**
 Communication Style: [description]
@@ -123,13 +305,14 @@ Career Trajectory: [Ascending/Stable/Declining/Unclear]
 
 **OVERALL ASSESSMENT**
 Overall Score: [0-100]
+Verification Score: [0-100] (based on cross-reference and authenticity checks)
 Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points]
 Areas of Concern: [bullet points]
-Summary: [2-3 sentences - if resume unavailable, note that assessment is based on other application data]
+Summary: [2-3 sentences - if resume unavailable, note that assessment is based on other application data; include any verification concerns]
 ---
 
-Be thorough, objective, and fair. Focus on verifiable qualifications. When resume is unavailable, provide the best possible analysis using all other data.`,
+Be thorough, objective, and fair. Focus on verifiable qualifications. Flag any inconsistencies but don't automatically disqualify - some may be innocent errors. When resume is unavailable, provide the best possible analysis using all other data.`,
 
   "job-bias": `You are an expert in inclusive hiring practices and bias detection.
 Analyze the provided job posting for potential bias or exclusionary language.
@@ -198,7 +381,17 @@ serve(async (req) => {
       );
     }
 
-    const { type, content, context, resumeUrl, resumeText, resumeImage } = (await req.json()) as AnalyzeRequest;
+    const { 
+      type, 
+      content, 
+      context, 
+      resumeUrl, 
+      resumeText, 
+      resumeImage,
+      applicantName,
+      applicationAnswers,
+      coverLetter 
+    } = (await req.json()) as AnalyzeRequest;
 
     if (!type || !content) {
       return new Response(
@@ -217,13 +410,30 @@ serve(async (req) => {
 
     console.log(`Processing ${type} analysis request`);
     console.log(`Resume extraction: text=${!!resumeText}, image=${!!resumeImage}, url=${!!resumeUrl}`);
+    console.log(`Cross-reference data: applicantName=${!!applicantName}, answers=${applicationAnswers?.length || 0}, coverLetter=${!!coverLetter}`);
 
     let userContent = content;
     let resumeExtracted = false;
 
+    // Add cross-reference context data
+    if (applicantName) {
+      userContent += `\n\n--- APPLICANT NAME (for cross-reference) ---\n${applicantName}`;
+    }
+
+    if (coverLetter) {
+      userContent += `\n\n--- COVER LETTER (for cross-reference) ---\n${coverLetter}`;
+    }
+
+    if (applicationAnswers && applicationAnswers.length > 0) {
+      userContent += `\n\n--- APPLICATION ANSWERS (for cross-reference) ---`;
+      applicationAnswers.forEach((qa, index) => {
+        userContent += `\n\nQ${index + 1}: ${qa.question}\nA${index + 1}: ${qa.answer}`;
+      });
+    }
+
     // Add context if provided
     if (context) {
-      userContent += `\n\nAdditional Context:\n${JSON.stringify(context, null, 2)}`;
+      userContent += `\n\n--- JOB CONTEXT ---\n${JSON.stringify(context, null, 2)}`;
     }
 
     // Build the messages array based on what resume data we have
@@ -242,7 +452,7 @@ serve(async (req) => {
           content: [
             { 
               type: "text", 
-              text: userContent + "\n\nThe candidate's resume image is attached below. Please analyze the resume thoroughly from the image."
+              text: userContent + "\n\n--- RESUME IMAGE ---\nThe candidate's resume image is attached below. Please analyze the resume thoroughly from the image and cross-reference with all other data provided above."
             },
             {
               type: "image_url",
@@ -259,7 +469,7 @@ serve(async (req) => {
       console.log(`Using extracted resume text (type: ${type}), length:`, resumeText.length);
       resumeExtracted = true;
       
-      userContent += `\n\nRESUME CONTENT (Extracted Text):\n${resumeText}`;
+      userContent += `\n\n--- RESUME CONTENT (Extracted Text) ---\n${resumeText}`;
       
       messages = [
         { role: "system", content: systemPrompt },
@@ -269,7 +479,7 @@ serve(async (req) => {
       // No resume content available - analyze based on other data
       if (resumeUrl) {
         console.log(`Resume URL provided but content could not be extracted (type: ${type})`);
-        userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but the content could not be extracted. Please analyze based on the other application data provided above.`;
+        userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but the content could not be extracted. Please analyze based on the other application data provided above and perform cross-reference checks where possible.`;
       }
       
       messages = [
@@ -287,7 +497,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "gpt-4o",
         messages,
-        max_tokens: 3000,
+        max_tokens: 4000, // Increased for more detailed analysis
         temperature: 0.7,
       }),
     });
