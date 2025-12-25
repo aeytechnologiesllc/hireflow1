@@ -424,7 +424,7 @@ export default function InterviewSchedulingWizard({
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-8 text-center"
+            className="p-8 text-center w-full overflow-hidden"
           >
             <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
               <CheckCircle className="h-8 w-8 text-success" />
@@ -466,12 +466,12 @@ export default function InterviewSchedulingWizard({
 
             {/* Meeting Link with Copy Button */}
             {createdMeetLink && (
-              <div className="mb-6">
+              <div className="mb-6 w-full overflow-hidden">
                 <Label className="text-sm font-medium text-muted-foreground mb-2 block text-left">
                   Meeting Link
                 </Label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0 p-3 bg-muted/50 rounded-lg border border-border text-left">
+                <div className="flex items-center gap-2 max-w-full">
+                  <div className="flex-1 min-w-0 overflow-hidden p-3 bg-muted/50 rounded-lg border border-border text-left">
                     <a 
                       href={createdMeetLink} 
                       target="_blank" 
