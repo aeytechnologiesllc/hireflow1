@@ -33,14 +33,28 @@ If the resume text could not be extracted (image-based PDF, scanned document, de
 CRITICAL: You must perform ALL of the following analyses:
 
 ## 1. DOCUMENT VALIDATION
-First, determine if this is actually a resume/CV:
+First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
 - Is this a legitimate resume document or something else (random text, unrelated document, spam)?
 - Does it contain expected resume sections (contact info, experience, education, skills)?
+- Does the resume appear to belong to the applicant applying for THIS job?
 - Rate document validity:
-  * VALID_RESUME: Resume text was extracted and appears legitimate
+  * VALID_RESUME: Resume text was extracted and appears legitimate for this applicant and job
   * SUSPICIOUS: Resume was extracted but content seems questionable
-  * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume (spam, unrelated content)
+  * WRONG_RESUME: Content IS a valid resume, BUT it appears to be the wrong one - either for a different person (name mismatch), or for a completely unrelated job field (e.g., software engineer resume for a nail technician job). This is NOT the same as INVALID_DOCUMENT.
+  * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume at all (spam, random gibberish, unrelated file like a shopping list, blank document)
   * RESUME_UNAVAILABLE: Resume file could not be parsed (image-based PDF, scanned doc, designed resume)
+
+**WRONG_RESUME Examples (use this status when):**
+- Resume says "John Smith" but applicant name is "Jane Doe" → WRONG_RESUME
+- Resume is for "Software Engineer with 10 years Java experience" but job is "Nail Technician" → WRONG_RESUME  
+- Resume lists completely different contact info and career history than what applicant claims → WRONG_RESUME
+- Appears to be someone else's resume uploaded by mistake → WRONG_RESUME
+
+**INVALID_DOCUMENT Examples (use this status when):**
+- File contains random text or gibberish that isn't a resume
+- Content is a receipt, invoice, or completely unrelated document type
+- File is blank or corrupted beyond recognition
+- Content is spam or irrelevant material
 
 ## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
 Compare information across ALL provided sources (resume, cover letter, application answers):
@@ -162,7 +176,7 @@ Start with a base score of 65 (average candidate). Then apply adjustments:
 REQUIRED OUTPUT FORMAT:
 ---
 **DOCUMENT VALIDATION**
-Status: [VALID_RESUME/SUSPICIOUS/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
+Status: [VALID_RESUME/SUSPICIOUS/WRONG_RESUME/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
 Confidence: [0-100]%
 Notes: [explanation]
 
@@ -248,14 +262,28 @@ If the user message indicates that the resume text could not be extracted (image
 CRITICAL: You must perform ALL of the following analyses:
 
 ## 1. DOCUMENT VALIDATION
-First, determine if this is actually a resume/CV:
+First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
 - Is this a legitimate resume document or something else (random text, unrelated document, spam)?
 - Does it contain expected resume sections (contact info, experience, education, skills)?
+- Does the resume appear to belong to the applicant applying for THIS job?
 - Rate document validity:
-  * VALID_RESUME: Resume text was extracted and appears legitimate
+  * VALID_RESUME: Resume text was extracted and appears legitimate for this applicant and job
   * SUSPICIOUS: Resume was extracted but content seems questionable
-  * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume (spam, unrelated content)
+  * WRONG_RESUME: Content IS a valid resume, BUT it appears to be the wrong one - either for a different person (name mismatch), or for a completely unrelated job field (e.g., software engineer resume for a nail technician job). This is NOT the same as INVALID_DOCUMENT.
+  * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume at all (spam, random gibberish, unrelated file like a shopping list, blank document)
   * RESUME_UNAVAILABLE: Resume file could not be parsed (image-based PDF, scanned doc, designed resume)
+
+**WRONG_RESUME Examples (use this status when):**
+- Resume says "John Smith" but applicant name is "Jane Doe" → WRONG_RESUME
+- Resume is for "Software Engineer with 10 years Java experience" but job is "Nail Technician" → WRONG_RESUME  
+- Resume lists completely different contact info and career history than what applicant claims → WRONG_RESUME
+- Appears to be someone else's resume uploaded by mistake → WRONG_RESUME
+
+**INVALID_DOCUMENT Examples (use this status when):**
+- File contains random text or gibberish that isn't a resume
+- Content is a receipt, invoice, or completely unrelated document type
+- File is blank or corrupted beyond recognition
+- Content is spam or irrelevant material
 
 When marking as RESUME_UNAVAILABLE:
 - This is NOT a negative indicator - many professional resumes use images/graphics
