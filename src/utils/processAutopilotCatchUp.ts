@@ -15,29 +15,53 @@ interface CatchUpResult {
 }
 
 /**
+ * Safely parses notes - handles both string (legacy) and object (JSONB) formats
+ */
+function parseNotes(notes: string | Record<string, any> | null): Record<string, any> {
+  if (!notes) return {};
+  
+  // If already an object (JSONB from Supabase), use directly
+  if (typeof notes === "object") {
+    return notes as Record<string, any>;
+  }
+  
+  // If string, try to parse
+  if (typeof notes === "string") {
+    try {
+      return JSON.parse(notes);
+    } catch {
+      console.log("[parseNotes] Failed to parse notes string:", notes.substring(0, 100));
+      return {};
+    }
+  }
+  
+  return {};
+}
+
+/**
  * Determines if a phase has been completed by the candidate based on phase type and notes
  */
 function hasCompletedPhase(
   phaseId: string,
   phaseType: string,
-  notes: string | null,
+  notes: string | Record<string, any> | null,
   voiceInterviewResult: any
 ): boolean {
-  // Parse notes to check for phase completion
-  let parsedNotes: Record<string, any> = {};
-  if (notes) {
-    try {
-      parsedNotes = JSON.parse(notes);
-    } catch {
-      return false;
-    }
-  }
+  const parsedNotes = parseNotes(notes);
+  
+  console.log(`[hasCompletedPhase] phaseId=${phaseId}, phaseType=${phaseType}, notesType=${typeof notes}, notesKeys=${Object.keys(parsedNotes).join(",")}`);
 
   // Check completion based on phase type
   switch (phaseType) {
     case "application":
-      // Application form completed if we have answers
-      return !!parsedNotes.applicationAnswers?.length;
+      // Application form completed if we have ANY answers (applicationAnswers array or individual question fields)
+      const hasApplicationAnswers = !!parsedNotes.applicationAnswers?.length;
+      const hasAnyAnswers = Object.keys(parsedNotes).some(key => 
+        key !== "resumeUrl" && key !== "coverLetter" && parsedNotes[key]
+      );
+      const isComplete = hasApplicationAnswers || hasAnyAnswers || Object.keys(parsedNotes).length > 0;
+      console.log(`[hasCompletedPhase] application phase: hasApplicationAnswers=${hasApplicationAnswers}, hasAnyAnswers=${hasAnyAnswers}, isComplete=${isComplete}`);
+      return isComplete;
     
     case "typing_test":
       return !!parsedNotes.typingTestResult;
@@ -75,23 +99,56 @@ function hasCompletedPhase(
 }
 
 /**
- * Gets the next phase in the workflow after the current phase
+ * Gets the next phase in the workflow after the current phase.
+ * Handles the implicit "application" and "quiz" phases that aren't in workflow_steps.
  */
 function getNextPhase(
   currentPhaseId: string,
-  workflowSteps: WorkflowStep[]
+  workflowSteps: WorkflowStep[],
+  hasQuizQuestions: boolean
 ): WorkflowStep | null {
-  // Special case: "application" is the implicit starting phase
-  // It's not in workflow_steps, so the next phase is the first workflow step
-  if (currentPhaseId === "application" && workflowSteps.length > 0) {
-    return workflowSteps[0];
-  }
+  console.log(`[getNextPhase] currentPhaseId=${currentPhaseId}, hasQuiz=${hasQuizQuestions}, workflowStepsCount=${workflowSteps.length}`);
   
-  const currentIndex = workflowSteps.findIndex(s => s.id === currentPhaseId);
-  if (currentIndex === -1 || currentIndex >= workflowSteps.length - 1) {
+  // If currently at "application" phase
+  if (currentPhaseId === "application") {
+    // If job has quiz questions, next phase is the quiz
+    if (hasQuizQuestions) {
+      console.log("[getNextPhase] application -> quiz (job has quiz questions)");
+      return { id: "quiz", type: "quiz", title: "Quiz" };
+    }
+    // Otherwise, go to first workflow step
+    if (workflowSteps.length > 0) {
+      console.log(`[getNextPhase] application -> ${workflowSteps[0].id} (first workflow step)`);
+      return workflowSteps[0];
+    }
+    console.log("[getNextPhase] application -> null (no more phases)");
     return null;
   }
-  return workflowSteps[currentIndex + 1];
+  
+  // If currently at "quiz" phase, go to first workflow step
+  if (currentPhaseId === "quiz") {
+    if (workflowSteps.length > 0) {
+      console.log(`[getNextPhase] quiz -> ${workflowSteps[0].id} (first workflow step)`);
+      return workflowSteps[0];
+    }
+    console.log("[getNextPhase] quiz -> null (no workflow steps)");
+    return null;
+  }
+  
+  // Otherwise, find current position in workflow_steps
+  const currentIndex = workflowSteps.findIndex(s => s.id === currentPhaseId);
+  if (currentIndex === -1) {
+    console.log(`[getNextPhase] ${currentPhaseId} not found in workflow_steps`);
+    return null;
+  }
+  if (currentIndex >= workflowSteps.length - 1) {
+    console.log(`[getNextPhase] ${currentPhaseId} is the last workflow step`);
+    return null;
+  }
+  
+  const nextStep = workflowSteps[currentIndex + 1];
+  console.log(`[getNextPhase] ${currentPhaseId} -> ${nextStep.id}`);
+  return nextStep;
 }
 
 /**
@@ -116,10 +173,10 @@ export async function processAutopilotCatchUp(
   try {
     console.log("[processAutopilotCatchUp] Starting catch-up for job:", jobId);
 
-    // Fetch job details to get workflow steps and passing score
+    // Fetch job details to get workflow steps, passing score, and quiz questions
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("workflow_steps, passing_score, title, employer_id")
+      .select("workflow_steps, passing_score, title, employer_id, quiz_questions")
       .eq("id", jobId)
       .single();
 
@@ -130,6 +187,10 @@ export async function processAutopilotCatchUp(
 
     const workflowSteps = (job.workflow_steps as unknown as WorkflowStep[]) || [];
     const passingScore = job.passing_score || 60;
+    const quizQuestions = job.quiz_questions as unknown as any[] | null;
+    const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    
+    console.log(`[processAutopilotCatchUp] Job config: passingScore=${passingScore}, hasQuiz=${hasQuizQuestions}, workflowStepsCount=${workflowSteps.length}`);
 
     // Fetch employer profile for company name
     const { data: employerProfile } = await supabase
@@ -204,7 +265,7 @@ export async function processAutopilotCatchUp(
         // Check if candidate passed
         if (aiScore !== null && aiScore >= passingScore) {
           // Find next phase
-          const nextPhase = getNextPhase(currentPhaseId, workflowSteps);
+          const nextPhase = getNextPhase(currentPhaseId, workflowSteps, hasQuizQuestions);
           
           if (nextPhase) {
             // Advance to next phase
