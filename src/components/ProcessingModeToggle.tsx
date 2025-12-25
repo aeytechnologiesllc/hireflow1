@@ -317,9 +317,8 @@ export function ProcessingModeToggle({
           "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all duration-300",
           "border backdrop-blur-sm",
           "disabled:opacity-50 disabled:cursor-not-allowed",
-          currentMode === "auto" 
-            ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:border-primary/50 shadow-[0_0_15px_hsl(var(--primary)/0.15)]" 
-            : "bg-muted/50 text-muted-foreground border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 hover:shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
+          "bg-muted/50 text-muted-foreground border-muted-foreground/30",
+          "hover:bg-primary/10 hover:text-primary hover:border-primary/30 hover:shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
         )}
         whileHover={{ scale: disabled ? 1 : 1.02 }}
         whileTap={{ scale: disabled ? 1 : 0.98 }}
