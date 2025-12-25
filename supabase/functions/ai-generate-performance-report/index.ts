@@ -66,7 +66,8 @@ serve(async (req) => {
           title,
           description,
           requirements,
-          skills_required
+          skills_required,
+          workflow_steps
         )
       `)
       .eq('id', applicationId)
@@ -102,6 +103,14 @@ serve(async (req) => {
     }
 
     const applicationContext = buildApplicationContext(application, parsedNotes, profile);
+    
+    // Extract workflow phases for context
+    const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
+    const workflowSteps = (jobData?.workflow_steps as any[]) || [];
+    const workflowPhaseTypes = workflowSteps.map((step: any) => step.type).filter(Boolean);
+    const workflowContext = workflowPhaseTypes.length > 0 
+      ? `\n\nIMPORTANT: This job's workflow only included these phases: ${workflowPhaseTypes.join(', ')}. Only reference these phases in your coaching - do not mention phases that were not part of this job's hiring process.`
+      : '';
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -193,7 +202,7 @@ IMPORTANT GUIDELINES:
 
     const userPrompt = `Create a Personal Improvement Blueprint for this rejected candidate. Be their mentor, not their judge.
 
-${applicationContext}
+${applicationContext}${workflowContext}
 
 REMEMBER:
 1. They were rejected—acknowledge this with empathy but be clear about why
@@ -201,6 +210,7 @@ REMEMBER:
 3. The 30-day plan should target their specific weaknesses
 4. Every piece of advice should be concrete enough to implement TODAY
 5. Leave them feeling informed and empowered, not discouraged
+6. ONLY reference phases that were actually part of this job's workflow - do not mention phases that didn't exist for this job
 
 Return ONLY the JSON object, no markdown or extra text.`;
 
@@ -258,11 +268,11 @@ Return ONLY the JSON object, no markdown or extra text.`;
       throw new Error('Failed to parse AI analysis');
     }
 
-    const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
+    const jobDataForMetadata = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
       candidateEmail: profile?.email || '',
-      jobTitle: jobData?.title || 'Position',
+      jobTitle: jobDataForMetadata?.title || 'Position',
       overallScore: application.ai_score || parsedNotes?.overallScore || 0,
       generatedAt: new Date().toISOString(),
       applicationId: applicationId,
