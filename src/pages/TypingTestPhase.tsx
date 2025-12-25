@@ -255,16 +255,24 @@ export default function TypingTestPhase() {
   const handleSubmit = async () => {
     if (!results || !application) return;
     
-    const isAutoMode = application.jobs?.processing_mode !== "manual";
-    const passingScore = application.jobs?.passing_score || 60;
-    
-    // For autopilot mode, show evaluation screen
-    if (isAutoMode) {
-      setEvaluationState("evaluating");
-    }
-    
     setIsSubmitting(true);
+    
     try {
+      // CRITICAL: Re-fetch fresh job data to get current processing_mode
+      // This prevents stale cached data from causing auto-rejection in manual mode
+      const { data: freshJob } = await supabase
+        .from("jobs")
+        .select("processing_mode, passing_score")
+        .eq("id", application.job_id)
+        .single();
+      
+      const isAutoMode = freshJob?.processing_mode === "auto";
+      const passingScore = freshJob?.passing_score || 60;
+      
+      // For autopilot mode, show evaluation screen
+      if (isAutoMode) {
+        setEvaluationState("evaluating");
+      }
       // Parse existing notes or start fresh
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       

@@ -510,6 +510,17 @@ export default function SalesSimulationPhase() {
     
     setIsSubmitting(true);
     try {
+      // CRITICAL: Re-fetch fresh job data to get current processing_mode
+      // This prevents stale cached data from causing auto-rejection in manual mode
+      const { data: freshJob } = await supabase
+        .from("jobs")
+        .select("processing_mode, passing_score")
+        .eq("id", application.job_id)
+        .single();
+      
+      const isAutoMode = freshJob?.processing_mode === "auto";
+      const passingScoreFresh = freshJob?.passing_score || 60;
+      
       const evalResponse = await fetch(SALES_URL, {
         method: "POST",
         headers: {
@@ -549,8 +560,7 @@ export default function SalesSimulationPhase() {
 
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       const salesRepMessages = messages.filter((m) => m.role === "salesRep");
-      const passingScore = application.jobs?.passing_score || 60;
-      const passed = evaluation.score >= passingScore;
+      const passed = evaluation.score >= passingScoreFresh;
       
       const antiCheatLog = {
         violations,
@@ -606,8 +616,6 @@ export default function SalesSimulationPhase() {
           },
         },
       };
-
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
       
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;

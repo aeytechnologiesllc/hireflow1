@@ -194,14 +194,21 @@ export default function VideoIntroPhase() {
     setIsSubmitting(true);
     setRecordingState("submitting");
     
-    const isAutoMode = application.jobs?.processing_mode !== "manual";
-    
-    // Show evaluation screen immediately for autopilot mode
-    if (isAutoMode) {
-      setEvaluationState("evaluating");
-    }
-    
     try {
+      // CRITICAL: Re-fetch fresh job data to get current processing_mode
+      // This prevents stale cached data from causing issues
+      const { data: freshJob } = await supabase
+        .from("jobs")
+        .select("processing_mode, passing_score")
+        .eq("id", application.job_id)
+        .single();
+      
+      const isAutoMode = freshJob?.processing_mode === "auto";
+    
+      // Show evaluation screen immediately for autopilot mode
+      if (isAutoMode) {
+        setEvaluationState("evaluating");
+      }
       // 1. Upload video
       const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -358,13 +365,20 @@ export default function VideoIntroPhase() {
         if (checkData?.notes) {
           const checkNotes = JSON.parse(checkData.notes);
           if (checkNotes[stepId!]?.videoUrl || checkNotes.videoIntroUrl) {
-            // Actually succeeded!
+            // Actually succeeded! Re-fetch job data to check mode
+            const { data: freshJobCheck } = await supabase
+              .from("jobs")
+              .select("processing_mode")
+              .eq("id", application.job_id)
+              .single();
+            const isAutoModeCheck = freshJobCheck?.processing_mode === "auto";
+            
             queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
             supabase.functions.invoke("trigger-ava-analysis", {
               body: { applicationId: id! },
             }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
 
-            if (isAutoMode) {
+            if (isAutoModeCheck) {
               setEvaluationState("passed");
             } else {
               toast.success("Video submitted!", {

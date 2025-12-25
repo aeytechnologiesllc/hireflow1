@@ -508,6 +508,17 @@ export default function ChatInterviewPhase() {
     
     setIsSubmitting(true);
     try {
+      // CRITICAL: Re-fetch fresh job data to get current processing_mode
+      // This prevents stale cached data from causing auto-rejection in manual mode
+      const { data: freshJob } = await supabase
+        .from("jobs")
+        .select("processing_mode, passing_score")
+        .eq("id", application.job_id)
+        .single();
+      
+      const isAutoMode = freshJob?.processing_mode === "auto";
+      const passingScoreFresh = freshJob?.passing_score || 60;
+      
       // Get AI evaluation with full context
       const candidateContext = buildCandidateContext();
       const evalResponse = await fetch(CHAT_URL, {
@@ -540,8 +551,7 @@ export default function ChatInterviewPhase() {
 
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
-      const passingScore = application.jobs?.passing_score || 60;
-      const passed = evaluation.score >= passingScore;
+      const passed = evaluation.score >= passingScoreFresh;
       
       const antiCheatLog = {
         violations,
@@ -589,7 +599,6 @@ export default function ChatInterviewPhase() {
       };
 
       // Determine next phase
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
       

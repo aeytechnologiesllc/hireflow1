@@ -188,7 +188,20 @@ export function useUpdateJob() {
       return data;
     },
     onSuccess: () => {
+      // Invalidate all job-related caches
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      
+      // CRITICAL: Also invalidate all phase-specific application caches
+      // This ensures candidates see the updated processing_mode when employer changes it
+      queryClient.invalidateQueries({ queryKey: ["typing-test-application"] });
+      queryClient.invalidateQueries({ queryKey: ["quiz-application"] });
+      queryClient.invalidateQueries({ queryKey: ["video-intro-application"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-application"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-simulation-application"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-interview-application"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-simulation-application"] });
+      queryClient.invalidateQueries({ queryKey: ["voice-interview-application"] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }
