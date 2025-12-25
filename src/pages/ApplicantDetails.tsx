@@ -1839,22 +1839,24 @@ ${interviewType} Interview with AVA Results:
       {scheduledInterview && (
         <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              {/* Left side: Icon + Info */}
+              <div className="flex items-start md:items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                   <Calendar className="h-5 w-5 text-primary" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground">Interview Scheduled</span>
+                    {/* Hide status badge on mobile since title already implies it */}
                     <Badge 
                       variant="secondary"
-                      className={
+                      className={`hidden md:inline-flex ${
                         scheduledInterview.status === "scheduled" ? "bg-primary/20 text-primary" :
                         scheduledInterview.status === "completed" ? "bg-success/20 text-success" :
                         scheduledInterview.status === "cancelled" ? "bg-destructive/20 text-destructive" :
                         "bg-muted"
-                      }
+                      }`}
                     >
                       {scheduledInterview.status}
                     </Badge>
@@ -1871,62 +1873,69 @@ ${interviewType} Interview with AVA Results:
                         }
                       >
                         {(scheduledInterview as any).candidate_response === "confirmed" 
-                          ? "✓ Candidate Confirmed" :
+                          ? "✓ Confirmed" :
                          (scheduledInterview as any).candidate_response === "reschedule_requested" 
-                          ? "⏱ Reschedule Requested" :
-                         "Awaiting Confirmation"}
+                          ? "Reschedule Requested" :
+                         "Awaiting Response"}
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                    <span>{format(new Date(scheduledInterview.scheduled_at), "EEEE, MMMM d, yyyy")}</span>
-                    <span>•</span>
-                    <span>{format(new Date(scheduledInterview.scheduled_at), "h:mm a")}</span>
+                  {/* Compact date/time info */}
+                  <div className="text-sm text-muted-foreground mt-1">
+                    <span className="hidden md:inline">
+                      {format(new Date(scheduledInterview.scheduled_at), "MMM d, yyyy")} • {format(new Date(scheduledInterview.scheduled_at), "h:mm a")}
+                    </span>
+                    <span className="md:hidden">
+                      {format(new Date(scheduledInterview.scheduled_at), "MMM d")} • {format(new Date(scheduledInterview.scheduled_at), "h:mm a")}
+                    </span>
                     {scheduledInterview.duration_minutes && (
-                      <>
-                        <span>•</span>
-                        <span>{scheduledInterview.duration_minutes} min</span>
-                      </>
+                      <span> • {scheduledInterview.duration_minutes}min</span>
                     )}
-                    <span>•</span>
-                    <span className="capitalize">{scheduledInterview.interview_type || "Video"}</span>
+                    <span> • {scheduledInterview.interview_type || "Video"}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
+              {/* Right side: Actions - wrap on mobile */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {/* Review Request Button */}
                 {(scheduledInterview as any).candidate_response === "reschedule_requested" && (
                   <Button 
                     variant="outline" 
+                    size="sm"
                     onClick={() => setShowRescheduleReviewDialog(true)}
                     className="gap-2 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
                   >
                     <Clock className="h-4 w-4" />
-                    Review Request
+                    <span className="hidden sm:inline">Review Request</span>
+                    <span className="sm:hidden">Review</span>
                   </Button>
                 )}
                 
-                {/* AI Questions Button */}
+                {/* AI Questions Button - Green styling */}
                 {scheduledInterview.status === "scheduled" && (
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={() => setShowInterviewQuestionsDialog(true)}
-                    className="gap-2"
+                    className="gap-2 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
                   >
                     <Sparkles className="h-4 w-4" />
-                    {scheduledInterview.ai_questions?.length 
-                      ? `${scheduledInterview.ai_questions.length} AI Questions` 
-                      : "AI Questions"}
+                    <span className="hidden sm:inline">
+                      {scheduledInterview.ai_questions?.length 
+                        ? `${scheduledInterview.ai_questions.length} AI Questions` 
+                        : "AI Questions"}
+                    </span>
+                    <span className="sm:hidden">AI</span>
                   </Button>
                 )}
                 
                 {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
-                  <Button asChild className="gap-2">
+                  <Button asChild size="sm" className="gap-2">
                     <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
                       <Video className="h-4 w-4" />
-                      Join Meeting
+                      <span className="hidden sm:inline">Join Meeting</span>
+                      <span className="sm:hidden">Join</span>
                     </a>
                   </Button>
                 )}
@@ -1934,7 +1943,7 @@ ${interviewType} Interview with AVA Results:
                 {scheduledInterview.status === "scheduled" && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon">
+                      <Button variant="outline" size="icon" className="h-8 w-8">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
