@@ -32,59 +32,51 @@ interface ParsedQuestion {
 function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
   const questions: ParsedQuestion[] = [];
   
-  // Split by question numbers (1., 2., 3., etc.)
-  const questionBlocks = markdown.split(/(?=\d+\.\s)/);
+  // Split by **Question:** pattern (the AI generates questions in this format)
+  const questionBlocks = markdown.split(/\*\*Question:\*\*/i);
   
   for (const block of questionBlocks) {
-    if (!block.trim()) continue;
+    const trimmedBlock = block.trim();
+    // Skip empty blocks, section headers (###), and intro text
+    if (!trimmedBlock || trimmedBlock.startsWith('###') || trimmedBlock.length < 10) continue;
     
-    // Extract question text (first line after the number)
-    const lines = block.split('\n').filter(l => l.trim());
-    if (lines.length === 0) continue;
+    const lines = trimmedBlock.split('\n');
     
-    // Get the question (remove the number prefix and any ** markers)
-    let questionText = lines[0].replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').trim();
-    if (!questionText) continue;
+    // First non-empty line is the question text
+    let questionText = lines[0]?.replace(/\*\*/g, '').trim();
+    if (!questionText || questionText.startsWith('###')) continue;
     
     let assesses = '';
     let lookFor = '';
     
-    // Look for "What it assesses" or similar patterns
-    const fullBlock = block.toLowerCase();
-    
-    // Find "assesses" content
-    const assessIndex = fullBlock.indexOf('assess');
-    if (assessIndex !== -1) {
-      const afterAssess = block.substring(assessIndex);
-      const assessMatch = afterAssess.match(/assess[es]*[:\s]*([^\n]+)/i);
-      if (assessMatch) {
-        assesses = assessMatch[1].replace(/\*\*/g, '').replace(/^[:\s-]+/, '').trim();
-      }
+    // Look for **What it assesses:** pattern
+    const assessMatch = trimmedBlock.match(/\*\*What it assesses:\*\*\s*([^\n]+)/i);
+    if (assessMatch) {
+      assesses = assessMatch[1].trim();
     }
     
-    // Find "look for" content
-    const lookForIndex = fullBlock.indexOf('look for');
-    if (lookForIndex !== -1) {
-      const afterLookFor = block.substring(lookForIndex);
-      const lookForMatch = afterLookFor.match(/look for[:\s]*([^\n]+(?:\n(?![0-9]+\.|###)[^\n]+)*)/i);
-      if (lookForMatch) {
-        lookFor = lookForMatch[1].replace(/\*\*/g, '').replace(/^[:\s-]+/, '').replace(/\n/g, ' ').trim();
-      }
+    // Look for **What to look for in a good answer:** pattern
+    const lookForMatch = trimmedBlock.match(/\*\*What to look for[^:]*:\*\*\s*([^\n]+(?:\n(?!\*\*Question|\*\*What|###)[^\n]+)*)/i);
+    if (lookForMatch) {
+      lookFor = lookForMatch[1].replace(/\n/g, ' ').trim();
     }
     
-    // If no structured content found, check for bullet points
+    // Fallback: try numbered format (1., 2., etc.)
     if (!assesses && !lookFor) {
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].replace(/\*\*/g, '').replace(/^[-•*]\s*/, '').trim();
-        if (line.toLowerCase().includes('assess')) {
-          assesses = line.replace(/assess[es]*[:\s]*/i, '').trim();
-        } else if (line.toLowerCase().includes('look for')) {
-          lookFor = line.replace(/look for[:\s]*/i, '').trim();
-        } else if (!assesses && line.length > 10) {
-          assesses = line;
-        } else if (!lookFor && line.length > 10) {
-          lookFor = line;
-        }
+      const numberedMatch = trimmedBlock.match(/^(\d+\.\s*)?(.+?)(?:\n|$)/);
+      if (numberedMatch) {
+        questionText = numberedMatch[2]?.replace(/\*\*/g, '').trim() || questionText;
+      }
+      
+      // Look for bullet point content
+      const bulletAssess = trimmedBlock.match(/[-•*]\s*(?:What it )?[Aa]ssess[es]*[:\s]*([^\n]+)/i);
+      if (bulletAssess) {
+        assesses = bulletAssess[1].replace(/\*\*/g, '').trim();
+      }
+      
+      const bulletLookFor = trimmedBlock.match(/[-•*]\s*(?:What to )?[Ll]ook for[:\s]*([^\n]+)/i);
+      if (bulletLookFor) {
+        lookFor = bulletLookFor[1].replace(/\*\*/g, '').trim();
       }
     }
     
@@ -167,10 +159,12 @@ Please generate 5-7 tailored interview questions. For each question, include:
 
       setRawQuestions(data.analysis);
 
-      // Split questions for saving
+      // Split questions by **Question:** pattern for saving
       const questionsList = data.analysis
-        .split(/\d+\.\s+/)
-        .filter((q: string) => q.trim().length > 0)
+        .split(/\*\*Question:\*\*/i)
+        .filter((q: string) => q.trim().length > 10 && !q.trim().startsWith('###'))
+        .map((q: string) => q.split('\n')[0]?.replace(/\*\*/g, '').trim() || '')
+        .filter((q: string) => q.length > 10)
         .slice(0, 10);
 
       if (onQuestionsGenerated) {
@@ -284,9 +278,6 @@ Please generate 5-7 tailored interview questions. For each question, include:
               Copy All Questions
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
           <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
             {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
             <Sparkles className="h-4 w-4" />
