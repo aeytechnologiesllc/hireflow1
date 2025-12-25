@@ -235,7 +235,8 @@ export default function Auth() {
       ? `${window.location.origin}/jobs/create`
       : `${window.location.origin}/dashboard`;
     
-    const { error } = await signInWithGoogle(redirectUrl);
+    // Pass "employer" role for Google sign-up from employer portal
+    const { error } = await signInWithGoogle(redirectUrl, "employer");
     
     if (error) {
       toast({

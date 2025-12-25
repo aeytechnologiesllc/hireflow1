@@ -12,7 +12,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: (redirectTo?: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: (redirectTo?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -57,6 +57,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(async () => {
           const { user: verifiedUser } = await validateSession();
           if (verifiedUser) {
+            // Handle OAuth role assignment for new users
+            const intendedRole = localStorage.getItem("intended_oauth_role") as AppRole | null;
+            if (intendedRole) {
+              localStorage.removeItem("intended_oauth_role");
+              
+              // Check if user already has a role
+              const { data: existingRole } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", verifiedUser.id)
+                .maybeSingle();
+              
+              // If no role exists (new user via OAuth), insert the intended role
+              if (!existingRole) {
+                await supabase
+                  .from("user_roles")
+                  .insert({ user_id: verifiedUser.id, role: intendedRole });
+              }
+            }
+            
             fetchUserRole(verifiedUser.id);
             checkTeamMembership(verifiedUser.id);
           }
@@ -152,7 +172,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
-  const signInWithGoogle = async (redirectTo?: string) => {
+  const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
+    // Store intended role in localStorage before OAuth redirect
+    if (role) {
+      localStorage.setItem("intended_oauth_role", role);
+    }
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
