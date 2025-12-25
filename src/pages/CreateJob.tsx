@@ -1484,198 +1484,39 @@ export default function CreateJob() {
 
                       <Separator />
 
-                      {/* Processing Mode Selection */}
-                      <div className="space-y-4">
-                        <Label>Processing Mode</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* Auto-Pilot Button - Featured with purple gradient */}
-                          <motion.button
-                            onClick={() => setProcessingMode("auto")}
-                            className={cn(
-                              "relative p-4 rounded-xl transition-all text-left overflow-hidden",
-                              processingMode === "auto"
-                                ? "bg-gradient-to-br from-fuchsia-950/80 via-purple-900/60 to-fuchsia-950/80"
-                                : "bg-card border border-border hover:border-purple-500/30"
-                            )}
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            animate={processingMode === "auto" ? {
-                              boxShadow: [
-                                "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 35px -5px rgba(168, 85, 247, 0.5), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
-                              ]
-                            } : {}}
-                            transition={processingMode === "auto" ? {
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                            } : {}}
+                      {/* Passing Score - Always visible since we default to Auto mode */}
+                      <div className="p-4 rounded-lg bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Passing Score</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Minimum Ava score to auto-advance candidates
+                            </p>
+                          </div>
+                          <motion.div 
+                            key={passingScore}
+                            initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                            animate={{ scale: 1 }}
+                            className="text-2xl font-bold text-primary"
                           >
-                            {/* Pulsing border glow */}
-                            {processingMode === "auto" && (
-                              <motion.div
-                                className="absolute inset-0 rounded-xl border-2 border-purple-500/70 pointer-events-none"
-                                animate={{ 
-                                  opacity: [0.6, 1, 0.6],
-                                }}
-                                transition={{ 
-                                  duration: 2,
-                                  repeat: Infinity,
-                                  ease: "easeInOut"
-                                }}
-                              />
-                            )}
-                            <div className="relative flex items-center gap-3">
-                              <div className={cn(
-                                "p-2.5 rounded-lg",
-                                processingMode === "auto" 
-                                  ? "bg-gradient-to-br from-fuchsia-500 to-purple-600" 
-                                  : "bg-muted"
-                              )}>
-                                <Zap className={cn(
-                                  "h-5 w-5",
-                                  processingMode === "auto" ? "text-white" : "text-muted-foreground"
-                                )} />
-                              </div>
-                              <div>
-                                <div className={cn(
-                                  "font-semibold flex items-center gap-2",
-                                  processingMode === "auto" && "text-white"
-                                )}>
-                                  Auto-Pilot
-                                  {processingMode === "auto" && (
-                                    <Badge className="text-[10px] px-1.5 py-0 bg-primary/30 text-primary-foreground border border-primary/50">
-                                      ✓
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className={cn(
-                                  "text-xs",
-                                  processingMode === "auto" ? "text-purple-200/80" : "text-muted-foreground"
-                                )}>
-                                  AVA auto-screens candidates
-                                </div>
-                              </div>
-                            </div>
-                          </motion.button>
-
-                          {/* Manual Review Button - Green highlight */}
-                          <motion.button
-                            onClick={() => setProcessingMode("manual")}
-                            className={cn(
-                              "relative p-4 rounded-xl transition-all text-left overflow-hidden",
-                              processingMode === "manual"
-                                ? "bg-gradient-to-br from-emerald-950/80 via-green-900/60 to-emerald-950/80"
-                                : "bg-card/50 border border-border hover:border-emerald-500/30"
-                            )}
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            animate={processingMode === "manual" ? {
-                              boxShadow: [
-                                "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 25px -5px rgba(16, 185, 129, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                                "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
-                              ]
-                            } : {}}
-                            transition={processingMode === "manual" ? {
-                              duration: 2.5,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                            } : {}}
-                          >
-                            {/* Pulsing border glow for manual */}
-                            {processingMode === "manual" && (
-                              <motion.div
-                                className="absolute inset-0 rounded-xl border-2 border-emerald-500/60 pointer-events-none"
-                                animate={{ 
-                                  opacity: [0.5, 0.8, 0.5],
-                                }}
-                                transition={{ 
-                                  duration: 2.5,
-                                  repeat: Infinity,
-                                  ease: "easeInOut"
-                                }}
-                              />
-                            )}
-                            <div className="relative flex items-center gap-3">
-                              <div className={cn(
-                                "p-2.5 rounded-lg",
-                                processingMode === "manual" 
-                                  ? "bg-emerald-600" 
-                                  : "bg-muted/50"
-                              )}>
-                                <Hand className={cn(
-                                  "h-5 w-5",
-                                  processingMode === "manual" ? "text-white" : "text-muted-foreground"
-                                )} />
-                              </div>
-                              <div>
-                                <div className={cn(
-                                  "font-semibold flex items-center gap-2",
-                                  processingMode === "manual" && "text-white"
-                                )}>
-                                  Manual Review
-                                  {processingMode === "manual" && (
-                                    <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">
-                                      ✓
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className={cn(
-                                  "text-xs",
-                                  processingMode === "manual" ? "text-emerald-200/80" : "text-muted-foreground"
-                                )}>
-                                  You review each phase progression
-                                </div>
-                              </div>
-                            </div>
-                          </motion.button>
+                            {passingScore}%
+                          </motion.div>
                         </div>
-
-                        {/* Passing Score - Only visible in Auto mode */}
-                        <AnimatePresence>
-                          {processingMode === "auto" && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="p-4 rounded-lg bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <Label>Passing Score</Label>
-                                    <p className="text-xs text-muted-foreground">
-                                      Minimum Ava score to auto-advance candidates
-                                    </p>
-                                  </div>
-                                  <motion.div 
-                                    key={passingScore}
-                                    initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
-                                    animate={{ scale: 1 }}
-                                    className="text-2xl font-bold text-primary"
-                                  >
-                                    {passingScore}%
-                                  </motion.div>
-                                </div>
-                                <Slider
-                                  value={[passingScore]}
-                                  onValueChange={([value]) => setPassingScore(value)}
-                                  min={30}
-                                  max={95}
-                                  step={5}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-xs text-muted-foreground">
-                                  <span>Lenient (30%)</span>
-                                  <span>Strict (95%)</span>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                        <Slider
+                          value={[passingScore]}
+                          onValueChange={([value]) => setPassingScore(value)}
+                          min={30}
+                          max={95}
+                          step={5}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Lenient (30%)</span>
+                          <span>Strict (95%)</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground/80 text-center">
+                          💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
+                        </p>
                       </div>
 
                       {/* Generate with AVA Button - Pink/Purple gradient */}

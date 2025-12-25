@@ -19,8 +19,6 @@ import {
   Link2,
   Sparkles,
   Loader2,
-  Zap,
-  Hand,
 } from "lucide-react";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
@@ -36,6 +34,7 @@ import { format } from "date-fns";
 import { useState, useMemo } from "react";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
+import { ProcessingModeToggle } from "@/components/ProcessingModeToggle";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
 
 interface JobCardProps {
@@ -123,18 +122,12 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 {job.status}
               </span>
               {job.processing_mode && (
-                <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
-                  job.processing_mode === "auto" 
-                    ? "bg-blue-500/20 text-blue-400" 
-                    : "bg-orange-500/20 text-orange-400"
-                }`}>
-                  {job.processing_mode === "auto" ? (
-                    <Zap className="h-3 w-3" />
-                  ) : (
-                    <Hand className="h-3 w-3" />
-                  )}
-                  {job.processing_mode === "auto" ? "Autopilot" : "Manual"}
-                </span>
+                <ProcessingModeToggle
+                  jobId={job.id}
+                  jobTitle={job.title}
+                  currentMode={job.processing_mode as "auto" | "manual"}
+                  disabled={!canEdit}
+                />
               )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
