@@ -78,10 +78,10 @@ interface ApplicationDetails extends Tables<"applications"> {
 
 // Default phases if job has no workflow
 const defaultPhases = [
-  { id: "application", title: "Application", icon: FileCheck, type: "application" },
-  { id: "review", title: "Review", icon: Eye, type: "review" },
-  { id: "interview", title: "Interview", icon: Users, type: "interview" },
-  { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" },
+  { id: "application", title: "Application", fullTitle: "Application", icon: FileCheck, type: "application" },
+  { id: "review", title: "Review", fullTitle: "Review", icon: Eye, type: "review" },
+  { id: "interview", title: "Interview", fullTitle: "Interview", icon: Users, type: "interview" },
+  { id: "hired", title: "Hired", fullTitle: "Hired", icon: CheckCircle, type: "hired" },
 ];
 
 // Map workflow step types to icons
@@ -100,6 +100,24 @@ const stepTypeIcons: Record<string, any> = {
   review: Eye,
   interview: Users,
   hired: CheckCircle,
+};
+
+// Short descriptions for workflow step types (for tooltips)
+const stepTypeDescriptions: Record<string, string> = {
+  journey_start: "Application journey begins here",
+  application: "Submit your application details",
+  quiz: "Complete a knowledge assessment",
+  video_intro: "Record a brief video introduction",
+  video_message: "Record a video message",
+  portfolio_upload: "Upload portfolio or work samples",
+  typing_test: "Test your typing speed & accuracy",
+  chat_simulation: "Practice a chat-based scenario",
+  chat_interview: "AI-powered chat interview",
+  sales_simulation: "Complete a sales scenario exercise",
+  voice_interview: "AI video/voice interview with Ava",
+  review: "Employer reviews your submission",
+  interview: "Live interview with hiring team",
+  hired: "Congratulations, you're hired!",
 };
 
 // Colors for different phase states
@@ -557,9 +575,9 @@ export default function ApplicantDetails() {
     
     if (workflowSteps && workflowSteps.length > 0) {
       // Start with journey_start as the true origin, then application
-      const allPhases: { id: string; title: string; icon: any; type: string }[] = [
-        { id: "journey_start", title: "Start", icon: Flag, type: "journey_start" },
-        { id: "application", title: "Application", icon: FileCheck, type: "application" },
+      const allPhases: { id: string; title: string; fullTitle: string; icon: any; type: string }[] = [
+        { id: "journey_start", title: "Start", fullTitle: "Start", icon: Flag, type: "journey_start" },
+        { id: "application", title: "Application", fullTitle: "Application", icon: FileCheck, type: "application" },
       ];
       
       // Add Quiz phase if quiz_questions exist
@@ -567,6 +585,7 @@ export default function ApplicantDetails() {
         allPhases.push({
           id: "quiz",
           title: "Quiz",
+          fullTitle: "Quiz Assessment",
           icon: ClipboardList,
           type: "quiz",
         });
@@ -580,6 +599,7 @@ export default function ApplicantDetails() {
         allPhases.push({
           id: step.id,
           title: step.title.length > 12 ? step.title.substring(0, 10) + "..." : step.title,
+          fullTitle: step.title,
           icon: stepTypeIcons[step.type] || ClipboardList,
           type: step.type,
         });
@@ -587,7 +607,7 @@ export default function ApplicantDetails() {
       
       // Add Review phase - in both Manual and Autopilot modes
       allPhases.push(
-        { id: "review", title: "Review", icon: Eye, type: "review" }
+        { id: "review", title: "Review", fullTitle: "Review", icon: Eye, type: "review" }
       );
       
       // Add Ava Interview AFTER review if it exists in workflow
@@ -595,14 +615,15 @@ export default function ApplicantDetails() {
         allPhases.push({
           id: voiceInterviewStep.id,
           title: "Ava Interview",
+          fullTitle: "Ava Interview",
           icon: stepTypeIcons.voice_interview || Users,
           type: "voice_interview",
         });
       }
       
       allPhases.push(
-        { id: "interview", title: "Interview", icon: Users, type: "interview" },
-        { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }
+        { id: "interview", title: "Interview", fullTitle: "Interview", icon: Users, type: "interview" },
+        { id: "hired", title: "Hired", fullTitle: "Hired", icon: CheckCircle, type: "hired" }
       );
       return allPhases;
     }
@@ -2095,28 +2116,36 @@ ${interviewType} Interview with AVA Results:
                     }`}
                   />
                   
-                  {/* Icon & Label */}
-                  <div className="mt-3 flex flex-col items-center">
-                    {isSkipped ? (
-                      <FastForward className="h-5 w-5 text-amber-500" />
-                    ) : (
-                      <Icon className={`${isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
-                        isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
-                        isCompleted ? "text-success" : 
-                        isCurrent ? "text-warning" : 
-                        "text-muted-foreground"
-                      }`} />
-                    )}
-                    <span className={`text-xs mt-1 ${
-                      isSkipped ? "text-amber-500" :
-                      isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
-                      isCompleted ? "text-success" : 
-                      isCurrent ? "text-warning" : 
-                      "text-muted-foreground"
-                    }`}>
-                      {isSkipped ? "Skipped" : phase.title}
-                    </span>
-                  </div>
+                  {/* Icon & Label with Tooltip */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="mt-3 flex flex-col items-center cursor-help">
+                        {isSkipped ? (
+                          <FastForward className="h-5 w-5 text-amber-500" />
+                        ) : (
+                          <Icon className={`${isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
+                            isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
+                            isCompleted ? "text-success" : 
+                            isCurrent ? "text-warning" : 
+                            "text-muted-foreground"
+                          }`} />
+                        )}
+                        <span className={`text-xs mt-1 ${
+                          isSkipped ? "text-amber-500" :
+                          isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
+                          isCompleted ? "text-success" : 
+                          isCurrent ? "text-warning" : 
+                          "text-muted-foreground"
+                        }`}>
+                          {isSkipped ? "Skipped" : phase.title}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-center">
+                      <p className="font-medium">{phase.fullTitle || phase.title}</p>
+                      <p className="text-xs text-muted-foreground">{stepTypeDescriptions[phase.type] || ""}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               );
             })}
