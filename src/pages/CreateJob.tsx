@@ -811,6 +811,16 @@ export default function CreateJob() {
     setPendingInterviewType(null);
   };
 
+  const replaceWithNewInterview = () => {
+    if (pendingInterviewType) {
+      const existingType = pendingInterviewType === 'voice_interview' ? 'chat_interview' : 'voice_interview';
+      setWorkflowSteps(prev => prev.filter(s => s.type !== existingType));
+      addWorkflowStep(pendingInterviewType, true);
+    }
+    setShowDualInterviewConfirm(false);
+    setPendingInterviewType(null);
+  };
+
   const updateWorkflowStepConfig = (stepId: string, configKey: string, value: unknown) => {
     setWorkflowSteps(prev => prev.map(step => {
       if (step.id === stepId) {
@@ -2320,12 +2330,15 @@ export default function CreateJob() {
               </ul>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowDualInterviewConfirm(false);
               setPendingInterviewType(null);
             }}>
               Cancel
+            </Button>
+            <Button variant="secondary" onClick={replaceWithNewInterview}>
+              Replace Existing
             </Button>
             <Button onClick={confirmDualInterviewAdd}>
               Add Both Interviews
