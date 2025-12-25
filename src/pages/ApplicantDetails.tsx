@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CondensedAIAnalysis } from "@/components/CondensedAIAnalysis";
@@ -133,6 +134,7 @@ export default function ApplicantDetails() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const updateApplication = useUpdateApplication();
   const { data: permissions } = useTeamMemberPermissions();
   const { downloadDossier, isGenerating: isGeneratingDossier } = useApplicantDossier();
@@ -2078,16 +2080,16 @@ ${interviewType} Interview with AVA Results:
                     <TooltipTrigger asChild>
                       <div className="mt-3 flex flex-col items-center cursor-help">
                         {isSkipped ? (
-                          <FastForward className="h-5 w-5 text-amber-500" />
+                          <FastForward className={`${isMobile ? "h-3 w-3" : "h-5 w-5"} text-amber-500`} />
                         ) : (
-                          <Icon className={`${isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
+                          <Icon className={`${isMobile ? "h-3 w-3" : isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
                             isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
                             isCompleted ? "text-success" : 
                             isCurrent ? "text-warning" : 
                             "text-muted-foreground"
                           }`} />
                         )}
-                        <span className={`text-xs mt-1 ${
+                        <span className={`text-xs mt-1 ${isMobile ? "hidden" : ""} ${
                           isSkipped ? "text-amber-500" :
                           isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
                           isCompleted ? "text-success" : 
@@ -2148,7 +2150,7 @@ ${interviewType} Interview with AVA Results:
               <Sparkles className="h-5 w-5 text-primary mt-0.5" />
               <div>
                 <h3 className="font-semibold text-primary">Auto-Pilot Mode Active</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground hidden md:block">
                   AVA automatically evaluates, progresses, and notifies candidates based on a passing score of {passingScore}.
                 </p>
               </div>
@@ -2253,9 +2255,11 @@ ${interviewType} Interview with AVA Results:
                   ) : (
                     <Icon className="h-3 w-3" />
                   )}
-                  {badge.title}
-                  {badge.isSkipped && " (Skipped)"}
-                  {!badge.isSkipped && badge.score && ` (${badge.score})`}
+                  <span className="hidden md:inline">
+                    {badge.title}
+                    {badge.isSkipped && " (Skipped)"}
+                    {!badge.isSkipped && badge.score && ` (${badge.score})`}
+                  </span>
                 </Badge>
               );
             })}
