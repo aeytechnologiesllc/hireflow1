@@ -123,6 +123,28 @@ export default function ChatInterviewPhase() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`chat-interview-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[ChatInterviewPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
