@@ -1,12 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-
-// Import all AVA expression images
-import avaNeutral from "@/assets/ava-neutral.png";
-import avaListening from "@/assets/ava-listening.png";
-import avaThinking from "@/assets/ava-thinking.png";
-import avaSpeaking from "@/assets/ava-speaking.png";
-import avaEncouraging from "@/assets/ava-encouraging.png";
+import { motion } from "framer-motion";
 
 export type AvaExpression = "neutral" | "listening" | "thinking" | "speaking" | "encouraging";
 
@@ -25,27 +18,47 @@ interface AvaAvatarProps {
   statusText?: string;
 }
 
-const expressionImages: Record<AvaExpression, string> = {
-  neutral: avaNeutral,
-  listening: avaListening,
-  thinking: avaThinking,
-  speaking: avaSpeaking,
-  encouraging: avaEncouraging,
+const sizeConfig = {
+  sm: { container: "w-24 h-24", barHeight: 32, barWidth: 4, gap: 3 },
+  md: { container: "w-32 h-32", barHeight: 48, barWidth: 5, gap: 4 },
+  lg: { container: "w-40 h-40", barHeight: 64, barWidth: 6, gap: 5 },
+  xl: { container: "w-56 h-56", barHeight: 96, barWidth: 8, gap: 6 },
 };
 
-const sizeClasses = {
-  sm: "w-24 h-24",
-  md: "w-32 h-32",
-  lg: "w-40 h-40",
-  xl: "w-56 h-56",
+const expressionColors: Record<AvaExpression, { primary: string; glow: string; bg: string }> = {
+  neutral: { 
+    primary: "from-muted-foreground/40 to-muted-foreground/60", 
+    glow: "bg-muted-foreground/20",
+    bg: "from-muted/30 to-muted/50"
+  },
+  listening: { 
+    primary: "from-blue-400 to-blue-600", 
+    glow: "bg-blue-500/30",
+    bg: "from-blue-500/10 to-blue-600/20"
+  },
+  thinking: { 
+    primary: "from-amber-400 to-amber-600", 
+    glow: "bg-amber-500/30",
+    bg: "from-amber-500/10 to-amber-600/20"
+  },
+  speaking: { 
+    primary: "from-emerald-400 to-emerald-600", 
+    glow: "bg-emerald-500/30",
+    bg: "from-emerald-500/10 to-emerald-600/20"
+  },
+  encouraging: { 
+    primary: "from-emerald-300 to-teal-500", 
+    glow: "bg-teal-500/40",
+    bg: "from-teal-500/10 to-emerald-600/20"
+  },
 };
 
 const statusColors: Record<AvaExpression, string> = {
-  neutral: "bg-muted",
+  neutral: "bg-muted-foreground/50",
   listening: "bg-blue-500",
   thinking: "bg-amber-500",
-  speaking: "bg-green-500",
-  encouraging: "bg-emerald-500",
+  speaking: "bg-emerald-500",
+  encouraging: "bg-teal-500",
 };
 
 const statusLabels: Record<AvaExpression, string> = {
@@ -64,158 +77,174 @@ export function AvaAvatar({
   showStatus = true,
   statusText,
 }: AvaAvatarProps) {
-  const [currentImage, setCurrentImage] = useState(expressionImages[expression]);
-  const [isBlinking, setIsBlinking] = useState(false);
-
-  // Calculate average audio level for animation intensity
-  const audioIntensity = useMemo(() => {
-    const avg = audioLevels.reduce((a, b) => a + b, 0) / audioLevels.length;
-    return Math.min(1, (avg - 8) / 24); // Normalize to 0-1
+  const config = sizeConfig[size];
+  const colors = expressionColors[expression];
+  
+  // Normalize audio levels to 0-1 range for animation
+  const normalizedLevels = useMemo(() => {
+    return audioLevels.map(level => {
+      const normalized = Math.min(1, Math.max(0, (level - 5) / 30));
+      return normalized;
+    });
   }, [audioLevels]);
 
-  // Update image when expression changes
-  useEffect(() => {
-    setCurrentImage(expressionImages[expression]);
-  }, [expression]);
+  // Calculate overall audio intensity
+  const audioIntensity = useMemo(() => {
+    const avg = normalizedLevels.reduce((a, b) => a + b, 0) / normalizedLevels.length;
+    return avg;
+  }, [normalizedLevels]);
 
-  // Blinking animation - random intervals for natural feel
-  useEffect(() => {
-    const scheduleNextBlink = () => {
-      const delay = 2000 + Math.random() * 4000; // 2-6 seconds
-      return setTimeout(() => {
-        if (expression !== "speaking") {
-          setIsBlinking(true);
-          setTimeout(() => setIsBlinking(false), 150);
-        }
-        scheduleNextBlink();
-      }, delay);
-    };
+  // Generate bar heights based on expression and audio
+  const getBarHeight = (index: number): number => {
+    const baseHeight = 0.3; // Minimum height as fraction
+    const centerIndex = 2;
+    const distanceFromCenter = Math.abs(index - centerIndex);
+    const centerBias = 1 - (distanceFromCenter * 0.15); // Center bars slightly taller
 
-    const blinkTimeout = scheduleNextBlink();
-    return () => clearTimeout(blinkTimeout);
-  }, [expression]);
-
-  // Subtle breathing animation
-  const breathingAnimation = {
-    scale: [1, 1.02, 1],
-    y: [0, -2, 0],
-  };
-
-  // Speaking animation - more pronounced when audio is active
-  const speakingAnimation = {
-    scale: [1, 1 + audioIntensity * 0.03, 1],
-    y: [0, -1 - audioIntensity * 2, 0],
-  };
-
-  // Thinking animation - gentle side-to-side
-  const thinkingAnimation = {
-    x: [0, 3, 0, -3, 0],
-    rotate: [0, 1, 0, -1, 0],
-  };
-
-  // Listening animation - subtle nod
-  const listeningAnimation = {
-    y: [0, 2, 0],
-    rotate: [0, 2, 0],
-  };
-
-  // Get animation based on current expression
-  const getAnimation = () => {
     switch (expression) {
       case "speaking":
-        return speakingAnimation;
-      case "thinking":
-        return thinkingAnimation;
+        // Dynamic height based on actual audio levels
+        const audioLevel = normalizedLevels[index] || 0;
+        return baseHeight + (audioLevel * 0.7 * centerBias);
       case "listening":
-        return listeningAnimation;
+        // Gentle pulse pattern
+        return baseHeight + 0.2 * centerBias;
+      case "thinking":
+        // Wave pattern (will be animated)
+        return baseHeight + 0.3 * centerBias;
+      case "encouraging":
+        // Celebratory burst
+        return baseHeight + 0.5 * centerBias;
       default:
-        return breathingAnimation;
+        // Subtle breathing
+        return baseHeight + 0.1 * centerBias;
     }
   };
 
-  // Get animation duration based on expression
-  const getAnimationDuration = () => {
+  // Animation variants for different expressions
+  const getBarAnimation = (index: number) => {
+    const delay = index * 0.05;
+    
     switch (expression) {
       case "speaking":
-        return 0.3 + (1 - audioIntensity) * 0.2; // Faster when audio is intense
-      case "thinking":
-        return 2;
+        return {
+          scaleY: [getBarHeight(index), getBarHeight(index) * 1.3, getBarHeight(index)],
+          transition: {
+            duration: 0.15,
+            repeat: Infinity,
+            repeatType: "reverse" as const,
+            delay,
+            ease: "easeInOut" as const,
+          }
+        };
       case "listening":
-        return 1.5;
+        return {
+          scaleY: [0.3, 0.5, 0.3],
+          transition: {
+            duration: 1.2,
+            repeat: Infinity,
+            ease: "easeInOut" as const,
+            delay: delay * 3,
+          }
+        };
+      case "thinking":
+        return {
+          scaleY: [0.3, 0.6, 0.3],
+          transition: {
+            duration: 0.8,
+            repeat: Infinity,
+            ease: "easeInOut" as const,
+            delay: index * 0.15,
+          }
+        };
+      case "encouraging":
+        return {
+          scaleY: [0.4, 0.9, 0.4],
+          transition: {
+            duration: 0.5,
+            repeat: Infinity,
+            ease: "easeOut" as const,
+            delay: delay * 2,
+          }
+        };
       default:
-        return 4;
+        return {
+          scaleY: [0.3, 0.4, 0.3],
+          transition: {
+            duration: 3,
+            repeat: Infinity,
+            ease: "easeInOut" as const,
+            delay,
+          }
+        };
     }
   };
 
   return (
     <div className={`relative inline-flex flex-col items-center ${className}`}>
-      {/* Glow effect behind avatar */}
+      {/* Glow effect behind visualization */}
       <motion.div
-        className={`absolute inset-0 rounded-full blur-2xl opacity-30 ${
-          expression === "speaking"
-            ? "bg-green-500"
-            : expression === "listening"
-            ? "bg-blue-500"
-            : expression === "thinking"
-            ? "bg-amber-500"
-            : "bg-primary/20"
-        }`}
+        className={`absolute inset-0 rounded-full blur-3xl ${colors.glow}`}
         animate={{
-          scale: expression === "speaking" ? [1, 1.1 + audioIntensity * 0.1, 1] : [1, 1.05, 1],
-          opacity: expression === "speaking" ? [0.3, 0.4 + audioIntensity * 0.2, 0.3] : [0.2, 0.3, 0.2],
+          scale: expression === "speaking" ? [1, 1.15 + audioIntensity * 0.1, 1] : [1, 1.08, 1],
+          opacity: expression === "speaking" ? [0.4, 0.6 + audioIntensity * 0.2, 0.4] : [0.3, 0.5, 0.3],
         }}
         transition={{
-          duration: expression === "speaking" ? 0.5 : 2,
+          duration: expression === "speaking" ? 0.3 : 2,
           repeat: Infinity,
           ease: "easeInOut",
         }}
       />
 
-      {/* Avatar container */}
+      {/* Main visualization container */}
       <motion.div
-        className={`relative ${sizeClasses[size]} rounded-full overflow-hidden bg-gradient-to-br from-background to-muted border-4 border-background shadow-xl`}
-        animate={getAnimation()}
+        className={`relative ${config.container} rounded-full overflow-hidden bg-gradient-to-br ${colors.bg} border-2 border-border/30 backdrop-blur-sm shadow-xl flex items-center justify-center`}
+        animate={{
+          scale: expression === "encouraging" ? [1, 1.05, 1] : 1,
+        }}
         transition={{
-          duration: getAnimationDuration(),
-          repeat: Infinity,
+          duration: 0.6,
+          repeat: expression === "encouraging" ? Infinity : 0,
           ease: "easeInOut",
         }}
       >
-        {/* Avatar image with crossfade */}
-        <AnimatePresence mode="wait">
-          <motion.img
-            key={expression}
-            src={currentImage}
-            alt={`Ava - ${expression}`}
-            className="w-full h-full object-cover"
-            initial={{ opacity: 0 }}
-            animate={{ 
-              opacity: isBlinking ? 0.7 : 1,
-              scale: isBlinking ? 0.98 : 1,
-            }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          />
-        </AnimatePresence>
+        {/* Inner glow ring */}
+        <motion.div 
+          className={`absolute inset-2 rounded-full bg-gradient-to-br ${colors.bg} opacity-50`}
+          animate={{
+            opacity: expression === "speaking" ? [0.3, 0.6, 0.3] : [0.2, 0.4, 0.2],
+          }}
+          transition={{
+            duration: expression === "speaking" ? 0.4 : 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
 
-        {/* Speaking audio bars overlay */}
-        {expression === "speaking" && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-end gap-0.5 h-4">
-            {audioLevels.map((level, i) => (
-              <motion.div
-                key={i}
-                className="w-1 bg-white/80 rounded-full"
-                animate={{ height: Math.max(4, level / 2) }}
-                transition={{ duration: 0.1 }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Audio bars */}
+        <div 
+          className="relative flex items-center justify-center"
+          style={{ gap: config.gap }}
+        >
+          {[0, 1, 2, 3, 4].map((index) => (
+            <motion.div
+              key={index}
+              className={`rounded-full bg-gradient-to-t ${colors.primary}`}
+              style={{
+                width: config.barWidth,
+                height: config.barHeight,
+                originY: 0.5,
+              }}
+              animate={getBarAnimation(index)}
+              initial={{ scaleY: 0.3 }}
+            />
+          ))}
+        </div>
 
-        {/* Thinking indicator */}
+        {/* Thinking dots overlay */}
         {expression === "thinking" && (
           <motion.div
-            className="absolute top-2 right-2 flex gap-1"
+            className="absolute bottom-3 flex gap-1.5"
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           >
@@ -223,7 +252,7 @@ export function AvaAvatar({
               <motion.div
                 key={i}
                 className="w-1.5 h-1.5 bg-amber-400 rounded-full"
-                animate={{ scale: [1, 1.2, 1] }}
+                animate={{ y: [0, -3, 0] }}
                 transition={{
                   duration: 0.6,
                   repeat: Infinity,
@@ -232,6 +261,22 @@ export function AvaAvatar({
               />
             ))}
           </motion.div>
+        )}
+
+        {/* Listening indicator - subtle ring pulse */}
+        {expression === "listening" && (
+          <motion.div
+            className="absolute inset-0 rounded-full border-2 border-blue-400/50"
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.5, 0.2, 0.5],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
         )}
       </motion.div>
 
@@ -246,11 +291,11 @@ export function AvaAvatar({
           <motion.div
             className={`w-2 h-2 rounded-full ${statusColors[expression]}`}
             animate={{
-              scale: expression === "speaking" ? [1, 1.3, 1] : [1, 1.1, 1],
+              scale: expression === "speaking" ? [1, 1.3, 1] : [1, 1.15, 1],
               opacity: expression === "neutral" ? 0.6 : 1,
             }}
             transition={{
-              duration: expression === "speaking" ? 0.3 : 1,
+              duration: expression === "speaking" ? 0.3 : 1.5,
               repeat: Infinity,
             }}
           />
