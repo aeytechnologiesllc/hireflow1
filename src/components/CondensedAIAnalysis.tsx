@@ -103,11 +103,87 @@ function generateParagraphSummary(items: string[]): string {
   return sentences.join(' ');
 }
 
-// Generate a cohesive full summary from all sections
+// Generate a cohesive full summary from all sections - prioritizing phase performance
 function generateFullSummary(sections: ParsedSection[], recommendation: string | null): string {
-  const keyFindings: string[] = [];
+  const phaseHighlights: string[] = [];
+  const concerns: string[] = [];
   
   for (const section of sections) {
+    const titleLower = section.title.toLowerCase();
+    
+    // Check if this is the Phase Performance Summary section
+    if (titleLower.includes('phase') && titleLower.includes('performance')) {
+      for (const item of section.items) {
+        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
+        if (match) {
+          const label = match[1].trim().toLowerCase();
+          const value = match[2].trim();
+          const valueLower = value.toLowerCase();
+          
+          // Extract quiz results
+          if (label.includes('quiz') && !valueLower.includes('not completed')) {
+            const scoreMatch = value.match(/(\d+)%/);
+            if (scoreMatch) {
+              const score = parseInt(scoreMatch[1]);
+              if (score >= 80) {
+                phaseHighlights.push(`Scored ${score}% on the skills quiz`);
+              } else if (score < 50) {
+                concerns.push(`Low quiz score of ${score}%`);
+              }
+            }
+          }
+          
+          // Extract portfolio results
+          if (label.includes('portfolio') && !valueLower.includes('not submitted')) {
+            const scoreMatch = value.match(/(\d+)(?:\/100)?/);
+            if (scoreMatch) {
+              const score = parseInt(scoreMatch[1]);
+              if (score >= 70) {
+                phaseHighlights.push(`Portfolio rated ${score}/100`);
+              } else if (score < 50) {
+                concerns.push(`Portfolio scored ${score}/100`);
+              } else {
+                phaseHighlights.push(`Portfolio rated ${score}/100`);
+              }
+            }
+          }
+          
+          // Extract voice interview results
+          if (label.includes('voice') && label.includes('interview') && !valueLower.includes('not completed')) {
+            const scoreMatch = value.match(/(\d+)(?:\/100)?/);
+            if (scoreMatch) {
+              const score = parseInt(scoreMatch[1]);
+              if (score >= 70) {
+                phaseHighlights.push(`Strong voice interview performance (${score}/100)`);
+              } else if (score < 50) {
+                concerns.push(`Voice interview scored ${score}/100`);
+              }
+            }
+          }
+          
+          // Extract typing test results
+          if (label.includes('typing') && !valueLower.includes('not completed')) {
+            const wpmMatch = value.match(/(\d+)\s*wpm/i);
+            if (wpmMatch) {
+              phaseHighlights.push(`Typing speed: ${wpmMatch[1]} WPM`);
+            }
+          }
+          
+          // Extract phase highlights directly
+          if (label.includes('highlight')) {
+            const highlights = value.split(/[,;]/).filter(h => h.trim() && !h.toLowerCase().includes('none'));
+            phaseHighlights.push(...highlights.map(h => h.trim()));
+          }
+          
+          // Extract phase concerns
+          if (label.includes('concern') && !valueLower.includes('none')) {
+            concerns.push(value);
+          }
+        }
+      }
+    }
+    
+    // Also check other sections for important findings
     for (const item of section.items) {
       const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
       if (match) {
@@ -115,29 +191,38 @@ function generateFullSummary(sections: ParsedSection[], recommendation: string |
         const value = match[2].trim();
         const valueUpper = value.toUpperCase();
         
-        // Capture the most important findings
+        // Capture resume-related concerns only if significant
         if (label.includes('status') && valueUpper.includes('WRONG')) {
-          keyFindings.push('The resume appears to belong to a different person.');
+          concerns.push('Resume appears to belong to a different person');
         } else if (label.includes('name') && valueUpper.includes('MISMATCH')) {
-          keyFindings.push('There is a name discrepancy between the resume and application.');
+          concerns.push('Name discrepancy detected');
         } else if (label.includes('matching skills') && (value.toLowerCase().includes('none') || value === '0')) {
-          keyFindings.push('No matching skills were found for this position.');
-        } else if (label.includes('authenticity') && valueUpper.includes('AUTHENTIC')) {
-          keyFindings.push('The document appears authentic.');
-        } else if (label.includes('experience') && (valueUpper.includes('UNRELATED') || valueUpper.includes('INCONSISTENT'))) {
-          keyFindings.push('The experience is unrelated to this position.');
-        } else if (label.includes('red flag') && value.toLowerCase() !== 'none' && value !== 'N/A') {
-          keyFindings.push(`Red flag: ${value}.`);
+          concerns.push('No matching skills found');
         }
       }
     }
   }
   
-  // Deduplicate and limit
-  const uniqueFindings = [...new Set(keyFindings)].slice(0, 4);
+  // Build the summary - prioritize phase highlights
+  const summaryParts: string[] = [];
   
-  if (uniqueFindings.length > 0) {
-    return uniqueFindings.join(' ');
+  // Add phase highlights first (up to 3)
+  const uniqueHighlights = [...new Set(phaseHighlights)].slice(0, 3);
+  if (uniqueHighlights.length > 0) {
+    summaryParts.push(uniqueHighlights.join('. ') + '.');
+  }
+  
+  // Add concerns (up to 2)
+  const uniqueConcerns = [...new Set(concerns)].slice(0, 2);
+  if (uniqueConcerns.length > 0) {
+    const concernText = uniqueConcerns.length === 1 
+      ? `However, ${uniqueConcerns[0].toLowerCase()}.`
+      : `However, there are concerns: ${uniqueConcerns.join('; ')}.`;
+    summaryParts.push(concernText);
+  }
+  
+  if (summaryParts.length > 0) {
+    return summaryParts.join(' ');
   }
   
   // Fallback to recommendation
