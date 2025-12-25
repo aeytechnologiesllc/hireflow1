@@ -66,15 +66,19 @@ export function useUnreadMessagesCount() {
     };
   }, [user?.id, queryClient]);
 
-  // Clear count indicator when visiting messages page (messages get marked as read there)
+  // Mark all messages as read when visiting messages page
   useEffect(() => {
-    if (location.pathname === "/messages") {
-      // The messages page handles marking messages as read
-      // Just refetch after a short delay to reflect the change
-      const timeout = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["unread-messages-count", user?.id] });
-      }, 1000);
-      return () => clearTimeout(timeout);
+    if (location.pathname === "/messages" && user?.id) {
+      const markAllAsRead = async () => {
+        await supabase
+          .from("messages")
+          .update({ is_read: true })
+          .eq("receiver_id", user.id)
+          .eq("is_read", false);
+        
+        queryClient.invalidateQueries({ queryKey: ["unread-messages-count", user.id] });
+      };
+      markAllAsRead();
     }
   }, [location.pathname, queryClient, user?.id]);
 

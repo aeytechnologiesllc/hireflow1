@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 
 const LAST_SEEN_KEY = "interviews_last_seen";
@@ -23,13 +23,12 @@ export function useUpcomingInterviewsCount() {
   const queryClient = useQueryClient();
   const location = useLocation();
 
-  const lastSeen = useMemo(() => getLastSeenTimestamp(), []);
-
   const query = useQuery({
-    queryKey: ["upcoming-interviews-count", user?.id, lastSeen],
+    queryKey: ["upcoming-interviews-count", user?.id],
     queryFn: async () => {
       if (!user?.id) return 0;
 
+      const lastSeen = getLastSeenTimestamp();
       const isEmployerOrTeam = role === "employer" || isTeamMember;
 
       if (isEmployerOrTeam) {
