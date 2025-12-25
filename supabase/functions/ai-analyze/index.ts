@@ -13,6 +13,8 @@ interface AnalyzeRequest {
   content: string;
   context?: Record<string, unknown>;
   resumeUrl?: string;
+  resumeText?: string;
+  resumeImage?: string; // Base64-encoded image for vision analysis
 }
 
 const systemPrompts: Record<string, string> = {
@@ -196,7 +198,7 @@ serve(async (req) => {
       );
     }
 
-    const { type, content, context, resumeUrl } = (await req.json()) as AnalyzeRequest;
+    const { type, content, context, resumeUrl, resumeText, resumeImage } = (await req.json()) as AnalyzeRequest;
 
     if (!type || !content) {
       return new Response(
@@ -214,21 +216,65 @@ serve(async (req) => {
     }
 
     console.log(`Processing ${type} analysis request`);
+    console.log(`Resume extraction: text=${!!resumeText}, image=${!!resumeImage}, url=${!!resumeUrl}`);
 
-    // Resume parsing is handled client-side (browser) to avoid Deno runtime incompatibilities.
-    // If resume text isn't available, we gracefully continue based on the other application data.
-    let resumeContent = "";
-    let pdfExtracted = false;
+    let userContent = content;
+    let resumeExtracted = false;
 
-    if (type === "resume" && resumeUrl) {
-      resumeContent = `\n\n[Resume file URL provided: ${resumeUrl}. If resume text is not included above, proceed based on the other application data.]`;
-      pdfExtracted = false;
-    }
-
-    let userContent = content + resumeContent;
-
+    // Add context if provided
     if (context) {
       userContent += `\n\nAdditional Context:\n${JSON.stringify(context, null, 2)}`;
+    }
+
+    // Build the messages array based on what resume data we have
+    let messages: any[];
+
+    if (resumeImage && type === "resume") {
+      // Use vision capability for image-based resume analysis
+      console.log("Using GPT-4o vision for resume image analysis");
+      resumeExtracted = true;
+      
+      messages = [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { 
+              type: "text", 
+              text: userContent + "\n\nThe candidate's resume image is attached below. Please analyze the resume thoroughly from the image."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/png;base64,${resumeImage}`,
+                detail: "high" // Use high detail for better text recognition
+              }
+            }
+          ]
+        }
+      ];
+    } else if (resumeText && type === "resume") {
+      // Resume text was successfully extracted
+      console.log("Using extracted resume text, length:", resumeText.length);
+      resumeExtracted = true;
+      
+      userContent += `\n\nRESUME CONTENT (Extracted Text):\n${resumeText}`;
+      
+      messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ];
+    } else {
+      // No resume content available - analyze based on other data
+      if (resumeUrl) {
+        console.log("Resume URL provided but content could not be extracted");
+        userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but the content could not be extracted. Please analyze based on the other application data provided above.`;
+      }
+      
+      messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ];
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -239,10 +285,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
+        messages,
         max_tokens: 3000,
         temperature: 0.7,
       }),
@@ -268,14 +311,14 @@ serve(async (req) => {
     const data = await response.json();
     const analysis = data.choices[0].message.content;
 
-    console.log(`${type} analysis completed successfully`);
+    console.log(`${type} analysis completed successfully, resumeExtracted: ${resumeExtracted}`);
 
     return new Response(
       JSON.stringify({ 
         analysis,
         type,
         timestamp: new Date().toISOString(),
-        resumeExtracted: pdfExtracted,
+        resumeExtracted,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
