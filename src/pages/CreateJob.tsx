@@ -1569,45 +1569,47 @@ export default function CreateJob() {
                         </div>
                       </div>
 
-                      {/* Required WPM for Typing Test */}
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/20 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Keyboard className="h-4 w-4 text-amber-500" />
-                            <div>
-                              <Label>Typing Speed Requirement</Label>
-                              <p className="text-xs text-muted-foreground">
-                                Words per minute for typing test
-                              </p>
+                      {/* Required WPM for Typing Test - Only show when typing test is in workflow */}
+                      {workflowSteps.some(step => step.type === 'typing_test') && (
+                        <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/20 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Keyboard className="h-4 w-4 text-amber-500" />
+                              <div>
+                                <Label>Typing Speed Requirement</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Words per minute for typing test
+                                </p>
+                              </div>
                             </div>
+                            <motion.div 
+                              key={requiredWpm}
+                              initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                              animate={{ scale: 1 }}
+                              className="text-2xl font-bold text-amber-500"
+                            >
+                              {requiredWpm} WPM
+                            </motion.div>
                           </div>
-                          <motion.div 
-                            key={requiredWpm}
-                            initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
-                            animate={{ scale: 1 }}
-                            className="text-2xl font-bold text-amber-500"
-                          >
-                            {requiredWpm} WPM
-                          </motion.div>
+                          <Slider
+                            value={[requiredWpm]}
+                            onValueChange={([value]) => setRequiredWpm(value)}
+                            min={20}
+                            max={80}
+                            step={5}
+                            className="w-full"
+                          />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Basic (20)</span>
+                            <span>Standard (40)</span>
+                            <span>Fast (60)</span>
+                            <span>Pro (80)</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground/80 text-center">
+                            💡 Average office worker types ~40 WPM. Data entry roles may require 50-60 WPM.
+                          </p>
                         </div>
-                        <Slider
-                          value={[requiredWpm]}
-                          onValueChange={([value]) => setRequiredWpm(value)}
-                          min={20}
-                          max={80}
-                          step={5}
-                          className="w-full"
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Basic (20)</span>
-                          <span>Standard (40)</span>
-                          <span>Fast (60)</span>
-                          <span>Pro (80)</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground/80 text-center">
-                          💡 Average office worker types ~40 WPM. Data entry roles may require 50-60 WPM.
-                        </p>
-                      </div>
+                      )}
 
                       <p className="text-xs text-muted-foreground/80 text-center">
                         💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
