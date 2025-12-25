@@ -471,12 +471,13 @@ export default function InterviewSchedulingWizard({
                   Meeting Link
                 </Label>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 p-3 bg-muted/50 rounded-lg border border-border text-left overflow-hidden">
+                  <div className="flex-1 min-w-0 p-3 bg-muted/50 rounded-lg border border-border text-left">
                     <a 
                       href={createdMeetLink} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline truncate block text-sm"
+                      className="text-primary hover:underline text-sm block truncate"
+                      title={createdMeetLink}
                     >
                       {createdMeetLink}
                     </a>
