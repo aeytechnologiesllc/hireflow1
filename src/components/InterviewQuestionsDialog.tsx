@@ -195,17 +195,23 @@ export default function InterviewQuestionsDialog({
         }
       }
       
+      // Build the content string that the edge function expects
+      const contentParts = [
+        `Job Title: ${job?.title || "Position"}`,
+        `Job Description: ${job?.description || "Not provided"}`,
+        job?.requirements ? `Requirements: ${job.requirements}` : null,
+        job?.responsibilities ? `Responsibilities: ${job.responsibilities}` : null,
+        `Candidate Name: ${profile?.full_name || "Candidate"}`,
+        previousAnalysis ? `Previous AI Analysis Summary: ${previousAnalysis.substring(0, 500)}...` : null,
+        coverLetter ? `Cover Letter: ${coverLetter}` : null,
+      ].filter(Boolean).join('\n\n');
+      
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
           type: "interview",
-          jobTitle: job?.title || "Position",
-          jobDescription: job?.description || "",
-          requirements: job?.requirements || "",
-          responsibilities: job?.responsibilities || "",
-          candidateName: profile?.full_name || "Candidate",
+          content: contentParts,
           resumeUrl,
           coverLetter,
-          previousAnalysis,
         },
       });
 
