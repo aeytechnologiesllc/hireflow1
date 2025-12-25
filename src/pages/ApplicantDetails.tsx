@@ -221,6 +221,76 @@ function useAnimatedCounter(value: number, duration: number = 1000) {
   
   return display;
 }
+// Helper function to highlight key indicators in analysis text
+function highlightKeywords(text: string): React.ReactNode {
+  // Pattern definitions with their colors
+  const highlightRules: Array<{ pattern: RegExp; className: string }> = [
+    // Critical negative indicators - red
+    { pattern: /\b(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO MATCH|MISSING|INCOMPLETE|UNCLEAR|NOT AUTHENTIC)\b/gi, className: 'text-red-400 font-medium' },
+    // Negative percentages (0%)
+    { pattern: /\b(0%)\b/g, className: 'text-red-400 font-medium' },
+    // Negative scores with minus
+    { pattern: /(-\d+)\b/g, className: 'text-red-400 font-medium' },
+    
+    // Positive indicators - emerald/green
+    { pattern: /\b(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|GOOD|HIGH|VERIFIED|CONFIRMED|YES)\b/gi, className: 'text-emerald-400 font-medium' },
+    // High percentages (80-100%)
+    { pattern: /\b(100%|9\d%|8\d%)\b/g, className: 'text-emerald-400 font-medium' },
+    
+    // Warning/neutral indicators - amber
+    { pattern: /\b(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|NOT APPLICABLE|NONE APPLICABLE)\b/gi, className: 'text-amber-400 font-medium' },
+    // Low indicator as text
+    { pattern: /\b(Low)\b/g, className: 'text-amber-400 font-medium' },
+  ];
+
+  // Split and process text to apply highlights
+  let result: React.ReactNode[] = [];
+  let remainingText = text;
+  let keyIndex = 0;
+
+  // Combine all patterns and process
+  const allPatterns = highlightRules.map(r => ({ ...r, regex: new RegExp(r.pattern.source, 'gi') }));
+  
+  // Find all matches with their positions
+  const matches: Array<{ start: number; end: number; text: string; className: string }> = [];
+  
+  for (const rule of allPatterns) {
+    const regex = new RegExp(rule.pattern.source, 'gi');
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0],
+        className: rule.className
+      });
+    }
+  }
+
+  // Sort matches by position and remove overlaps (keep first)
+  matches.sort((a, b) => a.start - b.start);
+  const filteredMatches: typeof matches = [];
+  for (const m of matches) {
+    if (filteredMatches.length === 0 || m.start >= filteredMatches[filteredMatches.length - 1].end) {
+      filteredMatches.push(m);
+    }
+  }
+
+  // Build result with highlighted spans
+  let lastEnd = 0;
+  for (const m of filteredMatches) {
+    if (m.start > lastEnd) {
+      result.push(<span key={keyIndex++}>{text.slice(lastEnd, m.start)}</span>);
+    }
+    result.push(<span key={keyIndex++} className={m.className}>{m.text}</span>);
+    lastEnd = m.end;
+  }
+  if (lastEnd < text.length) {
+    result.push(<span key={keyIndex++}>{text.slice(lastEnd)}</span>);
+  }
+
+  return result.length > 0 ? <>{result}</> : text;
+}
 
 function AIAnalysisContent({ content }: { content: string }) {
   const parsed = parseAIAnalysis(content);
@@ -315,7 +385,7 @@ function AIAnalysisContent({ content }: { content: string }) {
               {section.items.map((item, i) => (
                 <li key={i} className="text-sm flex items-start gap-2.5 text-muted-foreground leading-relaxed">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
-                  <span>{item}</span>
+                  <span>{highlightKeywords(item)}</span>
                 </li>
               ))}
             </ul>
