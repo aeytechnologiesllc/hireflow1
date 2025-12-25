@@ -327,165 +327,211 @@ function generateFullSummary(sections: ParsedSection[], recommendation: string |
     }
   }
   
-  // Build comprehensive narrative (targeting 15+ sentences)
-  const sentences: string[] = [];
+  // Build comprehensive narrative in AVA's first-person voice with paragraph breaks
+  const paragraphs: string[] = [];
   
-  // Opening - Application overview
+  // ============= PARAGRAPH 1: Opening + Phase Results =============
+  const openingSentences: string[] = [];
+  
+  // Conversational opening
   if (phaseResults.length > 0) {
-    sentences.push(`This candidate has completed ${phaseResults.length} phase${phaseResults.length > 1 ? 's' : ''} of the application process.`);
+    openingSentences.push(`Hey! I've finished reviewing this applicant and here's what I found.`);
+    openingSentences.push(`They completed ${phaseResults.length} phase${phaseResults.length > 1 ? 's' : ''} of the application process.`);
   } else {
-    sentences.push('This candidate has submitted their application for review.');
+    openingSentences.push(`Hey! I've taken a look at this application.`);
+    openingSentences.push(`They've submitted their application for review, but haven't completed any assessment phases yet.`);
   }
   
-  // Phase-by-phase breakdown (detailed sentences for each)
+  // Phase-by-phase breakdown in first person
   for (const phase of phaseResults) {
     if (phase.phase === 'Quiz') {
       const score = parseInt(phase.score);
       if (score >= 90) {
-        sentences.push(`They achieved an outstanding ${phase.score} on the skills quiz, demonstrating excellent knowledge in the required areas.`);
+        openingSentences.push(`I was really impressed with their quiz performance - they scored ${phase.score}! That tells me they really know the material.`);
       } else if (score >= 70) {
-        sentences.push(`They scored ${phase.score} on the skills quiz, showing solid competency in the required skills.`);
+        openingSentences.push(`Their quiz score of ${phase.score} is solid - shows they have a good grasp of the fundamentals.`);
       } else if (score >= 50) {
-        sentences.push(`Their quiz score of ${phase.score} indicates moderate knowledge, with some areas needing improvement.`);
+        openingSentences.push(`They got ${phase.score} on the quiz, which is okay but there are definitely some knowledge gaps I noticed.`);
       } else {
-        sentences.push(`The quiz score of ${phase.score} is concerning and suggests gaps in fundamental knowledge.`);
+        openingSentences.push(`The quiz score of ${phase.score} is concerning to me - it suggests they're missing some fundamental knowledge we need.`);
       }
     }
     
     if (phase.phase === 'Portfolio') {
       const score = parseInt(phase.score);
       if (score >= 80) {
-        sentences.push(`The portfolio received a strong rating of ${phase.score}, showcasing impressive technical execution and creativity.`);
+        openingSentences.push(`Their portfolio really caught my eye - scored ${phase.score}. Great technical work and creativity there!`);
       } else if (score >= 60) {
-        sentences.push(`Their portfolio was rated ${phase.score}, showing decent technical execution but with room for improvement.`);
+        openingSentences.push(`The portfolio came in at ${phase.score}. It's decent work, but honestly, I expected a bit more polish for this role.`);
       } else {
-        sentences.push(`The portfolio scored ${phase.score}, indicating significant areas for development in their work quality.`);
+        openingSentences.push(`Their portfolio scored ${phase.score}, which is below what I'd hope to see. There's definitely room for improvement.`);
       }
     }
     
     if (phase.phase === 'Voice Interview') {
       const score = parseInt(phase.score);
       if (score >= 80) {
-        sentences.push(`The voice interview scored ${phase.score}, reflecting excellent communication skills and strong engagement.`);
+        openingSentences.push(`The voice interview went great - ${phase.score}! They communicated well and seemed genuinely engaged.`);
       } else if (score >= 60) {
-        sentences.push(`Their voice interview performance was rated ${phase.score}, showing adequate communication abilities.`);
+        openingSentences.push(`Their voice interview was rated ${phase.score}. Communication was adequate, though nothing that really stood out.`);
       } else if (score >= 40) {
-        sentences.push(`The voice interview score of ${phase.score} indicates some concerns about communication or engagement during the conversation.`);
+        openingSentences.push(`Here's where I got a bit concerned - the voice interview only scored ${phase.score}. They seemed disengaged and I had trouble connecting with them.`);
       } else {
-        sentences.push(`The voice interview scored only ${phase.score}, suggesting significant issues with communication or interview preparation.`);
+        openingSentences.push(`I have to be honest - the voice interview worried me. Only ${phase.score}. They really struggled with communication and didn't seem prepared.`);
       }
     }
     
     if (phase.phase === 'Typing Test') {
-      sentences.push(`They completed the typing test with a speed of ${phase.score}.`);
+      openingSentences.push(`They completed the typing test at ${phase.score}, which I noted.`);
     }
     
     if (phase.phase === 'Video Introduction') {
-      sentences.push(`A video introduction was submitted for review.`);
+      openingSentences.push(`They did submit a video introduction, which I reviewed.`);
     }
     
     if (phase.phase === 'Chat Simulation') {
-      sentences.push(`The candidate completed the chat simulation exercise.`);
+      openingSentences.push(`They went through the chat simulation exercise as well.`);
     }
   }
   
-  // Resume analysis section
-  if (resumeFindings.length > 0) {
-    sentences.push('Regarding the submitted resume:');
-    resumeFindings.forEach(finding => {
-      sentences.push(finding + '.');
-    });
+  if (openingSentences.length > 0) {
+    paragraphs.push(openingSentences.join(' '));
   }
   
-  // Cross-reference findings
-  if (crossRefFindings.length > 0) {
-    crossRefFindings.forEach(finding => {
-      if (!finding.endsWith('.')) {
-        sentences.push(finding + '.');
+  // ============= PARAGRAPH 2: Resume & Skills Analysis =============
+  const resumeSentences: string[] = [];
+  
+  if (resumeFindings.length > 0 || crossRefFindings.length > 0) {
+    resumeSentences.push(`Now, I have to flag something important about the resume.`);
+    
+    // Resume findings in conversational tone
+    for (const finding of resumeFindings) {
+      if (finding.toLowerCase().includes('different person')) {
+        resumeSentences.push(`The resume they submitted doesn't seem to match - it looks like it might belong to someone else entirely.`);
+      } else if (finding.toLowerCase().includes('belong to the applicant')) {
+        resumeSentences.push(`Good news - the resume does appear to be theirs.`);
+      } else if (finding.toLowerCase().includes('authenticity')) {
+        resumeSentences.push(finding + '.');
       } else {
-        sentences.push(finding);
+        resumeSentences.push(finding + '.');
       }
-    });
+    }
+    
+    // Cross-reference findings
+    for (const finding of crossRefFindings) {
+      if (finding.toLowerCase().includes('name') && finding.toLowerCase().includes('not match')) {
+        resumeSentences.push(`The name on the resume doesn't match what they put on their application - that's a red flag for me.`);
+      } else if (finding.toLowerCase().includes('inconsistent')) {
+        resumeSentences.push(`I'm seeing some inconsistencies between their resume and application data.`);
+      } else if (finding.toLowerCase().includes('match') && finding.toLowerCase().includes('name')) {
+        resumeSentences.push(`At least the names check out and match up.`);
+      }
+    }
   }
   
   // Skills assessment
   if (skillsInfo.length > 0) {
-    skillsInfo.forEach(skill => {
-      if (!skill.endsWith('.')) {
-        sentences.push(skill + '.');
-      } else {
-        sentences.push(skill);
+    for (const skill of skillsInfo) {
+      if (skill.toLowerCase().includes('no matching skills')) {
+        resumeSentences.push(`I couldn't find any of the skills we need for this position on their resume.`);
+      } else if (skill.toLowerCase().includes('skills gap')) {
+        const gapMatch = skill.match(/Skills gaps identified:\s*(.+)/i);
+        if (gapMatch) {
+          resumeSentences.push(`We're looking for things like ${gapMatch[1]} - and those weren't showing up.`);
+        }
+      } else if (skill.toLowerCase().includes('matching skills')) {
+        resumeSentences.push(`On the positive side, I did find some relevant skills: ${skill.replace(/Matching skills:\s*/i, '')}.`);
       }
-    });
-  }
-  
-  // Experience insights
-  if (experienceInfo.length > 0) {
-    experienceInfo.slice(0, 2).forEach(exp => {
-      if (!exp.endsWith('.')) {
-        sentences.push(exp + '.');
-      } else {
-        sentences.push(exp);
-      }
-    });
-  }
-  
-  // Concerns section
-  const uniqueConcerns = [...new Set(concerns)];
-  if (uniqueConcerns.length > 0) {
-    if (uniqueConcerns.length === 1) {
-      sentences.push(`A key concern is ${uniqueConcerns[0].toLowerCase()}.`);
-    } else {
-      sentences.push(`Key concerns include: ${uniqueConcerns.slice(0, 4).join(', ')}.`);
     }
   }
   
-  // Strengths section
+  // Experience
+  if (experienceInfo.length > 0) {
+    for (const exp of experienceInfo.slice(0, 2)) {
+      if (exp.toLowerCase().includes('unknown')) {
+        resumeSentences.push(`I couldn't get a clear picture of their experience level from what they submitted.`);
+      } else {
+        resumeSentences.push(exp + ' - based on the application data.');
+      }
+    }
+  }
+  
+  if (resumeSentences.length > 0) {
+    paragraphs.push(resumeSentences.join(' '));
+  }
+  
+  // ============= PARAGRAPH 3: Concerns & Red Flags =============
+  const concernsSentences: string[] = [];
+  const uniqueConcerns = [...new Set(concerns)];
+  
+  if (uniqueConcerns.length > 0) {
+    concernsSentences.push(`Between you and me, there are some real concerns here.`);
+    concernsSentences.push(`Key concerns include: ${uniqueConcerns.join(', ')}.`);
+  }
+  
+  // Strengths (balance it out)
   const uniqueStrengths = [...new Set(strengths)].filter(s => s && s.toLowerCase() !== 'none');
   if (uniqueStrengths.length > 0) {
     if (uniqueStrengths.length === 1) {
-      sentences.push(`A notable strength is ${uniqueStrengths[0]}.`);
+      concernsSentences.push(`A notable strength is ${uniqueStrengths[0]}.`);
     } else {
-      sentences.push(`Notable strengths include: ${uniqueStrengths.slice(0, 3).join(', ')}.`);
+      concernsSentences.push(`On the positive side, I did notice: ${uniqueStrengths.slice(0, 3).join(', ')}.`);
     }
   }
   
-  // Personality insights (if available)
+  // Personality insights
   if (personalityInfo.length > 0) {
     const personalityNote = personalityInfo.slice(0, 2).join(' ');
-    sentences.push(`Personality indicators suggest: ${personalityNote}.`);
+    concernsSentences.push(`Personality indicators suggest: ${personalityNote}.`);
   }
   
-  // Closing - Overall assessment
+  if (concernsSentences.length > 0) {
+    paragraphs.push(concernsSentences.join(' '));
+  }
+  
+  // ============= PARAGRAPH 4: Final Recommendation =============
+  const closingSentences: string[] = [];
+  
   if (overallScore) {
-    sentences.push(`Based on the overall assessment, this candidate scores ${overallScore}/100.`);
+    closingSentences.push(`After reviewing everything, I'm giving this candidate a ${overallScore}/100.`);
   }
   
   if (recommendationText) {
-    const cleanRec = recommendationText.replace(/^\*\*|\*\*$/g, '').trim();
-    sentences.push(`Recommendation: ${cleanRec}.`);
-  }
-  
-  // Ensure we have enough sentences - add context if needed
-  if (sentences.length < 10) {
-    if (phaseResults.length > 0) {
-      sentences.push('The application data shows a mix of strengths and areas for improvement.');
+    const cleanRec = recommendationText.replace(/^\*\*|\*\*$/g, '').trim().toLowerCase();
+    if (cleanRec.includes('not recommended') || cleanRec.includes('reject')) {
+      closingSentences.push(`My recommendation? I don't think we should move forward with them.`);
+      if (uniqueConcerns.length > 0) {
+        closingSentences.push(`The concerns I mentioned are just too significant to overlook.`);
+      }
+    } else if (cleanRec.includes('proceed') || cleanRec.includes('interview')) {
+      closingSentences.push(`My recommendation is to proceed with an interview.`);
+      closingSentences.push(`I'd like to get to know them better before making a final call.`);
+    } else if (cleanRec.includes('hire') || cleanRec.includes('recommend')) {
+      closingSentences.push(`I think this could be a great fit! I'd recommend moving forward with them.`);
+    } else {
+      closingSentences.push(`Recommendation: ${recommendationText}.`);
     }
-    if (concerns.length > 0 && strengths.length > 0) {
-      sentences.push('While there are notable positive aspects, the concerns warrant careful consideration.');
-    } else if (concerns.length > 0) {
-      sentences.push('The identified concerns should be addressed before proceeding.');
-    } else if (strengths.length > 0) {
-      sentences.push('The candidate shows promise in several key areas.');
+  } else if (overallScore) {
+    const score = parseInt(overallScore);
+    if (score >= 70) {
+      closingSentences.push(`Overall, I think this candidate shows real promise.`);
+    } else if (score >= 50) {
+      closingSentences.push(`They're on the fence - could go either way depending on what you prioritize.`);
+    } else {
+      closingSentences.push(`Honestly? I have reservations about moving forward with this one.`);
     }
-    sentences.push('A thorough review of all submitted materials is recommended before making a final decision.');
   }
   
-  if (sentences.length > 0) {
-    return sentences.join(' ');
+  if (closingSentences.length > 0) {
+    paragraphs.push(closingSentences.join(' '));
   }
   
-  return 'Analysis complete. View the detailed sections below for comprehensive insights.';
+  // Join paragraphs with double line breaks
+  if (paragraphs.length > 0) {
+    return paragraphs.join('\n\n');
+  }
+  
+  return "Hey! I've reviewed this application. Check out the detailed sections below for all my findings and insights.";
 }
 
 // ============= Parsing Logic =============
@@ -682,7 +728,7 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
                   {verdictText}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
+              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                 {parsed.fullSummary}
               </p>
             </div>
