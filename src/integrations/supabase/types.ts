@@ -555,6 +555,7 @@ export type Database = {
           processing_mode: string | null
           quiz_questions: Json | null
           require_resume: boolean | null
+          required_wpm: number | null
           requirements: string | null
           responsibilities: string | null
           salary_currency: string | null
@@ -586,6 +587,7 @@ export type Database = {
           processing_mode?: string | null
           quiz_questions?: Json | null
           require_resume?: boolean | null
+          required_wpm?: number | null
           requirements?: string | null
           responsibilities?: string | null
           salary_currency?: string | null
@@ -617,6 +619,7 @@ export type Database = {
           processing_mode?: string | null
           quiz_questions?: Json | null
           require_resume?: boolean | null
+          required_wpm?: number | null
           requirements?: string | null
           responsibilities?: string | null
           salary_currency?: string | null

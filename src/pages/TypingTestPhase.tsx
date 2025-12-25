@@ -55,6 +55,7 @@ interface ApplicationDetails {
     title: string;
     processing_mode: string | null;
     passing_score: number | null;
+    required_wpm: number | null;
     workflow_steps?: WorkflowStep[] | null;
   } | null;
 }
@@ -94,7 +95,7 @@ export default function TypingTestPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, processing_mode, passing_score, required_wpm, workflow_steps)")
         .eq("id", id!)
         .single();
 
@@ -222,9 +223,10 @@ export default function TypingTestPhase() {
       : 0;
 
     // Calculate overall score: Gross WPM weighted by accuracy
-    // Score formula: (grossWpm / 80 * 100) * (accuracy / 100)
-    // 80 WPM = 100% speed score (professional typing speed)
-    const speedScore = Math.min(100, (grossWpm / 80) * 100);
+    // Score formula: (grossWpm / requiredWpm * 100) * (accuracy / 100)
+    // The employer sets the required WPM (default 40)
+    const requiredWpm = application?.jobs?.required_wpm || 40;
+    const speedScore = Math.min(100, (grossWpm / requiredWpm) * 100);
     const score = Math.round(speedScore * (accuracy / 100));
 
     const passingScore = application?.jobs?.passing_score || 60;
@@ -262,12 +264,13 @@ export default function TypingTestPhase() {
       // This prevents stale cached data from causing auto-rejection in manual mode
       const { data: freshJob } = await supabase
         .from("jobs")
-        .select("processing_mode, passing_score")
+        .select("processing_mode, passing_score, required_wpm")
         .eq("id", application.job_id)
         .single();
       
       const isAutoMode = freshJob?.processing_mode === "auto";
       const passingScore = freshJob?.passing_score || 60;
+      const requiredWpm = freshJob?.required_wpm || 40;
       
       // For autopilot mode, show evaluation screen
       if (isAutoMode) {
@@ -380,13 +383,23 @@ export default function TypingTestPhase() {
         }
       }
 
+      // Build detailed phase analysis
+      const speedPercent = Math.round((results.wpm / requiredWpm) * 100);
+      const phaseAiAnalysis = results.passed 
+        ? `Typing test passed. Speed: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target), Accuracy: ${results.accuracy}%, Combined Score: ${results.score}%.`
+        : `Typing test failed due to ${
+            results.wpm < requiredWpm * 0.6 ? "low typing speed" : 
+            results.accuracy < 80 ? "low accuracy" : 
+            "combined speed and accuracy below threshold"
+          }.\n\nBreakdown:\n• Speed: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target)\n• Accuracy: ${results.accuracy}%\n• Combined Score: ${results.score}% (Speed % × Accuracy %)\n• Required: ${passingScore}%`;
+
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
           status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: `Typing test: ${results.wpm} WPM, ${results.accuracy}% accuracy, Score: ${results.score}%. ${results.passed ? "PASSED" : "FAILED"}`,
+          phase_ai_analysis: phaseAiAnalysis,
         })
         .eq("id", id!);
 
@@ -581,11 +594,11 @@ export default function TypingTestPhase() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Target className="h-4 w-4 mt-1 text-primary" />
-                    <span>Try to match the text exactly - accuracy matters!</span>
+                    <span>Target speed: <strong className="text-foreground">{application.jobs?.required_wpm || 40} WPM</strong></span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Zap className="h-4 w-4 mt-1 text-primary" />
-                    <span>Your performance is measured by speed (WPM) and accuracy</span>
+                    <span>Your score combines speed and accuracy</span>
                   </li>
                 </ul>
                 <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
@@ -697,23 +710,19 @@ export default function TypingTestPhase() {
                 </div>
               </div>
 
-              {/* Performance Stats - no scores, just metrics */}
+              {/* Performance Stats */}
               <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-muted/30 border-border">
                   <CardContent className="p-4 text-center">
                     <Zap className="h-6 w-6 mx-auto text-primary mb-2" />
                     <p className="text-2xl font-bold text-foreground">{results.wpm}</p>
-                    <p className="text-xs text-muted-foreground">Words/Min</p>
+                    <p className="text-xs text-muted-foreground">Words/Min (target: {application.jobs?.required_wpm || 40})</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-muted/30 border-border">
                   <CardContent className="p-4 text-center">
                     <Target className="h-6 w-6 mx-auto text-primary mb-2" />
-                    <p className="text-2xl font-bold text-foreground">
-                      {results.accuracy >= 95 ? "Excellent" : 
-                       results.accuracy >= 85 ? "Great" : 
-                       results.accuracy >= 70 ? "Good" : "Keep Practicing"}
-                    </p>
+                    <p className="text-2xl font-bold text-foreground">{results.accuracy}%</p>
                     <p className="text-xs text-muted-foreground">Accuracy</p>
                   </CardContent>
                 </Card>
