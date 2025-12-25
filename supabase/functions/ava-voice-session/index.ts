@@ -875,7 +875,7 @@ PRIOR AI SCORE: ${application.ai_score || 'Not scored'}
       const languageMap: Record<string, string> = {
         'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
         'pt': 'Portuguese', 'hi': 'Hindi', 'ur': 'Urdu', 'ar': 'Arabic', 'zh': 'Mandarin',
-        'ja': 'Japanese', 'ko': 'Korean', 'it': 'Italian', 'nl': 'Dutch',
+        'ja': 'Japanese', 'ko': 'Korean', 'vi': 'Vietnamese', 'it': 'Italian', 'nl': 'Dutch',
         'ru': 'Russian', 'tr': 'Turkish', 'pl': 'Polish'
       };
       const requiredLanguage = languageMap[languageCode] || stepConfig.language_name || 'English';
@@ -971,6 +971,7 @@ You are Ava, a FEMALE interviewer. You are a woman.
 - Russian: Use feminine verb forms and adjectives
 - Japanese: Use appropriate feminine speech patterns where relevant
 - Korean: Maintain professional tone (less gendered but stay consistent)
+- Vietnamese: Use feminine forms where applicable: "Tôi là Ava" (feminine tone)
 
 **NEVER** refer to yourself as masculine in ANY language. If unsure, avoid pronouns and just say "Ava."
 
@@ -1319,6 +1320,7 @@ ${requiredLanguage !== 'English' ? `
 - Mandarin: "你好！请问你是[candidate's first name]吗？"
 - Japanese: "こんにちは！[candidate's first name]さんですか？"
 - Korean: "안녕하세요! [candidate's first name]님이신가요?"
+- Vietnamese: "Xin chào! Bạn có phải là [candidate's first name] không?"
 - Italian: "Ciao! Sei [candidate's first name]?"
 - Dutch: "Hallo! Ben jij [candidate's first name]?"
 - Russian: "Привет! Вы [candidate's first name]?"
@@ -1502,6 +1504,7 @@ ${requiredLanguage !== 'English' ? `
 - Russian: "Спасибо! Было приятно с вами поговорить. Мы скоро свяжемся."
 - Japanese: "ありがとうございました！お話できてよかったです。近日中にご連絡いたします。"
 - Korean: "감사합니다! 대화할 수 있어서 좋았습니다. 곧 연락드리겠습니다."
+- Vietnamese: "Cảm ơn bạn! Rất vui được nói chuyện với bạn. Chúng tôi sẽ liên hệ sớm."
 - Mandarin: "谢谢！很高兴和您交谈。我们会尽快联系您。"
 ` : ''}
 
