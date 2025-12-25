@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Hand, Rocket, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useUpdateJob } from "@/hooks/useJobs";
+import { processAutopilotCatchUp } from "@/utils/processAutopilotCatchUp";
+import { toast } from "sonner";
 
 interface ProcessingModeToggleProps {
   jobId: string;
@@ -279,9 +281,22 @@ export function ProcessingModeToggle({
 
       setShowDialog(false);
       setShowSuccessOverlay(pendingMode);
+
+      // If switching to autopilot, process pending applications in background
+      if (pendingMode === "auto") {
+        processAutopilotCatchUp(jobId).then((result) => {
+          if (result.advanced > 0) {
+            toast.success(`Ava processed ${result.processed} applicants and advanced ${result.advanced} to the next phase`);
+          } else if (result.processed > 0) {
+            toast.info(`Ava reviewed ${result.processed} applicants - none ready to advance yet`);
+          }
+        }).catch((error) => {
+          console.error("Autopilot catch-up error:", error);
+        });
+      }
     } catch (error) {
-      // Error handling without toast - could add inline error state if needed
       console.error("Failed to update processing mode:", error);
+      toast.error("Failed to update processing mode");
     }
     
     setPendingMode(null);
