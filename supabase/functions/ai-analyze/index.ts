@@ -437,15 +437,14 @@ Start with a base score of 65 (average candidate). Then apply adjustments:
 REQUIRED OUTPUT FORMAT:
 ---
 **PHASE PERFORMANCE SUMMARY**
-(Summarize ALL completed hiring phases. This is CRITICAL for the executive summary.)
-Quiz: [X% if completed, or "Not completed"]
-Portfolio: [X/100 if reviewed, or "Not submitted"]
-Typing Test: [X WPM, X% accuracy if completed, or "Not completed"]
-Voice Interview: [X/100, key observation if completed, or "Not completed"]
-Chat Simulation: [Performance summary if completed, or "Not completed"]
-Video Introduction: [Brief impression if submitted, or "Not submitted"]
-Application Form: [Quality assessment: Strong/Average/Weak]
-Phase Highlights: [List 1-3 standout performances, e.g., "100% quiz score", "Excellent voice interview"]
+(Summarize ONLY the phases that are listed in "JOB WORKFLOW PHASES" section above.)
+CRITICAL: Do NOT include phases that were NOT part of this job's workflow. Only mention phases that appear in the workflow list provided. If the job only has portfolio_upload and voice_interview phases, then ONLY report on those two phases. Do NOT say "Typing Test: Not Completed" or "Quiz: Not completed" if those phases are not in the workflow.
+
+For each phase that IS in the workflow, report:
+- If completed: Show the score/result
+- If not completed: Show "Pending" or "Not yet submitted"
+
+Phase Highlights: [List 1-3 standout performances from COMPLETED phases only]
 Phase Concerns: [List any weak phase performances or "None"]
 
 **DOCUMENT VALIDATION**

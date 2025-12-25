@@ -22,7 +22,7 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type),
+        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps),
         profiles:candidate_id(full_name, email, skills, experience_years, bio, location)
       `)
       .eq("id", applicationId)
@@ -66,12 +66,21 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
     const profile = application.profiles as any;
     const job = application.jobs as any;
 
+    // Extract workflow phases from job to inform AI what phases exist for this job
+    const workflowSteps = (job?.workflow_steps as any[]) || [];
+    const workflowPhaseTypes = workflowSteps.map((step: any) => step.type).filter(Boolean);
+    
     let content = `
 Job Title: ${job?.title || "Unknown"}
 Job Description: ${job?.description || "Not provided"}
 Requirements: ${job?.requirements || "Not specified"}
 Skills Required: ${job?.skills_required?.join(", ") || "Not specified"}
 Experience Level: ${job?.experience_level || "Not specified"}
+
+=== JOB WORKFLOW PHASES (ONLY analyze these phases) ===
+${workflowPhaseTypes.length > 0 ? workflowPhaseTypes.map((p: string) => `- ${p}`).join("\n") : "- application_form (standard application only)"}
+
+CRITICAL INSTRUCTION: In your PHASE PERFORMANCE SUMMARY, you must ONLY include phases that are listed above. Do NOT mention phases that were NOT part of this job's workflow. For example, if there is no "typing_test" in the workflow above, do NOT say "Typing Test: Not Completed" - simply omit it entirely.
 
 Candidate Information:
 Name: ${profile?.full_name || "Unknown"}
