@@ -1187,6 +1187,10 @@ export default function ApplicantDetails() {
       if (phaseType === "voice_interview") {
         // Voice interview result is stored separately
       }
+      if (phaseType === "application") {
+        // Clear application-specific data
+        delete updatedNotes.applicationAnswers;
+      }
       
       // Remove from employer-skipped list if it was there
       if (updatedNotes.employerSkippedPhases) {
@@ -1211,6 +1215,12 @@ export default function ApplicantDetails() {
       if (phaseType === "voice_interview") {
         updatePayload.voice_interview_result = null;
         updatePayload.voice_interview_recording_url = null;
+      }
+      
+      // Clear application data if resetting application phase
+      if (phaseType === "application") {
+        updatePayload.resume_url = null;
+        updatePayload.cover_letter = null;
       }
       
       await updateApplication.mutateAsync(updatePayload);
@@ -3158,7 +3168,7 @@ ${interviewType} Interview with AVA Results:
                 </ScrollArea>
                 
                 {/* Reset Phase Button - Only show if data exists and user can manage pipeline */}
-                {dialogData.content && canManagePipeline && badge && !["application", "resume"].includes(badge.id) && (
+                {dialogData.content && canManagePipeline && badge && !["resume"].includes(badge.id) && (
                   <DialogFooter className="mt-4 pt-4 border-t border-border">
                     <Button
                       variant="outline"
