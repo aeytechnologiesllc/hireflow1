@@ -315,6 +315,7 @@ export default function CreateJob() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [deadlineOpen, setDeadlineOpen] = useState(false);
   
   // Confirmation dialog for adding both chat_interview and voice_interview
   const [showDualInterviewConfirm, setShowDualInterviewConfirm] = useState(false);
@@ -1411,7 +1412,7 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <Label>Application Deadline</Label>
-                    <Popover>
+                    <Popover open={deadlineOpen} onOpenChange={setDeadlineOpen}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -1432,7 +1433,10 @@ export default function CreateJob() {
                         <Calendar
                           mode="single"
                           selected={formData.application_deadline || undefined}
-                          onSelect={(date) => handleChange("application_deadline", date || null)}
+                          onSelect={(date) => {
+                            handleChange("application_deadline", date || null);
+                            setDeadlineOpen(false);
+                          }}
                           disabled={(date) => date < new Date()}
                           initialFocus
                           className="pointer-events-auto"
