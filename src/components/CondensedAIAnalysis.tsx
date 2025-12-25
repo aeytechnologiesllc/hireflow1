@@ -40,20 +40,106 @@ interface ParsedSection {
 
 type StatusType = 'positive' | 'negative' | 'warning' | 'neutral';
 
+// ============= Human-Readable Helpers =============
+
+function humanizeStatus(status: string): string {
+  // Convert technical terms like WRONG_RESUME to "Wrong Resume"
+  return status
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function humanizeTitle(title: string): string {
+  // Convert section titles to more readable format
+  return title
+    .replace(/_/g, ' ')
+    .replace(/\b(ai|cv)\b/gi, match => match.toUpperCase())
+    .trim();
+}
+
+function generateParagraphSummary(items: string[]): string {
+  // Convert key-value items into a natural paragraph
+  const sentences: string[] = [];
+  
+  for (const item of items) {
+    const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
+    if (match) {
+      const label = match[1].trim();
+      const value = match[2].trim();
+      const humanValue = humanizeStatus(value);
+      
+      // Generate natural sentences based on common patterns
+      const labelLower = label.toLowerCase();
+      
+      if (labelLower.includes('status') || labelLower.includes('result')) {
+        sentences.push(`The ${labelLower} is ${humanValue.toLowerCase()}.`);
+      } else if (labelLower.includes('match') && labelLower.includes('name')) {
+        if (value.toUpperCase().includes('MISMATCH')) {
+          const details = value.replace(/^MISMATCH\s*[-–—]\s*/i, '');
+          sentences.push(`There's a name discrepancy. ${details}`);
+        } else {
+          sentences.push(`The name matches the application.`);
+        }
+      } else if (labelLower.includes('matching skills')) {
+        if (value.toLowerCase().includes('none') || value === '0') {
+          sentences.push(`No matching skills were found on this resume.`);
+        } else {
+          sentences.push(`The candidate has matching skills: ${humanValue}.`);
+        }
+      } else if (labelLower.includes('missing skills')) {
+        if (value.toLowerCase() !== 'none' && value !== 'N/A') {
+          sentences.push(`Key skills missing: ${value}.`);
+        }
+      } else if (labelLower.includes('match rate') || labelLower.includes('score')) {
+        sentences.push(`The overall match rate is ${value}.`);
+      } else if (labelLower.includes('experience')) {
+        if (value.toUpperCase().includes('INCONSISTENT') || value.toUpperCase().includes('UNRELATED')) {
+          const details = value.replace(/^(INCONSISTENT|UNRELATED)\s*[-–—]\s*/i, '');
+          sentences.push(`The experience appears unrelated. ${details}`);
+        } else {
+          sentences.push(`Experience: ${humanValue}.`);
+        }
+      } else if (labelLower.includes('confidence') || labelLower.includes('authenticity')) {
+        sentences.push(`${label}: ${humanValue}.`);
+      } else if (labelLower.includes('red flag') || labelLower.includes('concern')) {
+        if (value.toLowerCase() !== 'none' && value !== 'N/A' && value !== '0') {
+          sentences.push(`Concern: ${value}.`);
+        }
+      } else if (labelLower.includes('notes') || labelLower.includes('summary')) {
+        sentences.push(value);
+      } else {
+        // Default: convert to natural sentence
+        sentences.push(`${label}: ${humanValue}.`);
+      }
+    } else {
+      // Plain text item
+      sentences.push(item);
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
 // ============= Parsing Logic =============
 
 function getStatusType(value: string): StatusType | null {
   const upper = value.toUpperCase();
   
-  if (/^(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|YES|VERIFIED|CONFIRMED|HIGH)$/.test(upper)) {
+  // Handle compound values like "MISMATCH - The resume..."
+  const firstWord = upper.split(/[\s\-–—]/)[0];
+  
+  if (/^(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|YES|VERIFIED|CONFIRMED|HIGH)$/.test(firstWord)) {
     return 'positive';
   }
   
-  if (/^(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO|MISSING|INCOMPLETE|NOT AUTHENTIC)$/.test(upper)) {
+  if (/^(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO|MISSING|INCOMPLETE|NOT)$/.test(firstWord)) {
     return 'negative';
   }
   
-  if (/^(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|LOW|LIKELY_AI_GENERATED)$/.test(upper)) {
+  if (/^(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|LOW|LIKELY_AI_GENERATED)$/.test(firstWord)) {
     return 'warning';
   }
   
@@ -68,8 +154,10 @@ function extractSectionSummary(items: string[]): { summary: string; status: Stat
       const value = match[2].trim();
       const status = getStatusType(value);
       if (status) {
+        // Get just the first word for the badge
+        const firstWord = value.split(/[\s\-–—]/)[0];
         return { 
-          summary: `${match[1].trim()}: ${value}`, 
+          summary: humanizeStatus(firstWord), 
           status 
         };
       }
@@ -97,13 +185,13 @@ function extractSectionSummary(items: string[]): { summary: string; status: Stat
   }
   if (warning > 0) {
     return { 
-      summary: `${warning} item${warning > 1 ? 's' : ''} need review`, 
+      summary: `${warning} need${warning > 1 ? '' : 's'} review`, 
       status: 'warning' 
     };
   }
   if (positive > 0) {
     return { 
-      summary: `${positive} check${positive > 1 ? 's' : ''} passed`, 
+      summary: `${positive} passed`, 
       status: 'positive' 
     };
   }
@@ -122,7 +210,9 @@ function getSectionPriority(title: string, items: string[]): 'critical' | 'impor
       titleLower.includes('validation') || 
       titleLower.includes('authenticity') ||
       titleLower.includes('red flag') ||
-      titleLower.includes('warning')) {
+      titleLower.includes('warning') ||
+      titleLower.includes('cross-reference') ||
+      titleLower.includes('verification')) {
     // Check if there are issues
     const hasIssues = items.some(item => {
       const match = item.match(/^[^:]+:\s*(.+)$/);
@@ -152,28 +242,33 @@ function extractPrimaryReason(sections: ParsedSection[], recommendation: string 
   // Look for critical issues first
   for (const section of sections) {
     if (section.priority === 'critical' && section.status === 'negative') {
-      return section.summary;
+      // Generate a human-readable primary reason
+      const paragraph = generateParagraphSummary(section.items);
+      const firstSentence = paragraph.split('.')[0];
+      return firstSentence.length > 100 ? firstSentence.slice(0, 97) + '...' : firstSentence + '.';
     }
   }
   
   // Look for negative sections
   for (const section of sections) {
     if (section.status === 'negative') {
-      return section.summary;
+      const paragraph = generateParagraphSummary(section.items);
+      const firstSentence = paragraph.split('.')[0];
+      return firstSentence.length > 100 ? firstSentence.slice(0, 97) + '...' : firstSentence + '.';
     }
   }
   
   // Look for positive highlights
   for (const section of sections) {
     if (section.status === 'positive') {
-      return section.summary;
+      return `${humanizeTitle(section.title)} checks passed.`;
     }
   }
   
   // Fallback to recommendation snippet
   if (recommendation) {
-    const words = recommendation.split(' ').slice(0, 8);
-    return words.join(' ') + (recommendation.split(' ').length > 8 ? '...' : '');
+    const words = recommendation.split(' ').slice(0, 12);
+    return words.join(' ') + (recommendation.split(' ').length > 12 ? '...' : '');
   }
   
   return null;
@@ -254,7 +349,7 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
     const priority = getSectionPriority(section.title, section.items);
     
     return {
-      title: section.title,
+      title: humanizeTitle(section.title),
       summary,
       priority,
       items: section.items,
@@ -346,9 +441,12 @@ function StatusBadge({ status, type, compact = false }: { status: string; type: 
     neutral: "bg-muted text-muted-foreground border border-border",
   };
   
+  // Humanize the status text
+  const displayStatus = humanizeStatus(status);
+  
   return (
     <span className={cn(baseClasses, typeClasses[type])}>
-      {status}
+      {displayStatus}
     </span>
   );
 }
@@ -357,7 +455,7 @@ function SectionIcon({ title, status }: { title: string; status: StatusType }) {
   const titleLower = title.toLowerCase();
   
   let Icon = FileText;
-  if (titleLower.includes('document') || titleLower.includes('validation') || titleLower.includes('authentic')) {
+  if (titleLower.includes('document') || titleLower.includes('validation') || titleLower.includes('authentic') || titleLower.includes('verification') || titleLower.includes('cross-reference')) {
     Icon = Shield;
   } else if (titleLower.includes('skill') || titleLower.includes('match') || titleLower.includes('experience')) {
     Icon = Target;
@@ -377,32 +475,13 @@ function SectionIcon({ title, status }: { title: string; status: StatusType }) {
   return <Icon className={cn("h-4 w-4", colorClasses[status])} />;
 }
 
-function AnalysisItem({ item }: { item: string }) {
-  const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-  
-  if (match) {
-    const label = match[1].trim();
-    const value = match[2].trim();
-    const statusType = getStatusType(value);
-    
-    return (
-      <div className="flex items-start justify-between gap-3 py-1">
-        <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-        <span className="text-xs text-right">
-          {statusType ? (
-            <StatusBadge status={value} type={statusType} compact />
-          ) : (
-            <span className="text-foreground/80">{value}</span>
-          )}
-        </span>
-      </div>
-    );
-  }
+function ParagraphContent({ items }: { items: string[] }) {
+  const paragraph = generateParagraphSummary(items);
   
   return (
-    <div className="text-xs text-muted-foreground py-0.5 leading-relaxed">
-      {item}
-    </div>
+    <p className="text-sm text-muted-foreground leading-relaxed">
+      {paragraph}
+    </p>
   );
 }
 
@@ -468,7 +547,7 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
                 </span>
               </div>
               {parsed.primaryReason && (
-                <p className="text-xs text-muted-foreground line-clamp-2">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   {parsed.primaryReason}
                 </p>
               )}
@@ -484,7 +563,7 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
       {parsed.sections.length > 0 && (
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            {parsed.sections.length} section{parsed.sections.length !== 1 ? 's' : ''}
+            {parsed.sections.length} section{parsed.sections.length !== 1 ? 's' : ''} • Tap to view details
           </span>
           <Button 
             variant="ghost" 
@@ -534,18 +613,14 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
                   {section.title}
                 </span>
                 <StatusBadge 
-                  status={section.summary.split(':')[1]?.trim() || section.summary} 
+                  status={section.summary} 
                   type={section.status} 
                   compact 
                 />
               </div>
             </AccordionTrigger>
             <AccordionContent className="pb-3">
-              <div className="divide-y divide-border/20 pt-1">
-                {section.items.map((item, i) => (
-                  <AnalysisItem key={i} item={item} />
-                ))}
-              </div>
+              <ParagraphContent items={section.items} />
             </AccordionContent>
           </AccordionItem>
         ))}
@@ -554,8 +629,8 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
       {/* Full Recommendation (if different from summary) */}
       {parsed.recommendation && parsed.recommendation.length > 50 && (
         <div className="pt-2 border-t border-border/30">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Full Recommendation: </span>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground">Recommendation: </span>
             {parsed.recommendation}
           </p>
         </div>
