@@ -309,26 +309,37 @@ export function ProcessingModeToggle({
 
   return (
     <>
-      {/* Compact Cockpit-Style Button */}
+      {/* Subtle Theme-Aligned Toggle Button */}
       <motion.button
         onClick={handleButtonClick}
         disabled={disabled || updateJob.isPending}
         className={cn(
-          "px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all",
-          "shadow-md border",
+          "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all duration-300",
+          "border backdrop-blur-sm",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           currentMode === "auto" 
-            ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white border-orange-400/50 hover:from-orange-400 hover:to-amber-500 shadow-orange-500/20" 
-            : "bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white border-purple-400/50 hover:from-purple-400 hover:to-fuchsia-500 shadow-purple-500/20"
+            ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:border-primary/50 shadow-[0_0_15px_hsl(var(--primary)/0.15)]" 
+            : "bg-muted/50 text-muted-foreground border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 hover:shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
         )}
-        whileHover={{ scale: disabled ? 1 : 1.03 }}
-        whileTap={{ scale: disabled ? 1 : 0.97 }}
+        whileHover={{ scale: disabled ? 1 : 1.02 }}
+        whileTap={{ scale: disabled ? 1 : 0.98 }}
       >
         {updateJob.isPending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : currentMode === "auto" ? (
           <>
-            <Hand className="h-3.5 w-3.5" />
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="relative"
+            >
+              <Hand className="h-3.5 w-3.5" />
+              <motion.div
+                className="absolute inset-0 rounded-full bg-primary/40 blur-sm -z-10"
+                animate={{ opacity: [0.4, 0.7, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+            </motion.div>
             <span>Take Control</span>
           </>
         ) : (
