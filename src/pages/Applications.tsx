@@ -53,9 +53,9 @@ const phaseActionConfig: Record<string, { icon: React.ElementType; label: string
   video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
   video_message: { icon: Video, label: "Record Video", description: "Record your video message", route: "video-intro" },
   chat_simulation: { icon: MessageSquare, label: "Start Chat Sim", description: "Begin customer support simulation", route: "chat-simulation" },
-  chat_interview: { icon: Users, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
+  chat_interview: { icon: MessageSquare, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
   sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation", route: "sales-simulation" },
-  voice_interview: { icon: Mic, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
+  voice_interview: { icon: Video, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
   portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio-upload" },
 };
 

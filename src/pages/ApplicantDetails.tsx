@@ -96,7 +96,7 @@ const stepTypeIcons: Record<string, any> = {
   chat_simulation: MessageSquare,
   chat_interview: MessageSquare,
   sales_simulation: MessageSquare,
-  voice_interview: Users,
+  voice_interview: Video,
   review: Eye,
   interview: Users,
   hired: CheckCircle,
