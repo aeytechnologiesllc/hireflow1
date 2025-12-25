@@ -234,9 +234,56 @@ ${interviewType} Interview with AVA Results:
       return;
     }
 
-    // Extract score from analysis - but only use it if no existing score
-    const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-    const newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    const analysisText = data.analysis || "";
+    
+    // Extract the FINAL CALCULATED SCORE from the scoring breakdown
+    let newScore: number | null = null;
+    const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+)/i);
+    if (finalScoreMatch) {
+      newScore = parseInt(finalScoreMatch[1], 10);
+    } else {
+      // Fallback to old pattern
+      const scoreMatch = analysisText.match(/Overall Score[:\s]+(\d+)/i);
+      newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    }
+    
+    // POST-PROCESSING SCORE VALIDATION
+    // Check for critical red flags that require score caps
+    if (newScore !== null && newScore > 60) {
+      // Check if NO company names were detected
+      const noCompanyMatch = analysisText.match(/Company names present in work experience\?\s*\[?(NO|no)\]?/i) ||
+                             analysisText.match(/NO COMPANY.*NAMES/i) ||
+                             analysisText.match(/No company\/employer names/i);
+      
+      if (noCompanyMatch) {
+        console.log("[triggerAvaAnalysis] POST-PROCESSING: No company names detected, capping score from", newScore, "to 60");
+        newScore = Math.min(newScore, 60);
+      }
+    }
+    
+    if (newScore !== null && newScore > 55) {
+      // Check if AI-generated content was detected
+      const aiGeneratedMatch = analysisText.match(/LIKELY_AI_GENERATED/i) ||
+                               analysisText.match(/AI-generated content detected\?\s*\[?LIKELY/i);
+      
+      if (aiGeneratedMatch) {
+        console.log("[triggerAvaAnalysis] POST-PROCESSING: AI-generated content detected, capping score from", newScore, "to 55");
+        newScore = Math.min(newScore, 55);
+      }
+    }
+    
+    if (newScore !== null && newScore > 45) {
+      // Check for both no company names AND no achievements
+      const noAchievements = analysisText.match(/Specific quantifiable achievements present\?\s*\[?(NO|no)\]?/i) ||
+                             analysisText.match(/NO quantifiable achievements/i);
+      const noCompany = analysisText.match(/Company names present.*\[?(NO|no)\]?/i) ||
+                        analysisText.match(/NO COMPANY.*NAMES/i);
+      
+      if (noAchievements && noCompany) {
+        console.log("[triggerAvaAnalysis] POST-PROCESSING: No achievements AND no company names, capping score from", newScore, "to 45");
+        newScore = Math.min(newScore, 45);
+      }
+    }
     
     // Preserve existing score - AVA stands by her original assessment
     const existingScore = application.ai_score;
