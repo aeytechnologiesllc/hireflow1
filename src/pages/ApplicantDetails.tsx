@@ -2126,8 +2126,8 @@ ${interviewType} Interview with AVA Results:
               onMouseDown={canManagePipeline ? handleDragStart : undefined}
               onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
-              <Avatar className={`h-10 w-10 ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+              <Avatar className={`h-8 w-8 md:h-10 md:w-10 ring-2 md:ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs md:text-sm">
                   {initials}
                 </AvatarFallback>
               </Avatar>
