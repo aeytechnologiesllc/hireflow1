@@ -60,6 +60,7 @@ import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
+import { useAutoTriggerAvaAnalysis } from "@/hooks/useAutoTriggerAvaAnalysis";
 
 interface WorkflowStep {
   id: string;
@@ -411,6 +412,9 @@ export default function ApplicantDetails() {
   const canMessageCandidates = permissions?.isTeamMember ? permissions.canMessageCandidates : true;
   const canSendDocuments = permissions?.isTeamMember ? permissions.canSendDocuments : true;
   const queryClient = useQueryClient();
+  
+  // Auto-trigger AVA analysis when needed (after phase reset + resubmission)
+  useAutoTriggerAvaAnalysis({ applicationId: id, enabled: !!id });
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState(0);
