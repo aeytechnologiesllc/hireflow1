@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { format, addMinutes, setHours, setMinutes } from "date-fns";
+import { format, addMinutes, setHours, setMinutes, startOfDay } from "date-fns";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -89,6 +89,11 @@ const timeSlots = [
   { value: "16:30", label: "4:30 PM" },
   { value: "17:00", label: "5:00 PM" },
   { value: "17:30", label: "5:30 PM" },
+  { value: "18:00", label: "6:00 PM" },
+  { value: "18:30", label: "6:30 PM" },
+  { value: "19:00", label: "7:00 PM" },
+  { value: "19:30", label: "7:30 PM" },
+  { value: "20:00", label: "8:00 PM" },
 ];
 
 const formatTimeToAMPM = (time24: string): string => {
@@ -564,7 +569,7 @@ export default function InterviewSchedulingWizard({
                           mode="single"
                           selected={selectedDate}
                           onSelect={setSelectedDate}
-                          disabled={(date) => date < new Date()}
+                          disabled={(date) => date < startOfDay(new Date())}
                           className={cn("rounded-lg border p-3 pointer-events-auto bg-background")}
                         />
                       </div>
