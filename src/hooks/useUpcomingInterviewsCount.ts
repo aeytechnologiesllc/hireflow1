@@ -1,18 +1,35 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
+
+const LAST_SEEN_KEY = "interviews_last_seen";
+
+function getLastSeenTimestamp(): string {
+  const stored = localStorage.getItem(LAST_SEEN_KEY);
+  if (stored) return stored;
+  // Default to 24 hours ago if never seen
+  const defaultTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  return defaultTime;
+}
+
+function setLastSeenTimestamp(): void {
+  localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+}
 
 export function useUpcomingInterviewsCount() {
   const { user, role, isTeamMember } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const lastSeen = useMemo(() => getLastSeenTimestamp(), []);
 
   const query = useQuery({
-    queryKey: ["upcoming-interviews-count", user?.id],
+    queryKey: ["upcoming-interviews-count", user?.id, lastSeen],
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      const now = new Date().toISOString();
       const isEmployerOrTeam = role === "employer" || isTeamMember;
 
       if (isEmployerOrTeam) {
@@ -58,18 +75,18 @@ export function useUpcomingInterviewsCount() {
 
         const applicationIds = applications.map((a) => a.id);
 
-        // Count upcoming interviews
+        // Count interviews created after last seen
         const { count, error } = await supabase
           .from("interviews")
           .select("*", { count: "exact", head: true })
           .in("application_id", applicationIds)
           .eq("status", "scheduled")
-          .gte("scheduled_at", now);
+          .gt("created_at", lastSeen);
 
         if (error) return 0;
         return count || 0;
       } else {
-        // Candidate: count their upcoming interviews
+        // Candidate: count their new interviews
         const { data: applications } = await supabase
           .from("applications")
           .select("id")
@@ -84,15 +101,27 @@ export function useUpcomingInterviewsCount() {
           .select("*", { count: "exact", head: true })
           .in("application_id", applicationIds)
           .eq("status", "scheduled")
-          .gte("scheduled_at", now);
+          .gt("created_at", lastSeen);
 
         if (error) return 0;
         return count || 0;
       }
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 30000,
   });
+
+  const markAsSeen = useCallback(() => {
+    setLastSeenTimestamp();
+    queryClient.invalidateQueries({ queryKey: ["upcoming-interviews-count", user?.id] });
+  }, [queryClient, user?.id]);
+
+  // Clear badge when visiting /interviews
+  useEffect(() => {
+    if (location.pathname === "/interviews") {
+      markAsSeen();
+    }
+  }, [location.pathname, markAsSeen]);
 
   // Real-time subscription for interviews
   useEffect(() => {
@@ -103,7 +132,7 @@ export function useUpcomingInterviewsCount() {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "interviews",
         },
@@ -118,5 +147,5 @@ export function useUpcomingInterviewsCount() {
     };
   }, [user?.id, queryClient]);
 
-  return query;
+  return { ...query, markAsSeen };
 }
