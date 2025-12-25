@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { applicationId } = await req.json();
+    const { applicationId, force = false } = await req.json();
     
     if (!applicationId) {
       return new Response(
@@ -83,7 +83,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId);
+    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force);
 
     // Create admin client to bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -126,6 +126,23 @@ serve(async (req) => {
     } catch {
       parsedNotes = {};
     }
+
+    // Log what data we have for debugging
+    console.log("[trigger-ava-analysis] Data inventory:", {
+      hasResumeUrl: !!application.resume_url,
+      hasApplicationAnswers: !!parsedNotes.applicationAnswers?.length,
+      hasCoverLetter: !!application.cover_letter,
+      hasTypingTest: !!parsedNotes.typingTestResult,
+      hasQuiz: !!(parsedNotes.quizResult || parsedNotes.quiz),
+      hasChatSimulation: !!parsedNotes.chatSimulationResult,
+      hasChatInterview: !!parsedNotes.chatInterviewResult,
+      hasSalesSimulation: !!parsedNotes.salesSimulationResult,
+      hasVideoIntro: !!parsedNotes.videoIntroUrl,
+      hasPortfolio: !!parsedNotes.portfolioResult,
+      hasVoiceInterview: !!application.voice_interview_result,
+      existingAiAnalysis: !!application.ai_analysis,
+      existingAiScore: application.ai_score,
+    });
 
     // Detect resume URL from canonical field OR application answers
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
@@ -277,21 +294,63 @@ ${interviewType} Interview with AVA Results:
       );
     }
 
-    console.log("[trigger-ava-analysis] AI analysis completed, updating application");
+    console.log("[trigger-ava-analysis] AI analysis completed, extracting score...");
 
-    // Extract score from analysis
-    const scoreMatch = analysisData?.analysis?.match(/Score[:\s]+(\d+)/i);
-    const newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    // Improved score extraction with multiple patterns
+    const analysisText = analysisData?.analysis || "";
+    let newScore: number | null = null;
     
-    // Preserve existing score if present
+    // Pattern 1: FINAL CALCULATED SCORE (preferred)
+    const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+)/i);
+    if (finalScoreMatch) {
+      newScore = parseInt(finalScoreMatch[1], 10);
+      console.log("[trigger-ava-analysis] Score extracted via FINAL CALCULATED SCORE:", newScore);
+    }
+    
+    // Pattern 2: Overall Score
+    if (newScore === null) {
+      const overallMatch = analysisText.match(/Overall Score[:\s]+(\d+)/i);
+      if (overallMatch) {
+        newScore = parseInt(overallMatch[1], 10);
+        console.log("[trigger-ava-analysis] Score extracted via Overall Score:", newScore);
+      }
+    }
+    
+    // Pattern 3: Generic "Score: XX" at end of line
+    if (newScore === null) {
+      const genericMatch = analysisText.match(/Score[:\s]+(\d+)(?:\s*\/\s*100|\s*$)/im);
+      if (genericMatch) {
+        newScore = parseInt(genericMatch[1], 10);
+        console.log("[trigger-ava-analysis] Score extracted via generic pattern:", newScore);
+      }
+    }
+    
+    // Validate score range
+    if (newScore !== null && (newScore < 0 || newScore > 100)) {
+      console.log("[trigger-ava-analysis] Invalid score range, discarding:", newScore);
+      newScore = null;
+    }
+
+    // Determine final score based on force flag
     const existingScore = application.ai_score;
+    let finalScore: number | null;
+    
+    if (force) {
+      // Force mode: always use the new score (even if null)
+      finalScore = newScore;
+      console.log("[trigger-ava-analysis] Force mode: using new score:", finalScore);
+    } else {
+      // Normal mode: preserve existing score if present
+      finalScore = existingScore ?? newScore;
+      console.log("[trigger-ava-analysis] Normal mode: existing:", existingScore, "new:", newScore, "final:", finalScore);
+    }
 
     // Update the application with AI analysis using admin client (bypasses RLS)
     const { error: updateError } = await supabaseAdmin
       .from("applications")
       .update({
         ai_analysis: analysisData?.analysis || null,
-        ai_score: existingScore ?? (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
+        ai_score: finalScore && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
       })
       .eq("id", applicationId);
 
@@ -303,13 +362,14 @@ ${interviewType} Interview with AVA Results:
       );
     }
 
-    console.log("[trigger-ava-analysis] Analysis completed successfully for application:", applicationId);
+    console.log("[trigger-ava-analysis] Analysis completed successfully for application:", applicationId, "score:", finalScore);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Analysis completed and saved",
-        score: existingScore ?? newScore,
+        score: finalScore,
+        forced: force,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
