@@ -2299,7 +2299,7 @@ ${interviewType} Interview with AVA Results:
             
             <div className="flex items-center gap-3">
               {application.updated_at && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   Updated: {format(new Date(application.updated_at), "MMM d, hh:mm a")}
                 </div>
@@ -2309,14 +2309,14 @@ ${interviewType} Interview with AVA Results:
                 size="sm" 
                 onClick={handleReanalyze}
                 disabled={isAnalyzing}
-                className="gap-2"
+                className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
               >
                 {isAnalyzing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                Re-analyze
+                {!isMobile && "Re-analyze"}
               </Button>
             </div>
           </div>
@@ -2324,7 +2324,8 @@ ${interviewType} Interview with AVA Results:
           {/* What AVA analyzed */}
           {application.ai_analysis && (
             <>
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
+              {/* Hide "AVA analyzed" badges on mobile */}
+              <div className="hidden md:flex items-center gap-2 mb-4 flex-wrap">
                 <span className="text-sm text-muted-foreground">AVA analyzed:</span>
                 {resumeUrl && (
                   <Badge variant="outline" className="text-xs">Resume</Badge>
