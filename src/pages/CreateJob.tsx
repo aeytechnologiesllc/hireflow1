@@ -280,7 +280,7 @@ export default function CreateJob() {
     job_type: "full-time",
     experience_level: "",
     department: "",
-    salary_type: "range" as "fixed" | "range",
+    salary_type: "range" as "fixed" | "range" | "commission" | "base_plus_commission",
     salary_period: "yearly" as "hourly" | "monthly" | "yearly",
     salary_min: "",
     salary_max: "",
@@ -1193,22 +1193,21 @@ export default function CreateJob() {
                 <CardContent className="space-y-6">
                   {/* Salary Type Selection */}
                   <div className="space-y-3">
-                    <Label>Salary Type</Label>
+                    <Label>Compensation Type</Label>
                     <RadioGroup
                       value={formData.salary_type}
                       onValueChange={(v) => {
+                        const newType = v as "fixed" | "range" | "commission" | "base_plus_commission";
                         // Preserve values when switching modes
                         if (v === "fixed" && !formData.salary_fixed && formData.salary_min) {
-                          // Copy min salary to fixed when switching to fixed
-                          setFormData(prev => ({ ...prev, salary_type: v as "fixed" | "range", salary_fixed: prev.salary_min }));
+                          setFormData(prev => ({ ...prev, salary_type: newType, salary_fixed: prev.salary_min }));
                         } else if (v === "range" && !formData.salary_min && formData.salary_fixed) {
-                          // Copy fixed salary to min when switching to range
-                          setFormData(prev => ({ ...prev, salary_type: v as "fixed" | "range", salary_min: prev.salary_fixed }));
+                          setFormData(prev => ({ ...prev, salary_type: newType, salary_min: prev.salary_fixed }));
                         } else {
                           handleChange("salary_type", v);
                         }
                       }}
-                      className="flex gap-6"
+                      className="grid grid-cols-2 gap-3"
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="fixed" id="salary-fixed" />
@@ -1218,74 +1217,84 @@ export default function CreateJob() {
                         <RadioGroupItem value="range" id="salary-range" />
                         <Label htmlFor="salary-range" className="cursor-pointer font-normal">Salary Range</Label>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="commission" id="salary-commission" />
+                        <Label htmlFor="salary-commission" className="cursor-pointer font-normal">Commission Only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="base_plus_commission" id="salary-base-commission" />
+                        <Label htmlFor="salary-base-commission" className="cursor-pointer font-normal">Base + Commission</Label>
+                      </div>
                     </RadioGroup>
                   </div>
 
-                  {/* Currency and Period */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="salary_currency">Currency</Label>
-                      <Popover open={currencyOpen} onOpenChange={setCurrencyOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={currencyOpen}
-                            className="w-full justify-between bg-background"
-                          >
-                            {formData.salary_currency 
-                              ? CURRENCIES.find(c => c.value === formData.salary_currency)?.label || formData.salary_currency
-                              : "Select currency"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search currency..." />
-                            <CommandList>
-                              <CommandEmpty>No currency found.</CommandEmpty>
-                              <CommandGroup className="max-h-[300px] overflow-auto">
-                                {CURRENCIES.map((currency) => (
-                                  <CommandItem
-                                    key={currency.value}
-                                    value={currency.value + " " + currency.label}
-                                    onSelect={() => {
-                                      handleChange("salary_currency", currency.value);
-                                      setCurrencyOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        formData.salary_currency === currency.value ? "opacity-100" : "opacity-0"
-                                      )}
-                                    />
-                                    {currency.label}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                  {/* Currency and Period - only show for non-commission types */}
+                  {formData.salary_type !== "commission" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="salary_currency">Currency</Label>
+                        <Popover open={currencyOpen} onOpenChange={setCurrencyOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={currencyOpen}
+                              className="w-full justify-between bg-background"
+                            >
+                              {formData.salary_currency 
+                                ? CURRENCIES.find(c => c.value === formData.salary_currency)?.label || formData.salary_currency
+                                : "Select currency"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search currency..." />
+                              <CommandList>
+                                <CommandEmpty>No currency found.</CommandEmpty>
+                                <CommandGroup className="max-h-[300px] overflow-auto">
+                                  {CURRENCIES.map((currency) => (
+                                    <CommandItem
+                                      key={currency.value}
+                                      value={currency.value + " " + currency.label}
+                                      onSelect={() => {
+                                        handleChange("salary_currency", currency.value);
+                                        setCurrencyOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          formData.salary_currency === currency.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {currency.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="salary_period">Pay Period</Label>
+                        <Select value={formData.salary_period} onValueChange={(v) => handleChange("salary_period", v)}>
+                          <SelectTrigger className="bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hourly">Per Hour</SelectItem>
+                            <SelectItem value="monthly">Per Month</SelectItem>
+                            <SelectItem value="yearly">Per Year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="salary_period">Pay Period</Label>
-                      <Select value={formData.salary_period} onValueChange={(v) => handleChange("salary_period", v)}>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="hourly">Per Hour</SelectItem>
-                          <SelectItem value="monthly">Per Month</SelectItem>
-                          <SelectItem value="yearly">Per Year</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Salary Amount(s) */}
-                  {formData.salary_type === "fixed" ? (
+                  {/* Salary Amount(s) based on type */}
+                  {formData.salary_type === "fixed" && (
                     <div className="space-y-2">
                       <Label htmlFor="salary_fixed">Salary Amount</Label>
                       <Input
@@ -1301,7 +1310,9 @@ export default function CreateJob() {
                         {formData.salary_currency} {formData.salary_period}
                       </p>
                     </div>
-                  ) : (
+                  )}
+
+                  {formData.salary_type === "range" && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="salary_min">Minimum Salary</Label>
@@ -1330,6 +1341,39 @@ export default function CreateJob() {
                       <p className="col-span-2 text-xs text-muted-foreground">
                         {formData.salary_currency} {formData.salary_period}
                       </p>
+                    </div>
+                  )}
+
+                  {formData.salary_type === "commission" && (
+                    <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                      <p className="text-sm text-muted-foreground">
+                        Commission-only compensation. You can describe the commission structure in the job description or benefits section.
+                      </p>
+                    </div>
+                  )}
+
+                  {formData.salary_type === "base_plus_commission" && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="salary_fixed">Base Salary</Label>
+                        <Input
+                          id="salary_fixed"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="40,000"
+                          className="bg-background"
+                          value={formData.salary_fixed ? parseInt(formData.salary_fixed).toLocaleString() : ""}
+                          onChange={(e) => handleChange("salary_fixed", e.target.value.replace(/\D/g, ""))}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {formData.salary_currency} {formData.salary_period} + commission
+                        </p>
+                      </div>
+                      <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                        <p className="text-xs text-muted-foreground">
+                          Tip: Describe your commission structure (e.g., percentage, tiers, OTE) in the job description or benefits section.
+                        </p>
+                      </div>
                     </div>
                   )}
 
