@@ -14,7 +14,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, formatFileSize } from "@/lib/utils";
 import { 
   FileText, 
   Sparkles, 
@@ -1314,7 +1314,7 @@ export function DocumentWizard({
                     <div>
                       <p className="font-medium">{uploadedFile.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                        {formatFileSize(uploadedFile.size)}
                       </p>
                     </div>
                   </div>
