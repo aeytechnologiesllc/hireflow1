@@ -201,49 +201,48 @@ export default function TypingTestPhase() {
     const elapsedMs = currentStartTime ? Date.now() - currentStartTime : 60000;
     const elapsedMinutes = Math.max(elapsedMs / 60000, 0.1); // At least 0.1 minutes to avoid division issues
     
-    // Count words typed (standard: 5 characters = 1 word)
+    // Calculate Gross WPM (standard: 5 characters = 1 word)
     const charCount = currentTypedText.length;
-    const rawWpm = Math.round((charCount / 5) / elapsedMinutes);
+    const grossWpm = Math.round((charCount / 5) / elapsedMinutes);
 
-    // Calculate accuracy by comparing character by character
-    const typedChars = currentTypedText.split("");
-    const targetChars = targetText.split("");
-    let correctChars = 0;
+    // Word-by-word accuracy comparison (more forgiving than character position matching)
+    const typedWords = currentTypedText.trim().split(/\s+/).filter(w => w.length > 0);
+    const targetWords = targetText.trim().split(/\s+/).filter(w => w.length > 0);
     
-    for (let i = 0; i < typedChars.length; i++) {
-      if (typedChars[i] === targetChars[i]) {
-        correctChars++;
+    let correctWords = 0;
+    for (let i = 0; i < typedWords.length; i++) {
+      if (i < targetWords.length && typedWords[i] === targetWords[i]) {
+        correctWords++;
       }
     }
     
-    const accuracy = typedChars.length > 0 
-      ? Math.round((correctChars / typedChars.length) * 100)
+    // Accuracy based on correctly typed words
+    const accuracy = typedWords.length > 0 
+      ? Math.round((correctWords / typedWords.length) * 100)
       : 0;
 
-    // Net WPM = (All Typed Entries / 5 - Uncorrected Errors) / Time (min)
-    const errors = typedChars.length - correctChars;
-    const netWpm = Math.max(0, Math.round(((charCount / 5) - (errors / 5)) / elapsedMinutes));
-
-    // Calculate overall score (weighted: 60% WPM, 40% accuracy)
-    const wpmScore = Math.min(100, (netWpm / 60) * 100);
-    const score = Math.round((wpmScore * 0.6) + (accuracy * 0.4));
+    // Calculate overall score: Gross WPM weighted by accuracy
+    // Score formula: (grossWpm / 80 * 100) * (accuracy / 100)
+    // 80 WPM = 100% speed score (professional typing speed)
+    const speedScore = Math.min(100, (grossWpm / 80) * 100);
+    const score = Math.round(speedScore * (accuracy / 100));
 
     const passingScore = application?.jobs?.passing_score || 60;
     const passed = score >= passingScore;
 
     console.log("Typing test results:", { 
       typedLength: currentTypedText.length,
+      typedWords: typedWords.length,
+      correctWords,
       elapsedMinutes,
-      rawWpm,
-      netWpm,
-      correctChars, 
-      errors,
+      grossWpm,
       accuracy, 
+      speedScore,
       score, 
       passed 
     });
 
-    return { wpm: netWpm, accuracy, score, passed };
+    return { wpm: grossWpm, accuracy, score, passed };
   }, [targetText, application]);
 
   const handleTestComplete = useCallback(() => {
