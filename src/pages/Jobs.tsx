@@ -19,6 +19,7 @@ import {
   Link2,
   Sparkles,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
@@ -28,6 +29,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -39,7 +50,7 @@ import type { JobWithApplicationCount } from "@/hooks/useJobs";
 
 interface JobCardProps {
   job: JobWithApplicationCount;
-  onDelete: (id: string) => void;
+  onDelete: () => void;
   onViewDetails: (job: JobWithApplicationCount) => void;
   onViewWorkflow: (job: JobWithApplicationCount) => void;
   onEdit: (job: JobWithApplicationCount) => void;
@@ -101,7 +112,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         className="text-destructive"
-                        onClick={(e) => { e.stopPropagation(); onDelete(job.id); }}
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
                         disabled={isDeleting}
                       >
                         {isDeleting ? (
@@ -185,16 +196,26 @@ export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<JobWithApplicationCount | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Permission checks
   const canCreateJobs = !isTeamMember || permissions?.canCreateJobs;
   const canDeleteJobs = !isTeamMember || permissions?.canDeleteJobs;
   const canEditJobs = !isTeamMember || permissions?.canCreateJobs; // Create permission implies edit
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteClick = (job: JobWithApplicationCount) => {
+    setJobToDelete(job);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!jobToDelete) return;
     try {
-      await deleteJob.mutateAsync(id);
+      await deleteJob.mutateAsync(jobToDelete.id);
       toast.success("Job deleted successfully");
+      setShowDeleteConfirm(false);
+      setJobToDelete(null);
     } catch (error) {
       toast.error("Failed to delete job");
     }
@@ -360,7 +381,7 @@ export default function Jobs() {
             >
               <JobCard 
                 job={job} 
-                onDelete={handleDelete}
+                onDelete={() => handleDeleteClick(job)}
                 onViewDetails={handleViewDetails}
                 onViewWorkflow={handleViewWorkflow}
                 onEdit={handleEdit}
@@ -415,6 +436,73 @@ export default function Jobs() {
         open={showWorkflowDialog}
         onOpenChange={setShowWorkflowDialog}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-full bg-destructive/10">
+                <AlertTriangle className="h-6 w-6 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl">Delete Job Permanently?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p className="text-foreground font-medium">
+                  You are about to delete: <span className="text-primary">"{jobToDelete?.title}"</span>
+                </p>
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium text-foreground">This will permanently remove:</p>
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive">•</span>
+                      All applicant data and applications ({jobToDelete?.application_count || 0} applicants)
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive">•</span>
+                      All interview recordings and scores
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive">•</span>
+                      All messages with candidates
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive">•</span>
+                      All document requests and uploads
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive">•</span>
+                      All AI analysis and evaluation data
+                    </li>
+                  </ul>
+                </div>
+                <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  This action cannot be undone.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={deleteJob.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteJob.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteJob.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Permanently"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
