@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2, Download, Sparkles, PartyPopper
+  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -245,16 +245,10 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                     Awaiting Review
                   </Badge>
                 )}
-                {phase === "review" && (
-                  <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 gap-1.5 px-3 py-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    Under Review
-                  </Badge>
-                )}
-                {phase === "interview" && (
-                  <Badge className="bg-purple-500/20 text-purple-500 border-purple-500/30 gap-1.5 px-3 py-1">
-                    <Users className="h-3.5 w-3.5" />
-                    Interview Stage
+                {isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && (
+                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
+                    <Eye className="h-3.5 w-3.5" />
+                    Employer Reviewing
                   </Badge>
                 )}
                 
