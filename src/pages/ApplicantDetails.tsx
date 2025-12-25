@@ -567,6 +567,120 @@ export default function ApplicantDetails() {
     };
   }, [id, queryClient]);
 
+  // Auto-advance in Autopilot mode: when application meets criteria, advance automatically
+  const autoAdvanceTriggeredRef = useRef(false);
+  useEffect(() => {
+    // Guard: only run once per page load
+    if (autoAdvanceTriggeredRef.current) return;
+    if (!application || !application.jobs) return;
+    
+    const job = application.jobs;
+    const isAutopilot = job.processing_mode === "auto";
+    const currentPhase = application.phase || "application";
+    const aiScore = application.ai_score;
+    const passingScore = job.passing_score || 60;
+    const isRejected = application.status === "rejected";
+    
+    // Only proceed if:
+    // 1. Job is in autopilot mode
+    // 2. Application is in "application" or "quiz" phase (phases that can auto-advance)
+    // 3. Has a passing score
+    // 4. Not rejected
+    if (!isAutopilot || isRejected) return;
+    if (currentPhase !== "application" && currentPhase !== "quiz") return;
+    if (aiScore === null || aiScore === undefined) return;
+    if (aiScore < passingScore) return;
+    
+    // Check if the phase is actually complete
+    const parsedAppNotes = (() => {
+      try {
+        if (!application.notes) return {};
+        if (typeof application.notes === "object") return application.notes as Record<string, any>;
+        return JSON.parse(application.notes as string);
+      } catch {
+        return {};
+      }
+    })();
+    
+    // For "application" phase: check if form was submitted
+    if (currentPhase === "application") {
+      const hasApplicationAnswers = !!parsedAppNotes.applicationAnswers?.length;
+      const hasAnyData = Object.keys(parsedAppNotes).length > 0;
+      if (!hasApplicationAnswers && !hasAnyData) return;
+    }
+    
+    // For "quiz" phase: check if quiz was completed
+    if (currentPhase === "quiz") {
+      if (!parsedAppNotes.quizResult && !parsedAppNotes.quiz) return;
+    }
+    
+    // All conditions met - auto-advance
+    autoAdvanceTriggeredRef.current = true;
+    console.log("[Autopilot Auto-Advance] Conditions met, advancing application", {
+      appId: application.id,
+      currentPhase,
+      aiScore,
+      passingScore,
+    });
+    
+    // Determine next phase
+    const workflowSteps = (job.workflow_steps as WorkflowStep[]) || [];
+    const quizQuestions = job.quiz_questions as any[] | undefined;
+    const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    
+    let nextPhaseId: string | null = null;
+    let nextPhaseTitle: string = "";
+    
+    if (currentPhase === "application") {
+      if (hasQuizQuestions) {
+        nextPhaseId = "quiz";
+        nextPhaseTitle = "Quiz";
+      } else if (workflowSteps.length > 0) {
+        nextPhaseId = workflowSteps[0].id;
+        nextPhaseTitle = workflowSteps[0].title;
+      }
+    } else if (currentPhase === "quiz") {
+      if (workflowSteps.length > 0) {
+        nextPhaseId = workflowSteps[0].id;
+        nextPhaseTitle = workflowSteps[0].title;
+      }
+    }
+    
+    if (!nextPhaseId) {
+      console.log("[Autopilot Auto-Advance] No next phase found");
+      return;
+    }
+    
+    // Perform the advancement
+    (async () => {
+      try {
+        await supabase
+          .from("applications")
+          .update({
+            phase: nextPhaseId,
+            status: "reviewing",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", application.id);
+        
+        // Notify candidate
+        await supabase.from("notifications").insert({
+          user_id: application.candidate_id,
+          type: "status_update",
+          title: "You've Advanced!",
+          message: `Great news! You've been advanced to the ${nextPhaseTitle} phase for ${job.title || "this position"}.`,
+          link: `/applications/${application.id}`,
+        });
+        
+        console.log("[Autopilot Auto-Advance] Successfully advanced to", nextPhaseId);
+        queryClient.invalidateQueries({ queryKey: ["application", id] });
+        toast.success(`Autopilot: Advanced to ${nextPhaseTitle}`);
+      } catch (error) {
+        console.error("[Autopilot Auto-Advance] Failed:", error);
+      }
+    })();
+  }, [application, id, queryClient]);
+
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
@@ -1872,70 +1986,7 @@ ${interviewType} Interview with AVA Results:
         </Card>
       )}
 
-      {/* Stuck Application Banner - Shows when autopilot should have advanced but didn't */}
-      {application && 
-       application.phase === "application" && 
-       application.ai_score !== null &&
-       application.ai_score >= (job?.passing_score || 60) &&
-       job?.processing_mode === "auto" &&
-       !isRejected && (
-        <Card className="bg-warning/10 border-warning/30 border-l-4 border-l-warning">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-warning/20 flex items-center justify-center">
-                  <AlertCircle className="h-6 w-6 text-warning" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground text-lg">Application Ready to Advance</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Score {application.ai_score}% meets the {job?.passing_score || 60}% threshold. Click to advance to the next phase.
-                  </p>
-                </div>
-              </div>
-              {canManagePipeline && (
-                <Button 
-                  onClick={async () => {
-                    try {
-                      const workflowSteps = (job?.workflow_steps as WorkflowStep[]) || [];
-                      if (workflowSteps.length > 0) {
-                        const nextPhase = workflowSteps[0];
-                        
-                        await updateApplication.mutateAsync({
-                          id: application.id,
-                          phase: nextPhase.id,
-                          status: "reviewing",
-                        });
-                        
-                        // Notify candidate
-                        await supabase.from("notifications").insert({
-                          user_id: application.candidate_id,
-                          type: "status_update",
-                          title: "You've Advanced!",
-                          message: `Great news! You've been advanced to the ${nextPhase.title} phase for ${job?.title || "this position"}.`,
-                          link: `/applications/${application.id}`,
-                        });
-                        
-                        queryClient.invalidateQueries({ queryKey: ["application", id] });
-                        toast.success(`Advanced to ${nextPhase.title}`);
-                      } else {
-                        toast.error("No workflow steps configured");
-                      }
-                    } catch (error) {
-                      console.error("Failed to advance application:", error);
-                      toast.error("Failed to advance application");
-                    }
-                  }}
-                  className="gap-2"
-                >
-                  <Zap className="h-4 w-4" />
-                  Advance with Ava
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Autopilot auto-advance is handled by useEffect - no manual button needed */}
 
       {/* Scheduled Interview Card */}
       {scheduledInterview && (
