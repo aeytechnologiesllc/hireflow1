@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
-
+import { compressImage, needsCompression } from "@/utils/imageCompression";
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -47,6 +47,7 @@ interface UploadedFile {
   preview: string | null;
   uploading: boolean;
   uploaded: boolean;
+  compressing?: boolean;
   url?: string;
 }
 
@@ -124,14 +125,17 @@ export default function PortfolioUploadPhase() {
     };
   })();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     
-    // Validate files
-    const validFiles: UploadedFile[] = [];
+    // Reset input early
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     
+    // Process files (with potential compression)
     for (const file of selectedFiles) {
-      if (files.length + validFiles.length >= portfolioConfig.maxFiles) {
+      if (files.length >= portfolioConfig.maxFiles) {
         toast.error(`Maximum ${portfolioConfig.maxFiles} files allowed`);
         break;
       }
@@ -141,31 +145,67 @@ export default function PortfolioUploadPhase() {
         continue;
       }
       
-      if (file.size > MAX_FILE_SIZE) {
+      const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Check if image needs compression
+      if (needsCompression(file, MAX_FILE_SIZE / 1024 / 1024)) {
+        // Add file with compressing state
+        const tempPreview = URL.createObjectURL(file);
+        setFiles(prev => [...prev, {
+          id: fileId,
+          file,
+          preview: tempPreview,
+          uploading: false,
+          uploaded: false,
+          compressing: true,
+        }]);
+        
+        toast.info(`Compressing ${file.name}...`, { duration: 2000 });
+        
+        try {
+          const compressedFile = await compressImage(file, { maxSizeMB: 8, maxWidth: 2560, quality: 0.85 });
+          
+          // Update with compressed file
+          const newPreview = URL.createObjectURL(compressedFile);
+          URL.revokeObjectURL(tempPreview);
+          
+          setFiles(prev => prev.map(f => 
+            f.id === fileId 
+              ? { ...f, file: compressedFile, preview: newPreview, compressing: false }
+              : f
+          ));
+          
+          const originalMB = (file.size / 1024 / 1024).toFixed(1);
+          const compressedMB = (compressedFile.size / 1024 / 1024).toFixed(1);
+          toast.success(`Compressed ${file.name}`, {
+            description: `${originalMB}MB → ${compressedMB}MB`,
+            duration: 3000,
+          });
+        } catch (err) {
+          console.error("Compression failed:", err);
+          // Remove the file that failed compression
+          setFiles(prev => prev.filter(f => f.id !== fileId));
+          toast.error(`Failed to compress ${file.name}. Try a smaller file.`);
+        }
+      } else if (file.size > MAX_FILE_SIZE) {
+        // Non-image file that's too large (e.g., PDF)
         toast.error(`${file.name}: File too large. Maximum 10MB.`);
         continue;
+      } else {
+        // File is small enough, add directly
+        let preview: string | null = null;
+        if (file.type.startsWith("image/")) {
+          preview = URL.createObjectURL(file);
+        }
+        
+        setFiles(prev => [...prev, {
+          id: fileId,
+          file,
+          preview,
+          uploading: false,
+          uploaded: false,
+        }]);
       }
-      
-      // Create preview for images
-      let preview: string | null = null;
-      if (file.type.startsWith("image/")) {
-        preview = URL.createObjectURL(file);
-      }
-      
-      validFiles.push({
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        file,
-        preview,
-        uploading: false,
-        uploaded: false,
-      });
-    }
-    
-    setFiles(prev => [...prev, ...validFiles]);
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
     }
   };
 
@@ -579,11 +619,17 @@ export default function PortfolioUploadPhase() {
                       </div>
                     )}
                     
-                    {/* Upload status overlay */}
-                    {(fileItem.uploading || fileItem.uploaded) && (
-                      <div className={`absolute inset-0 flex items-center justify-center ${
+                    {/* Upload/compress status overlay */}
+                    {(fileItem.compressing || fileItem.uploading || fileItem.uploaded) && (
+                      <div className={`absolute inset-0 flex flex-col items-center justify-center ${
                         fileItem.uploaded ? "bg-success/20" : "bg-background/80"
                       }`}>
+                        {fileItem.compressing && (
+                          <>
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <span className="text-xs text-primary mt-2">Compressing...</span>
+                          </>
+                        )}
                         {fileItem.uploading && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
                         {fileItem.uploaded && <CheckCircle className="h-8 w-8 text-success" />}
                       </div>
