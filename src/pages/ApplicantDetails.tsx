@@ -222,75 +222,86 @@ function useAnimatedCounter(value: number, duration: number = 1000) {
   
   return display;
 }
-// Helper function to highlight key indicators in analysis text
-function highlightKeywords(text: string): React.ReactNode {
-  // Pattern definitions with their colors
-  const highlightRules: Array<{ pattern: RegExp; className: string }> = [
-    // Critical negative indicators - red
-    { pattern: /\b(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO MATCH|MISSING|INCOMPLETE|UNCLEAR|NOT AUTHENTIC)\b/gi, className: 'text-red-400 font-medium' },
-    // Negative percentages (0%)
-    { pattern: /\b(0%)\b/g, className: 'text-red-400 font-medium' },
-    // Negative scores with minus
-    { pattern: /(-\d+)\b/g, className: 'text-red-400 font-medium' },
-    
-    // Positive indicators - emerald/green
-    { pattern: /\b(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|GOOD|HIGH|VERIFIED|CONFIRMED|YES)\b/gi, className: 'text-emerald-400 font-medium' },
-    // High percentages (80-100%)
-    { pattern: /\b(100%|9\d%|8\d%)\b/g, className: 'text-emerald-400 font-medium' },
-    
-    // Warning/neutral indicators - amber
-    { pattern: /\b(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|NOT APPLICABLE|NONE APPLICABLE)\b/gi, className: 'text-amber-400 font-medium' },
-    // Low indicator as text
-    { pattern: /\b(Low)\b/g, className: 'text-amber-400 font-medium' },
-  ];
+// Status badge types for visual hierarchy
+type StatusType = 'positive' | 'negative' | 'warning' | 'neutral';
 
-  // Split and process text to apply highlights
-  let result: React.ReactNode[] = [];
-  let remainingText = text;
-  let keyIndex = 0;
-
-  // Combine all patterns and process
-  const allPatterns = highlightRules.map(r => ({ ...r, regex: new RegExp(r.pattern.source, 'gi') }));
+// Detect if a value is a status indicator that should be a badge
+function getStatusType(value: string): StatusType | null {
+  const upper = value.toUpperCase();
   
-  // Find all matches with their positions
-  const matches: Array<{ start: number; end: number; text: string; className: string }> = [];
+  // Positive statuses
+  if (/^(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|YES|VERIFIED|CONFIRMED|HIGH)$/.test(upper)) {
+    return 'positive';
+  }
   
-  for (const rule of allPatterns) {
-    const regex = new RegExp(rule.pattern.source, 'gi');
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        text: match[0],
-        className: rule.className
-      });
-    }
+  // Negative statuses
+  if (/^(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO|MISSING|INCOMPLETE|NOT AUTHENTIC)$/.test(upper)) {
+    return 'negative';
   }
+  
+  // Warning/unknown statuses
+  if (/^(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|LOW|LIKELY_AI_GENERATED)$/.test(upper)) {
+    return 'warning';
+  }
+  
+  return null;
+}
 
-  // Sort matches by position and remove overlaps (keep first)
-  matches.sort((a, b) => a.start - b.start);
-  const filteredMatches: typeof matches = [];
-  for (const m of matches) {
-    if (filteredMatches.length === 0 || m.start >= filteredMatches[filteredMatches.length - 1].end) {
-      filteredMatches.push(m);
-    }
-  }
+// Status badge component
+function StatusBadge({ status, type }: { status: string; type: StatusType }) {
+  const baseClasses = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium";
+  
+  const typeClasses: Record<StatusType, string> = {
+    positive: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+    negative: "bg-red-500/10 text-red-400 border border-red-500/20",
+    warning: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+    neutral: "bg-muted text-muted-foreground border border-border",
+  };
+  
+  return (
+    <span className={`${baseClasses} ${typeClasses[type]}`}>
+      {status}
+    </span>
+  );
+}
 
-  // Build result with highlighted spans
-  let lastEnd = 0;
-  for (const m of filteredMatches) {
-    if (m.start > lastEnd) {
-      result.push(<span key={keyIndex++}>{text.slice(lastEnd, m.start)}</span>);
-    }
-    result.push(<span key={keyIndex++} className={m.className}>{m.text}</span>);
-    lastEnd = m.end;
+// Parse a line into label + value format if applicable
+function parseKeyValueLine(text: string): { label: string; value: string } | null {
+  // Match "Label: Value" pattern
+  const match = text.match(/^([^:]{2,40}):\s*(.+)$/);
+  if (match) {
+    return { label: match[1].trim(), value: match[2].trim() };
   }
-  if (lastEnd < text.length) {
-    result.push(<span key={keyIndex++}>{text.slice(lastEnd)}</span>);
-  }
+  return null;
+}
 
-  return result.length > 0 ? <>{result}</> : text;
+// Render a single analysis item with proper formatting
+function AnalysisItem({ item }: { item: string }) {
+  const parsed = parseKeyValueLine(item);
+  
+  if (parsed) {
+    const statusType = getStatusType(parsed.value);
+    
+    return (
+      <div className="flex items-start justify-between gap-4 py-1.5">
+        <span className="text-sm text-muted-foreground">{parsed.label}</span>
+        <span className="text-sm text-right">
+          {statusType ? (
+            <StatusBadge status={parsed.value} type={statusType} />
+          ) : (
+            <span className="text-foreground">{parsed.value}</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+  
+  // For non key-value items, render as plain text
+  return (
+    <div className="text-sm text-muted-foreground py-1 leading-relaxed">
+      {item}
+    </div>
+  );
 }
 
 function AIAnalysisContent({ content }: { content: string }) {
@@ -304,23 +315,34 @@ function AIAnalysisContent({ content }: { content: string }) {
     return unsubscribe;
   }, [animatedScore]);
   
-  // Determine if recommendation is positive
-  const isPositiveRec = parsed.recommendation?.toLowerCase().includes('proceed') || 
-                        parsed.recommendation?.toLowerCase().includes('strong') ||
-                        parsed.recommendation?.toLowerCase().includes('recommend');
+  // Determine if recommendation is positive/negative
+  const recLower = parsed.recommendation?.toLowerCase() || '';
+  const isPositiveRec = recLower.includes('proceed') || 
+                        recLower.includes('strong') ||
+                        recLower.includes('recommend');
+  const isNegativeRec = recLower.includes('not recommend') ||
+                        recLower.includes('reject') ||
+                        recLower.includes('do not');
   
   // Animated stroke dasharray
   const circumference = 94.2;
   const targetDasharray = parsed.score !== null ? (parsed.score / 100) * circumference : 0;
   
+  // Determine score color based on value
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return "stroke-emerald-500";
+    if (score >= 50) return "stroke-amber-500";
+    return "stroke-red-500";
+  };
+  
   return (
     <div className="space-y-6">
       {/* Hero: Score + Recommendation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/40">
         {/* Score Display with Animation */}
         {parsed.score !== null && (
           <motion.div 
-            className="flex items-center gap-3"
+            className="flex items-center gap-4"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
@@ -330,14 +352,14 @@ function AIAnalysisContent({ content }: { content: string }) {
                 <circle
                   cx="18" cy="18" r="15"
                   fill="none"
-                  className="stroke-muted"
-                  strokeWidth="3"
+                  className="stroke-muted/30"
+                  strokeWidth="2.5"
                 />
                 <motion.circle
                   cx="18" cy="18" r="15"
                   fill="none"
-                  className="stroke-primary"
-                  strokeWidth="3"
+                  className={getScoreColor(parsed.score)}
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   initial={{ strokeDasharray: `0 ${circumference}` }}
                   animate={{ strokeDasharray: `${targetDasharray} ${circumference}` }}
@@ -345,27 +367,35 @@ function AIAnalysisContent({ content }: { content: string }) {
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold text-foreground">{displayScore}</span>
+                <span className="text-lg font-semibold text-foreground">{displayScore}</span>
               </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Score</span>
-              <span className="text-sm text-muted-foreground">out of 100</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-foreground">Overall Score</span>
+              <span className="text-xs text-muted-foreground">out of 100</span>
             </div>
           </motion.div>
         )}
         
-        {/* Recommendation Verdict - THE ONE COLOR ELEMENT */}
+        {/* Recommendation Verdict */}
         {parsed.recommendation && (
-          <div className={`px-4 py-2.5 rounded-lg border ${
+          <div className={`px-4 py-3 rounded-lg border ${
             isPositiveRec 
-              ? 'border-primary/30 bg-primary/5' 
-              : 'border-border bg-muted/30'
+              ? 'border-emerald-500/20 bg-emerald-500/5' 
+              : isNegativeRec
+                ? 'border-red-500/20 bg-red-500/5'
+                : 'border-border bg-muted/20'
           }`}>
-            <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium block mb-0.5">
-              Verdict
+            <span className="text-xs text-muted-foreground block mb-1">
+              Recommendation
             </span>
-            <span className={`text-base font-semibold ${isPositiveRec ? 'text-primary' : 'text-foreground'}`}>
+            <span className={`text-sm font-medium ${
+              isPositiveRec 
+                ? 'text-emerald-400' 
+                : isNegativeRec 
+                  ? 'text-red-400' 
+                  : 'text-foreground'
+            }`}>
               {parsed.recommendation}
             </span>
           </div>
@@ -373,23 +403,22 @@ function AIAnalysisContent({ content }: { content: string }) {
       </div>
       
       {/* Sections */}
-      <div className="space-y-5">
+      <div className="space-y-6">
         {parsed.sections.map((section, index) => (
-          <div key={index} className="space-y-2.5">
-            {/* Section Header - Typography-driven, no colors */}
-            <h4 className="text-[11px] uppercase tracking-[0.08em] font-medium text-muted-foreground">
-              {section.title}
-            </h4>
+          <div key={index} className="space-y-2">
+            {/* Section Header */}
+            <div className="flex items-center gap-2 pb-2 border-b border-border/30">
+              <h4 className="text-xs font-medium text-foreground uppercase tracking-wide">
+                {section.title}
+              </h4>
+            </div>
             
-            {/* List Items - All muted, key phrases bold */}
-            <ul className="space-y-2 pl-0.5">
+            {/* Section Items */}
+            <div className="divide-y divide-border/20">
               {section.items.map((item, i) => (
-                <li key={i} className="text-sm flex items-start gap-2.5 text-muted-foreground leading-relaxed">
-                  <span className="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
-                  <span>{highlightKeywords(item)}</span>
-                </li>
+                <AnalysisItem key={i} item={item} />
               ))}
-            </ul>
+            </div>
           </div>
         ))}
       </div>
