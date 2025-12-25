@@ -60,7 +60,6 @@ import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
-import { convertPdfToImage } from "@/utils/pdfToImage";
 
 interface WorkflowStep {
   id: string;
@@ -1428,30 +1427,22 @@ ${interviewType} Interview with AVA Results:
 `;
        }
 
-       // PDF→Image is the PRIMARY method for resume analysis
-       let resumeImage: string | null = null;
+       // Text extraction is PRIMARY method (fast + reliable for most PDFs)
+       // If text fails, let server-side handle PDF attachment directly
        let resumeText: string | null = null;
 
        if (detectedResumeUrl) {
-         console.log("[ApplicantDetails] Attempting PDF to image conversion for:", detectedResumeUrl);
+         console.log("[handleReanalyze] Attempting text extraction for:", detectedResumeUrl);
          
-         // Try image conversion first (PRIMARY method)
-         resumeImage = await convertPdfToImage(detectedResumeUrl);
-         
-         if (resumeImage) {
-           console.log("[ApplicantDetails] PDF→image SUCCESS, size:", resumeImage.length);
+         // Try text extraction first
+         const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
+         if (extracted && text.length > 100) {
+           resumeText = text;
+           content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
+           console.log("[handleReanalyze] Text extraction SUCCESS, length:", text.length);
          } else {
-           // Fallback to text extraction only if image fails
-           console.log("[ApplicantDetails] PDF→image failed, falling back to text extraction");
-           const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
-           if (extracted && text.length > 100) {
-             resumeText = text;
-             content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
-             console.log("[ApplicantDetails] Text extraction SUCCESS, length:", text.length);
-           } else {
-             content += `\n\n[Note: Resume was provided but could not be extracted. Please analyze using other application data.]`;
-             console.log("[ApplicantDetails] Text extraction also failed or insufficient");
-           }
+           // Don't do client-side image conversion - let server handle PDF directly
+           console.log("[handleReanalyze] Text extraction insufficient, will send URL for server-side processing");
          }
        }
 
@@ -1463,13 +1454,13 @@ ${interviewType} Interview with AVA Results:
            }))
          : [];
 
+       // NOTE: Send resumeUrl but NOT resumeImage - let server-side ai-analyze fetch and attach PDF directly
        const { data, error } = await supabase.functions.invoke("ai-analyze", {
          body: {
            type: "resume",
            content,
            resumeUrl: detectedResumeUrl,
-           resumeImage,
-           resumeText,
+           resumeText, // Only send text if we got it
            // Cross-reference data for enhanced verification
            applicantName: applicantDisplayName,
            applicationAnswers: structuredAnswers,
@@ -1485,17 +1476,22 @@ ${interviewType} Interview with AVA Results:
 
       if (error) throw error;
 
-      // Extract score from analysis - but only use if no existing score
-      const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-      const newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+      // Extract FINAL CALCULATED SCORE (primary) or fallback to Overall Score
+      const analysisText = data.analysis || "";
+      let newScore: number | null = null;
+      const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+)/i);
+      if (finalScoreMatch) {
+        newScore = parseInt(finalScoreMatch[1], 10);
+      } else {
+        const scoreMatch = analysisText.match(/Overall Score[:\s]+(\d+)/i);
+        newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+      }
       
-      // Preserve existing score - AVA stands by her original assessment
-      const existingScore = application.ai_score;
-
+      // Always use the new score from analysis (no preservation of old scores)
       await updateApplication.mutateAsync({
         id: application.id,
         ai_analysis: data.analysis,
-        ai_score: existingScore ?? (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
+        ai_score: newScore && newScore >= 0 && newScore <= 100 ? newScore : null,
       });
 
       queryClient.invalidateQueries({ queryKey: ["application", id] });

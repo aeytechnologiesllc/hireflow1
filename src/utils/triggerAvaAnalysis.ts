@@ -1,7 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { detectResumeUrl, parseApplicationNotes } from "./detectResumeUrl";
 import { extractPdfTextFromUrl } from "./pdfText";
-import { convertPdfToImage } from "./pdfToImage";
 
 export interface EvaluationResult {
   score: number | null;
@@ -41,29 +40,21 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
     console.log("[triggerAvaAnalysis] Detected resume URL:", detectedResumeUrl);
 
-    // Extract resume content (text or image)
+    // Extract resume content - text extraction only (server handles PDF attachment if needed)
     let resumeText: string | null = null;
-    let resumeImage: string | null = null;
     
     if (detectedResumeUrl) {
-      console.log("[triggerAvaAnalysis] Attempting to extract resume content...");
+      console.log("[triggerAvaAnalysis] Attempting to extract resume text...");
       
-      // First, try text extraction
+      // Try text extraction
       const textResult = await extractPdfTextFromUrl(detectedResumeUrl);
       
       if (textResult.extracted && textResult.text.length >= 100) {
         console.log("[triggerAvaAnalysis] Text extraction successful, length:", textResult.text.length);
         resumeText = textResult.text;
       } else {
-        console.log("[triggerAvaAnalysis] Text extraction insufficient, trying image conversion...");
-        // Fall back to image conversion for designed/scanned PDFs
-        resumeImage = await convertPdfToImage(detectedResumeUrl);
-        
-        if (resumeImage) {
-          console.log("[triggerAvaAnalysis] Image conversion successful");
-        } else {
-          console.log("[triggerAvaAnalysis] Both text and image extraction failed");
-        }
+        // Don't do client-side image conversion - let server handle PDF directly via resumeUrl
+        console.log("[triggerAvaAnalysis] Text extraction insufficient, will send URL for server-side processing");
       }
     }
 
@@ -103,14 +94,10 @@ ${application.cover_letter || "Not provided"}
 RESUME CONTENT (Extracted Text):
 ${resumeText}
 `;
-    } else if (resumeImage) {
-      content += `
-RESUME: An image of the resume is attached for visual analysis. Please analyze the resume from the provided image.
-`;
     } else if (detectedResumeUrl) {
       content += `
 Resume URL: ${detectedResumeUrl}
-Note: Resume text could not be extracted (may be image-based PDF, scanned document, or designed resume). Please analyze based on other application data.
+Note: Resume text could not be extracted client-side. Server will attempt to attach and analyze the PDF directly.
 `;
     } else {
       content += `
@@ -210,16 +197,16 @@ ${interviewType} Interview with AVA Results:
     }
 
     console.log("[triggerAvaAnalysis] Calling ai-analyze edge function");
-    console.log("[triggerAvaAnalysis] Resume extraction method:", resumeText ? "text" : resumeImage ? "image" : "none");
+    console.log("[triggerAvaAnalysis] Resume extraction method:", resumeText ? "text" : detectedResumeUrl ? "url-only (server will handle)" : "none");
 
     // Call the AI analysis edge function
+    // NOTE: Send resumeUrl but NOT resumeImage - server-side ai-analyze will fetch and attach PDF directly
     const { data, error } = await supabase.functions.invoke("ai-analyze", {
       body: {
         type: "resume",
         content,
         resumeUrl: detectedResumeUrl,
         resumeText: resumeText || undefined,
-        resumeImage: resumeImage || undefined,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
@@ -285,15 +272,13 @@ ${interviewType} Interview with AVA Results:
       }
     }
     
-    // Preserve existing score - AVA stands by her original assessment
-    const existingScore = application.ai_score;
-
+    // Always use the new score from analysis (no preservation of old scores)
     // Update the application with AI analysis
     const { error: updateError } = await supabase
       .from("applications")
       .update({
         ai_analysis: data.analysis,
-        ai_score: existingScore ?? (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
+        ai_score: newScore && newScore >= 0 && newScore <= 100 ? newScore : null,
       })
       .eq("id", applicationId);
 
