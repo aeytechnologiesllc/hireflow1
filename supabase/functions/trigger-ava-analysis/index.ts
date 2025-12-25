@@ -90,13 +90,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch application data
+    // Fetch application data (without profile join - fetch separately to avoid FK issues)
     const { data: application, error: fetchError } = await supabaseAdmin
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type),
-        profiles:candidate_id(full_name, email, skills, experience_years, bio, location)
+        jobs(title, description, requirements, skills_required, experience_level, job_type)
       `)
       .eq("id", applicationId)
       .single();
@@ -107,6 +106,17 @@ serve(async (req) => {
         JSON.stringify({ error: "Application not found", details: fetchError?.message }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Fetch profile separately using candidate_id
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email, skills, experience_years, bio, location")
+      .eq("user_id", application.candidate_id)
+      .single();
+
+    if (profileError) {
+      console.log("[trigger-ava-analysis] Could not fetch profile (non-fatal):", profileError.message);
     }
 
     // Parse notes to get all phase data
@@ -126,7 +136,6 @@ serve(async (req) => {
       ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
       : "Not provided";
 
-    const profile = application.profiles as any;
     const job = application.jobs as any;
 
     let content = `
