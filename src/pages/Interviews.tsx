@@ -74,25 +74,25 @@ function InterviewCard({
       ${isUpcoming ? "hover:border-primary/50" : ""} 
       ${needsAction ? "border-amber-500/50 ring-1 ring-amber-500/20" : ""}
     `}>
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
-          <Avatar className="h-12 w-12">
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <Avatar className="h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm sm:text-base">
               {initials}
             </AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-foreground">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-foreground truncate">
                   {isEmployer ? (profile?.full_name || "Candidate") : (job?.title || "Interview")}
                 </h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground truncate">
                   {isEmployer ? job?.title : profile?.full_name || "Interviewer"}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Show candidate response status for employers */}
                 {isEmployer && interview.candidate_response && (
                   <Badge className={
@@ -173,13 +173,14 @@ function InterviewCard({
               </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                <span>{format(new Date(interview.scheduled_at), "EEEE, MMMM d, yyyy")}</span>
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">{format(new Date(interview.scheduled_at), "EEEE, MMMM d, yyyy")}</span>
+                <span className="sm:hidden">{format(new Date(interview.scheduled_at), "MMM d, yyyy")}</span>
               </div>
               <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{format(new Date(interview.scheduled_at), "h:mm a")} ({getTimezoneAbbreviation()})</span>
               </div>
               {interview.duration_minutes && (
@@ -335,17 +336,17 @@ export default function Interviews() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Interviews</h2>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">Interviews</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             {isEmployer 
               ? "Schedule and manage candidate interviews" 
               : "View your upcoming interviews"}
           </p>
         </div>
         {isTeamMember && !canScheduleInterviews && (
-          <Badge variant="outline" className="gap-1 text-muted-foreground">
+          <Badge variant="outline" className="gap-1 text-muted-foreground self-start sm:self-auto">
             <EyeOff className="h-3 w-3" />
             View Only
           </Badge>
