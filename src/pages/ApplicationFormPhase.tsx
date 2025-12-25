@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,6 +114,28 @@ export default function ApplicationFormPhase() {
     },
     enabled: !!id && !!user,
   });
+
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`application-form-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[ApplicationFormPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["application-form", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
 
   // Get questions from job
   const questions: ApplicationQuestion[] = Array.isArray(application?.jobs?.application_questions)

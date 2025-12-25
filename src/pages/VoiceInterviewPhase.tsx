@@ -264,6 +264,29 @@ export default function VoiceInterviewPhase() {
     loadApplicationData();
   }, [applicationId]);
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!applicationId) return;
+    
+    const channel = supabase
+      .channel(`voice-interview-phase-updates-${applicationId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${applicationId}`,
+      }, (payload) => {
+        console.log('[VoiceInterviewPhase] Application updated via realtime:', payload);
+        // Refetch application data when it changes (e.g., phase reset)
+        loadApplicationData();
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [applicationId]);
+
   // Cleanup video on unmount
   useEffect(() => {
     return () => {

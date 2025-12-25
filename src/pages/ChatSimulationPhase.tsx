@@ -117,6 +117,28 @@ export default function ChatSimulationPhase() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`chat-simulation-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[ChatSimulationPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["chat-simulation-application", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
+
   // Get chat config
   const chatConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;

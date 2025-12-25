@@ -141,6 +141,28 @@ export default function SalesSimulationPhase() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`sales-simulation-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[SalesSimulationPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["sales-simulation-application", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
+
   // Get config from workflow
   const salesConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;

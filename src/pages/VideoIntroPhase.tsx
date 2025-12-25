@@ -77,6 +77,28 @@ export default function VideoIntroPhase() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`video-intro-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[VideoIntroPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["video-intro-application", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
+
   const videoConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");

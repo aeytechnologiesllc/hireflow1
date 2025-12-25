@@ -116,6 +116,28 @@ export default function TypingTestPhase() {
     enabled: !!id && !!user,
   });
 
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!id) return;
+    
+    const channel = supabase
+      .channel(`typing-test-phase-updates-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        console.log('[TypingTestPhase] Application updated via realtime:', payload);
+        queryClient.invalidateQueries({ queryKey: ["typing-test-application", id] });
+      })
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
+  }, [id, queryClient]);
+
   // Initialize target text
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * typingTexts.length);

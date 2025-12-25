@@ -1234,7 +1234,22 @@ export default function ApplicantDetails() {
         link: `/applications/${application.id}`,
       });
       
+      // Invalidate ALL application-related queries to ensure candidates see the reset immediately
+      // This is critical for proper resubmission flow
       queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["application-form", id] });
+      queryClient.invalidateQueries({ queryKey: ["quiz-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["typing-test-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["chat-simulation-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["sales-simulation-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["video-intro-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["voice-interview-application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      
+      console.log("[ApplicantDetails] Phase reset - invalidated all application query keys for", id);
       toast.success(`${phaseToReset.title} has been reset. Candidate can now re-submit.`);
       
       setShowResetPhaseDialog(false);
