@@ -81,6 +81,12 @@ function getNextPhase(
   currentPhaseId: string,
   workflowSteps: WorkflowStep[]
 ): WorkflowStep | null {
+  // Special case: "application" is the implicit starting phase
+  // It's not in workflow_steps, so the next phase is the first workflow step
+  if (currentPhaseId === "application" && workflowSteps.length > 0) {
+    return workflowSteps[0];
+  }
+  
   const currentIndex = workflowSteps.findIndex(s => s.id === currentPhaseId);
   if (currentIndex === -1 || currentIndex >= workflowSteps.length - 1) {
     return null;
