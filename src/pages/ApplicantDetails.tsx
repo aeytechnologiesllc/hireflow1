@@ -1872,6 +1872,71 @@ ${interviewType} Interview with AVA Results:
         </Card>
       )}
 
+      {/* Stuck Application Banner - Shows when autopilot should have advanced but didn't */}
+      {application && 
+       application.phase === "application" && 
+       application.ai_score !== null &&
+       application.ai_score >= (job?.passing_score || 60) &&
+       job?.processing_mode === "auto" &&
+       !isRejected && (
+        <Card className="bg-warning/10 border-warning/30 border-l-4 border-l-warning">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-warning/20 flex items-center justify-center">
+                  <AlertCircle className="h-6 w-6 text-warning" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground text-lg">Application Ready to Advance</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Score {application.ai_score}% meets the {job?.passing_score || 60}% threshold. Click to advance to the next phase.
+                  </p>
+                </div>
+              </div>
+              {canManagePipeline && (
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const workflowSteps = (job?.workflow_steps as WorkflowStep[]) || [];
+                      if (workflowSteps.length > 0) {
+                        const nextPhase = workflowSteps[0];
+                        
+                        await updateApplication.mutateAsync({
+                          id: application.id,
+                          phase: nextPhase.id,
+                          status: "reviewing",
+                        });
+                        
+                        // Notify candidate
+                        await supabase.from("notifications").insert({
+                          user_id: application.candidate_id,
+                          type: "status_update",
+                          title: "You've Advanced!",
+                          message: `Great news! You've been advanced to the ${nextPhase.title} phase for ${job?.title || "this position"}.`,
+                          link: `/applications/${application.id}`,
+                        });
+                        
+                        queryClient.invalidateQueries({ queryKey: ["application", id] });
+                        toast.success(`Advanced to ${nextPhase.title}`);
+                      } else {
+                        toast.error("No workflow steps configured");
+                      }
+                    } catch (error) {
+                      console.error("Failed to advance application:", error);
+                      toast.error("Failed to advance application");
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <Zap className="h-4 w-4" />
+                  Advance with Ava
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scheduled Interview Card */}
       {scheduledInterview && (
         <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
