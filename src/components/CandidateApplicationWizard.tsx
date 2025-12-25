@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { formatFileSize } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -893,7 +894,7 @@ Resume URL: ${resumeUrl || "Not provided"}
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-foreground text-sm truncate">{questionFiles[question.id].name}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {(questionFiles[question.id].size / 1024 / 1024).toFixed(2)} MB
+                                  {formatFileSize(questionFiles[question.id].size)}
                                 </p>
                               </div>
                               {uploadingQuestions[question.id] ? (
@@ -1012,7 +1013,7 @@ Resume URL: ${resumeUrl || "Not provided"}
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-foreground truncate">{resumeFile.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                              {formatFileSize(resumeFile.size)}
                             </p>
                           </div>
                           {isUploading ? (

@@ -15,7 +15,7 @@ import { DocumentRequestWithDetails, getDocumentTypeLabel, useUpdateDocumentRequ
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, formatFileSize } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Upload,
@@ -347,7 +347,7 @@ export function DocumentUploadDialog({
                       {selectedFile.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {formatFileSize(selectedFile.size)}
                     </p>
                   </div>
                   <Button
