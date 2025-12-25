@@ -227,11 +227,12 @@ serve(async (req) => {
     }
 
     // Build the messages array based on what resume data we have
+    // Support vision for BOTH "resume" AND "application" types
     let messages: any[];
 
-    if (resumeImage && type === "resume") {
+    if (resumeImage && (type === "resume" || type === "application")) {
       // Use vision capability for image-based resume analysis
-      console.log("Using GPT-4o vision for resume image analysis");
+      console.log(`Using GPT-4o vision for resume image analysis (type: ${type})`);
       resumeExtracted = true;
       
       messages = [
@@ -253,9 +254,9 @@ serve(async (req) => {
           ]
         }
       ];
-    } else if (resumeText && type === "resume") {
+    } else if (resumeText && (type === "resume" || type === "application")) {
       // Resume text was successfully extracted
-      console.log("Using extracted resume text, length:", resumeText.length);
+      console.log(`Using extracted resume text (type: ${type}), length:`, resumeText.length);
       resumeExtracted = true;
       
       userContent += `\n\nRESUME CONTENT (Extracted Text):\n${resumeText}`;
@@ -267,7 +268,7 @@ serve(async (req) => {
     } else {
       // No resume content available - analyze based on other data
       if (resumeUrl) {
-        console.log("Resume URL provided but content could not be extracted");
+        console.log(`Resume URL provided but content could not be extracted (type: ${type})`);
         userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but the content could not be extracted. Please analyze based on the other application data provided above.`;
       }
       

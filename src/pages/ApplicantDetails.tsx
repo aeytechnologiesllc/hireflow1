@@ -60,6 +60,8 @@ import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import type { Tables } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
+import { convertPdfToImage } from "@/utils/pdfToImage";
+
 interface WorkflowStep {
   id: string;
   title: string;
@@ -1380,13 +1382,30 @@ ${interviewType} Interview with AVA Results:
 `;
        }
 
-       // If we can, extract resume text client-side so AVA can actually score the resume.
+       // PDF→Image is the PRIMARY method for resume analysis
+       let resumeImage: string | null = null;
+       let resumeText: string | null = null;
+
        if (detectedResumeUrl) {
-         const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
-         if (extracted) {
-           content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
+         console.log("[ApplicantDetails] Attempting PDF to image conversion for:", detectedResumeUrl);
+         
+         // Try image conversion first (PRIMARY method)
+         resumeImage = await convertPdfToImage(detectedResumeUrl);
+         
+         if (resumeImage) {
+           console.log("[ApplicantDetails] PDF→image SUCCESS, size:", resumeImage.length);
          } else {
-           content += `\n\n[Note: Resume was provided but its text could not be extracted (image-based/scanned/designed PDF). Please analyze using the other application data.]`;
+           // Fallback to text extraction only if image fails
+           console.log("[ApplicantDetails] PDF→image failed, falling back to text extraction");
+           const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
+           if (extracted && text.length > 100) {
+             resumeText = text;
+             content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
+             console.log("[ApplicantDetails] Text extraction SUCCESS, length:", text.length);
+           } else {
+             content += `\n\n[Note: Resume was provided but could not be extracted. Please analyze using other application data.]`;
+             console.log("[ApplicantDetails] Text extraction also failed or insufficient");
+           }
          }
        }
 
@@ -1395,6 +1414,8 @@ ${interviewType} Interview with AVA Results:
            type: "resume",
            content,
            resumeUrl: detectedResumeUrl,
+           resumeImage,
+           resumeText,
            context: {
              skills_required: application.jobs?.skills_required,
              experience_level: application.jobs?.experience_level,

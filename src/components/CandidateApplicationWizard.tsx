@@ -31,6 +31,8 @@ import { useCreateApplication, useUpdateApplication, useCandidateApplications } 
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { convertPdfToImage } from "@/utils/pdfToImage";
+import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import type { Tables, Json } from "@/integrations/supabase/types";
 
 interface CandidateApplicationWizardProps {
@@ -457,7 +459,7 @@ export default function CandidateApplicationWizard({
   const analyzeApplication = async () => {
     setIsAnalyzing(true);
     try {
-      const content = `
+      let content = `
 Job Title: ${job.title}
 Job Description: ${job.description}
 Requirements: ${job.requirements || "Not specified"}
@@ -474,10 +476,38 @@ ${coverLetter || "Not provided"}
 Resume URL: ${resumeUrl || "Not provided"}
       `;
 
+      // PDF→Image is the PRIMARY method for resume analysis
+      let resumeImage: string | null = null;
+      let resumeText: string | null = null;
+
+      if (resumeUrl) {
+        console.log("[CandidateApplicationWizard] Attempting PDF to image conversion for:", resumeUrl);
+        
+        // Try image conversion first (PRIMARY method)
+        resumeImage = await convertPdfToImage(resumeUrl);
+        
+        if (resumeImage) {
+          console.log("[CandidateApplicationWizard] PDF→image SUCCESS, size:", resumeImage.length);
+        } else {
+          // Fallback to text extraction only if image fails
+          console.log("[CandidateApplicationWizard] PDF→image failed, falling back to text extraction");
+          const { text, extracted } = await extractPdfTextFromUrl(resumeUrl);
+          if (extracted && text.length > 100) {
+            resumeText = text;
+            console.log("[CandidateApplicationWizard] Text extraction SUCCESS, length:", text.length);
+          } else {
+            console.log("[CandidateApplicationWizard] Text extraction also failed or insufficient");
+          }
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
           type: "application",
           content,
+          resumeUrl,
+          resumeImage,
+          resumeText,
           context: {
             skills_required: job.skills_required,
             experience_level: job.experience_level,
