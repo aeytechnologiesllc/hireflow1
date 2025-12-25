@@ -53,6 +53,7 @@ const LANGUAGE_OPTIONS = [
   { value: "zh", label: "Mandarin" },
   { value: "ja", label: "Japanese" },
   { value: "ko", label: "Korean" },
+  { value: "vi", label: "Vietnamese" },
   { value: "it", label: "Italian" },
   { value: "nl", label: "Dutch" },
   { value: "ru", label: "Russian" },
