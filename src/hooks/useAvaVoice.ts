@@ -299,7 +299,15 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     audioContextRef.current = new AudioContext({ sampleRate: 24000 });
     audioQueueRef.current = new AudioQueue(
       audioContextRef.current,
-      (playing) => setState(s => ({ ...s, isSpeaking: playing }))
+      (playing) => {
+        console.log('[AvaVoice] AudioQueue playing state:', playing);
+        // CRITICAL: When audio starts playing, clear isProcessing to show "Speaking" not "Thinking"
+        setState(s => ({ 
+          ...s, 
+          isSpeaking: playing,
+          isProcessing: playing ? false : s.isProcessing // Only clear processing when starting to speak
+        }));
+      }
     );
 
     // Create peer connection
@@ -462,8 +470,15 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
             }
             audioQueueRef.current?.addToQueue(bytes);
           }
-          // Set isSpeaking TRUE immediately when first audio delta arrives
-          setState(s => ({ ...s, isSpeaking: true, isProcessing: false, isStuck: false }));
+          // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
+          // This ensures the UI shows "Speaking" not "Thinking"
+          console.log('[AvaVoice] Audio delta received - setting isSpeaking=true, isProcessing=false');
+          setState(s => {
+            if (s.isProcessing || !s.isSpeaking) {
+              console.log('[AvaVoice] State transition: isProcessing', s.isProcessing, '-> false, isSpeaking', s.isSpeaking, '-> true');
+            }
+            return { ...s, isSpeaking: true, isProcessing: false, isStuck: false };
+          });
           break;
 
         case 'response.audio.done':
