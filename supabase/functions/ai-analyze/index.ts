@@ -339,6 +339,27 @@ Start with a base score of 65 (average candidate). Then apply adjustments:
 
 **CRITICAL RED FLAGS (-20 points each, MAX SCORE 60 IF ANY PRESENT):**
 - NO COMPANY/EMPLOYER NAMES in work experience - This is a MAJOR red flag. Real professionals name their employers.
+
+  **CRITICAL - WHAT DOES NOT COUNT AS A COMPANY NAME:**
+  - "Remote", "Work from Home", "WFH", "Freelance", "Self-Employed", "Contract"
+  - Job titles alone (e.g., "Customer Support Specialist", "Chat Agent")
+  - Location descriptors (e.g., "US-based", "International")
+  - Industry descriptors (e.g., "Tech Company", "Startup", "E-commerce")
+  - Generic terms (e.g., "Various Clients", "Multiple Companies", "Confidential")
+  - Job boards or platforms (e.g., "LinkedIn", "Indeed")
+  
+  **WHAT COUNTS AS A VALID COMPANY NAME:**
+  - Specific business names: "Amazon", "Acme Corp", "TechStartup Inc", "Local Pizza Shop"
+  - Companies with legal suffixes: "XYZ Technologies LLC", "ABC Solutions Inc"
+  - Named organizations: "University of California", "Red Cross", "City of Austin"
+  
+  **EXAMPLE OF MISSING COMPANY NAME (MUST TRIGGER -20 AND MAX 60%):**
+  "Chat Support Specialist – Remote (2023-Present)" ← NO COMPANY NAMED - this is a red flag!
+  vs
+  "Chat Support Specialist – Zendesk Inc, Remote (2023-Present)" ← Company named - acceptable
+  
+  If the resume shows positions like "Job Title – Remote" or "Job Title, Work from Home" without naming an actual employer, mark Company names present: NO
+
 - LIKELY_AI_GENERATED content detected with high confidence
 - Major inconsistencies between resume and application answers (lies detected)
 - Impossible or clearly fabricated timelines

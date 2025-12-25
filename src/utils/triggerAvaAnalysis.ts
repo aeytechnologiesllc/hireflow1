@@ -272,6 +272,46 @@ ${interviewType} Interview with AVA Results:
       }
     }
     
+    // CODE-BASED COMPANY NAME DETECTION
+    // Don't trust AI's self-report - directly check the resume text for missing company names
+    if (newScore !== null && newScore > 60 && resumeText) {
+      console.log("[triggerAvaAnalysis] POST-PROCESSING: Running code-based company name detection...");
+      
+      // Patterns that indicate job positions WITHOUT actual company names
+      // e.g., "Chat Support Specialist – Remote" or "Customer Service Rep - Work from Home"
+      const jobTitleWithoutCompanyPatterns = [
+        /(?:specialist|manager|developer|engineer|analyst|associate|coordinator|representative|consultant|lead|senior|junior|intern|agent|supervisor|director|executive|assistant|administrator|clerk|technician|support)\s*[-–—]\s*(?:remote|work from home|wfh|freelance|self[- ]?employed|contract)/gi,
+        /(?:remote|work from home|wfh)\s*[-–—]\s*(?:specialist|manager|developer|engineer|analyst|associate|coordinator|representative)/gi,
+      ];
+      
+      const hasJobTitleWithoutCompany = jobTitleWithoutCompanyPatterns.some(p => p.test(resumeText));
+      
+      // Check if there are actual company/employer names present
+      // Real companies typically include: Inc, LLC, Corp, Ltd, Co., Technologies, Solutions, Group, etc.
+      // Or are well-known brands like Amazon, Google, Microsoft, etc.
+      const companyNamePatterns = [
+        /\b(?:Inc\.?|LLC|Corp\.?|Ltd\.?|Co\.|Company|Technologies|Solutions|Group|Holdings|Partners|Associates|Enterprises|Services|Systems|Industries|Labs?|Studio|Agency)\b/gi,
+        /\b(?:Amazon|Google|Microsoft|Apple|Meta|Facebook|Netflix|Uber|Lyft|Airbnb|Stripe|Shopify|Salesforce|Oracle|IBM|Intel|Cisco|Adobe|VMware|Dell|HP|Samsung|Sony|Nike|Walmart|Target|Costco|Starbucks|McDonald's|Chipotle)\b/gi,
+        /(?:at|for|with|joined)\s+[A-Z][a-zA-Z\s&]+(?:Inc|LLC|Corp|Ltd|Co\.|Company)/i,
+      ];
+      
+      const hasRealCompanyName = companyNamePatterns.some(p => p.test(resumeText));
+      
+      // If we detect job titles without companies and no real company names found
+      if (hasJobTitleWithoutCompany && !hasRealCompanyName) {
+        console.log("[triggerAvaAnalysis] POST-PROCESSING: Code detected job titles without company names (e.g., 'Title - Remote'), capping score from", newScore, "to 60");
+        newScore = Math.min(newScore, 60);
+      }
+      
+      // Additional check: Look for work experience section patterns without company names
+      // Pattern: dates followed by job title, but no company name between/around them
+      const experienceWithDates = resumeText.match(/\b(20\d{2}|19\d{2})\s*[-–—to]+\s*(20\d{2}|19\d{2}|present|current)/gi);
+      if (experienceWithDates && experienceWithDates.length > 0 && !hasRealCompanyName) {
+        console.log("[triggerAvaAnalysis] POST-PROCESSING: Found work dates but no company names, capping score from", newScore, "to 60");
+        newScore = Math.min(newScore, 60);
+      }
+    }
+    
     // Always use the new score from analysis (no preservation of old scores)
     // Update the application with AI analysis
     const { error: updateError } = await supabase
