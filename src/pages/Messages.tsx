@@ -156,13 +156,16 @@ export default function Messages() {
 
   return (
     <motion.div 
-      className="flex h-[calc(100vh-12rem)] gap-4"
+      className="flex flex-col h-[calc(100vh-10rem)] sm:h-[calc(100vh-12rem)] sm:flex-row gap-4"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
       {/* Conversations List */}
-      <Card className="w-80 flex-shrink-0 bg-card border-border flex flex-col">
+      <Card className={cn(
+        "bg-card border-border flex flex-col",
+        selectedContactId ? "hidden sm:flex sm:w-80 sm:flex-shrink-0" : "flex-1 sm:w-80 sm:flex-shrink-0"
+      )}>
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
             {isTeamMember && !canMessageCandidates && (
@@ -341,7 +344,10 @@ export default function Messages() {
       </Card>
 
       {/* Chat Area */}
-      <Card className="flex-1 bg-card border-border flex flex-col">
+      <Card className={cn(
+        "bg-card border-border flex flex-col",
+        selectedContactId ? "flex-1" : "hidden sm:flex sm:flex-1"
+      )}>
         {selectedContactId ? (
           <>
             {/* Chat Header */}

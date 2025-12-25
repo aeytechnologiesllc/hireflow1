@@ -435,7 +435,7 @@ export default function Applicants() {
       variants={staggerContainer}
     >
       {/* Header */}
-      <motion.div variants={staggerItem} className="flex items-center justify-between">
+      <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           {jobIdFilter && filteredJob ? (
             <>
@@ -447,13 +447,13 @@ export default function Applicants() {
                   </Link>
                 </Button>
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Applicants for {filteredJob.title}</h2>
-              <p className="text-muted-foreground mt-1">Review applications for this position</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground">Applicants for {filteredJob.title}</h2>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">Review applications for this position</p>
             </>
           ) : (
             <>
-              <h2 className="text-2xl font-bold text-foreground">Applicants</h2>
-              <p className="text-muted-foreground mt-1">Review and manage job applications</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground">Applicants</h2>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">Review and manage job applications</p>
           </>
             )}
         </div>
@@ -461,7 +461,7 @@ export default function Applicants() {
         {jobIdFilter && filteredJob && filteredApplications.length >= 2 && (
           <Button 
             onClick={handleGenerateShortlist}
-            className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+            className="w-full sm:w-auto gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
             disabled={isShortlistLoading}
           >
             <Sparkles className="h-4 w-4" />
@@ -471,42 +471,42 @@ export default function Applicants() {
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={staggerItem} className="grid grid-cols-5 gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold text-foreground">{stats?.total || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.total || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Pending</p>
-            <p className="text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
+            <p className="text-xl sm:text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Reviewing</p>
-            <p className="text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Reviewing</p>
+            <p className="text-xl sm:text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Interview</p>
-            <p className="text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Interview</p>
+            <p className="text-xl sm:text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Hired</p>
-            <p className="text-2xl font-bold text-primary">{stats?.hired || 0}</p>
+        <Card className="bg-card border-border col-span-2 sm:col-span-1">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Hired</p>
+            <p className="text-xl sm:text-2xl font-bold text-primary">{stats?.hired || 0}</p>
           </CardContent>
         </Card>
       </motion.div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search applicants..." 
@@ -515,28 +515,30 @@ export default function Applicants() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button 
-          variant={isSelectionMode ? "default" : "outline"} 
-          className="gap-2"
-          onClick={() => {
-            setIsSelectionMode(!isSelectionMode);
-            if (isSelectionMode) {
-              setSelectedIds(new Set());
-            }
-          }}
-        >
-          {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-          {isSelectionMode ? "Done" : "Select"}
-        </Button>
-        {isSelectionMode && filteredApplications.length > 0 && (
-          <Button variant="outline" onClick={handleSelectAll}>
-            {selectedIds.size === filteredApplications.length ? "Deselect All" : "Select All"}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant={isSelectionMode ? "default" : "outline"} 
+            className="gap-2 flex-1 sm:flex-none"
+            onClick={() => {
+              setIsSelectionMode(!isSelectionMode);
+              if (isSelectionMode) {
+                setSelectedIds(new Set());
+              }
+            }}
+          >
+            {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            {isSelectionMode ? "Done" : "Select"}
           </Button>
-        )}
-        <Button variant="outline" className="gap-2">
-          <Filter className="h-4 w-4" />
-          Filters
-        </Button>
+          {isSelectionMode && filteredApplications.length > 0 && (
+            <Button variant="outline" onClick={handleSelectAll} className="hidden sm:flex">
+              {selectedIds.size === filteredApplications.length ? "Deselect All" : "Select All"}
+            </Button>
+          )}
+          <Button variant="outline" className="gap-2">
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Filters</span>
+          </Button>
+        </div>
       </div>
 
       {/* Applicant List */}

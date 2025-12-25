@@ -165,16 +165,16 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               </div>
             )}
 
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
               <span>{job.location || "Remote"}</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <span>{job.job_type || "Full-Time"}</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <div className="flex items-center gap-1">
-                <Users className="h-4 w-4" />
+                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{job.application_count} applicant{job.application_count !== 1 ? "s" : ""}</span>
               </div>
-              <span className="text-xs">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
+              <span className="text-xs hidden sm:inline">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
           </div>
         </div>
@@ -296,10 +296,10 @@ export default function Jobs() {
       variants={staggerContainer}
     >
       {/* Header */}
-      <motion.div variants={staggerItem} className="flex items-center justify-between">
+      <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Job Postings</h2>
-          <p className="text-muted-foreground mt-1">Manage your job listings and track applications</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">Job Postings</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage your job listings and track applications</p>
         </div>
         {canCreateJobs && (
           <motion.div
@@ -308,7 +308,7 @@ export default function Jobs() {
             className="rounded-lg"
           >
             <Button 
-              className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+              className="w-full sm:w-auto bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
               asChild
             >
               <Link to="/jobs/create">
@@ -320,8 +320,8 @@ export default function Jobs() {
       </motion.div>
 
       {/* Filters */}
-      <motion.div variants={staggerItem} className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+      <motion.div variants={staggerItem} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search jobs..." 
@@ -330,36 +330,36 @@ export default function Jobs() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2 w-full sm:w-auto">
           <Filter className="h-4 w-4" />
           Filters
         </Button>
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={staggerItem} className="grid grid-cols-4 gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Total Jobs</p>
-            <p className="text-2xl font-bold text-foreground">{stats?.total || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Total Jobs</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.total || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Published</p>
-            <p className="text-2xl font-bold text-primary">{stats?.published || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Published</p>
+            <p className="text-xl sm:text-2xl font-bold text-primary">{stats?.published || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Drafts</p>
-            <p className="text-2xl font-bold text-muted-foreground">{stats?.draft || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Drafts</p>
+            <p className="text-xl sm:text-2xl font-bold text-muted-foreground">{stats?.draft || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Closed</p>
-            <p className="text-2xl font-bold text-muted-foreground">{stats?.closed || 0}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Closed</p>
+            <p className="text-xl sm:text-2xl font-bold text-muted-foreground">{stats?.closed || 0}</p>
           </CardContent>
         </Card>
       </motion.div>

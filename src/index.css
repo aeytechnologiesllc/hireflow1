@@ -383,6 +383,51 @@
   box-shadow: 0 0 12px hsl(160 84% 39% / 0.6);
 }
 
+/* Mobile-first utility classes */
+@layer utilities {
+  /* Safe area padding for notched devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  
+  /* Mobile-safe scroll container */
+  .scroll-mobile-safe {
+    @apply overflow-y-auto overscroll-contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Responsive typography */
+  .text-responsive-xl {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+  
+  .text-responsive-lg {
+    @apply text-base sm:text-lg;
+  }
+  
+  /* Mobile-optimized tap targets */
+  .tap-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Responsive spacing */
+  .gap-responsive {
+    @apply gap-2 sm:gap-3 md:gap-4;
+  }
+  
+  .p-responsive {
+    @apply p-3 sm:p-4 md:p-6;
+  }
+  
+  .space-y-responsive > * + * {
+    @apply mt-3 sm:mt-4 md:mt-6;
+  }
+}
+
 /* Disable heavy animations on mobile for better performance */
 @media (max-width: 768px) {
   .animate-sidebar-gradient {
@@ -412,6 +457,16 @@
   
   .sidebar-gradient-border::after {
     animation: none !important;
+  }
+  
+  /* Optimize touch interactions on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Prevent overscroll bounce on iOS */
+  html, body {
+    overscroll-behavior: none;
   }
 }
 

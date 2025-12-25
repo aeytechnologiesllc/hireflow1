@@ -1949,15 +1949,16 @@ ${interviewType} Interview with AVA Results:
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => navigate("/applicants")}
+              className="flex-shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -1965,7 +1966,7 @@ ${interviewType} Interview with AVA Results:
           <TooltipContent>Back to Applicants</TooltipContent>
         </Tooltip>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
