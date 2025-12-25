@@ -2268,17 +2268,11 @@ export default function CreateJob() {
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowDualInterviewConfirm(false);
-              setPendingInterviewType(null);
-            }}>
-              Cancel
-            </Button>
-            <Button variant="secondary" onClick={replaceWithNewInterview}>
-              Replace Existing
-            </Button>
-            <Button onClick={confirmDualInterviewAdd}>
+            <Button variant="outline" onClick={confirmDualInterviewAdd}>
               Add Both Interviews
+            </Button>
+            <Button onClick={replaceWithNewInterview}>
+              Replace Existing
             </Button>
           </DialogFooter>
         </DialogContent>
