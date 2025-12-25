@@ -1927,64 +1927,103 @@ ${interviewType} Interview with AVA Results:
       </div>
 
       {/* Rejected Status Banner */}
-      {isRejected && (
-        <Card className="bg-destructive/10 border-destructive/30 border-l-4 border-l-destructive">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
-                  <XCircle className="h-6 w-6 text-destructive" />
+      {isRejected && (() => {
+        const isAutopilot = job?.processing_mode === "auto";
+        const rejectionPhase = application.phase;
+        const phaseAnalysis = application.phase_ai_analysis;
+        
+        // Get human-readable phase name
+        const getPhaseDisplayName = (phaseId: string | null) => {
+          if (!phaseId) return "Unknown Phase";
+          if (phaseId === "application") return "Application Review";
+          if (phaseId === "quiz") return "Quiz";
+          const phase = phases.find(p => p.id === phaseId);
+          return phase?.title || phaseId.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+        };
+        
+        return (
+          <Card className="bg-destructive/10 border-destructive/30 border-l-4 border-l-destructive">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
+                    <XCircle className="h-6 w-6 text-destructive" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-destructive text-lg">
+                      {isAutopilot ? "Candidate Rejected by Ava" : "Candidate Rejected"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isAutopilot && rejectionPhase ? (
+                        <>Automatically rejected at the <span className="font-medium text-foreground">{getPhaseDisplayName(rejectionPhase)}</span> phase</>
+                      ) : (
+                        <>This candidate is no longer being considered for {job?.title || "this position"}.</>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-destructive text-lg">Candidate Rejected</h3>
-                  <p className="text-sm text-muted-foreground">
-                    This candidate is no longer being considered for {job?.title || "this position"}.
-                  </p>
-                </div>
+                {canManagePipeline && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={async () => {
+                      try {
+                        // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
+                        const reviewPhase = phases.find(p => p.type === "review") || phases[1];
+                        const reviewPhaseId = reviewPhase?.id || "review";
+                        
+                        await updateApplication.mutateAsync({ 
+                          id: application.id, 
+                          status: "reviewing",
+                          phase: reviewPhaseId,  // Reset phase to review
+                          phase_ai_analysis: null,  // Clear for fresh review
+                        });
+                        
+                        // Create notification for candidate about reconsideration
+                        await supabase.from("notifications").insert({
+                          user_id: application.candidate_id,
+                          type: "status_update",
+                          title: "Great News! You're Being Reconsidered",
+                          message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
+                          link: `/applications/${application.id}`,
+                        });
+                        
+                        queryClient.invalidateQueries({ queryKey: ["application", id] });
+                        toast.success("Candidate moved back to review phase and notified");
+                      } catch (error) {
+                        console.error("Failed to reconsider candidate:", error);
+                        toast.error("Failed to reconsider candidate");
+                      }
+                    }}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Reconsider Candidate
+                  </Button>
+                )}
               </div>
-              {canManagePipeline && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={async () => {
-                    try {
-                      // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
-                      const reviewPhase = phases.find(p => p.type === "review") || phases[1];
-                      const reviewPhaseId = reviewPhase?.id || "review";
-                      
-                      await updateApplication.mutateAsync({ 
-                        id: application.id, 
-                        status: "reviewing",
-                        phase: reviewPhaseId,  // Reset phase to review
-                        phase_ai_analysis: null,  // Clear for fresh review
-                      });
-                      
-                      // Create notification for candidate about reconsideration
-                      await supabase.from("notifications").insert({
-                        user_id: application.candidate_id,
-                        type: "status_update",
-                        title: "Great News! You're Being Reconsidered",
-                        message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
-                        link: `/applications/${application.id}`,
-                      });
-                      
-                      queryClient.invalidateQueries({ queryKey: ["application", id] });
-                      toast.success("Candidate moved back to review phase and notified");
-                    } catch (error) {
-                      console.error("Failed to reconsider candidate:", error);
-                      toast.error("Failed to reconsider candidate");
-                    }
-                  }}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Reconsider Candidate
-                </Button>
+              
+              {/* Autopilot Rejection Reason */}
+              {isAutopilot && phaseAnalysis && (
+                <div className="bg-background/50 rounded-lg p-3 border border-destructive/20">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-foreground">Ava's Rejection Reason</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">{phaseAnalysis}</p>
+                      {job?.passing_score && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Passing threshold: <span className="font-medium">{job.passing_score}%</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Autopilot auto-advance is handled by useEffect - no manual button needed */}
 
