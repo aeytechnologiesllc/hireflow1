@@ -188,11 +188,26 @@ Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED/CANNOT_ASSESS]
 Confidence: [0-100]%
 Red Flags: [list any concerns or "None detected"]
 
-**SCORING BREAKDOWN**
+**SCORING BREAKDOWN** (MANDATORY - SHOW YOUR MATH)
 Base Score: 65
-Penalties Applied: [list each penalty with points, e.g., "No company names: -20"]
-Bonuses Applied: [list each bonus with points, e.g., "Quantifiable achievements: +10"]
-Score Cap Applied: [if any, explain which cap and why]
+
+CRITICAL RED FLAG CHECK:
+- Company names present in work experience? [YES/NO] - If NO: -20 and MAX 60%
+- AI-generated content detected? [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - If LIKELY: MAX 55%
+- Specific quantifiable achievements present? [YES/NO] - If NO and no company names: MAX 45%
+
+Penalties Applied (list EACH with points):
+- [penalty description]: -[points] → Running total: [X]
+- [penalty description]: -[points] → Running total: [X]
+(Continue for ALL penalties)
+
+Bonuses Applied (list EACH with points):
+- [bonus description]: +[points] → Running total: [X]
+(Continue for ALL bonuses)
+
+Pre-Cap Calculated Score: [show the math: 65 + bonuses - penalties = X]
+Score Cap Applied: [if any cap triggered, show: "Capped from X to Y because: reason"]
+FINAL CALCULATED SCORE: [must match the math above, between 0-100]
 
 **PERSONALITY PROFILE**
 Communication Style: [description]
@@ -211,7 +226,7 @@ Key Achievements: [bullet points]
 Career Trajectory: [Ascending/Stable/Declining/Unclear]
 
 **OVERALL ASSESSMENT**
-Overall Score: [0-100 - APPLY ALL PENALTIES AND CAPS]
+Overall Score: [MUST MATCH FINAL CALCULATED SCORE ABOVE]
 Verification Score: [0-100] (based on cross-reference and authenticity checks)
 Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points]
@@ -399,11 +414,26 @@ Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED/CANNOT_ASSESS]
 Confidence: [0-100]%
 Red Flags: [list any concerns or "None detected"]
 
-**SCORING BREAKDOWN**
+**SCORING BREAKDOWN** (MANDATORY - SHOW YOUR MATH)
 Base Score: 65
-Penalties Applied: [list each penalty with points, e.g., "No company names: -20"]
-Bonuses Applied: [list each bonus with points, e.g., "Quantifiable achievements: +10"]
-Score Cap Applied: [if any, explain which cap and why]
+
+CRITICAL RED FLAG CHECK:
+- Company names present in work experience? [YES/NO] - If NO: -20 and MAX 60%
+- AI-generated content detected? [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - If LIKELY: MAX 55%
+- Specific quantifiable achievements present? [YES/NO] - If NO and no company names: MAX 45%
+
+Penalties Applied (list EACH with points):
+- [penalty description]: -[points] → Running total: [X]
+- [penalty description]: -[points] → Running total: [X]
+(Continue for ALL penalties)
+
+Bonuses Applied (list EACH with points):
+- [bonus description]: +[points] → Running total: [X]
+(Continue for ALL bonuses)
+
+Pre-Cap Calculated Score: [show the math: 65 + bonuses - penalties = X]
+Score Cap Applied: [if any cap triggered, show: "Capped from X to Y because: reason"]
+FINAL CALCULATED SCORE: [must match the math above, between 0-100]
 
 **PERSONALITY PROFILE**
 Communication Style: [description]
@@ -422,7 +452,7 @@ Key Achievements: [bullet points]
 Career Trajectory: [Ascending/Stable/Declining/Unclear]
 
 **OVERALL ASSESSMENT**
-Overall Score: [0-100 - APPLY ALL PENALTIES AND CAPS]
+Overall Score: [MUST MATCH FINAL CALCULATED SCORE ABOVE]
 Verification Score: [0-100] (based on cross-reference and authenticity checks)
 Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points]
@@ -616,7 +646,7 @@ serve(async (req) => {
         model: "gpt-4o",
         messages,
         max_tokens: 4000, // Increased for more detailed analysis
-        temperature: 0.7,
+        temperature: 0.2,
       }),
     });
 
