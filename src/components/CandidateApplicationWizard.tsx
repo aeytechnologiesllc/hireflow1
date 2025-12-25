@@ -593,7 +593,7 @@ Resume URL: ${resumeUrl || "Not provided"}
       }
 
       // Determine if autopilot mode and what the next phase should be
-      const isAutoMode = job.processing_mode !== "manual";
+      const isAutoMode = job.processing_mode === "auto";
       const passingScore = job.passing_score || 60;
       const passed = aiResult?.score !== null && aiResult.score >= passingScore;
 

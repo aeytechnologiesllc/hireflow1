@@ -231,6 +231,16 @@ export default function PortfolioUploadPhase() {
     setUploadProgress(0);
     
     try {
+      // CRITICAL: Re-fetch fresh job data to get current processing_mode
+      // This prevents stale cached data from causing issues
+      const { data: freshJob } = await supabase
+        .from("jobs")
+        .select("processing_mode, passing_score")
+        .eq("id", application.job_id)
+        .single();
+      
+      const isAutoMode = freshJob?.processing_mode === "auto";
+      
       // Upload all files
       const uploadedUrls = await uploadFiles();
       
@@ -282,9 +292,6 @@ export default function PortfolioUploadPhase() {
         [stepId!]: portfolioResult,
         portfolioResult,
       };
-
-      // Determine next phase
-      const isAutoMode = application.jobs?.processing_mode !== "manual";
       
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
