@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { detectResumeUrl, parseApplicationNotes } from "./detectResumeUrl";
+import { extractPdfTextFromUrl } from "./pdfText";
+import { convertPdfToImage } from "./pdfToImage";
 
 export interface EvaluationResult {
   score: number | null;
@@ -39,6 +41,32 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
     console.log("[triggerAvaAnalysis] Detected resume URL:", detectedResumeUrl);
 
+    // Extract resume content (text or image)
+    let resumeText: string | null = null;
+    let resumeImage: string | null = null;
+    
+    if (detectedResumeUrl) {
+      console.log("[triggerAvaAnalysis] Attempting to extract resume content...");
+      
+      // First, try text extraction
+      const textResult = await extractPdfTextFromUrl(detectedResumeUrl);
+      
+      if (textResult.extracted && textResult.text.length >= 100) {
+        console.log("[triggerAvaAnalysis] Text extraction successful, length:", textResult.text.length);
+        resumeText = textResult.text;
+      } else {
+        console.log("[triggerAvaAnalysis] Text extraction insufficient, trying image conversion...");
+        // Fall back to image conversion for designed/scanned PDFs
+        resumeImage = await convertPdfToImage(detectedResumeUrl);
+        
+        if (resumeImage) {
+          console.log("[triggerAvaAnalysis] Image conversion successful");
+        } else {
+          console.log("[triggerAvaAnalysis] Both text and image extraction failed");
+        }
+      }
+    }
+
     // Build content string from all available phase data (same logic as handleReanalyze)
     const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
       ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
@@ -67,9 +95,28 @@ ${applicationAnswersText}
 
 Cover Letter:
 ${application.cover_letter || "Not provided"}
-
-Resume URL: ${detectedResumeUrl || "Not provided"}
 `;
+
+    // Add resume text if extracted
+    if (resumeText) {
+      content += `
+RESUME CONTENT (Extracted Text):
+${resumeText}
+`;
+    } else if (resumeImage) {
+      content += `
+RESUME: An image of the resume is attached for visual analysis. Please analyze the resume from the provided image.
+`;
+    } else if (detectedResumeUrl) {
+      content += `
+Resume URL: ${detectedResumeUrl}
+Note: Resume text could not be extracted (may be image-based PDF, scanned document, or designed resume). Please analyze based on other application data.
+`;
+    } else {
+      content += `
+Resume: Not provided
+`;
+    }
 
     // Add Typing Test results if available
     if (parsedNotes.typingTestResult) {
@@ -163,6 +210,7 @@ ${interviewType} Interview with AVA Results:
     }
 
     console.log("[triggerAvaAnalysis] Calling ai-analyze edge function");
+    console.log("[triggerAvaAnalysis] Resume extraction method:", resumeText ? "text" : resumeImage ? "image" : "none");
 
     // Call the AI analysis edge function
     const { data, error } = await supabase.functions.invoke("ai-analyze", {
@@ -170,6 +218,8 @@ ${interviewType} Interview with AVA Results:
         type: "resume",
         content,
         resumeUrl: detectedResumeUrl,
+        resumeText: resumeText || undefined,
+        resumeImage: resumeImage || undefined,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
