@@ -436,6 +436,18 @@ Start with a base score of 65 (average candidate). Then apply adjustments:
 
 REQUIRED OUTPUT FORMAT:
 ---
+**PHASE PERFORMANCE SUMMARY**
+(Summarize ALL completed hiring phases. This is CRITICAL for the executive summary.)
+Quiz: [X% if completed, or "Not completed"]
+Portfolio: [X/100 if reviewed, or "Not submitted"]
+Typing Test: [X WPM, X% accuracy if completed, or "Not completed"]
+Voice Interview: [X/100, key observation if completed, or "Not completed"]
+Chat Simulation: [Performance summary if completed, or "Not completed"]
+Video Introduction: [Brief impression if submitted, or "Not submitted"]
+Application Form: [Quality assessment: Strong/Average/Weak]
+Phase Highlights: [List 1-3 standout performances, e.g., "100% quiz score", "Excellent voice interview"]
+Phase Concerns: [List any weak phase performances or "None"]
+
 **DOCUMENT VALIDATION**
 Status: [VALID_RESUME/SUSPICIOUS/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
 Confidence: [0-100]%
@@ -504,9 +516,9 @@ Career Trajectory: [Ascending/Stable/Declining/Unclear]
 Overall Score: [MUST MATCH FINAL CALCULATED SCORE ABOVE]
 Verification Score: [0-100] (based on cross-reference and authenticity checks)
 Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
-Key Strengths: [bullet points]
-Areas of Concern: [bullet points]
-Summary: [2-3 sentences - if resume unavailable, note that assessment is based on other application data; include any verification concerns and scoring rationale]
+Key Strengths: [bullet points - MUST include best phase performances]
+Areas of Concern: [bullet points - include any phase weaknesses]
+Summary: [2-3 sentences that MUST mention phase performance highlights (quiz scores, portfolio ratings, interview results) alongside resume assessment. If resume unavailable, focus on phase performance data.]
 ---
 
 Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Focus on verifiable qualifications. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%. When resume is unavailable, provide the best possible analysis using all other data.`,
