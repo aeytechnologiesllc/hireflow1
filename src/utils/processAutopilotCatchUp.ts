@@ -228,8 +228,19 @@ export async function processAutopilotCatchUp(
 
       try {
         const currentPhaseId = application.phase || "application";
-        const currentPhase = workflowSteps.find(s => s.id === currentPhaseId);
-        const currentPhaseType = currentPhase?.type || "application";
+        
+        // Determine phase type - handle implicit phases that aren't in workflowSteps
+        let currentPhaseType: string;
+        if (currentPhaseId === "application") {
+          currentPhaseType = "application";
+        } else if (currentPhaseId === "quiz") {
+          currentPhaseType = "quiz";
+        } else {
+          const currentPhase = workflowSteps.find(s => s.id === currentPhaseId);
+          currentPhaseType = currentPhase?.type || "unknown";
+        }
+        
+        console.log(`[processAutopilotCatchUp] Application ${application.id} at phase=${currentPhaseId}, type=${currentPhaseType}`);
 
         // Check if candidate has completed their part of the current phase
         const isPhaseComplete = hasCompletedPhase(
