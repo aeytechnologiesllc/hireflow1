@@ -174,7 +174,8 @@ export default function CandidateAuth() {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    const { error } = await signInWithGoogle(`${window.location.origin}/apply`);
+    // Pass "candidate" role for Google sign-up from candidate portal
+    const { error } = await signInWithGoogle(`${window.location.origin}/apply`, "candidate");
     
     if (error) {
       toast({
