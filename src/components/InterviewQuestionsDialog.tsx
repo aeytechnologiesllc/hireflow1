@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -35,16 +35,28 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
   // Split by **Question:** pattern (the AI generates questions in this format)
   const questionBlocks = markdown.split(/\*\*Question:\*\*/i);
   
-  for (const block of questionBlocks) {
+  console.log('[InterviewQuestions] Parsing markdown, blocks found:', questionBlocks.length - 1);
+  
+  for (let i = 1; i < questionBlocks.length; i++) {
+    const block = questionBlocks[i];
     const trimmedBlock = block.trim();
-    // Skip empty blocks, section headers (###), and intro text
-    if (!trimmedBlock || trimmedBlock.startsWith('###') || trimmedBlock.length < 10) continue;
+    
+    // Skip empty blocks
+    if (!trimmedBlock || trimmedBlock.length < 10) continue;
     
     const lines = trimmedBlock.split('\n');
     
     // First non-empty line is the question text
-    let questionText = lines[0]?.replace(/\*\*/g, '').trim();
-    if (!questionText || questionText.startsWith('###')) continue;
+    let questionText = '';
+    for (const line of lines) {
+      const cleaned = line.replace(/\*\*/g, '').trim();
+      if (cleaned && !cleaned.startsWith('-') && !cleaned.startsWith('###') && !cleaned.startsWith('•')) {
+        questionText = cleaned;
+        break;
+      }
+    }
+    
+    if (!questionText || questionText.length < 10) continue;
     
     let assesses = '';
     let lookFor = '';
@@ -56,28 +68,9 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
     }
     
     // Look for **What to look for in a good answer:** pattern
-    const lookForMatch = trimmedBlock.match(/\*\*What to look for[^:]*:\*\*\s*([^\n]+(?:\n(?!\*\*Question|\*\*What|###)[^\n]+)*)/i);
+    const lookForMatch = trimmedBlock.match(/\*\*What to look for[^:]*:\*\*\s*([^\n]+)/i);
     if (lookForMatch) {
-      lookFor = lookForMatch[1].replace(/\n/g, ' ').trim();
-    }
-    
-    // Fallback: try numbered format (1., 2., etc.)
-    if (!assesses && !lookFor) {
-      const numberedMatch = trimmedBlock.match(/^(\d+\.\s*)?(.+?)(?:\n|$)/);
-      if (numberedMatch) {
-        questionText = numberedMatch[2]?.replace(/\*\*/g, '').trim() || questionText;
-      }
-      
-      // Look for bullet point content
-      const bulletAssess = trimmedBlock.match(/[-•*]\s*(?:What it )?[Aa]ssess[es]*[:\s]*([^\n]+)/i);
-      if (bulletAssess) {
-        assesses = bulletAssess[1].replace(/\*\*/g, '').trim();
-      }
-      
-      const bulletLookFor = trimmedBlock.match(/[-•*]\s*(?:What to )?[Ll]ook for[:\s]*([^\n]+)/i);
-      if (bulletLookFor) {
-        lookFor = bulletLookFor[1].replace(/\*\*/g, '').trim();
-      }
+      lookFor = lookForMatch[1].trim();
     }
     
     questions.push({
@@ -87,6 +80,7 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
     });
   }
   
+  console.log('[InterviewQuestions] Parsed questions count:', questions.length);
   return questions;
 }
 
@@ -99,15 +93,45 @@ export default function InterviewQuestionsDialog({
   const [isGenerating, setIsGenerating] = useState(false);
   const [rawQuestions, setRawQuestions] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
+  // Track if we're actively regenerating to prevent sync overwriting fresh data
+  const isRegeneratingRef = useRef(false);
+  // Track the interview ID we last synced from
+  const lastSyncedInterviewIdRef = useRef<string | null>(null);
 
   // Sync rawQuestions with interview prop when dialog opens or interview changes
+  // But NOT during active regeneration
   useEffect(() => {
-    if (open && interview?.ai_questions) {
-      setRawQuestions(interview.ai_questions.join("\n\n"));
-    } else if (open && !interview?.ai_questions) {
-      setRawQuestions(null);
+    if (!open) {
+      // Reset refs when dialog closes
+      isRegeneratingRef.current = false;
+      lastSyncedInterviewIdRef.current = null;
+      return;
     }
-  }, [open, interview?.ai_questions]);
+    
+    // Don't overwrite if we're actively regenerating
+    if (isRegeneratingRef.current) {
+      console.log('[InterviewQuestions] Skipping sync - regenerating in progress');
+      return;
+    }
+    
+    const interviewId = interview?.id || null;
+    
+    // Only sync if this is a new interview or first open
+    if (interviewId === lastSyncedInterviewIdRef.current && rawQuestions !== null) {
+      console.log('[InterviewQuestions] Skipping sync - already synced this interview');
+      return;
+    }
+    
+    if (interview?.ai_questions && interview.ai_questions.length > 0) {
+      console.log('[InterviewQuestions] Syncing from interview.ai_questions:', interview.ai_questions.length, 'items');
+      setRawQuestions(interview.ai_questions.join("\n\n"));
+      lastSyncedInterviewIdRef.current = interviewId;
+    } else if (!interview?.ai_questions) {
+      setRawQuestions(null);
+      lastSyncedInterviewIdRef.current = interviewId;
+    }
+  }, [open, interview?.id, interview?.ai_questions]);
 
   const application = interview?.applications;
   const job = application?.jobs;
@@ -119,81 +143,115 @@ export default function InterviewQuestionsDialog({
     return parseQuestionsFromMarkdown(rawQuestions);
   }, [rawQuestions]);
 
+  const handleCopy = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+      toast.success("Question copied to clipboard");
+    } catch (err) {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
+  const handleCopyAll = async () => {
+    try {
+      const allQuestions = parsedQuestions
+        .map((q, i) => `${i + 1}. ${q.question}`)
+        .join('\n\n');
+      await navigator.clipboard.writeText(allQuestions);
+      toast.success("All questions copied to clipboard");
+    } catch (err) {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
   const handleGenerate = async () => {
-    if (!interview || !job) return;
+    if (!interview?.id) {
+      toast.error("No interview scheduled. Please schedule an interview first.");
+      return;
+    }
 
     setIsGenerating(true);
+    isRegeneratingRef.current = true; // Prevent sync from overwriting
+    
     try {
-      const content = `
-Job Title: ${job.title}
-Job Description: ${job.description}
-Requirements: ${job.requirements || "Not specified"}
-Experience Level: ${job.experience_level || "Not specified"}
-
-Candidate Information:
-Name: ${profile?.full_name || "Unknown"}
-Experience: ${profile?.experience_years ? `${profile.experience_years} years` : "Not specified"}
-Skills: ${profile?.skills?.join(", ") || "Not specified"}
-Background: ${profile?.bio || "Not provided"}
-
-Interview Type: ${interview.interview_type || "Video"}
-Duration: ${interview.duration_minutes || 60} minutes
-
-Please generate 5-7 tailored interview questions. For each question, include:
-1. The question itself
-2. What it assesses (skills/competencies being evaluated)
-3. What to look for in a good answer
-      `;
-
+      // Fetch the full application to get resume_url, cover_letter, ai_analysis
+      let resumeUrl = null;
+      let coverLetter = null;
+      let previousAnalysis = null;
+      
+      if (application?.id) {
+        const { data: fullApp } = await supabase
+          .from("applications")
+          .select("resume_url, cover_letter, ai_analysis")
+          .eq("id", application.id)
+          .single();
+        
+        if (fullApp) {
+          resumeUrl = fullApp.resume_url;
+          coverLetter = fullApp.cover_letter;
+          previousAnalysis = fullApp.ai_analysis;
+        }
+      }
+      
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
           type: "interview",
-          content,
-          context: {
-            skills_required: job.skills_required,
-          },
+          jobTitle: job?.title || "Position",
+          jobDescription: job?.description || "",
+          requirements: job?.requirements || "",
+          responsibilities: job?.responsibilities || "",
+          candidateName: profile?.full_name || "Candidate",
+          resumeUrl,
+          coverLetter,
+          previousAnalysis,
         },
       });
 
       if (error) throw error;
 
-      setRawQuestions(data.analysis);
+      if (data?.analysis) {
+        console.log('[InterviewQuestions] AI returned analysis, length:', data.analysis.length);
+        
+        // Set the raw questions for display
+        setRawQuestions(data.analysis);
+        
+        // Parse the questions to build proper storage format
+        const parsed = parseQuestionsFromMarkdown(data.analysis);
+        console.log('[InterviewQuestions] Parsed', parsed.length, 'questions for storage');
+        
+        // Build full question blocks for storage (preserving structure for re-parsing)
+        const questionsToSave = parsed.map(q => 
+          `**Question:** ${q.question}\n- **What it assesses:** ${q.assesses}\n- **What to look for in a good answer:** ${q.lookFor}`
+        );
+        
+        console.log('[InterviewQuestions] Saving', questionsToSave.length, 'question blocks to database');
 
-      // Split questions by **Question:** pattern for saving
-      const questionsList = data.analysis
-        .split(/\*\*Question:\*\*/i)
-        .filter((q: string) => q.trim().length > 10 && !q.trim().startsWith('###'))
-        .map((q: string) => q.split('\n')[0]?.replace(/\*\*/g, '').trim() || '')
-        .filter((q: string) => q.length > 10)
-        .slice(0, 10);
+        // Save to database
+        const { error: updateError } = await supabase
+          .from("interviews")
+          .update({ ai_questions: questionsToSave })
+          .eq("id", interview.id);
 
-      if (onQuestionsGenerated) {
-        onQuestionsGenerated(questionsList);
+        if (updateError) {
+          console.error('[InterviewQuestions] Failed to save:', updateError);
+          throw updateError;
+        }
+
+        toast.success(`${parsed.length} interview questions generated and saved`);
+        
+        onQuestionsGenerated?.(questionsToSave);
       }
-
-      toast.success("Interview questions generated!");
-    } catch (error) {
-      console.error("Failed to generate questions:", error);
-      toast.error("Failed to generate questions");
+    } catch (error: any) {
+      console.error("[InterviewQuestions] Generation error:", error);
+      toast.error(error.message || "Failed to generate interview questions");
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const handleCopy = async (text: string, index: number) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-    toast.success("Copied to clipboard");
-  };
-
-  const handleCopyAll = async () => {
-    if (parsedQuestions.length > 0) {
-      const allText = parsedQuestions
-        .map((q, i) => `${i + 1}. ${q.question}\n   Assesses: ${q.assesses}\n   Look for: ${q.lookFor}`)
-        .join('\n\n');
-      await navigator.clipboard.writeText(allText);
-      toast.success("All questions copied to clipboard");
+      // Keep isRegeneratingRef true briefly to prevent immediate sync overwrite
+      setTimeout(() => {
+        isRegeneratingRef.current = false;
+      }, 1000);
     }
   };
 
