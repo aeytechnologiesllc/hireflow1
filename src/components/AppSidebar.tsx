@@ -5,6 +5,9 @@ import { useUnreadCount as useUnreadNotificationCount } from "@/hooks/useNotific
 import { usePendingDocumentsCount } from "@/hooks/usePendingDocumentsCount";
 import { useEmployerPendingDocumentsCount } from "@/hooks/useEmployerPendingDocumentsCount";
 import { usePendingActionsCount } from "@/hooks/usePendingActionsCount";
+import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
+import { useNewApplicantsCount } from "@/hooks/useNewApplicantsCount";
+import { useUpcomingInterviewsCount } from "@/hooks/useUpcomingInterviewsCount";
 import {
   LayoutDashboard,
   Briefcase,
@@ -129,13 +132,16 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
   const { data: pendingDocuments } = usePendingDocumentsCount();
   const { data: employerPendingDocuments } = useEmployerPendingDocumentsCount();
   const { data: pendingActions } = usePendingActionsCount();
+  const { data: unreadMessages } = useUnreadMessagesCount();
+  const { data: newApplicants } = useNewApplicantsCount();
+  const { data: upcomingInterviews } = useUpcomingInterviewsCount();
 
   const employerNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Jobs", to: "/jobs" },
-    { icon: Users, label: "Applicants", to: "/applicants" },
-    { icon: Calendar, label: "Interviews", to: "/interviews" },
-    { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: Users, label: "Applicants", to: "/applicants", badge: newApplicants || 0, highlight: (newApplicants || 0) > 0 },
+    { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
+    { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
     { icon: UserPlus, label: "Team", to: "/team" },
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
@@ -145,9 +151,9 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
   const teamMemberNavItems: NavItemProps[] = [
     { icon: Building2, label: "Team Portal", to: "/team-portal" },
     { icon: Briefcase, label: "Jobs", to: "/jobs" },
-    { icon: Users, label: "Applicants", to: "/applicants" },
-    { icon: Calendar, label: "Interviews", to: "/interviews" },
-    { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: Users, label: "Applicants", to: "/applicants", badge: newApplicants || 0, highlight: (newApplicants || 0) > 0 },
+    { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
+    { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
   ];
 
@@ -155,8 +161,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Apply Now", to: "/apply" },
     { icon: ClipboardCheck, label: "Applications", to: "/applications", badge: pendingActions || 0, highlight: (pendingActions || 0) > 0 },
-    { icon: Calendar, label: "Interviews", to: "/interviews" },
-    { icon: MessageSquare, label: "Messages", to: "/messages" },
+    { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
+    { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
     { icon: User, label: "Profile", to: "/profile" },
   ];
