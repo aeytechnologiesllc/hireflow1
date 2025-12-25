@@ -295,6 +295,7 @@ export default function CreateJob() {
   const [workflowDifficulty, setWorkflowDifficulty] = useState<string>("medium");
   const [processingMode, setProcessingMode] = useState<"auto" | "manual">("auto");
   const [passingScore, setPassingScore] = useState<number>(60);
+  const [requiredWpm, setRequiredWpm] = useState<number>(40);
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
@@ -361,6 +362,9 @@ export default function CreateJob() {
       }
       if (existingJob.passing_score) {
         setPassingScore(existingJob.passing_score);
+      }
+      if ((existingJob as any).required_wpm) {
+        setRequiredWpm((existingJob as any).required_wpm);
       }
       if (existingJob.application_questions) {
         setApplicationQuestions(existingJob.application_questions as unknown as ApplicationQuestion[]);
@@ -661,6 +665,7 @@ export default function CreateJob() {
         workflow_difficulty: workflowDifficulty,
         processing_mode: processingMode,
         passing_score: passingScore,
+        required_wpm: requiredWpm,
       };
 
       if (isEditMode && id) {
@@ -1514,10 +1519,51 @@ export default function CreateJob() {
                           <span>Lenient (30%)</span>
                           <span>Strict (95%)</span>
                         </div>
+                      </div>
+
+                      {/* Required WPM for Typing Test */}
+                      <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/20 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Keyboard className="h-4 w-4 text-amber-500" />
+                            <div>
+                              <Label>Typing Speed Requirement</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Words per minute for typing test
+                              </p>
+                            </div>
+                          </div>
+                          <motion.div 
+                            key={requiredWpm}
+                            initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                            animate={{ scale: 1 }}
+                            className="text-2xl font-bold text-amber-500"
+                          >
+                            {requiredWpm} WPM
+                          </motion.div>
+                        </div>
+                        <Slider
+                          value={[requiredWpm]}
+                          onValueChange={([value]) => setRequiredWpm(value)}
+                          min={20}
+                          max={80}
+                          step={5}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Basic (20)</span>
+                          <span>Standard (40)</span>
+                          <span>Fast (60)</span>
+                          <span>Pro (80)</span>
+                        </div>
                         <p className="text-xs text-muted-foreground/80 text-center">
-                          💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
+                          💡 Average office worker types ~40 WPM. Data entry roles may require 50-60 WPM.
                         </p>
                       </div>
+
+                      <p className="text-xs text-muted-foreground/80 text-center">
+                        💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
+                      </p>
 
                       {/* Generate with AVA Button - Pink/Purple gradient */}
                       <div className="flex justify-end">
