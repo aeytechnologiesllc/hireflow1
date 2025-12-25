@@ -2,48 +2,34 @@ import { useState, useEffect, useMemo } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
 import { 
   ChevronDown, 
-  ChevronUp, 
   CheckCircle2, 
   XCircle, 
-  AlertTriangle,
-  Shield,
-  Target,
-  AlertCircle,
-  FileText,
-  Sparkles
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 // ============= Types =============
 interface ParsedAnalysis {
   score: number | null;
   recommendation: string | null;
-  primaryReason: string | null;
+  fullSummary: string;
   sections: ParsedSection[];
 }
 
 interface ParsedSection {
   title: string;
-  summary: string;
-  priority: 'critical' | 'important' | 'secondary';
   items: string[];
-  status: 'positive' | 'negative' | 'warning' | 'neutral';
 }
-
-type StatusType = 'positive' | 'negative' | 'warning' | 'neutral';
 
 // ============= Human-Readable Helpers =============
 
 function humanizeStatus(status: string): string {
-  // Convert technical terms like WRONG_RESUME to "Wrong Resume"
   return status
     .replace(/_/g, ' ')
     .toLowerCase()
@@ -53,7 +39,6 @@ function humanizeStatus(status: string): string {
 }
 
 function humanizeTitle(title: string): string {
-  // Convert section titles to more readable format
   return title
     .replace(/_/g, ' ')
     .replace(/\b(ai|cv)\b/gi, match => match.toUpperCase())
@@ -61,7 +46,6 @@ function humanizeTitle(title: string): string {
 }
 
 function generateParagraphSummary(items: string[]): string {
-  // Convert key-value items into a natural paragraph
   const sentences: string[] = [];
   
   for (const item of items) {
@@ -70,8 +54,6 @@ function generateParagraphSummary(items: string[]): string {
       const label = match[1].trim();
       const value = match[2].trim();
       const humanValue = humanizeStatus(value);
-      
-      // Generate natural sentences based on common patterns
       const labelLower = label.toLowerCase();
       
       if (labelLower.includes('status') || labelLower.includes('result')) {
@@ -111,11 +93,9 @@ function generateParagraphSummary(items: string[]): string {
       } else if (labelLower.includes('notes') || labelLower.includes('summary')) {
         sentences.push(value);
       } else {
-        // Default: convert to natural sentence
         sentences.push(`${label}: ${humanValue}.`);
       }
     } else {
-      // Plain text item
       sentences.push(item);
     }
   }
@@ -123,162 +103,58 @@ function generateParagraphSummary(items: string[]): string {
   return sentences.join(' ');
 }
 
-// ============= Parsing Logic =============
-
-function getStatusType(value: string): StatusType | null {
-  const upper = value.toUpperCase();
+// Generate a cohesive full summary from all sections
+function generateFullSummary(sections: ParsedSection[], recommendation: string | null): string {
+  const keyFindings: string[] = [];
   
-  // Handle compound values like "MISMATCH - The resume..."
-  const firstWord = upper.split(/[\s\-–—]/)[0];
-  
-  if (/^(AUTHENTIC|VALID_RESUME|VALID|MATCH|CONSISTENT|RECOMMENDED|PROCEED|PASS|STRONG|EXCELLENT|YES|VERIFIED|CONFIRMED|HIGH)$/.test(firstWord)) {
-    return 'positive';
-  }
-  
-  if (/^(WRONG_RESUME|MISMATCH|INCONSISTENT|NOT_PROVIDED|UNRELATED|NOT_RECOMMENDED|REJECT|FAIL|FRAUDULENT|AI_GENERATED|FAKE|INVALID|POOR|WEAK|NO|MISSING|INCOMPLETE|NOT)$/.test(firstWord)) {
-    return 'negative';
-  }
-  
-  if (/^(CANNOT_VERIFY|MIXED|UNKNOWN|UNCLEAR|NONE|PARTIAL|MODERATE|AVERAGE|MEDIUM|N\/A|LOW|LIKELY_AI_GENERATED)$/.test(firstWord)) {
-    return 'warning';
-  }
-  
-  return null;
-}
-
-function extractSectionSummary(items: string[]): { summary: string; status: StatusType } {
-  // Find the first key-value item with a status
-  for (const item of items) {
-    const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-    if (match) {
-      const value = match[2].trim();
-      const status = getStatusType(value);
-      if (status) {
-        // Get just the first word for the badge
-        const firstWord = value.split(/[\s\-–—]/)[0];
-        return { 
-          summary: humanizeStatus(firstWord), 
-          status 
-        };
-      }
-    }
-  }
-  
-  // Fallback: count positive/negative items
-  let positive = 0, negative = 0, warning = 0;
-  
-  for (const item of items) {
-    const match = item.match(/^[^:]+:\s*(.+)$/);
-    if (match) {
-      const status = getStatusType(match[1].trim());
-      if (status === 'positive') positive++;
-      else if (status === 'negative') negative++;
-      else if (status === 'warning') warning++;
-    }
-  }
-  
-  if (negative > 0) {
-    return { 
-      summary: `${negative} issue${negative > 1 ? 's' : ''} found`, 
-      status: 'negative' 
-    };
-  }
-  if (warning > 0) {
-    return { 
-      summary: `${warning} need${warning > 1 ? '' : 's'} review`, 
-      status: 'warning' 
-    };
-  }
-  if (positive > 0) {
-    return { 
-      summary: `${positive} passed`, 
-      status: 'positive' 
-    };
-  }
-  
-  return { 
-    summary: `${items.length} item${items.length !== 1 ? 's' : ''}`, 
-    status: 'neutral' 
-  };
-}
-
-function getSectionPriority(title: string, items: string[]): 'critical' | 'important' | 'secondary' {
-  const titleLower = title.toLowerCase();
-  
-  // Critical: Document validation, authenticity, red flags
-  if (titleLower.includes('document') || 
-      titleLower.includes('validation') || 
-      titleLower.includes('authenticity') ||
-      titleLower.includes('red flag') ||
-      titleLower.includes('warning') ||
-      titleLower.includes('cross-reference') ||
-      titleLower.includes('verification')) {
-    // Check if there are issues
-    const hasIssues = items.some(item => {
-      const match = item.match(/^[^:]+:\s*(.+)$/);
+  for (const section of sections) {
+    for (const item of section.items) {
+      const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
       if (match) {
-        const status = getStatusType(match[1].trim());
-        return status === 'negative' || status === 'warning';
+        const label = match[1].trim().toLowerCase();
+        const value = match[2].trim();
+        const valueUpper = value.toUpperCase();
+        
+        // Capture the most important findings
+        if (label.includes('status') && valueUpper.includes('WRONG')) {
+          keyFindings.push('The resume appears to belong to a different person.');
+        } else if (label.includes('name') && valueUpper.includes('MISMATCH')) {
+          keyFindings.push('There is a name discrepancy between the resume and application.');
+        } else if (label.includes('matching skills') && (value.toLowerCase().includes('none') || value === '0')) {
+          keyFindings.push('No matching skills were found for this position.');
+        } else if (label.includes('authenticity') && valueUpper.includes('AUTHENTIC')) {
+          keyFindings.push('The document appears authentic.');
+        } else if (label.includes('experience') && (valueUpper.includes('UNRELATED') || valueUpper.includes('INCONSISTENT'))) {
+          keyFindings.push('The experience is unrelated to this position.');
+        } else if (label.includes('red flag') && value.toLowerCase() !== 'none' && value !== 'N/A') {
+          keyFindings.push(`Red flag: ${value}.`);
+        }
       }
-      return false;
-    });
-    return hasIssues ? 'critical' : 'important';
+    }
   }
   
-  // Important: Skills, experience, qualifications
-  if (titleLower.includes('skill') || 
-      titleLower.includes('experience') || 
-      titleLower.includes('qualification') ||
-      titleLower.includes('match') ||
-      titleLower.includes('strength')) {
-    return 'important';
+  // Deduplicate and limit
+  const uniqueFindings = [...new Set(keyFindings)].slice(0, 4);
+  
+  if (uniqueFindings.length > 0) {
+    return uniqueFindings.join(' ');
   }
   
-  // Secondary: Everything else
-  return 'secondary';
+  // Fallback to recommendation
+  if (recommendation) {
+    return recommendation;
+  }
+  
+  return 'Analysis complete. View details below.';
 }
 
-function extractPrimaryReason(sections: ParsedSection[], recommendation: string | null): string | null {
-  // Look for critical issues first
-  for (const section of sections) {
-    if (section.priority === 'critical' && section.status === 'negative') {
-      // Generate a human-readable primary reason
-      const paragraph = generateParagraphSummary(section.items);
-      const firstSentence = paragraph.split('.')[0];
-      return firstSentence.length > 100 ? firstSentence.slice(0, 97) + '...' : firstSentence + '.';
-    }
-  }
-  
-  // Look for negative sections
-  for (const section of sections) {
-    if (section.status === 'negative') {
-      const paragraph = generateParagraphSummary(section.items);
-      const firstSentence = paragraph.split('.')[0];
-      return firstSentence.length > 100 ? firstSentence.slice(0, 97) + '...' : firstSentence + '.';
-    }
-  }
-  
-  // Look for positive highlights
-  for (const section of sections) {
-    if (section.status === 'positive') {
-      return `${humanizeTitle(section.title)} checks passed.`;
-    }
-  }
-  
-  // Fallback to recommendation snippet
-  if (recommendation) {
-    const words = recommendation.split(' ').slice(0, 12);
-    return words.join(' ') + (recommendation.split(' ').length > 12 ? '...' : '');
-  }
-  
-  return null;
-}
+// ============= Parsing Logic =============
 
 function parseAIAnalysis(content: string): ParsedAnalysis {
   const result: ParsedAnalysis = {
     score: null,
     recommendation: null,
-    primaryReason: null,
+    fullSummary: '',
     sections: [],
   };
 
@@ -343,28 +219,14 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
 
   pushSection();
 
-  // Convert raw sections to parsed sections with summaries and priorities
-  result.sections = rawSections.map(section => {
-    const { summary, status } = extractSectionSummary(section.items);
-    const priority = getSectionPriority(section.title, section.items);
-    
-    return {
-      title: humanizeTitle(section.title),
-      summary,
-      priority,
-      items: section.items,
-      status,
-    };
-  });
+  // Convert raw sections
+  result.sections = rawSections.map(section => ({
+    title: humanizeTitle(section.title),
+    items: section.items,
+  }));
 
-  // Sort by priority: critical first, then important, then secondary
-  result.sections.sort((a, b) => {
-    const priorityOrder = { critical: 0, important: 1, secondary: 2 };
-    return priorityOrder[a.priority] - priorityOrder[b.priority];
-  });
-
-  // Extract primary reason
-  result.primaryReason = extractPrimaryReason(result.sections, result.recommendation);
+  // Generate full summary
+  result.fullSummary = generateFullSummary(result.sections, result.recommendation);
 
   return result;
 }
@@ -429,62 +291,6 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
   );
 }
 
-function StatusBadge({ status, type, compact = false }: { status: string; type: StatusType; compact?: boolean }) {
-  const baseClasses = compact 
-    ? "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
-    : "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium";
-  
-  const typeClasses: Record<StatusType, string> = {
-    positive: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-    negative: "bg-red-500/10 text-red-400 border border-red-500/20",
-    warning: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-    neutral: "bg-muted text-muted-foreground border border-border",
-  };
-  
-  // Humanize the status text
-  const displayStatus = humanizeStatus(status);
-  
-  return (
-    <span className={cn(baseClasses, typeClasses[type])}>
-      {displayStatus}
-    </span>
-  );
-}
-
-function SectionIcon({ title, status }: { title: string; status: StatusType }) {
-  const titleLower = title.toLowerCase();
-  
-  let Icon = FileText;
-  if (titleLower.includes('document') || titleLower.includes('validation') || titleLower.includes('authentic') || titleLower.includes('verification') || titleLower.includes('cross-reference')) {
-    Icon = Shield;
-  } else if (titleLower.includes('skill') || titleLower.includes('match') || titleLower.includes('experience')) {
-    Icon = Target;
-  } else if (titleLower.includes('red flag') || titleLower.includes('warning') || titleLower.includes('concern')) {
-    Icon = AlertCircle;
-  } else if (titleLower.includes('strength')) {
-    Icon = Sparkles;
-  }
-  
-  const colorClasses: Record<StatusType, string> = {
-    positive: "text-emerald-400",
-    negative: "text-red-400",
-    warning: "text-amber-400",
-    neutral: "text-muted-foreground",
-  };
-  
-  return <Icon className={cn("h-4 w-4", colorClasses[status])} />;
-}
-
-function ParagraphContent({ items }: { items: string[] }) {
-  const paragraph = generateParagraphSummary(items);
-  
-  return (
-    <p className="text-sm text-muted-foreground leading-relaxed">
-      {paragraph}
-    </p>
-  );
-}
-
 // ============= Main Component =============
 
 interface CondensedAIAnalysisProps {
@@ -494,8 +300,7 @@ interface CondensedAIAnalysisProps {
 
 export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisProps) {
   const parsed = useMemo(() => parseAIAnalysis(content), [content]);
-  const [expandedSections, setExpandedSections] = useState<string[]>([]);
-  const [showAllExpanded, setShowAllExpanded] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   
   // Determine verdict display
   const recLower = parsed.recommendation?.toLowerCase() || '';
@@ -524,33 +329,22 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
       ? "text-red-400" 
       : "text-amber-400";
   
-  const handleToggleAll = () => {
-    if (showAllExpanded) {
-      setExpandedSections([]);
-    } else {
-      setExpandedSections(parsed.sections.map(s => s.title));
-    }
-    setShowAllExpanded(!showAllExpanded);
-  };
-  
   return (
     <div className={cn("space-y-4", className)}>
       {/* Executive Summary Card */}
-      <Card className="border-border/50 bg-gradient-to-br from-card/80 to-card">
+      <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 {verdictIcon}
                 <span className={cn("text-base font-semibold", verdictColor)}>
                   {verdictText}
                 </span>
               </div>
-              {parsed.primaryReason && (
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {parsed.primaryReason}
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {parsed.fullSummary}
+              </p>
             </div>
             {parsed.score !== null && (
               <ScoreRing score={parsed.score} />
@@ -559,81 +353,31 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
         </CardContent>
       </Card>
       
-      {/* Expand/Collapse Toggle */}
+      {/* Single Collapsible Details Section */}
       {parsed.sections.length > 0 && (
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            {parsed.sections.length} section{parsed.sections.length !== 1 ? 's' : ''} • Tap to view details
-          </span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleToggleAll}
-            className="h-7 text-xs gap-1 px-2"
-          >
-            {showAllExpanded ? (
-              <>
-                <ChevronUp className="h-3 w-3" />
-                Collapse All
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3" />
-                Expand All
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-      
-      {/* Accordion Sections */}
-      <Accordion 
-        type="multiple" 
-        value={expandedSections}
-        onValueChange={setExpandedSections}
-        className="space-y-2"
-      >
-        {parsed.sections.map((section) => (
-          <AccordionItem 
-            key={section.title} 
-            value={section.title}
-            className={cn(
-              "border rounded-lg px-3 overflow-hidden",
-              section.priority === 'critical' && section.status === 'negative' 
-                ? "border-red-500/30 bg-red-500/5"
-                : section.priority === 'critical' && section.status === 'warning'
-                  ? "border-amber-500/30 bg-amber-500/5"
-                  : "border-border/50 bg-card/50"
-            )}
-          >
-            <AccordionTrigger className="py-2.5 hover:no-underline tap-target">
-              <div className="flex items-center gap-2 w-full pr-2">
-                <SectionIcon title={section.title} status={section.status} />
-                <span className="text-sm font-medium text-foreground flex-1 text-left truncate">
-                  {section.title}
-                </span>
-                <StatusBadge 
-                  status={section.summary} 
-                  type={section.status} 
-                  compact 
-                />
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pb-3">
-              <ParagraphContent items={section.items} />
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
-      
-      {/* Full Recommendation (if different from summary) */}
-      {parsed.recommendation && parsed.recommendation.length > 50 && (
-        <div className="pt-2 border-t border-border/30">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            <span className="font-medium text-foreground">Recommendation: </span>
-            {parsed.recommendation}
-          </p>
-        </div>
+        <Collapsible open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+            <ChevronDown className={cn(
+              "h-4 w-4 transition-transform",
+              isDetailOpen && "rotate-180"
+            )} />
+            <span>View detailed analysis</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="pt-2 space-y-4">
+              {parsed.sections.map((section, idx) => (
+                <div key={idx}>
+                  <h4 className="text-sm font-medium text-foreground mb-1">
+                    {section.title}
+                  </h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {generateParagraphSummary(section.items)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
