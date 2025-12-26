@@ -20,7 +20,7 @@ type QA = { question: string; answer: string };
 export interface AvaPhaseNarrativeInput {
   phaseType: PhaseType;
   phaseLabel: string;
-  baseFacts: string; // short factual summary (scores/counts)
+  baseFacts: string;
   applicationAnswers?: QA[];
   voiceInterviewResult?: any;
   rawSections: ParsedSectionLike[];
@@ -29,25 +29,12 @@ export interface AvaPhaseNarrativeInput {
 }
 
 const PLACEHOLDER_PATTERNS = [
-  "CANNOT_VERIFY",
-  "CANNOT VERIFY",
-  "CANNOTVERIFY",
-  "NOT_AVAILABLE",
-  "NOT AVAILABLE",
-  "NOTAVAILABLE",
-  "NOT_PROVIDED",
-  "NOT PROVIDED",
-  "NOTPROVIDED",
-  "UNVERIFIED",
-  "UNKNOWN",
-  "N/A",
-  "NA",
-  "TBD",
-  "[MATCH/MISMATCH/CANNOT_VERIFY]",
-  "[CANNOT_VERIFY]",
-  "PLACEHOLDER",
-  "UNDEFINED",
-  "NULL",
+  "CANNOT_VERIFY", "CANNOT VERIFY", "CANNOTVERIFY",
+  "NOT_AVAILABLE", "NOT AVAILABLE", "NOTAVAILABLE",
+  "NOT_PROVIDED", "NOT PROVIDED", "NOTPROVIDED",
+  "UNVERIFIED", "UNKNOWN", "N/A", "NA", "TBD",
+  "[MATCH/MISMATCH/CANNOT_VERIFY]", "[CANNOT_VERIFY]",
+  "PLACEHOLDER", "UNDEFINED", "NULL",
 ];
 
 function isPlaceholderValue(value: string): boolean {
@@ -79,34 +66,123 @@ function clampText(text: string, maxLen: number) {
   return `${t.slice(0, maxLen - 1).trimEnd()}…`;
 }
 
-function quote(text: string) {
-  const t = text.trim();
-  return t ? `“${t}”` : "";
-}
-
-function safeTone(text: string, wasRejected: boolean) {
+function safeToneForRejection(text: string, wasRejected: boolean) {
   if (!wasRejected) return text;
   return text
-    .replace(/\b(excellent|outstanding|exceptional|perfect|impressive|superb|remarkable)\b/gi, "adequate")
+    .replace(/\b(excellent|outstanding|exceptional|perfect|impressive|superb|remarkable)\b/gi, "okay")
     .replace(/\b(highly recommend|strong candidate|great fit|top candidate|ideal)\b/gi, "reviewed")
-    .replace(/\b(exceeded expectations|above average|exemplary)\b/gi, "met requirements")
-    .replace(/\b(passed successfully)\b/gi, "was completed")
-    .replace(/\b(strong)\b/gi, "some");
+    .replace(/\b(exceeded expectations|above average|exemplary)\b/gi, "met some requirements")
+    .replace(/\b(passed successfully)\b/gi, "completed")
+    .replace(/\b(strong performance)\b/gi, "the performance");
+}
+
+// Phase-specific friendly openers
+function getPhaseOpener(phaseType: PhaseType, phaseLabel: string): string {
+  switch (phaseType) {
+    case "application_form":
+      return "Let me walk you through what I found in the application form!";
+    case "quiz":
+      return "Alright, let's talk about how they did on the quiz!";
+    case "portfolio":
+      return "I took a close look at the work samples they submitted — here's what I found.";
+    case "video":
+      return "I watched their video introduction, and here's what stood out to me.";
+    case "typing":
+      return "I checked out their typing test results — let me break it down for you.";
+    case "chat_simulation":
+      return "I reviewed their chat simulation performance, and I have some thoughts!";
+    case "chat_interview":
+      return "I went through their chat interview responses — here's my take.";
+    case "sales_simulation":
+      return "I analyzed their sales simulation, and there's a lot to unpack here.";
+    case "voice_interview":
+      return "I listened to their voice interview, and I want to share what I noticed.";
+    case "resume":
+      return "I reviewed their resume and cross-checked it against what they told us.";
+    default:
+      return `Let me tell you what I found in the ${phaseLabel} phase.`;
+  }
+}
+
+// Translate raw technical findings into friendly plain English
+function translateFindingToPlainEnglish(rawFinding: string): string {
+  const finding = rawFinding.trim();
+  
+  // Name mismatch patterns
+  if (/name.*mismatch|mismatch.*name/i.test(finding)) {
+    const nameMatch = finding.match(/["']([^"']+)["'].*["']([^"']+)["']/);
+    if (nameMatch) {
+      return `Here's something that caught my attention — the name they used ('${nameMatch[1]}') doesn't match what's on file ('${nameMatch[2]}'). That's definitely worth asking about.`;
+    }
+    return "I noticed the name they provided doesn't quite match up with what we have on record. That's a flag I'd want to clarify.";
+  }
+  
+  // Skills not specified
+  if (/skills.*not specified|skills were not/i.test(finding)) {
+    return "They didn't mention any specific skills in their answers, which makes it harder for me to verify their background.";
+  }
+  
+  // Resume unavailable
+  if (/resume.*unavailable|resume is unavailable/i.test(finding)) {
+    return "Without a resume to check, I can't verify some of their claims about experience.";
+  }
+  
+  // Discrepancy patterns
+  if (/discrepan/i.test(finding)) {
+    const cleaned = finding.replace(/^(discrepancies? found:?|discrepancy:?)\s*/i, "").trim();
+    if (cleaned) {
+      return `Something worth flagging — ${cleaned.charAt(0).toLowerCase() + cleaned.slice(1)}`;
+    }
+    return "I found some inconsistencies that might need a closer look.";
+  }
+  
+  // Match/verification patterns
+  if (/match.*:.*match\b/i.test(finding) && !/mismatch/i.test(finding)) {
+    return "On the positive side, some of their information checked out nicely.";
+  }
+  
+  // AI content detection
+  if (/ai[- ]?(generated|content|detection)/i.test(finding)) {
+    return "I ran some checks for AI-generated content to make sure their answers feel genuine.";
+  }
+  
+  // Authenticity signals
+  if (/authenticity/i.test(finding)) {
+    return "I looked at authenticity signals to see if their responses seemed genuine and personal.";
+  }
+  
+  // Score-based findings
+  if (/score|confidence|match rate/i.test(finding)) {
+    const scoreMatch = finding.match(/(\d+(?:\.\d+)?)\s*%?/);
+    if (scoreMatch) {
+      const score = parseFloat(scoreMatch[1]);
+      if (score >= 80) {
+        return `Their score came in at ${scoreMatch[0]}, which is pretty solid!`;
+      } else if (score >= 50) {
+        return `They scored ${scoreMatch[0]} — not bad, but there's room for improvement.`;
+      } else {
+        return `Their score was ${scoreMatch[0]}, which is on the lower end and worth noting.`;
+      }
+    }
+    return finding;
+  }
+  
+  // Generic cleanup - just make it conversational
+  const cleaned = finding
+    .replace(/^[-•]\s*/, "")
+    .replace(/:\s*MISMATCH\s*-?/gi, " doesn't match — ")
+    .replace(/:\s*MATCH\s*-?/gi, " checks out — ")
+    .replace(/verification layer/gi, "when I double-checked")
+    .replace(/cross-reference/gi, "compared")
+    .trim();
+  
+  return cleaned || finding;
 }
 
 function getPhaseSectionKeywords(phaseType: PhaseType): string[] {
   switch (phaseType) {
     case "application_form":
-      return [
-        "ai-generated",
-        "ai content",
-        "content detection",
-        "cross-reference",
-        "verification",
-        "authenticity",
-        "application answer",
-        "application analysis",
-      ];
+      return ["ai-generated", "ai content", "content detection", "cross-reference", "verification", "authenticity", "application answer", "application analysis"];
     case "quiz":
       return ["quiz", "assessment", "knowledge"];
     case "portfolio":
@@ -133,10 +209,8 @@ function getPhaseSectionKeywords(phaseType: PhaseType): string[] {
 function pickRelevantSections(rawSections: ParsedSectionLike[], phaseType: PhaseType): ParsedSectionLike[] {
   const keys = getPhaseSectionKeywords(phaseType);
   if (keys.length === 0) return [];
-
   return rawSections.filter((s) => {
     const title = s.title.toLowerCase();
-    // For chat_simulation vs chat_interview, be strict.
     if (phaseType === "chat_simulation") return title.includes("chat") && title.includes("simulation");
     if (phaseType === "chat_interview") return title.includes("chat") && title.includes("interview");
     return keys.some((k) => title.includes(k));
@@ -149,71 +223,72 @@ function extractEvidenceLines(sections: ParsedSectionLike[]) {
     for (const raw of s.items || []) {
       const item = cleanPlaceholderFromText(raw);
       if (!item || isPlaceholderValue(item)) continue;
-
       const normalized = item.replace(/^[-•]\s*/, "").trim();
-      // Prefer discrepancy / mismatch / concern signals.
-      if (
-        /discrep|mismatch|inconsisten|red flag|concern|cannot verify|unverified|ownership|fraud|suspicious/i.test(
-          normalized,
-        )
-      ) {
+      if (/discrep|mismatch|inconsisten|red flag|concern|cannot verify|unverified|ownership|fraud|suspicious/i.test(normalized)) {
         lines.push(normalized);
       } else if (/(score|match rate|confidence|authenticity|verification)/i.test(normalized)) {
         lines.push(normalized);
       }
     }
   }
-
-  // Deduplicate while preserving order
   const seen = new Set<string>();
-  const uniq = lines.filter((l) => {
+  return lines.filter((l) => {
     const key = l.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  });
-
-  return uniq.slice(0, 4);
+  }).slice(0, 4);
 }
 
 function pickAnswerQuotes(applicationAnswers?: QA[]) {
   if (!applicationAnswers?.length) return [];
-  const quotes: string[] = [];
-
+  const quotes: { question: string; answer: string }[] = [];
   for (const qa of applicationAnswers) {
     const q = cleanPlaceholderFromText(qa.question || "");
     const a = cleanPlaceholderFromText(qa.answer || "");
     if (!q || !a || isPlaceholderValue(a)) continue;
-
-    // Keep answers short and quotable
-    quotes.push(`${q}: ${quote(clampText(a, 140))}`);
+    quotes.push({ question: q, answer: clampText(a, 100) });
     if (quotes.length >= 2) break;
   }
-
   return quotes;
 }
 
-function ensureMinSentences(sentences: string[], min: number) {
-  const fillers = [
-    "I focused on concrete claims, not just tone or confidence.",
-    "I looked for internal consistency across what was submitted in this phase.",
-    "When I couldn’t verify a claim, I treated it as an open risk rather than a pass.",
-    "I summarized what I could directly support from the available evidence.",
-    "I kept my notes specific so the hiring team can retrace the exact reasoning.",
-  ];
-
-  let i = 0;
-  while (sentences.length < min && i < fillers.length) {
-    sentences.push(fillers[i]);
-    i += 1;
+// Get phase-specific "what I checked" explanation
+function getWhatIChecked(phaseType: PhaseType): string {
+  switch (phaseType) {
+    case "application_form":
+      return "I went through each answer looking at how clear and genuine they sounded, and then I compared what they said against any other info we have on file.";
+    case "quiz":
+      return "I looked at which questions they got right, which ones they missed, and how their overall score stacks up against what we're looking for.";
+    case "portfolio":
+      return "I reviewed the work samples they shared to see the quality, relevance, and whether it matches what they claimed about their experience.";
+    case "video":
+      return "I watched how they presented themselves — their communication style, confidence, and whether they came across as genuine.";
+    case "typing":
+      return "I checked their typing speed, accuracy, and overall consistency throughout the test.";
+    case "chat_simulation":
+      return "I analyzed how they handled the simulated conversation — their responses, problem-solving approach, and communication style.";
+    case "chat_interview":
+      return "I reviewed their interview responses to see how thoughtfully they answered and whether their answers were consistent.";
+    case "sales_simulation":
+      return "I looked at how they handled objections, their persuasion techniques, and their overall sales approach.";
+    case "voice_interview":
+      return "I listened to how they communicated under pressure, whether their answers stayed consistent, and how well they expressed their thoughts.";
+    case "resume":
+      return "I cross-checked their resume details against what they told us in their application to spot any inconsistencies.";
+    default:
+      return "I reviewed everything they submitted for this phase and compared it against what we expected.";
   }
-
-  while (sentences.length < min) {
-    sentences.push("I’m ready to refine this further if more phase evidence is added.");
-  }
-
-  return sentences;
 }
+
+// Friendly filler sentences that sound like Ava
+const FRIENDLY_FILLERS = [
+  "I always try to focus on what they actually said rather than making assumptions.",
+  "It's important to me that I look at concrete evidence, not just vibes.",
+  "When something doesn't quite line up, I flag it so you can ask them directly if needed.",
+  "I like to keep my notes specific so we can always trace back to the original source.",
+  "If there's anything I couldn't verify, I'd rather be upfront about it than guess.",
+];
 
 export function buildAvaPhaseNarrative(input: AvaPhaseNarrativeInput): string {
   const {
@@ -227,26 +302,19 @@ export function buildAvaPhaseNarrative(input: AvaPhaseNarrativeInput): string {
     wasRejected,
   } = input;
 
-  // If analysis isn't ready, still be multi-sentence (but honest about missing detail).
+  // Analysis not ready yet - friendly explanation
   if (!analysisAvailable) {
-    const pending: string[] = [];
-    pending.push(`I can see that the ${phaseLabel} phase is complete, and here’s what I have so far: ${baseFacts}`);
-    pending.push(
-      "I haven’t received the detailed analysis artifacts for this phase yet, so I can’t cite specific matches or mismatches from the verification layer.",
-    );
-    pending.push(
-      "Once the analysis arrives, I’ll break this down into what the candidate claimed, what I checked, what matched, what didn’t, and what that means for risk.",
-    );
-    pending.push(
-      "If you re-run analysis, I’ll convert the raw findings into a detailed first-person narrative with short quoted evidence.",
-    );
-    pending.push(
+    const sentences = [
+      `I can see the ${phaseLabel} phase is done — ${baseFacts}`,
+      "I haven't gotten the detailed breakdown yet, so I can't dig into the specifics just yet.",
+      "Once that comes through, I'll be able to tell you exactly what they claimed, what checked out, and what didn't.",
+      "For now, I'm keeping it factual based on what I can actually see.",
       wasRejected
-        ? "Because this application is already rejected, I will keep the language strictly neutral and focus on evidence and gaps rather than praise."
-        : "When the evidence is available, I’ll also call out strengths—but only when they’re directly supported by what was submitted.",
-    );
-    pending.push("For now, I’m intentionally not guessing beyond the facts I can see.");
-    return safeTone(pending.join(" "), wasRejected);
+        ? "Since this application didn't move forward, I'll make sure to focus on the gaps and concerns when I get the full picture."
+        : "When I get the full analysis, I'll also highlight what went well — but only the stuff I can actually back up.",
+      "Hang tight, and I'll have more for you soon!",
+    ];
+    return safeToneForRejection(sentences.join(" "), wasRejected);
   }
 
   const relevantSections = pickRelevantSections(rawSections, phaseType);
@@ -255,85 +323,67 @@ export function buildAvaPhaseNarrative(input: AvaPhaseNarrativeInput): string {
 
   const sentences: string[] = [];
 
-  // 1) What happened
-  sentences.push(`I reviewed the ${phaseLabel} phase and grounded my notes in the actual submitted evidence.`);
-  sentences.push(`Fact check summary: ${baseFacts}`);
+  // 1) Friendly opener
+  sentences.push(getPhaseOpener(phaseType, phaseLabel));
 
-  // 2) What I checked
-  if (phaseType === "application_form") {
-    sentences.push(
-      "I compared the written answers for clarity, authenticity signals, and internal consistency, then cross-referenced them against any verification findings I have.",
-    );
-  } else if (phaseType === "resume") {
-    sentences.push(
-      "I focused on resume ownership signals, identity consistency, and whether the document content aligns with the application claims.",
-    );
-  } else if (phaseType === "voice_interview") {
-    sentences.push(
-      "I looked at how the candidate communicated under pressure, whether answers stayed consistent, and whether the interview outcomes align with the rest of the file.",
-    );
-  } else {
-    sentences.push(
-      "I looked for consistency between performance outcomes, stated approach, and any evaluation notes produced for this phase.",
-    );
-  }
+  // 2) Quick facts in conversational tone
+  sentences.push(`So here's the quick rundown: ${baseFacts}`);
 
-  // 3) Quote from application answers (when available)
-  if (answerQuotes.length) {
-    sentences.push(`Here are two concrete excerpts I used as anchors: ${answerQuotes[0]}`);
+  // 3) What I actually looked at
+  sentences.push(getWhatIChecked(phaseType));
+
+  // 4) Quote from application answers (conversational)
+  if (answerQuotes.length > 0) {
+    const first = answerQuotes[0];
+    sentences.push(`When I looked at their answers, one thing I noted was when they were asked "${first.question}" — they said "${first.answer}".`);
     if (answerQuotes[1]) {
-      sentences.push(`Second anchor excerpt: ${answerQuotes[1]}`);
+      const second = answerQuotes[1];
+      sentences.push(`They also mentioned "${second.answer}" when asked about "${second.question}".`);
     }
   }
 
-  // 4) Evidence lines from analysis sections
-  if (evidenceLines.length) {
-    const first = quote(clampText(evidenceLines[0], 170));
-    sentences.push(`From the verification layer, one of the most relevant findings was ${first}`);
-
+  // 5) Evidence findings translated to plain English
+  if (evidenceLines.length > 0) {
+    sentences.push(translateFindingToPlainEnglish(evidenceLines[0]));
     if (evidenceLines[1]) {
-      const second = quote(clampText(evidenceLines[1], 170));
-      sentences.push(`A second finding I noted was ${second}`);
+      sentences.push(`I also noticed this: ${translateFindingToPlainEnglish(evidenceLines[1]).charAt(0).toLowerCase() + translateFindingToPlainEnglish(evidenceLines[1]).slice(1)}`);
     }
-
     if (evidenceLines[2]) {
-      const third = quote(clampText(evidenceLines[2], 170));
-      sentences.push(`I also flagged ${third} as additional context.`);
+      sentences.push(`One more thing worth mentioning — ${translateFindingToPlainEnglish(evidenceLines[2]).charAt(0).toLowerCase() + translateFindingToPlainEnglish(evidenceLines[2]).slice(1)}`);
     }
   } else {
-    sentences.push(
-      "The detailed section-level findings for this phase are present, but they don’t include clear, quotable discrepancy lines, so I’m sticking to what can be supported directly.",
-    );
+    sentences.push("The analysis didn't surface any major red flags in this phase, which is good to know.");
   }
 
-  // 5) Implications / decision framing
+  // 6) Voice interview specific summary
   if (phaseType === "voice_interview" && voiceInterviewResult?.summary) {
     const vi = cleanPlaceholderFromText(String(voiceInterviewResult.summary));
     if (vi && !isPlaceholderValue(vi)) {
-      sentences.push(`In the interview summary, I captured this outcome: ${quote(clampText(vi, 220))}`);
+      sentences.push(`From the interview itself, here's what I captured: "${clampText(vi, 180)}"`);
     }
   }
 
-  sentences.push(
-    "Where the file was consistent, I treated it as supportive evidence; where it wasn’t, I treated it as a verification gap that needs a human follow-up.",
-  );
+  // 7) Transition and implications
+  sentences.push("When things lined up nicely, I counted that as a good sign. When they didn't, I flagged it for you to follow up on if needed.");
 
+  // 8) Bottom line (tone-adjusted for rejection)
   if (wasRejected) {
-    sentences.push(
-      "Because this application is rejected, I’m not framing this as a positive recommendation—even if individual moments looked fine in isolation.",
-    );
-    sentences.push(
-      "My bottom line is that the evidence and/or overall outcomes did not justify advancing the candidate in this workflow.",
-    );
+    sentences.push("Given the concerns I found, I wasn't able to recommend moving forward with this candidate.");
+    sentences.push("Even if some individual moments looked okay, the overall picture didn't meet the bar we're looking for.");
   } else {
-    sentences.push(
-      "My bottom line is that this phase adds signal to the overall decision, and the next step should be based on the strongest supported evidence.",
-    );
+    sentences.push("Overall, this phase gives us useful signal to work with.");
+    sentences.push("The next step should be based on the strongest evidence we have so far.");
   }
 
-  ensureMinSentences(sentences, 11);
+  // 9) Add personality fillers if needed
+  while (sentences.length < 11) {
+    const fillerIndex = sentences.length % FRIENDLY_FILLERS.length;
+    sentences.push(FRIENDLY_FILLERS[fillerIndex]);
+  }
 
-  // Cap at ~15 sentences to avoid essays.
-  const finalSentences = sentences.slice(0, 15).map((s) => safeTone(s, wasRejected));
-  return finalSentences.join(" ");
+  // Cap at 15 sentences and apply rejection tone safety
+  return sentences
+    .slice(0, 15)
+    .map((s) => safeToneForRejection(s, wasRejected))
+    .join(" ");
 }
