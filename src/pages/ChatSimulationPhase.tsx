@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -140,14 +140,20 @@ export default function ChatSimulationPhase() {
   }, [id, queryClient]);
 
   // Get chat config
-  const chatConfig = (() => {
+  const chatConfig = useMemo(() => {
     const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
     const chatStep = workflowSteps?.find(s => s.id === stepId || s.type === "chat_simulation");
     return {
       minMessages: chatStep?.config?.minMessages || 5,
       scenarios: chatStep?.config?.scenarios || defaultScenarios,
     };
-  })();
+  }, [application?.jobs?.workflow_steps, stepId]);
+
+  // Pre-select scenario on component mount so candidates can see it before starting
+  const preselectedScenario = useMemo(() => {
+    const scenarios = chatConfig.scenarios;
+    return scenarios[Math.floor(Math.random() * scenarios.length)];
+  }, [chatConfig.scenarios]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -370,15 +376,13 @@ export default function ChatSimulationPhase() {
   };
 
   const startChat = async () => {
-    // Select random scenario
-    const scenarios = chatConfig.scenarios;
-    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-    setCurrentScenario(randomScenario);
+    // Use the preselected scenario that the candidate already saw
+    setCurrentScenario(preselectedScenario);
     setState("chatting");
     
     // Small delay to ensure state is set before streaming
     setTimeout(async () => {
-      await streamCustomerResponseWithScenario("start", randomScenario);
+      await streamCustomerResponseWithScenario("start", preselectedScenario);
       inputRef.current?.focus();
     }, 100);
   };
@@ -803,18 +807,38 @@ export default function ChatSimulationPhase() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {state === "intro" && (
+          {state === "intro" && preselectedScenario && (
             <div className="space-y-6">
+              {/* Scenario Briefing */}
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Your Customer</p>
+                    <p className="font-semibold text-foreground">{preselectedScenario.customerName}</p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-primary/10">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">The Situation</p>
+                  <p className="text-sm text-foreground leading-relaxed">
+                    {preselectedScenario.scenario}
+                  </p>
+                </div>
+              </div>
+
+              {/* How it works */}
               <div className="bg-muted/30 rounded-lg p-6 space-y-4">
                 <h3 className="font-semibold text-foreground">How This Works</h3>
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
                     <MessageSquare className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>You'll be presented with a customer support scenario</span>
+                    <span>The customer will message you first with their issue</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <User className="h-4 w-4 mt-0.5 text-primary" />
-                    <span>Respond to the AI customer as if you were a support agent</span>
+                    <span>Respond professionally as if you were a support agent</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Bot className="h-4 w-4 mt-0.5 text-primary" />
