@@ -46,6 +46,7 @@ import { useState, useMemo } from "react";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import { ProcessingModeToggle } from "@/components/ProcessingModeToggle";
+import FirstJobTooltip from "@/components/FirstJobTooltip";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
 
 interface JobCardProps {
@@ -59,9 +60,11 @@ interface JobCardProps {
   isDeleting: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  showFirstJobTooltip?: boolean;
+  onTooltipDismiss?: () => void;
 }
 
-function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting, canDelete, canEdit }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting, canDelete, canEdit, showFirstJobTooltip, onTooltipDismiss }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -133,12 +136,20 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 {job.status}
               </span>
               {job.processing_mode && (
-                <ProcessingModeToggle
-                  jobId={job.id}
-                  jobTitle={job.title}
-                  currentMode={job.processing_mode as "auto" | "manual"}
-                  disabled={!canEdit}
-                />
+                <div className="relative">
+                  {showFirstJobTooltip && job.processing_mode === "auto" && (
+                    <FirstJobTooltip 
+                      show={showFirstJobTooltip} 
+                      onDismiss={onTooltipDismiss || (() => {})} 
+                    />
+                  )}
+                  <ProcessingModeToggle
+                    jobId={job.id}
+                    jobTitle={job.title}
+                    currentMode={job.processing_mode as "auto" | "manual"}
+                    disabled={!canEdit}
+                  />
+                </div>
               )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
@@ -198,6 +209,9 @@ export default function Jobs() {
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<JobWithApplicationCount | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tooltipDismissed, setTooltipDismissed] = useState(() => {
+    return localStorage.getItem("firstJobTooltipDismissed") === "true";
+  });
 
   // Permission checks
   const canCreateJobs = !isTeamMember || permissions?.canCreateJobs;
@@ -390,6 +404,8 @@ export default function Jobs() {
                 isDeleting={deleteJob.isPending}
                 canDelete={!!canDeleteJobs}
                 canEdit={!!canEditJobs}
+                showFirstJobTooltip={index === 0 && filteredJobs.length === 1 && !tooltipDismissed}
+                onTooltipDismiss={() => setTooltipDismissed(true)}
               />
             </motion.div>
           ))
