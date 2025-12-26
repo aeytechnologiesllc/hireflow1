@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
-import { usePerformanceReport } from "@/hooks/usePerformanceReport";
+import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,7 +77,7 @@ export function CandidateStatusScreen({
   onRescheduleRequested,
 }: CandidateStatusScreenProps) {
   const queryClient = useQueryClient();
-  const { downloadReport, isGenerating: hookIsGenerating } = usePerformanceReport();
+  const { downloadBlueprint, isGenerating: hookIsGenerating } = useImprovementBlueprint();
   
   // Use hook's loading state if we're using applicationData, otherwise use external
   const isGeneratingReport = applicationData ? hookIsGenerating : externalIsGenerating;
@@ -134,10 +134,10 @@ export function CandidateStatusScreen({
     onRescheduleRequested?.();
   };
   
-  // Handle report download - use hook if applicationData provided, otherwise use callback
+  // Handle blueprint download - use hook if applicationData provided, otherwise use callback
   const handleDownloadReport = () => {
     if (applicationData) {
-      downloadReport(applicationData.id);
+      downloadBlueprint(applicationData.id);
     } else if (onDownloadReport) {
       onDownloadReport();
     }
@@ -333,7 +333,7 @@ export function CandidateStatusScreen({
                     ) : (
                       <>
                         <Download className="h-5 w-5" />
-                        Get Your Performance Report
+                        Download Your Improvement Blueprint
                       </>
                     )}
                   </Button>
