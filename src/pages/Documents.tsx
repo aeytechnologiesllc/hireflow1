@@ -153,43 +153,6 @@ export default function Documents() {
 
   const hasActiveFilters = searchQuery.trim() || dateRange?.from;
 
-  // Mark submitted document-requests as reviewed immediately when the employer is on /documents
-  const submittedRequestIds = useMemo(
-    () => documentRequests.filter(r => r.status === "submitted").map(r => r.id),
-    [documentRequests]
-  );
-  const reviewedIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!isEmployer || !user) return;
-    if (submittedRequestIds.length === 0) return;
-
-    const idsToMark = submittedRequestIds.filter((id) => !reviewedIdsRef.current.has(id));
-    if (idsToMark.length === 0) return;
-
-    idsToMark.forEach((id) => reviewedIdsRef.current.add(id));
-
-    void (async () => {
-      const { error } = await supabase
-        .from("document_requests")
-        .update({
-          status: "reviewed",
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-        })
-        .in("id", idsToMark);
-
-      if (error) {
-        // allow retry on next render
-        idsToMark.forEach((id) => reviewedIdsRef.current.delete(id));
-        console.error("Failed to mark document requests as reviewed:", error);
-        return;
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["document-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
-    })();
-  }, [isEmployer, user, submittedRequestIds, queryClient]);
 
   // Mark pending document requests as viewed for candidates when they open this page
   const unseenCandidateRequestIds = useMemo(
@@ -232,8 +195,30 @@ export default function Documents() {
     setUploadDialogOpen(true);
   };
 
-  const handleViewRequest = (request: DocumentRequestWithDetails) => {
+  // Helper to mark document request as reviewed
+  const markRequestAsReviewed = async (request: DocumentRequestWithDetails) => {
+    if (!isEmployer || !user || request.status !== "submitted") return;
+    
+    const { error } = await supabase
+      .from("document_requests")
+      .update({
+        status: "reviewed",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user.id,
+      })
+      .eq("id", request.id);
+
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["employer-pending-documents-count"] });
+    }
+  };
+
+  const handleViewRequest = async (request: DocumentRequestWithDetails) => {
     if (request.file_url) {
+      // Mark as reviewed when employer views the document
+      await markRequestAsReviewed(request);
+      
       setSelectedRequest(request);
       setRequestViewerOpen(true);
     }
@@ -241,6 +226,9 @@ export default function Documents() {
 
   const handleDownloadRequest = async (request: DocumentRequestWithDetails) => {
     if (!request.file_url) return;
+
+    // Mark as reviewed when employer downloads the document
+    await markRequestAsReviewed(request);
 
     try {
       let filePath: string;
