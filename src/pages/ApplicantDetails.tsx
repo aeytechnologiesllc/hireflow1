@@ -689,6 +689,14 @@ export default function ApplicantDetails() {
     parsedNotesRef.current = parsedNotes;
   }, [parsedNotes]);
 
+  // Check if there's valid application data to analyze
+  // This is true if: applicationAnswers exist OR resume_url exists
+  const hasValidApplicationData = useMemo(() => {
+    const hasApplicationAnswers = parsedNotes.applicationAnswers?.length > 0;
+    const hasResume = !!application?.resume_url;
+    return hasApplicationAnswers || hasResume;
+  }, [parsedNotes, application?.resume_url]);
+
   // Extract applicant display name from application answers (prioritize Full Name)
   const applicantDisplayName = (() => {
     if (parsedNotes.applicationAnswers?.length > 0) {
@@ -1424,6 +1432,16 @@ export default function ApplicantDetails() {
 
   const handleReanalyze = async () => {
     if (!application) return;
+    
+    // Guard: Don't run analysis if application data was reset
+    const hasApplicationAnswers = parsedNotes.applicationAnswers?.length > 0;
+    const hasResume = !!application.resume_url;
+    
+    if (!hasApplicationAnswers && !hasResume) {
+      toast.error("No application data to analyze. The candidate must resubmit the application first.");
+      return;
+    }
+    
     setIsAnalyzing(true);
     
     try {
@@ -2499,20 +2517,31 @@ ${interviewType} Interview with AVA Results:
                   Updated: {format(new Date(application.updated_at), "MMM d, hh:mm a")}
                 </div>
               )}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleReanalyze}
-                disabled={isAnalyzing}
-                className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
-              >
-                {isAnalyzing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleReanalyze}
+                      disabled={isAnalyzing || !hasValidApplicationData}
+                      className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
+                    >
+                      {isAnalyzing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {!isMobile && "Re-analyze"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!hasValidApplicationData && (
+                  <TooltipContent>
+                    <p>No application data available. The candidate must resubmit the application first.</p>
+                  </TooltipContent>
                 )}
-                {!isMobile && "Re-analyze"}
-              </Button>
+              </Tooltip>
             </div>
           </div>
 
@@ -2571,14 +2600,31 @@ ${interviewType} Interview with AVA Results:
             <div className="text-center py-8">
               <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold text-foreground mb-2">No Analysis Yet</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Run Ava analysis to get Ava's recommendation on this candidate.
-              </p>
-              <Button onClick={handleReanalyze} disabled={isAnalyzing}>
-                {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Sparkles className="mr-2 h-4 w-4" />
-                Run Ava Analysis
-              </Button>
+              
+              {!hasValidApplicationData ? (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mx-auto max-w-md">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-left">
+                      <p className="text-amber-200 text-sm font-medium">Application data was reset</p>
+                      <p className="text-amber-200/70 text-xs mt-1">
+                        The candidate must resubmit the application phase before Ava can run a new analysis.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    Run Ava analysis to get Ava's recommendation on this candidate.
+                  </p>
+                  <Button onClick={handleReanalyze} disabled={isAnalyzing}>
+                    {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Run Ava Analysis
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </CardContent>
