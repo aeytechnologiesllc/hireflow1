@@ -598,7 +598,23 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
     // Key/value lines
     const kvMatch = trimmed.match(/^([^:]{2,40}):\s*(.+)$/);
     if (kvMatch) {
-      currentSection.items.push(`${kvMatch[1].trim()}: ${kvMatch[2].trim()}`);
+      const key = kvMatch[1].trim();
+      const value = kvMatch[2].trim();
+      
+      // Extract recommendation from key/value if we haven't found it yet
+      if (!result.recommendation && key.toLowerCase() === 'recommendation') {
+        result.recommendation = value;
+      }
+      
+      // Extract overall score from key/value if we haven't found it yet
+      if (result.score === null && key.toLowerCase().includes('overall score')) {
+        const scoreVal = parseInt(value, 10);
+        if (Number.isFinite(scoreVal)) {
+          result.score = Math.max(0, Math.min(100, scoreVal));
+        }
+      }
+      
+      currentSection.items.push(`${key}: ${value}`);
       continue;
     }
   }
