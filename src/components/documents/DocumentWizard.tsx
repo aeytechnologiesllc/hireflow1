@@ -52,6 +52,7 @@ import {
 } from "@/lib/documentValidation";
 import { generateV1Hash } from "@/lib/documentHash";
 import { generatePdfHash } from "@/lib/pdfSignatureBurner";
+import { notifyDocumentSent } from "@/utils/emailNotifications";
 
 interface CreatedDocumentData {
   id: string;
@@ -730,6 +731,7 @@ export function DocumentWizard({
 
       // Notify candidate if applicable
       if (app?.candidate_id) {
+        // In-app notification
         await supabase.from("notifications").insert([{
           user_id: app.candidate_id,
           title: "New Document to Sign",
@@ -737,6 +739,9 @@ export function DocumentWizard({
           type: "system" as const,
           link: "/documents",
         }]);
+        
+        // Email notification
+        notifyDocumentSent(app.candidate_id, docName);
       }
 
       // If callback is provided, call it with the created document
