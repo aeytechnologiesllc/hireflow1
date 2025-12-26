@@ -939,6 +939,9 @@ interface CondensedAIAnalysisProps {
   applicationNotes?: ApplicationNotes;
   voiceInterviewResult?: any;
   aiScore?: number | null; // Authoritative score from database
+  applicationStatus?: string; // Current application status (for rejection override)
+  rejectionReason?: string | null; // Phase AI analysis explaining rejection
+  passingScore?: number | null; // Job's passing score for fallback rejection reason
 }
 
 export function CondensedAIAnalysis({ 
@@ -946,7 +949,10 @@ export function CondensedAIAnalysis({
   className, 
   applicationNotes,
   voiceInterviewResult,
-  aiScore 
+  aiScore,
+  applicationStatus,
+  rejectionReason,
+  passingScore
 }: CondensedAIAnalysisProps) {
   const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult, aiScore), [content, applicationNotes, voiceInterviewResult, aiScore]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -954,33 +960,66 @@ export function CondensedAIAnalysis({
   // Use authoritative score from database if provided, otherwise use parsed score
   const displayScore = aiScore ?? parsed.score;
   
-  // Determine verdict display - use actual recommendation from AI
+  // CRITICAL: If application is rejected, override the verdict regardless of AI analysis
+  const isRejected = applicationStatus === 'rejected';
+  
+  // Determine verdict display - use actual recommendation from AI (but override if rejected)
   const recLower = parsed.recommendation?.toLowerCase() || '';
-  const isPositiveRec = recLower.includes('proceed') ||
+  const isPositiveRec = !isRejected && (
+                        recLower.includes('proceed') ||
                         recLower.includes('strong') ||
                         recLower.includes('hire') ||
-                        (recLower.includes('recommend') && !recLower.includes('not recommend'));
-  const isNegativeRec = recLower.includes('not recommend') ||
+                        (recLower.includes('recommend') && !recLower.includes('not recommend')));
+  const isNegativeRec = isRejected || 
+                        recLower.includes('not recommend') ||
                         recLower.includes('reject') ||
                         recLower.includes('do not') ||
                         recLower.includes('pass on');
 
-  const verdictIcon = isPositiveRec
-    ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-    : isNegativeRec
-      ? <XCircle className="h-5 w-5 text-red-400" />
-      : <AlertTriangle className="h-5 w-5 text-amber-400" />;
+  const verdictIcon = isRejected
+    ? <XCircle className="h-5 w-5 text-red-400" />
+    : isPositiveRec
+      ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+      : isNegativeRec
+        ? <XCircle className="h-5 w-5 text-red-400" />
+        : <AlertTriangle className="h-5 w-5 text-amber-400" />;
 
-  // Show actual recommendation from AI, not translated text
-  const verdictText = parsed.recommendation 
-    ? parsed.recommendation.replace(/^\*\*|\*\*$/g, '').trim()
-    : "Pending";
+  // Override verdict text when rejected
+  let verdictText: string;
+  if (isRejected) {
+    verdictText = "Rejected";
+  } else if (parsed.recommendation) {
+    verdictText = parsed.recommendation.replace(/^\*\*|\*\*$/g, '').trim();
+  } else {
+    verdictText = "Pending";
+  }
 
-  const verdictColor = isPositiveRec
-    ? "text-emerald-400"
-    : isNegativeRec
-      ? "text-red-400"
-      : "text-amber-400";
+  const verdictColor = isRejected
+    ? "text-red-400"
+    : isPositiveRec
+      ? "text-emerald-400"
+      : isNegativeRec
+        ? "text-red-400"
+        : "text-amber-400";
+  
+  // Generate a full summary that includes rejection context when rejected
+  const displaySummary = useMemo(() => {
+    if (isRejected) {
+      // If there's a rejection reason, use it
+      if (rejectionReason) {
+        return rejectionReason;
+      }
+      // Generate a fallback reason based on score
+      const scoreValue = displayScore ?? 0;
+      const threshold = passingScore ?? 60;
+      if (scoreValue < threshold) {
+        return `This application was rejected because the overall score of ${scoreValue}% did not meet the passing threshold of ${threshold}%. ${parsed.fullSummary}`;
+      }
+      // Generic fallback if no score info
+      return `This application has been rejected. ${parsed.fullSummary}`;
+    }
+    return parsed.fullSummary;
+  }, [isRejected, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
   
   return (
     <div className={cn("space-y-4", className)}>
@@ -999,7 +1038,7 @@ export function CondensedAIAnalysis({
                 </div>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                {parsed.fullSummary}
+                {displaySummary}
               </p>
             </div>
             {displayScore !== null && (
