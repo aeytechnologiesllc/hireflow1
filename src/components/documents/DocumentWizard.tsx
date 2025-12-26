@@ -1608,30 +1608,30 @@ export function DocumentWizard({
   };
 
   const wizardContent = (
-    <>
-      {/* Progress Header */}
-      <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-primary/10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+    <div className="flex flex-col h-full">
+      {/* Progress Header - Fixed */}
+      <div className="flex-shrink-0 border-b border-border p-4 md:p-6 bg-gradient-to-r from-primary/5 to-primary/10">
+        <div className="flex items-center justify-between mb-3 md:mb-4">
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/20 flex items-center justify-center">
               {documentSource === "upload" ? (
-                <Upload className="h-5 w-5 text-primary" />
+                <Upload className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               ) : (
-                <Wand2 className="h-5 w-5 text-primary" />
+                <Wand2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold">{WIZARD_STEPS[currentStep]?.title || "Create Document"}</h2>
-              <p className="text-sm text-muted-foreground">{WIZARD_STEPS[currentStep]?.subtitle || ""}</p>
+              <h2 className="text-base md:text-lg font-semibold">{WIZARD_STEPS[currentStep]?.title || "Create Document"}</h2>
+              <p className="text-xs md:text-sm text-muted-foreground">{WIZARD_STEPS[currentStep]?.subtitle || ""}</p>
             </div>
           </div>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs md:text-sm text-muted-foreground">
             Step {currentStep + 1} of {WIZARD_STEPS.length}
           </span>
         </div>
         
         {/* Progress Bar */}
-        <div className="flex gap-2">
+        <div className="flex gap-1 md:gap-2">
           {WIZARD_STEPS.map((step, index) => (
             <div
               key={step.id}
@@ -1643,17 +1643,19 @@ export function DocumentWizard({
         </div>
       </div>
 
-      {/* Content Area */}
-      <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+      {/* Content Area - Scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
         <AnimatePresence mode="wait">
           {renderStepContent()}
         </AnimatePresence>
       </div>
 
-      {/* Footer Actions */}
-      <div className="border-t border-border p-4 flex items-center justify-between bg-background">
+      {/* Footer Actions - Fixed */}
+      <div className="flex-shrink-0 border-t border-border p-3 md:p-4 flex items-center justify-between bg-background">
         <Button
           variant="outline"
+          size="sm"
+          className="md:h-10 md:px-4"
           onClick={currentStep === 0 ? handleClose : handleBack}
           disabled={isGenerating || isSubmitting || isUploading}
         >
@@ -1661,7 +1663,7 @@ export function DocumentWizard({
             "Cancel"
           ) : (
             <>
-              <ChevronLeft className="h-4 w-4 mr-2" />
+              <ChevronLeft className="h-4 w-4 mr-1 md:mr-2" />
               Back
             </>
           )}
@@ -1670,55 +1672,57 @@ export function DocumentWizard({
         {getCurrentStepId() === "source" ? (
           <div /> // Empty div for spacing on source step
         ) : getCurrentStepId() === "review" ? (
-          <Button onClick={handleSubmit} disabled={!canProceed() || isSubmitting}>
+          <Button size="sm" className="md:h-10 md:px-4" onClick={handleSubmit} disabled={!canProceed() || isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin" />
                 Creating...
               </>
             ) : (
               <>
-                <Send className="h-4 w-4 mr-2" />
+                <Send className="h-4 w-4 mr-1 md:mr-2" />
                 Send for Signature
               </>
             )}
           </Button>
         ) : (
           <Button 
+            size="sm"
+            className="md:h-10 md:px-4"
             onClick={handleNext} 
             disabled={!canProceed() || isGenerating || isUploading}
           >
             {isGenerating ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin" />
                 Generating...
               </>
             ) : isUploading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1 md:mr-2 animate-spin" />
                 Uploading...
               </>
             ) : getCurrentStepId() === "generate" ? (
               <>
-                <Wand2 className="h-4 w-4 mr-2" />
+                <Wand2 className="h-4 w-4 mr-1 md:mr-2" />
                 Generate
               </>
             ) : (
               <>
                 Next
-                <ChevronRight className="h-4 w-4 ml-2" />
+                <ChevronRight className="h-4 w-4 ml-1 md:ml-2" />
               </>
             )}
           </Button>
         )}
       </div>
-    </>
+    </div>
   );
 
   // When embedded, just return the content without Dialog wrapper
   if (embedded) {
     return (
-      <div className="max-w-4xl max-h-[90vh] overflow-hidden bg-background rounded-lg border border-border">
+      <div className="max-w-4xl h-[85vh] sm:h-auto sm:max-h-[85vh] overflow-hidden bg-background rounded-lg border border-border flex flex-col">
         {wizardContent}
       </div>
     );
@@ -1726,7 +1730,7 @@ export function DocumentWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+      <DialogContent className="max-w-4xl h-[85vh] sm:h-auto sm:max-h-[85vh] overflow-hidden p-0 flex flex-col">
         {wizardContent}
       </DialogContent>
     </Dialog>
