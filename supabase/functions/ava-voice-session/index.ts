@@ -1754,7 +1754,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-12-17",
-        voice: "ash",  // Professional, calm - measured but not slow
+        voice: "coral",  // Warm, professional female voice
         instructions,
         tools,
         tool_choice: "auto",
