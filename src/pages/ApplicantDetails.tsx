@@ -1992,13 +1992,19 @@ ${interviewType} Interview with AVA Results:
               </div>
               
               {/* Autopilot Rejection Reason */}
-              {application.rejected_by_type === 'ava' && phaseAnalysis && (
+              {application.rejected_by_type === 'ava' && (
                 <div className="bg-background/50 rounded-lg p-3 border border-destructive/20">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-foreground">Ava's Rejection Reason</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">{phaseAnalysis}</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">
+                        {phaseAnalysis || (
+                          application.ai_score !== null && job?.passing_score
+                            ? `Score of ${application.ai_score}% did not meet the passing threshold of ${job.passing_score}%.`
+                            : "This candidate did not meet the requirements for this position."
+                        )}
+                      </p>
                       {job?.passing_score && (
                         <p className="text-xs text-muted-foreground mt-2">
                           Passing threshold: <span className="font-medium">{job.passing_score}%</span>
@@ -2554,6 +2560,9 @@ ${interviewType} Interview with AVA Results:
                 applicationNotes={parsedNotes}
                 voiceInterviewResult={application.voice_interview_result}
                 aiScore={application.ai_score}
+                applicationStatus={application.status}
+                rejectionReason={application.phase_ai_analysis}
+                passingScore={job?.passing_score}
               />
             </>
           )}
