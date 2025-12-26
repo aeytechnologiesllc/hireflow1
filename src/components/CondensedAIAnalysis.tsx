@@ -48,11 +48,65 @@ interface JobContext {
 // Application notes structure from parsedNotes
 interface ApplicationNotes {
   quizResult?: { score: number; passed: boolean; total?: number };
-  portfolioResult?: { score: number; feedback?: string };
-  typingTestResult?: { wpm: number; accuracy: number; passed?: boolean };
-  chatSimulationResult?: { score?: number; passed?: boolean; evaluation?: string; scenario?: string };
-  chatInterviewResult?: { score?: number; passed?: boolean; summary?: string };
-  salesSimulationResult?: { score?: number; passed?: boolean; evaluation?: string };
+  portfolioResult?: { score: number; feedback?: string; analysis?: string; portfolioUrls?: string[] };
+  typingTestResult?: { wpm: number; accuracy: number; passed?: boolean; requiredWpm?: number };
+  chatSimulationResult?: { 
+    score?: number; 
+    passed?: boolean; 
+    evaluation?: string; 
+    scenario?: string;
+    empathy?: number;
+    problemSolving?: number;
+    communication?: number;
+    professionalism?: number;
+    strengths?: string[];
+    improvements?: string[];
+    overallFeedback?: string;
+    messageCount?: number;
+    messages?: Array<{ role: string; content: string }>;
+    antiCheatSummary?: {
+      hasViolations: boolean;
+      violationCount: number;
+      tabSwitches?: number;
+      copyPasteAttempts?: number;
+    };
+  };
+  chatInterviewResult?: { 
+    score?: number; 
+    passed?: boolean; 
+    summary?: string;
+    overallScore?: number;
+    messageCount?: number;
+    duration?: number;
+    messages?: Array<{ role: string; content: string }>;
+    communication?: number;
+    technicalKnowledge?: number;
+    problemSolving?: number;
+    enthusiasm?: number;
+    strengths?: string[];
+    improvements?: string[];
+    overallFeedback?: string;
+  };
+  salesSimulationResult?: { 
+    score?: number; 
+    passed?: boolean; 
+    evaluation?: string;
+    rapport?: number;
+    needsDiscovery?: number;
+    productKnowledge?: number;
+    objectionHandling?: number;
+    closingSkills?: number;
+    strengths?: string[];
+    improvements?: string[];
+    overallFeedback?: string;
+    messages?: Array<{ role: string; content: string }>;
+    antiCheatSummary?: {
+      hasViolations: boolean;
+      violationCount: number;
+      tabSwitches?: number;
+      copyPasteAttempts?: number;
+    };
+  };
   videoIntroUrl?: string;
   applicationAnswers?: Array<{ question: string; answer: string }>;
   [key: string]: any;
@@ -1042,6 +1096,7 @@ function PhaseBasedAnalysis({
         wpm: typing.wpm,
         accuracy: typing.accuracy,
         passed: typing.passed,
+        requiredWpm: typing.requiredWpm,
       };
 
       phases.push({
@@ -1077,6 +1132,15 @@ function PhaseBasedAnalysis({
         : "The candidate submitted a portfolio.";
       const phaseType: PhaseType = "portfolio";
 
+      // Build portfolioData from stored result
+      const portfolioData: PortfolioPhaseData = {
+        score: portfolio.score,
+        feedback: portfolio.feedback,
+        analysis: portfolio.analysis,
+        portfolioUrls: portfolio.portfolioUrls,
+        fileCount: portfolio.portfolioUrls?.length,
+      };
+
       phases.push({
         id: "portfolio",
         name: getPhaseLabel(phaseType),
@@ -1091,6 +1155,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          portfolioData,
         }),
       });
     }
@@ -1124,6 +1189,24 @@ function PhaseBasedAnalysis({
       const phaseType: PhaseType = "chat_simulation";
       const baseFacts = `The candidate completed the chat simulation${chat.score ? ` and scored ${chat.score}/100` : ""}.`;
 
+      // Build chatSimulationData from stored result
+      const chatSimulationData: ChatSimulationPhaseData = {
+        score: chat.score,
+        passed: chat.passed,
+        scenario: chat.scenario,
+        messageCount: chat.messageCount,
+        evaluation: chat.evaluation,
+        messages: chat.messages,
+        empathy: chat.empathy,
+        problemSolving: chat.problemSolving,
+        communication: chat.communication,
+        professionalism: chat.professionalism,
+        strengths: chat.strengths,
+        improvements: chat.improvements,
+        overallFeedback: chat.overallFeedback,
+        antiCheatSummary: chat.antiCheatSummary,
+      };
+
       phases.push({
         id: "chat_simulation",
         name: getPhaseLabel(phaseType),
@@ -1142,6 +1225,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          chatSimulationData,
         }),
         passed,
       });
@@ -1152,6 +1236,22 @@ function PhaseBasedAnalysis({
       const interview = applicationNotes.chatInterviewResult;
       const phaseType: PhaseType = "chat_interview";
       const baseFacts = `The candidate completed the chat interview${interview.score ? ` and scored ${interview.score}/100` : ""}.`;
+
+      // Build chatInterviewData from stored result
+      const chatInterviewData: ChatInterviewPhaseData = {
+        score: interview.score,
+        overallScore: interview.overallScore,
+        messageCount: interview.messageCount,
+        duration: interview.duration,
+        summary: interview.summary,
+        messages: interview.messages,
+        communication: interview.communication,
+        technicalKnowledge: interview.technicalKnowledge,
+        problemSolving: interview.problemSolving,
+        enthusiasm: interview.enthusiasm,
+        strengths: interview.strengths,
+        improvements: interview.improvements,
+      };
 
       phases.push({
         id: "chat_interview",
@@ -1167,6 +1267,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          chatInterviewData,
         }),
       });
     }
@@ -1177,6 +1278,23 @@ function PhaseBasedAnalysis({
       const passed = sales.passed !== false;
       const phaseType: PhaseType = "sales_simulation";
       const baseFacts = `The candidate completed the sales simulation${sales.score ? ` and scored ${sales.score}/100` : ""}.`;
+
+      // Build salesSimulationData from stored result
+      const salesSimulationData: SalesSimulationPhaseData = {
+        score: sales.score,
+        passed: sales.passed,
+        evaluation: sales.evaluation,
+        messages: sales.messages,
+        rapport: sales.rapport,
+        needsDiscovery: sales.needsDiscovery,
+        productKnowledge: sales.productKnowledge,
+        objectionHandling: sales.objectionHandling,
+        closingSkills: sales.closingSkills,
+        strengths: sales.strengths,
+        improvements: sales.improvements,
+        overallFeedback: sales.overallFeedback,
+        antiCheatSummary: sales.antiCheatSummary,
+      };
 
       phases.push({
         id: "sales_simulation",
@@ -1196,6 +1314,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          salesSimulationData,
         }),
         passed,
       });
@@ -1208,6 +1327,16 @@ function PhaseBasedAnalysis({
       const baseFacts = score
         ? `The candidate completed a voice interview and scored ${score}/100.`
         : "The candidate completed a voice interview.";
+
+      // Build voiceData from stored result
+      const voiceData: VoiceInterviewPhaseData = {
+        overall_score: voiceInterviewResult.overall_score,
+        overallScore: voiceInterviewResult.overallScore,
+        summary: voiceInterviewResult.summary,
+        questions: voiceInterviewResult.questions,
+        transcript: voiceInterviewResult.transcript,
+        duration: voiceInterviewResult.duration,
+      };
 
       phases.push({
         id: "voice_interview",
@@ -1223,6 +1352,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          voiceData,
         }),
       });
     }

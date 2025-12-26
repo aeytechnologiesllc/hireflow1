@@ -58,6 +58,20 @@ export interface ChatSimulationPhaseData {
   evaluation?: string;
   recommendation?: string;
   messages?: Array<{ role: string; content: string }>;
+  // Rich rubric data
+  empathy?: number;
+  problemSolving?: number;
+  communication?: number;
+  professionalism?: number;
+  strengths?: string[];
+  improvements?: string[];
+  overallFeedback?: string;
+  antiCheatSummary?: {
+    hasViolations: boolean;
+    violationCount: number;
+    tabSwitches?: number;
+    copyPasteAttempts?: number;
+  };
 }
 
 export interface ChatInterviewPhaseData {
@@ -67,6 +81,14 @@ export interface ChatInterviewPhaseData {
   duration?: number;
   messages?: Array<{ role: string; content: string }>;
   summary?: string;
+  // Rich rubric data
+  communication?: number;
+  technicalKnowledge?: number;
+  problemSolving?: number;
+  enthusiasm?: number;
+  strengths?: string[];
+  improvements?: string[];
+  overallFeedback?: string;
 }
 
 export interface SalesSimulationPhaseData {
@@ -75,6 +97,21 @@ export interface SalesSimulationPhaseData {
   evaluation?: string;
   recommendation?: string;
   messages?: Array<{ role: string; content: string }>;
+  // Rich rubric data
+  rapport?: number;
+  needsDiscovery?: number;
+  productKnowledge?: number;
+  objectionHandling?: number;
+  closingSkills?: number;
+  strengths?: string[];
+  improvements?: string[];
+  overallFeedback?: string;
+  antiCheatSummary?: {
+    hasViolations: boolean;
+    violationCount: number;
+    tabSwitches?: number;
+    copyPasteAttempts?: number;
+  };
 }
 
 export interface PortfolioPhaseData {
@@ -766,7 +803,11 @@ function buildChatSimulationNarrative(input: AvaPhaseNarrativeInput): string {
   const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
 
   if (chatSimulationData) {
-    const { score, scenario, messageCount, evaluation, recommendation, passed, messages } = chatSimulationData;
+    const { 
+      score, scenario, messageCount, evaluation, recommendation, passed, messages,
+      empathy, problemSolving, communication, professionalism,
+      strengths, improvements, overallFeedback, antiCheatSummary 
+    } = chatSimulationData;
     
     // Dynamic opening based on performance
     if (score !== undefined) {
@@ -788,18 +829,51 @@ function buildChatSimulationNarrative(input: AvaPhaseNarrativeInput): string {
       paragraphs.push(`Scenario: ${scenario}.`);
     }
     
-    // Detailed evaluation breakdown
-    if (evaluation) {
+    // Rubric breakdown - show scores for each dimension
+    const rubricParts: string[] = [];
+    if (empathy !== undefined) rubricParts.push(`Empathy ${empathy}/100`);
+    if (problemSolving !== undefined) rubricParts.push(`Problem-Solving ${problemSolving}/100`);
+    if (communication !== undefined) rubricParts.push(`Communication ${communication}/100`);
+    if (professionalism !== undefined) rubricParts.push(`Professionalism ${professionalism}/100`);
+    
+    if (rubricParts.length > 0) {
+      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
+    }
+    
+    // Strengths
+    if (strengths && strengths.length > 0) {
+      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
+    }
+    
+    // Areas for improvement
+    if (improvements && improvements.length > 0) {
+      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
+    }
+    
+    // Overall feedback from AI
+    if (overallFeedback) {
+      paragraphs.push(`Evaluation: ${overallFeedback}`);
+    } else if (evaluation) {
       paragraphs.push(`Analysis: ${evaluation}`);
     }
     
-    // Message analysis
-    if (messages && messages.length > 0) {
+    // Anti-cheat violations
+    if (antiCheatSummary && antiCheatSummary.hasViolations) {
+      const violationParts: string[] = [];
+      if (antiCheatSummary.tabSwitches) violationParts.push(`${antiCheatSummary.tabSwitches} tab switch${antiCheatSummary.tabSwitches !== 1 ? 'es' : ''}`);
+      if (antiCheatSummary.copyPasteAttempts) violationParts.push(`${antiCheatSummary.copyPasteAttempts} copy/paste attempt${antiCheatSummary.copyPasteAttempts !== 1 ? 's' : ''}`);
+      
+      if (violationParts.length > 0) {
+        paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected (${violationParts.join(", ")}).`);
+      } else {
+        paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected.`);
+      }
+    }
+    
+    // Message analysis (fallback if no rubric data)
+    if (!rubricParts.length && messages && messages.length > 0) {
       const candidateMessages = messages.filter(m => m.role === 'user' || m.role === 'candidate');
       if (candidateMessages.length > 0) {
-        const avgLength = Math.round(candidateMessages.reduce((sum, m) => sum + m.content.length, 0) / candidateMessages.length);
-        
-        // Response quality indicators
         const shortResponses = candidateMessages.filter(m => m.content.length < 30).length;
         const detailedResponses = candidateMessages.filter(m => m.content.length > 100).length;
         
@@ -840,96 +914,151 @@ function buildChatSimulationNarrative(input: AvaPhaseNarrativeInput): string {
 }
 
 function buildChatInterviewNarrative(input: AvaPhaseNarrativeInput): string {
-  const { baseFacts, wasRejected, chatInterviewData } = input;
+  const { baseFacts, wasRejected, chatInterviewData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  paragraphs.push("I reviewed their chat interview.");
+  const roleContext = jobTitle ? ` for the ${jobTitle} position` : '';
 
   if (chatInterviewData) {
-    const { score, overallScore, messageCount, duration, summary, messages } = chatInterviewData;
+    const { 
+      score, overallScore, messageCount, duration, summary, messages,
+      communication, technicalKnowledge, problemSolving, enthusiasm,
+      strengths, improvements, overallFeedback
+    } = chatInterviewData;
     const finalScore = score || overallScore;
     
-    if (messageCount) {
-      paragraphs.push(`The interview consisted of ${messageCount} message${messageCount !== 1 ? 's' : ''}.`);
-    }
-    
-    if (duration) {
-      const minutes = Math.round(duration / 60);
-      paragraphs.push(`It took approximately ${minutes} minute${minutes !== 1 ? 's' : ''} to complete.`);
-    }
-    
+    // Dynamic opening based on score
     if (finalScore !== undefined) {
-      paragraphs.push(`Overall interview score: ${finalScore}/100.`);
-      
       if (finalScore >= 80) {
-        paragraphs.push("Strong interview performance. They communicated clearly and provided thoughtful responses.");
+        paragraphs.push(`Strong chat interview performance${roleContext}. Score: ${finalScore}/100.`);
       } else if (finalScore >= 60) {
-        paragraphs.push("Decent interview. They got their points across, though some answers could have been more detailed.");
+        paragraphs.push(`Adequate chat interview performance${roleContext}. Score: ${finalScore}/100.`);
       } else {
-        paragraphs.push("The interview revealed some areas that need work. Responses lacked depth or clarity in places.");
+        paragraphs.push(`Chat interview revealed areas for development${roleContext}. Score: ${finalScore}/100.`);
       }
+    } else {
+      paragraphs.push(`Completed the chat interview${roleContext}.`);
     }
     
-    if (summary) {
+    // Rubric breakdown
+    const rubricParts: string[] = [];
+    if (communication !== undefined) rubricParts.push(`Communication ${communication}/100`);
+    if (technicalKnowledge !== undefined) rubricParts.push(`Technical Knowledge ${technicalKnowledge}/100`);
+    if (problemSolving !== undefined) rubricParts.push(`Problem-Solving ${problemSolving}/100`);
+    if (enthusiasm !== undefined) rubricParts.push(`Enthusiasm ${enthusiasm}/100`);
+    
+    if (rubricParts.length > 0) {
+      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
+    }
+    
+    // Strengths
+    if (strengths && strengths.length > 0) {
+      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
+    }
+    
+    // Areas for improvement
+    if (improvements && improvements.length > 0) {
+      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
+    }
+    
+    // Overall feedback
+    if (overallFeedback) {
+      paragraphs.push(`Evaluation: ${overallFeedback}`);
+    } else if (summary) {
       paragraphs.push(`Summary: ${summary}`);
     }
     
-    // Quick analysis of message quality if available
-    if (messages && messages.length > 0) {
-      const candidateMessages = messages.filter(m => m.role === 'user' || m.role === 'candidate' || m.role === 'assistant');
-      if (candidateMessages.length >= 3) {
-        paragraphs.push("The full transcript is available if you want to review their specific responses.");
-      }
+    // Session details
+    if (messageCount && duration) {
+      const minutes = Math.round(duration / 60);
+      paragraphs.push(`Session: ${messageCount} messages over ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+    } else if (messageCount) {
+      paragraphs.push(`Session: ${messageCount} messages exchanged.`);
     }
     
   } else {
+    paragraphs.push(`Completed the chat interview${roleContext}.`);
     paragraphs.push(baseFacts);
-    paragraphs.push("The interview provides useful context for your decision.");
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/strong interview performance/gi, "the interview was completed");
+    narrative = narrative.replace(/Strong chat interview performance/gi, "Chat interview completed");
   }
   return narrative;
 }
 
 function buildSalesSimulationNarrative(input: AvaPhaseNarrativeInput): string {
-  const { baseFacts, wasRejected, salesSimulationData } = input;
+  const { baseFacts, wasRejected, salesSimulationData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  paragraphs.push("I analyzed their sales simulation.");
+  const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
 
   if (salesSimulationData) {
-    const { score, evaluation, recommendation, passed, messages } = salesSimulationData;
+    const { 
+      score, evaluation, recommendation, passed, messages,
+      rapport, needsDiscovery, productKnowledge, objectionHandling, closingSkills,
+      strengths, improvements, overallFeedback, antiCheatSummary
+    } = salesSimulationData;
     
+    // Dynamic opening based on performance
     if (score !== undefined) {
-      paragraphs.push(`They scored ${score}/100 on the sales simulation.`);
-      
       if (score >= 85) {
-        paragraphs.push("Strong sales instincts on display. They navigated objections well, built rapport, and moved toward closing effectively.");
+        paragraphs.push(`Strong sales performance${roleContext}. Score: ${score}/100.`);
       } else if (score >= 70) {
-        paragraphs.push("Good sales fundamentals. They understood the customer's needs and made reasonable attempts to address concerns.");
+        paragraphs.push(`Adequate sales performance${roleContext}. Score: ${score}/100.`);
       } else if (score >= 50) {
-        paragraphs.push("Showed potential but would benefit from more sales training. Some objection handling was weak.");
+        paragraphs.push(`Below-average sales performance${roleContext}. Score: ${score}/100.`);
       } else {
-        paragraphs.push("Sales skills need significant development. They struggled with objections and closing techniques.");
+        paragraphs.push(`Significant challenges in sales simulation${roleContext}. Score: ${score}/100.`);
       }
+    } else {
+      paragraphs.push(`Completed the sales simulation${roleContext}.`);
     }
     
-    if (evaluation) {
-      paragraphs.push(`Evaluation: ${evaluation}`);
+    // Rubric breakdown - show scores for each dimension
+    const rubricParts: string[] = [];
+    if (rapport !== undefined) rubricParts.push(`Rapport ${rapport}/100`);
+    if (needsDiscovery !== undefined) rubricParts.push(`Needs Discovery ${needsDiscovery}/100`);
+    if (productKnowledge !== undefined) rubricParts.push(`Product Knowledge ${productKnowledge}/100`);
+    if (objectionHandling !== undefined) rubricParts.push(`Objection Handling ${objectionHandling}/100`);
+    if (closingSkills !== undefined) rubricParts.push(`Closing ${closingSkills}/100`);
+    
+    if (rubricParts.length > 0) {
+      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
     }
     
+    // Strengths
+    if (strengths && strengths.length > 0) {
+      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
+    }
+    
+    // Areas for improvement
+    if (improvements && improvements.length > 0) {
+      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
+    }
+    
+    // Overall feedback
+    if (overallFeedback) {
+      paragraphs.push(`Evaluation: ${overallFeedback}`);
+    } else if (evaluation) {
+      paragraphs.push(`Analysis: ${evaluation}`);
+    }
+    
+    // Anti-cheat violations
+    if (antiCheatSummary && antiCheatSummary.hasViolations) {
+      paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected.`);
+    }
+    
+    // Recommendation
     if (recommendation) {
-      paragraphs.push(`My recommendation: ${recommendation}`);
+      paragraphs.push(`Recommendation: ${recommendation}`);
     }
     
-    // Analyze conversation if available
-    if (messages && messages.length > 0) {
+    // Fallback to conversation analysis if no rubric
+    if (!rubricParts.length && messages && messages.length > 0) {
       const candidateMessages = messages.filter(m => m.role === 'user' || m.role === 'candidate');
       if (candidateMessages.length >= 3) {
-        // Check for closing attempts
         const closingKeywords = candidateMessages.some(m => 
           /shall we proceed|ready to|sign up|get started|next step/i.test(m.content)
         );
@@ -940,24 +1069,13 @@ function buildSalesSimulationNarrative(input: AvaPhaseNarrativeInput): string {
     }
     
   } else {
+    paragraphs.push(`Completed the sales simulation${roleContext}.`);
     paragraphs.push(baseFacts);
-
-    const scoreMatch = baseFacts.match(/(\d+)\/100/);
-    if (scoreMatch) {
-      const score = parseInt(scoreMatch[1], 10);
-      if (score >= 80) {
-        paragraphs.push("Strong sales instincts on display — they navigated objections well.");
-      } else if (score >= 60) {
-        paragraphs.push("Showed potential but would benefit from more sales training.");
-      } else {
-        paragraphs.push("Sales skills need significant development.");
-      }
-    }
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong sales instincts/gi, "The performance was noted");
+    narrative = narrative.replace(/Strong sales performance/gi, "Sales simulation completed");
   }
   return narrative;
 }
