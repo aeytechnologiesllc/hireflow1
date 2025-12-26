@@ -267,7 +267,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
 
     // Get session token from edge function
-    const { data, error } = await supabase.functions.invoke('ava-voice-session', {
+    const response = await supabase.functions.invoke('ava-voice-session', {
       body: {
         mode: optionsRef.current.mode,
         applicationId: optionsRef.current.applicationId,
@@ -288,11 +288,22 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       },
     });
 
-    if (error || !data?.client_secret?.value) {
-      throw new Error(data?.error || error?.message || 'Failed to get voice session');
+    // Handle edge function errors - extract the message from the response
+    // When edge function returns non-2xx, error contains FunctionsHttpError and data contains parsed JSON
+    const errorMessage = response.data?.error || response.error?.message;
+    
+    console.log('Voice session response:', { 
+      hasError: !!response.error, 
+      hasData: !!response.data,
+      dataError: response.data?.error,
+      errorMessage: response.error?.message
+    });
+    
+    if (response.error || !response.data?.client_secret?.value) {
+      throw new Error(errorMessage || 'Failed to get voice session');
     }
 
-    const EPHEMERAL_KEY = data.client_secret.value;
+    const EPHEMERAL_KEY = response.data.client_secret.value;
     console.log('Got ephemeral key, creating peer connection');
 
     // Create audio context for playback
