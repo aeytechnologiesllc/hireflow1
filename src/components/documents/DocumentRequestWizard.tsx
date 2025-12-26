@@ -139,6 +139,7 @@ export function DocumentRequestWizard({
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [isRequired, setIsRequired] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [dueDateOpen, setDueDateOpen] = useState(false);
 
   const activeApplications = applications;
 
@@ -436,7 +437,7 @@ export function DocumentRequestWizard({
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Due Date (Optional)</Label>
-          <Popover>
+          <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start">
                 <CalendarDays className="h-4 w-4 mr-2" />
@@ -447,8 +448,12 @@ export function DocumentRequestWizard({
               <Calendar
                 mode="single"
                 selected={dueDate}
-                onSelect={setDueDate}
+                onSelect={(date) => {
+                  setDueDate(date);
+                  setDueDateOpen(false);
+                }}
                 disabled={(date) => date < new Date()}
+                className="pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
