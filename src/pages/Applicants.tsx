@@ -219,16 +219,14 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <Badge className={statusColors[application.status]}>
-                {application.status === "in_progress" ? "In Progress" : application.status}
+                {application.status === "in_progress" 
+                  ? "In Progress" 
+                  : phaseName || application.status.charAt(0).toUpperCase() + application.status.slice(1)
+                }
               </Badge>
               {application.status === "in_progress" && (
                 <Badge variant="outline" className="text-xs bg-orange-500/10 border-orange-500/30 text-orange-500">
                   Filling out application
-                </Badge>
-              )}
-              {phaseName && application.status !== "in_progress" && (
-                <Badge variant="outline" className="text-xs">
-                  Phase: {phaseName}
                 </Badge>
               )}
               <span className="text-sm text-muted-foreground">
