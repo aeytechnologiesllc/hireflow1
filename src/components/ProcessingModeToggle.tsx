@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Hand, Rocket, Loader2, AlertTriangle, UserX } from "lucide-react";
+import { Hand, Rocket, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -11,7 +11,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUpdateJob } from "@/hooks/useJobs";
 import { processAutopilotCatchUp } from "@/utils/processAutopilotCatchUp";
@@ -265,7 +264,6 @@ export function ProcessingModeToggle({
   const [atRiskApplicants, setAtRiskApplicants] = useState<AtRiskApplicant[]>([]);
   const [passingScore, setPassingScore] = useState(60);
   const [loadingAtRisk, setLoadingAtRisk] = useState(false);
-  const [acknowledgedRejection, setAcknowledgedRejection] = useState(false);
   const updateJob = useUpdateJob();
 
   const handleButtonClick = async (e: React.MouseEvent) => {
@@ -274,7 +272,6 @@ export function ProcessingModeToggle({
     
     const newMode = currentMode === "auto" ? "manual" : "auto";
     setPendingMode(newMode);
-    setAcknowledgedRejection(false);
     
     // If switching to autopilot, fetch at-risk applicants first
     if (newMode === "auto") {
@@ -334,18 +331,15 @@ export function ProcessingModeToggle({
     
     setPendingMode(null);
     setAtRiskApplicants([]);
-    setAcknowledgedRejection(false);
   };
 
   const handleCancel = () => {
     setShowDialog(false);
     setPendingMode(null);
     setAtRiskApplicants([]);
-    setAcknowledgedRejection(false);
   };
 
   const hasAtRiskApplicants = atRiskApplicants.length > 0;
-  const canEngageAutopilot = !hasAtRiskApplicants || acknowledgedRejection;
 
   return (
     <>
@@ -428,7 +422,7 @@ export function ProcessingModeToggle({
                   </DialogDescription>
                 </DialogHeader>
 
-                {/* At-Risk Applicants Warning */}
+                {/* At-Risk Applicants Notice - Subtle Info Style */}
                 {loadingAtRisk ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -440,47 +434,30 @@ export function ProcessingModeToggle({
                     animate={{ opacity: 1, height: "auto" }}
                     className="my-4"
                   >
-                    <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                        <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <h4 className="font-semibold text-destructive">
-                            {atRiskApplicants.length} applicant{atRiskApplicants.length > 1 ? 's' : ''} at risk of rejection
+                          <h4 className="font-medium text-foreground">
+                            Note: {atRiskApplicants.length} candidate{atRiskApplicants.length > 1 ? 's' : ''} below threshold
                           </h4>
                           <p className="text-sm text-muted-foreground mt-1">
-                            These candidates scored below the passing threshold of {passingScore}% and will be immediately rejected.
+                            {atRiskApplicants.length === 1 ? 'This candidate' : 'These candidates'} scored below {passingScore}% and will be rejected.
                           </p>
                           
-                          <ScrollArea className="mt-3 max-h-[140px]">
-                            <div className="space-y-2">
+                          <ScrollArea className="mt-3 max-h-[120px]">
+                            <div className="space-y-1.5">
                               {atRiskApplicants.map((applicant) => (
                                 <div 
                                   key={applicant.id}
-                                  className="flex items-center justify-between text-sm bg-background/50 rounded-md px-3 py-2"
+                                  className="flex items-center justify-between text-sm bg-muted/50 rounded-md px-3 py-1.5"
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <UserX className="h-4 w-4 text-destructive/70" />
-                                    <span className="font-medium">{applicant.candidateName}</span>
-                                  </div>
-                                  <span className="text-destructive font-semibold">{applicant.aiScore}%</span>
+                                  <span className="text-muted-foreground">{applicant.candidateName}</span>
+                                  <span className="text-amber-600 dark:text-amber-400 font-medium">{applicant.aiScore}%</span>
                                 </div>
                               ))}
                             </div>
                           </ScrollArea>
-
-                          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-destructive/20">
-                            <Checkbox 
-                              id="acknowledge-rejection"
-                              checked={acknowledgedRejection}
-                              onCheckedChange={(checked) => setAcknowledgedRejection(checked === true)}
-                            />
-                            <label 
-                              htmlFor="acknowledge-rejection" 
-                              className="text-sm cursor-pointer select-none"
-                            >
-                              I understand these candidates will be immediately rejected
-                            </label>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -493,7 +470,7 @@ export function ProcessingModeToggle({
                   </Button>
                   <Button 
                     onClick={handleConfirm}
-                    disabled={updateJob.isPending || loadingAtRisk || !canEngageAutopilot}
+                    disabled={updateJob.isPending || loadingAtRisk}
                     className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-400 hover:to-fuchsia-500 text-white"
                   >
                     {updateJob.isPending ? (
