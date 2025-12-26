@@ -747,16 +747,21 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const analysis = data.choices[0].message.content;
+    const analysis = data.choices?.[0]?.message?.content ?? "";
 
-    console.log(`${type} analysis completed successfully, resumeExtracted: ${resumeExtracted}`);
+    const modelUsed = "google/gemini-2.5-flash";
+    const provider = "lovable_ai_gateway";
+
+    console.log(`${type} analysis completed successfully via ${provider} (${modelUsed}), resumeExtracted: ${resumeExtracted}`);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         analysis,
         type,
         timestamp: new Date().toISOString(),
         resumeExtracted,
+        model: modelUsed,
+        provider,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
