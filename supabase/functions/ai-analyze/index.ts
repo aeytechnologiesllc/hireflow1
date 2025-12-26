@@ -678,29 +678,13 @@ serve(async (req) => {
           ]
         }
       ];
-    } else if (resumeText && (type === "resume" || type === "application")) {
-      // Resume text was successfully extracted
-      console.log(`Using extracted resume text (type: ${type}), length:`, resumeText.length);
-      resumeExtracted = true;
-      
-      userContent += `\n\n--- RESUME CONTENT (Extracted Text) ---\n${resumeText}`;
-      
-      messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent }
-      ];
-    } else if (resumeUrl && (type === "resume" || type === "application")) {
-      // PDF files cannot be sent to OpenAI vision API - only images are supported
-      console.log(`Resume URL provided: ${resumeUrl}`);
-      console.log(`Note: OpenAI vision API only supports images, not PDFs. Analyzing based on other application data.`);
-      
-      userContent += `\n\n--- RESUME FILE ---\nA resume file was provided at: ${resumeUrl}\nThe resume is in PDF format which cannot be directly analyzed by the AI vision system. Please provide your analysis based on the other application data provided above. Mark the resume as RESUME_UNAVAILABLE in your Document Validation section.`;
-      
-      messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent }
-      ];
     } else {
+      // No resume image provided - analyze based on other application data
+      console.log(`No resume image provided for ${type} analysis - will analyze based on other application data`);
+      
+      if (type === "resume" || type === "application") {
+        userContent += `\n\n--- RESUME STATUS ---\nNo resume image was provided for analysis. Please provide your analysis based on the other application data provided above. Mark the resume as RESUME_UNAVAILABLE in your Document Validation section.`;
+      }
       // No resume content available - analyze based on other data
       
       messages = [
