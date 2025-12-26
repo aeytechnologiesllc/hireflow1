@@ -19,33 +19,51 @@ export function usePendingDocumentsCount() {
         .eq("candidate_id", user!.id);
 
       if (appError) throw appError;
-      if (!applications || applications.length === 0) return 0;
+      if (!applications || applications.length === 0) {
+        // Still check for document requests even without applications
+        const { count: requestCount, error: reqError } = await supabase
+          .from("document_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("candidate_id", user!.id)
+          .eq("status", "pending");
+
+        if (reqError) throw reqError;
+        return requestCount || 0;
+      }
 
       const applicationIds = applications.map(a => a.id);
 
-      // Count documents that:
-      // 1. Are pending status
-      // 2. Candidate has NOT signed yet (candidate_signed_at is null)
-      // This means only documents awaiting the candidate's signature are counted
-      const { count, error: docError } = await supabase
-        .from("documents")
-        .select("id", { count: "exact", head: true })
-        .in("application_id", applicationIds)
-        .eq("status", "pending")
-        .is("candidate_signed_at", null);
+      // Count both unsigned documents AND pending document requests
+      const [docResult, requestResult] = await Promise.all([
+        // Count documents that are pending and candidate hasn't signed yet
+        supabase
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .in("application_id", applicationIds)
+          .eq("status", "pending")
+          .is("candidate_signed_at", null),
+        // Count pending document requests for this candidate
+        supabase
+          .from("document_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("candidate_id", user!.id)
+          .eq("status", "pending"),
+      ]);
 
-      if (docError) throw docError;
-      return count || 0;
+      if (docResult.error) throw docResult.error;
+      if (requestResult.error) throw requestResult.error;
+
+      return (docResult.count || 0) + (requestResult.count || 0);
     },
     enabled: !!user && role === "candidate",
   });
 
-  // Real-time subscription for document changes
+  // Real-time subscription for document and document_requests changes
   useEffect(() => {
     if (!user || role !== "candidate") return;
 
     const channel = supabase
-      .channel("documents-count-updates")
+      .channel("candidate-documents-count-updates")
       .on(
         "postgres_changes",
         {
@@ -54,9 +72,21 @@ export function usePendingDocumentsCount() {
           table: "documents",
         },
         () => {
-          // Invalidate the count query when any document changes
           queryClient.invalidateQueries({ queryKey: ["pending-documents-count"] });
           queryClient.invalidateQueries({ queryKey: ["documents"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "document_requests",
+        },
+        () => {
+          // Invalidate when document requests change (e.g., new request from employer)
+          queryClient.invalidateQueries({ queryKey: ["pending-documents-count"] });
+          queryClient.invalidateQueries({ queryKey: ["document-requests"] });
         }
       )
       .subscribe();
