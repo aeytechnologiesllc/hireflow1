@@ -563,6 +563,7 @@ serve(async (req) => {
           "jobs": "/jobs",
           "create_job": "/jobs/create",
           "applicants": "/applicants",
+          "applicant": "/applicants", // Base route - requires entity_id for specific applicant
           "interviews": "/interviews",
           "messages": "/messages",
           "documents": "/documents",
@@ -590,6 +591,28 @@ serve(async (req) => {
           action: "navigate", 
           route,
           page 
+        };
+        break;
+      }
+
+      case "open_applicant_section": {
+        const { section } = parameters;
+        
+        // Validate section is one of the allowed values
+        const allowedSections = [
+          "analysis", "resume", "application", "notes", "messages", 
+          "interview_results", "sales_results", "run_analysis"
+        ];
+        
+        if (!allowedSections.includes(section)) {
+          throw new Error(`Invalid section: ${section}. Allowed: ${allowedSections.join(", ")}`);
+        }
+        
+        result = {
+          success: true,
+          action: "open_section",
+          section,
+          message: `Opening ${section.replace("_", " ")} view...`
         };
         break;
       }
