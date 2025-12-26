@@ -38,7 +38,14 @@ import { AuditCertificate } from "./AuditCertificate";
 import { downloadAuditTrailPDF, downloadAuditTrailJSON, AuditExportData, AuditExportEntry } from "@/lib/auditExport";
 import { generateCompletionCertificate, CompletionCertificate } from "@/lib/completionCertificate";
 import { downloadCertificatePDF } from "@/lib/certificatePDF";
-import { burnSignaturesIntoPdf, type SignatureOverlay, type CertificateData } from "@/lib/pdfSignatureBurner";
+import { burnSignaturesIntoPdf, generatePdfHash, type SignatureOverlay, type CertificateData } from "@/lib/pdfSignatureBurner";
+import {
+  formatAuditActionLabel,
+  getAuditActionColor,
+  formatAuditTimestamp,
+  formatAuditEventDescription,
+  formatSignerRole
+} from "@/lib/auditFormatting";
 
 interface AuditLog {
   id: string;
@@ -85,96 +92,22 @@ const getActionIcon = (action: string) => {
     case "sent":
       return <ChevronRight className="h-4 w-4" />;
     case "viewed":
+    case "document_viewed":
       return <Eye className="h-4 w-4" />;
     case "candidate_signed":
       return <PenTool className="h-4 w-4" />;
     case "employer_countersigned":
       return <FileCheck className="h-4 w-4" />;
     case "declined":
+    case "document_declined":
       return <XCircle className="h-4 w-4" />;
     case "edited":
       return <Edit className="h-4 w-4" />;
+    case "document_completed":
+    case "completed":
+      return <Award className="h-4 w-4" />;
     default:
       return <Clock className="h-4 w-4" />;
-  }
-};
-
-const getActionColor = (action: string) => {
-  if (action.includes("signed")) return "bg-success text-success-foreground";
-  if (action === "declined") return "bg-destructive text-destructive-foreground";
-  if (action === "viewed") return "bg-blue-500 text-white";
-  if (action === "edited") return "bg-orange-500 text-white";
-  if (action === "sent") return "bg-primary text-primary-foreground";
-  return "bg-muted text-muted-foreground";
-};
-
-const getActionLabel = (action: string) => {
-  switch (action) {
-    case "created":
-    case "document_created":
-      return "Document Created";
-    case "sent":
-      return "Document Sent";
-    case "viewed":
-    case "document_viewed":
-      return "Document Viewed";
-    case "candidate_signed":
-      return "Signed by Candidate";
-    case "employer_countersigned":
-      return "Countersigned by Employer";
-    case "declined":
-    case "document_declined":
-      return "Document Declined";
-    case "edited":
-      return "Document Edited";
-    case "electronic_consent_confirmed":
-      return "Electronic Consent Confirmed";
-    case "signing_session_started":
-      return "Signing Session Started";
-    case "employer_review_confirmed":
-      return "Employer Review Confirmed";
-    case "document_completed":
-      return "Document Completed";
-    default:
-      return action.replace(/_/g, " ");
-  }
-};
-
-/**
- * Transform raw audit events into human-readable narrative descriptions
- * This replaces raw JSON display with clean, professional text
- */
-const formatAuditEventDescription = (log: AuditLog): string => {
-  const details = log.details as Record<string, unknown> | null;
-  const signatureType = log.signature_method === 'drawn' ? 'drawn signature' : 'typed signature';
-  
-  switch (log.action) {
-    case 'document_created':
-    case 'created':
-      return 'Document created and ready for signing workflow.';
-    case 'document_viewed':
-    case 'viewed':
-      return `Document opened for viewing by ${log.signer_role === 'candidate' ? 'candidate' : 'employer'}.`;
-    case 'signing_session_started':
-      return `${log.signer_role === 'candidate' ? 'Candidate' : 'Employer'} initiated signing session.`;
-    case 'electronic_consent_confirmed':
-      return 'Electronic signature consent confirmed. Signer acknowledged legal equivalence of electronic signature.';
-    case 'candidate_signed':
-      return `Candidate signed the document using ${signatureType}. Document hash updated.`;
-    case 'employer_review_confirmed':
-      return 'Employer reviewed document and verified candidate signature before countersigning.';
-    case 'employer_countersigned':
-      return `Employer countersigned the document using ${signatureType}. Document is now fully executed.`;
-    case 'document_completed':
-      return 'All signatures collected. Document is now fully executed and locked from further changes.';
-    case 'document_declined':
-    case 'declined':
-      const reason = details?.decline_reason || details?.reason || 'Not specified';
-      return `Document was declined. Reason: ${reason}`;
-    case 'sent':
-      return 'Document was sent to the recipient for review and signing.';
-    default:
-      return details?.event ? String(details.event) : 'Activity recorded.';
   }
 };
 
@@ -1018,7 +951,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       )}
                       
                       <div className="flex gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${getActionColor(log.action)}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${getAuditActionColor(log.action)} text-white`}>
                           {getActionIcon(log.action)}
                         </div>
                         
@@ -1026,16 +959,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="font-medium text-foreground">
-                                {getActionLabel(log.action)}
+                                {formatAuditActionLabel(log.action)}
                               </p>
                               {log.signer_name && (
                                 <p className="text-sm text-muted-foreground">
-                                  {log.signer_name} ({log.signer_role || 'Unknown role'})
+                                  {log.signer_name} ({formatSignerRole(log.signer_role)})
                                 </p>
                               )}
                               {/* Human-readable event description - NO raw JSON */}
                               <p className="mt-1 text-sm text-muted-foreground">
-                                {formatAuditEventDescription(log)}
+                                {formatAuditEventDescription(log.action, log.details as Record<string, unknown> | null, log.signer_role, log.signature_method)}
                               </p>
                             </div>
                             <div className="text-right shrink-0">

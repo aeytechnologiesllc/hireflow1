@@ -4,6 +4,7 @@ import { CompletionCertificate } from "./completionCertificate";
 
 /**
  * Generate a PDF Certificate of Completion
+ * Enterprise-grade formatting with consistent styling
  */
 export async function generateCertificatePDF(
   cert: CompletionCertificate,
@@ -20,22 +21,31 @@ export async function generateCertificatePDF(
   const margin = 20;
   let y = margin;
 
-  // Header with border
+  // Header accent line
   pdf.setDrawColor(34, 139, 34);
-  pdf.setLineWidth(0.5);
-  pdf.rect(margin - 5, y - 5, pageWidth - 2 * (margin - 5), 25, 'S');
-  
+  pdf.setLineWidth(1);
+  pdf.line(margin, y, pageWidth - margin, y);
+  y += 8;
+
+  // Header
   pdf.setFontSize(20);
   pdf.setTextColor(34, 139, 34);
   pdf.setFont("helvetica", "bold");
-  pdf.text("CERTIFICATE OF COMPLETION", pageWidth / 2, y + 8, { align: "center" });
+  pdf.text("CERTIFICATE OF COMPLETION", pageWidth / 2, y, { align: "center" });
+  y += 8;
   
   pdf.setFontSize(10);
   pdf.setTextColor(100);
   pdf.setFont("helvetica", "normal");
-  pdf.text("Electronic Signature Verification Document", pageWidth / 2, y + 15, { align: "center" });
+  pdf.text("Electronic Signature Verification Document", pageWidth / 2, y, { align: "center" });
+  y += 5;
   
-  y += 35;
+  // Compliance tagline
+  pdf.setFontSize(8);
+  pdf.setTextColor(60);
+  pdf.text("This document was electronically signed and verified in compliance with the U.S. ESIGN Act and applicable state laws.", pageWidth / 2, y, { align: "center" });
+  
+  y += 12;
 
   // Document Identification Section
   pdf.setFillColor(245, 245, 245);

@@ -52,6 +52,7 @@ async function dataUrlToBytes(dataUrl: string): Promise<Uint8Array> {
 
 /**
  * Burn signatures into an uploaded PDF and add a certificate of completion page
+ * Also adds a professional footer to each page
  */
 export async function burnSignaturesIntoPdf(
   originalPdfBytes: ArrayBuffer,
@@ -64,6 +65,22 @@ export async function burnSignaturesIntoPdf(
   const pages = pdfDoc.getPages();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Add professional footer to each document page (not certificate page)
+  const footerText = "Electronically signed and verified via HireFlow.";
+  for (const page of pages) {
+    const { width: pageWidth } = page.getSize();
+    const textWidth = helvetica.widthOfTextAtSize(footerText, 6);
+    const footerX = (pageWidth - textWidth) / 2;
+    
+    page.drawText(footerText, {
+      x: footerX,
+      y: 15,
+      size: 6,
+      font: helvetica,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+  }
 
   // Helper function to overlay a signature
   const overlaySignature = async (sig: SignatureOverlay) => {
@@ -147,7 +164,15 @@ export async function burnSignaturesIntoPdf(
   const margin = 50;
   let y = certHeight - margin;
 
-  // Header
+  // Header with green accent line
+  certPage.drawRectangle({
+    x: margin,
+    y: y + 5,
+    width: certWidth - (margin * 2),
+    height: 3,
+    color: rgb(0.13, 0.55, 0.13),
+  });
+  
   certPage.drawText('CERTIFICATE OF COMPLETION', {
     x: margin,
     y,
@@ -155,9 +180,9 @@ export async function burnSignaturesIntoPdf(
     font: helveticaBold,
     color: rgb(0.13, 0.55, 0.13),
   });
-  y -= 30;
+  y -= 25;
 
-  certPage.drawText('This document certifies that the following agreement has been electronically', {
+  certPage.drawText('This document was electronically signed and verified in compliance with the', {
     x: margin,
     y,
     size: 10,
@@ -165,7 +190,7 @@ export async function burnSignaturesIntoPdf(
     color: rgb(0.3, 0.3, 0.3),
   });
   y -= 12;
-  certPage.drawText('signed by all parties in accordance with the ESIGN Act (15 U.S.C. § 7001) and UETA.', {
+  certPage.drawText('U.S. ESIGN Act and applicable state laws.', {
     x: margin,
     y,
     size: 10,
@@ -343,12 +368,13 @@ export async function burnSignaturesIntoPdf(
   drawLabelValue('Total Events:', `${certificateData.auditEntriesCount} recorded`);
   y -= 20;
 
-  // Compliance Statement
+  // Compliance Statement Box
+  const complianceBoxY = y - 80;
   certPage.drawRectangle({
     x: margin - 5,
-    y: y - 60,
+    y: complianceBoxY,
     width: certWidth - (margin * 2) + 10,
-    height: 70,
+    height: 85,
     color: rgb(0.95, 0.98, 0.95),
     borderColor: rgb(0.13, 0.55, 0.13),
     borderWidth: 1,
@@ -362,12 +388,14 @@ export async function burnSignaturesIntoPdf(
     font: helveticaBold,
     color: rgb(0.13, 0.55, 0.13),
   });
-  y -= 14;
+  y -= 16;
 
   const complianceText = [
-    'This document has been electronically signed in compliance with the Electronic Signatures',
-    'in Global and National Commerce Act (ESIGN Act) 15 U.S.C. § 7001 and the Uniform Electronic',
-    'Transactions Act (UETA). All signatures are legally binding and enforceable.',
+    'This document was electronically signed and verified in compliance with the U.S. ESIGN Act',
+    'and applicable state laws. The electronic signatures applied to this document are legally',
+    'binding and carry the same legal effect as handwritten signatures under the Electronic',
+    'Signatures in Global and National Commerce Act (15 U.S.C. § 7001) and the Uniform Electronic',
+    'Transactions Act (UETA). Document integrity is protected by SHA-256 cryptographic hashing.',
   ];
 
   for (const line of complianceText) {
@@ -381,8 +409,15 @@ export async function burnSignaturesIntoPdf(
     y -= 11;
   }
 
-  // Footer
+  // Footer with HireFlow branding
   const footerY = 40;
+  certPage.drawText('Electronically signed and verified via HireFlow.', {
+    x: margin,
+    y: footerY + 10,
+    size: 8,
+    font: helveticaBold,
+    color: rgb(0.4, 0.4, 0.4),
+  });
   certPage.drawText('This certificate was generated automatically upon document completion.', {
     x: margin,
     y: footerY,

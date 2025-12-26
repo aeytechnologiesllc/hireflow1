@@ -366,6 +366,7 @@ export type Database = {
           employer_signed_at: string | null
           expires_at: string | null
           file_url: string
+          final_pdf_hash: string | null
           id: string
           ip_address: string | null
           is_locked: boolean | null
@@ -404,6 +405,7 @@ export type Database = {
           employer_signed_at?: string | null
           expires_at?: string | null
           file_url: string
+          final_pdf_hash?: string | null
           id?: string
           ip_address?: string | null
           is_locked?: boolean | null
@@ -442,6 +444,7 @@ export type Database = {
           employer_signed_at?: string | null
           expires_at?: string | null
           file_url?: string
+          final_pdf_hash?: string | null
           id?: string
           ip_address?: string | null
           is_locked?: boolean | null
@@ -730,6 +733,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          company_address: string | null
           company_description: string | null
           company_logo: string | null
           company_name: string | null
@@ -744,6 +748,7 @@ export type Database = {
           experience_years: number | null
           full_name: string | null
           id: string
+          job_title: string | null
           linkedin_url: string | null
           location: string | null
           phone: string | null
@@ -756,6 +761,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          company_address?: string | null
           company_description?: string | null
           company_logo?: string | null
           company_name?: string | null
@@ -770,6 +776,7 @@ export type Database = {
           experience_years?: number | null
           full_name?: string | null
           id?: string
+          job_title?: string | null
           linkedin_url?: string | null
           location?: string | null
           phone?: string | null
@@ -782,6 +789,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          company_address?: string | null
           company_description?: string | null
           company_logo?: string | null
           company_name?: string | null
@@ -796,6 +804,7 @@ export type Database = {
           experience_years?: number | null
           full_name?: string | null
           id?: string
+          job_title?: string | null
           linkedin_url?: string | null
           location?: string | null
           phone?: string | null
