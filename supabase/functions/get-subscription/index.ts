@@ -104,7 +104,7 @@ serve(async (req) => {
     };
 
     // Get active voice credits (not expired, not voided)
-    const { data: voiceCredits } = await supabaseAdmin
+    let { data: voiceCredits } = await supabaseAdmin
       .from("voice_credits")
       .select("*")
       .eq("user_id", user.id)
@@ -113,10 +113,58 @@ serve(async (req) => {
       .order("expires_at", { ascending: true });
 
     // Calculate total voice minutes available
-    const totalVoiceMinutes = (voiceCredits || []).reduce(
+    let totalVoiceMinutes = (voiceCredits || []).reduce(
       (sum, credit) => sum + (credit.minutes_remaining || 0),
       0
     );
+
+    // AUTO-PROVISION: If Enterprise user has no active credits, provision monthly allocation
+    const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
+    if (isEnterprise && totalVoiceMinutes <= 0) {
+      console.log("Enterprise user has no active voice credits - auto-provisioning monthly allocation");
+      
+      // Mark any expired credits as expired (cleanup)
+      await supabaseAdmin
+        .from("voice_credits")
+        .update({ status: 'expired' })
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .lt("expires_at", new Date().toISOString());
+      
+      // Create new monthly credit bucket (150 minutes, expires in 30 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      
+      const { error: insertError } = await supabaseAdmin
+        .from("voice_credits")
+        .insert({
+          user_id: user.id,
+          source: 'subscription',
+          minutes_granted: 150,
+          minutes_remaining: 150,
+          expires_at: expiresAt.toISOString(),
+          status: 'active',
+        });
+      
+      if (!insertError) {
+        console.log("Auto-provisioned 150 voice minutes for Enterprise user");
+        
+        // Re-fetch credits after provisioning
+        const { data: refreshedCredits } = await supabaseAdmin
+          .from("voice_credits")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .order("expires_at", { ascending: true });
+        
+        voiceCredits = refreshedCredits;
+        totalVoiceMinutes = (voiceCredits || []).reduce(
+          (sum, credit) => sum + (credit.minutes_remaining || 0),
+          0
+        );
+      }
+    }
 
     // If no subscription exists, create trial
     if (!subscription) {

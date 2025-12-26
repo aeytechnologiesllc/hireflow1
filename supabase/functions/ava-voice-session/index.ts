@@ -82,7 +82,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { data: voiceCredits } = await adminClient
+    let { data: voiceCredits } = await adminClient
       .from("voice_credits")
       .select("id, minutes_remaining, expires_at")
       .eq("user_id", user.id)
@@ -91,10 +91,63 @@ serve(async (req) => {
       .gt("minutes_remaining", 0)
       .order("expires_at", { ascending: true });
 
-    const totalMinutesAvailable = (voiceCredits || []).reduce(
+    let totalMinutesAvailable = (voiceCredits || []).reduce(
       (sum, credit) => sum + (credit.minutes_remaining || 0),
       0
     );
+
+    // AUTO-PROVISION: If Enterprise user has no active credits, provision monthly allocation
+    if (isEnterprise && totalMinutesAvailable <= 0) {
+      console.log("Enterprise user has no active voice credits - auto-provisioning monthly allocation");
+      
+      // Mark any expired credits as expired (cleanup)
+      await adminClient
+        .from("voice_credits")
+        .update({ status: 'expired' })
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .lt("expires_at", new Date().toISOString());
+      
+      // Create new monthly credit bucket (150 minutes, expires in 30 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      
+      const { data: newCredit, error: insertError } = await adminClient
+        .from("voice_credits")
+        .insert({
+          user_id: user.id,
+          source: 'subscription',
+          minutes_granted: 150,
+          minutes_remaining: 150,
+          expires_at: expiresAt.toISOString(),
+          status: 'active',
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error("Failed to provision voice credits:", insertError);
+        throw new Error("Failed to provision voice minutes. Please try again.");
+      }
+      
+      console.log("Auto-provisioned 150 voice minutes for Enterprise user, expires:", expiresAt.toISOString());
+      
+      // Re-fetch credits after provisioning
+      const { data: refreshedCredits } = await adminClient
+        .from("voice_credits")
+        .select("id, minutes_remaining, expires_at")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .gt("expires_at", new Date().toISOString())
+        .gt("minutes_remaining", 0)
+        .order("expires_at", { ascending: true });
+      
+      voiceCredits = refreshedCredits;
+      totalMinutesAvailable = (voiceCredits || []).reduce(
+        (sum, credit) => sum + (credit.minutes_remaining || 0),
+        0
+      );
+    }
 
     if (totalMinutesAvailable <= 0) {
       if (isTrial) {
