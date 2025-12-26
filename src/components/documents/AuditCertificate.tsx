@@ -1,8 +1,16 @@
-import { format } from "date-fns";
 import { Shield, FileCheck, Clock, MapPin, Hash, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  formatAuditActionLabel,
+  getAuditActionColor,
+  formatAuditTimestampTechnical,
+  formatLocation,
+  formatIPAddress,
+  formatHashDisplay,
+  formatSignerRole
+} from "@/lib/auditFormatting";
 
 interface AuditEntry {
   id: string;
@@ -29,36 +37,6 @@ interface AuditCertificateProps {
   auditLogs: AuditEntry[];
 }
 
-const getActionLabel = (action: string): string => {
-  const labels: Record<string, string> = {
-    created: 'Created',
-    viewed: 'Viewed',
-    edited: 'Edited',
-    candidate_signed: 'Signed',
-    employer_countersigned: 'Countersigned',
-    completed: 'Completed',
-    declined: 'Declined',
-    downloaded: 'Downloaded',
-    voided: 'Voided'
-  };
-  return labels[action] || action;
-};
-
-const getActionColor = (action: string): string => {
-  const colors: Record<string, string> = {
-    created: 'bg-blue-500',
-    viewed: 'bg-gray-500',
-    edited: 'bg-yellow-500',
-    candidate_signed: 'bg-green-500',
-    employer_countersigned: 'bg-green-600',
-    completed: 'bg-emerald-500',
-    declined: 'bg-red-500',
-    downloaded: 'bg-purple-500',
-    voided: 'bg-red-600'
-  };
-  return colors[action] || 'bg-gray-500';
-};
-
 export function AuditCertificate({
   documentId,
   documentName,
@@ -77,6 +55,9 @@ export function AuditCertificate({
         </div>
         <h1 className="text-2xl font-bold text-foreground">Certificate of Completion</h1>
         <p className="text-muted-foreground mt-2">Electronic Signature Audit Trail</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          This document was electronically signed and verified in compliance with the U.S. ESIGN Act and applicable state laws.
+        </p>
       </div>
 
       {/* Document Info */}
@@ -99,14 +80,14 @@ export function AuditCertificate({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Final Document Hash (SHA-256)</p>
-              <p className="font-mono text-xs break-all">{documentHash || 'Pending completion'}</p>
+              <p className="font-mono text-xs break-all">{documentHash || "Pending completion"}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Completion Timestamp</p>
+              <p className="text-sm text-muted-foreground">Completion Timestamp (UTC)</p>
               <p className="font-medium">
                 {completedAt 
-                  ? format(new Date(completedAt), "PPpp 'UTC'")
-                  : 'Not yet completed'
+                  ? formatAuditTimestampTechnical(completedAt)
+                  : "Not yet completed"
                 }
               </p>
             </div>
@@ -139,8 +120,8 @@ export function AuditCertificate({
                 {auditLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
-                      <Badge className={`${getActionColor(log.action)} text-white`}>
-                        {getActionLabel(log.action)}
+                      <Badge className={`${getAuditActionColor(log.action)} text-white`}>
+                        {formatAuditActionLabel(log.action)}
                       </Badge>
                       {log.signature_method && (
                         <span className="ml-2 text-xs text-muted-foreground">
@@ -152,27 +133,27 @@ export function AuditCertificate({
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="font-medium text-sm">{log.signer_name || 'System'}</p>
-                          <p className="text-xs text-muted-foreground">{log.signer_email || '-'}</p>
+                          <p className="font-medium text-sm">{log.signer_name || "System"}</p>
+                          <p className="text-xs text-muted-foreground">{log.signer_email || "-"}</p>
                           {log.signer_role && (
                             <Badge variant="outline" className="text-xs mt-1">
-                              {log.signer_role}
+                              {formatSignerRole(log.signer_role)}
                             </Badge>
                           )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss")}
+                      {formatAuditTimestampTechnical(log.created_at)}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {log.ip_address || '-'}
+                      {formatIPAddress(log.ip_address)}
                     </TableCell>
                     <TableCell>
-                      {log.location_city && log.location_city !== 'Unknown' ? (
+                      {log.location_city && log.location_city !== "Unknown" ? (
                         <div className="flex items-center gap-1 text-xs">
                           <MapPin className="h-3 w-3" />
-                          {log.location_city}, {log.location_region}, {log.location_country}
+                          {formatLocation(log.location_city, log.location_region, log.location_country)}
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
@@ -183,7 +164,7 @@ export function AuditCertificate({
                         <div className="flex items-center gap-1">
                           <Hash className="h-3 w-3 text-muted-foreground" />
                           <span className="font-mono text-xs">
-                            {log.document_hash.substring(0, 12)}...
+                            {formatHashDisplay(log.document_hash, 12)}
                           </span>
                         </div>
                       ) : (
@@ -199,15 +180,16 @@ export function AuditCertificate({
       </Card>
 
       {/* Compliance Notice */}
-      <Card className="bg-muted/50">
+      <Card className="bg-muted/50 border-primary/20">
         <CardContent className="pt-6">
           <div className="text-center text-sm text-muted-foreground space-y-2">
-            <p className="font-medium">Compliance Statement</p>
+            <p className="font-semibold text-foreground">Compliance Statement</p>
             <p>
-              This audit trail is generated in compliance with the Electronic Signatures in Global 
-              and National Commerce Act (ESIGN) and the Uniform Electronic Transactions Act (UETA).
+              This document was electronically signed and verified in compliance with the U.S. ESIGN Act 
+              and applicable state laws. This audit trail is generated in compliance with the Electronic 
+              Signatures in Global and National Commerce Act (ESIGN) and the Uniform Electronic Transactions Act (UETA).
             </p>
-            <p>
+            <p className="text-xs">
               All entries are immutable and cannot be modified or deleted after creation.
             </p>
           </div>
