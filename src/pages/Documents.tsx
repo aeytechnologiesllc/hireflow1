@@ -489,7 +489,7 @@ export default function Documents() {
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </motion.div>
-      ) : documents && documents.length > 0 || (isEmployer && documentRequests.length > 0) ? (
+      ) : documents && documents.length > 0 ? (
         <motion.div variants={staggerItem}>
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="mb-4">
@@ -568,6 +568,9 @@ export default function Documents() {
             )}
           </Tabs>
         </motion.div>
+      ) : !isEmployer && candidatePendingRequests.length > 0 ? (
+        // Candidate has only pending requests, no documents - just show the banner (already rendered above)
+        null
       ) : (
         <motion.div variants={staggerItem}>
           <Card className="bg-card border-border">
