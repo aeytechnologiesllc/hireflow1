@@ -1956,7 +1956,7 @@ ${interviewType} Interview with AVA Results:
                   </Button>
                 )}
                 
-                {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (
+                {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (scheduledInterview as any).candidate_response === "confirmed" && (
                   <Button asChild size="sm" className="gap-2">
                     <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
                       <Video className="h-4 w-4" />
