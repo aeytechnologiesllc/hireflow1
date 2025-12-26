@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -269,6 +270,8 @@ export default function CreateJob() {
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
+  const { limits } = useSubscription();
+  const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
   
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -621,9 +624,30 @@ export default function CreateJob() {
     if (pendingWorkflowData) {
       setApplicationQuestions(pendingWorkflowData.application_questions);
       setQuizQuestions(pendingWorkflowData.quiz_questions);
-      setWorkflowSteps(pendingWorkflowData.workflow_steps);
+      
+      // If user has premium voice interview access, replace chat_interview with voice_interview
+      let finalWorkflowSteps = pendingWorkflowData.workflow_steps;
+      if (hasVoiceInterviewAccess) {
+        finalWorkflowSteps = pendingWorkflowData.workflow_steps.map(step => {
+          if (step.type === 'chat_interview') {
+            return {
+              ...step,
+              id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              type: 'voice_interview',
+              title: 'Ava Interview',
+              description: 'Premium AI voice interview powered by Ava',
+              config: { language: 'en', language_name: 'English', language_enforcement: 'flexible' }
+            };
+          }
+          return step;
+        });
+        toast.success("Hiring workflow generated with premium Ava Interview!");
+      } else {
+        toast.success("Hiring workflow generated!");
+      }
+      
+      setWorkflowSteps(finalWorkflowSteps);
       setWorkflowGenerated(true);
-      toast.success("Hiring workflow generated!");
     }
     // Now dismiss the overlay
     setIsGeneratingWorkflow(false);
