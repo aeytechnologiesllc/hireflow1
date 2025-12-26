@@ -1416,12 +1416,7 @@ export function DocumentWizard({
 
               {/* Signature Fields */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Signature Fields</h3>
-                  <Button variant="outline" size="sm" onClick={addLegacySignatureField}>
-                    Add Field
-                  </Button>
-                </div>
+                <h3 className="font-semibold">Signature Fields</h3>
                 
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                   <p className="text-xs text-blue-600 dark:text-blue-400">
@@ -1534,12 +1529,7 @@ export function DocumentWizard({
 
             {/* Signature Fields */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Signature Fields</h3>
-                <Button variant="outline" size="sm" onClick={addLegacySignatureField}>
-                  Add Field
-                </Button>
-              </div>
+              <h3 className="font-semibold">Signature Fields</h3>
               
               <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                 <p className="text-xs text-blue-600 dark:text-blue-400">
