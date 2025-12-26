@@ -92,82 +92,129 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a direct, specific career coach creating an improvement blueprint for a rejected candidate.
+    const systemPrompt = `You are a direct, specific career coach creating a PREMIUM improvement blueprint for a rejected candidate.
 
-YOUR OUTPUT MUST BE SPECIFIC AND EVIDENCE-BASED:
+YOUR OUTPUT MUST BE DETAILED, SPECIFIC, AND EVIDENCE-BASED:
 - Reference EXACT scores, quotes, and behaviors from the data
-- For each phase, cite specific mistakes with evidence
-- No generic advice like "practice more" - give exact strategies
+- For each phase, cite EVERY specific mistake with evidence (not just 2)
+- No generic advice - give exact strategies with explanations
 - Every improvement must reference what they actually did wrong
+- Frameworks MUST include a plain-English explanation of what they mean
 
 CRITICAL: Generate a JSON with this EXACT structure:
 
 {
   "topRejectionReasons": [
-    "Specific reason 1 with exact evidence (e.g., 'Quiz score 43% below 70% threshold')",
-    "Specific reason 2 with exact evidence",
-    "Specific reason 3 with exact evidence"
+    "Specific reason with exact evidence (e.g., 'Quiz score 43% - failed 4 of 7 questions on product knowledge')",
+    "Specific reason with exact evidence - include actual quotes or scores",
+    "Specific reason with exact evidence"
   ],
   "phaseBreakdown": [
     {
       "phase": "Phase Name",
       "score": "43%" or "28 WPM" or "Failed",
       "issues": [
-        "Specific issue with evidence (e.g., 'Called customer Charles instead of Alex')",
-        "Another specific issue"
+        "Specific issue 1 with evidence (e.g., 'Misspelled customer name - wrote Charles instead of Alex')",
+        "Specific issue 2 with evidence",
+        "Specific issue 3 with evidence (include ALL issues, not just 2)"
       ],
-      "evidence": ["Direct quote or exact answer they gave"],
-      "fix": "Specific actionable fix for this phase"
+      "evidence": [
+        "Direct quote from their response",
+        "Another quote showing the problem",
+        "Third quote if available"
+      ],
+      "fix": "Detailed, actionable fix for this phase - at least 2 sentences explaining exactly what to do"
     }
   ],
   "quickWins": [
-    "Specific action they can do TODAY (e.g., 'Take 3 free typing tests on typingtest.com')",
-    "Another specific action with tool/resource"
+    "Specific action with exact resource (e.g., 'Visit typingtest.com and complete 3 five-minute tests today')",
+    "Another specific action with tool/resource",
+    "Third quick win with specific website or app",
+    "Fourth quick win",
+    "Fifth quick win"
   ],
   "honestReflection": {
-    "whatHappened": "2-3 sentences explaining exactly why they were rejected with specific evidence",
-    "keyInsight": "One specific takeaway they must understand"
+    "whatHappened": "3-4 sentences explaining exactly why they were rejected with specific evidence. Be direct but kind.",
+    "keyInsight": "One specific, memorable takeaway - the most important thing they must understand"
   },
   "strengthsToLeverage": {
     "identified": [
       {
         "strength": "Specific strength observed",
-        "evidence": "Exact quote or behavior that showed this"
+        "evidence": "Exact quote or behavior that showed this - be specific"
       }
     ]
   },
   "improvementCoaching": [
     {
-      "area": "Specific skill gap",
-      "whatWasObserved": "Exact behavior/quote that showed this gap",
+      "area": "Specific skill gap (e.g., 'Written Communication Speed')",
+      "whatWasObserved": "Detailed explanation of what went wrong with specific examples and quotes. 2-3 sentences minimum.",
       "improvementStrategy": {
-        "framework": "Named method (e.g., 'STAR method for responses')"
+        "framework": "Named method (e.g., 'CARE Approach')",
+        "explanation": "Plain-English explanation of what this framework means and how to use it (e.g., 'CARE stands for Clarify the issue, Acknowledge their feelings, Resolve the problem, and Empathize throughout - use this sequence in every customer interaction')"
       },
       "resource": {
-        "name": "Specific resource",
-        "url": "Real URL"
+        "name": "Specific resource (e.g., 'TypingClub.com')",
+        "url": "https://actual-url.com"
       }
     }
   ],
   "thirtyDayPlan": {
-    "week1": { "focus": "Main skill to fix", "dailyActions": ["Action 1", "Action 2"] },
-    "week2": { "focus": "Secondary skill", "dailyActions": ["Action 1", "Action 2"] },
-    "week3": { "focus": "Practice integration", "dailyActions": ["Action 1", "Action 2"] },
-    "week4": { "focus": "Apply to new jobs", "dailyActions": ["Update resume", "Submit 3 applications"] }
+    "week1": {
+      "focus": "Main skill to fix first",
+      "dailyActions": [
+        "Day 1-2: Specific action with measurable goal",
+        "Day 3-4: Next specific action",
+        "Day 5-7: End of week action with checkpoint"
+      ]
+    },
+    "week2": {
+      "focus": "Secondary skill or building on week 1",
+      "dailyActions": [
+        "Day 1-2: Specific action",
+        "Day 3-4: Specific action",
+        "Day 5-7: Specific action with review"
+      ]
+    },
+    "week3": {
+      "focus": "Practice integration and mock scenarios",
+      "dailyActions": [
+        "Day 1-2: Mock practice scenario",
+        "Day 3-4: Self-review and adjustment",
+        "Day 5-7: Timed practice under pressure"
+      ]
+    },
+    "week4": {
+      "focus": "Apply to new jobs with improved skills",
+      "dailyActions": [
+        "Day 1-2: Update resume with new skills/certifications",
+        "Day 3-4: Submit 2-3 targeted applications",
+        "Day 5-7: Follow up and continue practicing"
+      ]
+    }
   },
   "closingMessage": {
-    "personalNote": "2-3 encouraging sentences referencing something SPECIFIC they did well",
-    "immediateActions": ["Do this today", "And this", "And this"]
+    "personalNote": "3-4 encouraging sentences referencing something SPECIFIC they did well. Be warm and genuine.",
+    "immediateActions": [
+      "First thing to do TODAY - very specific",
+      "Second thing to do TODAY",
+      "Third thing to do TODAY",
+      "Fourth thing to do TODAY",
+      "Fifth thing to do TODAY"
+    ]
   }
 }
 
 RULES:
-1. phaseBreakdown MUST include EVERY phase from the provided data with specific issues
-2. topRejectionReasons must cite exact scores/quotes, not vague statements
-3. quickWins must be actionable TODAY with specific resources
-4. Never say "improve your X" without explaining exactly how and referencing what went wrong`;
+1. phaseBreakdown MUST include EVERY phase from the provided data with ALL specific issues (not just 2)
+2. topRejectionReasons must cite exact scores/quotes - never vague statements
+3. quickWins must be actionable TODAY with specific websites/apps
+4. improvementStrategy.explanation is REQUIRED - explain what the framework means in simple terms
+5. thirtyDayPlan must have detailed dailyActions for each week (3+ per week)
+6. Never use generic phrases like "improve your X" - always explain exactly how
+7. Use simple ASCII characters only - no special Unicode symbols`;
 
-    const userPrompt = `Create an Improvement Blueprint for this rejected candidate. Be SPECIFIC with evidence.
+    const userPrompt = `Create a PREMIUM Improvement Blueprint for this rejected candidate. This is a paid feature - be THOROUGH and SPECIFIC.
 
 ${applicationContext}
 
@@ -175,10 +222,12 @@ PASSING SCORE FOR THIS JOB: ${passingScore}%
 CANDIDATE'S SCORE: ${application.ai_score || 0}%
 
 CRITICAL REQUIREMENTS:
-1. For EACH phase in the data, identify exactly what went wrong with quotes/scores
-2. The topRejectionReasons must cite specific evidence (scores, quotes, behaviors)
-3. phaseBreakdown must cover ALL phases listed above with specific issues
-4. quickWins must reference specific tools they can use TODAY
+1. For EACH phase, identify ALL issues (not just 2) with exact quotes/scores as evidence
+2. topRejectionReasons must cite specific evidence (exact scores, quotes, behaviors)
+3. Every framework in improvementStrategy must include an "explanation" field in plain English
+4. thirtyDayPlan must have 3+ detailed dailyActions per week with specific activities
+5. quickWins must reference specific websites or tools they can use TODAY
+6. Be detailed - this is a premium feature worth real money
 
 Return ONLY valid JSON, no markdown.`;
 
@@ -196,8 +245,8 @@ Return ONLY valid JSON, no markdown.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.5, // Lower for more consistent output
-        max_tokens: 5000,
+        temperature: 0.5,
+        max_tokens: 8000, // Increased for more detailed output
       }),
     });
 
@@ -272,9 +321,10 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     phases['Typing Test'] = {
       score: `${t.wpm || 0} WPM, ${t.accuracy || 0}% accuracy`,
       details: [
-        `Speed: ${t.wpm || 0} WPM (${t.wpm < 40 ? 'below average' : 'adequate'})`,
-        `Accuracy: ${t.accuracy || 0}%`,
-        `Errors: ${t.errors || 0}`,
+        `Speed: ${t.wpm || 0} WPM (${t.wpm < 40 ? 'below average for chat support - needs 40+ WPM' : 'adequate'})`,
+        `Accuracy: ${t.accuracy || 0}% (${t.accuracy < 95 ? 'too many errors - aim for 95%+' : 'good'})`,
+        `Total errors: ${t.errors || 0}`,
+        `Characters typed: ${t.characters || 'unknown'}`,
       ],
       evidence: [],
     };
@@ -287,6 +337,7 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
       score: `${q.score || 0}%`,
       details: [
         `Score: ${q.score || 0}% (${q.correctAnswers || 0}/${q.totalQuestions || 0} correct)`,
+        `Time taken: ${q.timeTaken ? Math.round(q.timeTaken / 60) + ' minutes' : 'unknown'}`,
       ],
       evidence: [],
     };
@@ -294,8 +345,10 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     if (q.answers) {
       q.answers.forEach((ans: any, i: number) => {
         if (!ans.isCorrect && ans.userAnswer) {
-          phases['Quiz'].details.push(`Q${i + 1}: Answered "${ans.userAnswer}" (wrong)`);
-          phases['Quiz'].evidence.push(`"${ans.userAnswer}"`);
+          phases['Quiz'].details.push(`Question ${i + 1}: Answered "${ans.userAnswer}" - INCORRECT`);
+          if (ans.question) {
+            phases['Quiz'].evidence.push(`Q: "${ans.question.slice(0, 100)}" -> Their answer: "${ans.userAnswer}"`);
+          }
         }
       });
     }
@@ -309,27 +362,43 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     };
     parsedNotes.answers.forEach((qa: any, i: number) => {
       if (qa.answer) {
-        const short = qa.answer.length < 20 ? '(very short response)' : '';
-        phases['Screening Questions'].details.push(`Q${i + 1}: ${qa.question?.slice(0, 50)}...`);
-        phases['Screening Questions'].evidence.push(`"${qa.answer.slice(0, 100)}${qa.answer.length > 100 ? '...' : ''}" ${short}`);
+        const length = qa.answer.length;
+        const quality = length < 20 ? '(very short - needs more detail)' : length < 50 ? '(brief response)' : '';
+        phases['Screening Questions'].details.push(`Q${i + 1}: "${qa.question?.slice(0, 80)}..."`);
+        phases['Screening Questions'].evidence.push(`Answer: "${qa.answer}" ${quality}`);
       }
     });
   }
 
-  // Chat Interview
-  if (parsedNotes?.chatInterviewResult) {
-    const c = parsedNotes.chatInterviewResult;
-    phases['Chat Interview'] = {
+  // Chat Interview / Chat Simulation
+  if (parsedNotes?.chatInterviewResult || parsedNotes?.chatSimulationResult) {
+    const c = parsedNotes.chatInterviewResult || parsedNotes.chatSimulationResult;
+    const phaseName = parsedNotes.chatSimulationResult ? 'Chat Simulation' : 'Chat Interview';
+    phases[phaseName] = {
       score: c.score ? `${c.score}%` : undefined,
-      result: c.summary || undefined,
-      details: [c.summary || 'Completed'],
+      result: c.summary || c.outcome || undefined,
+      details: [],
       evidence: [],
     };
-    if (c.issues) phases['Chat Interview'].details.push(...c.issues);
+    
+    if (c.summary) phases[phaseName].details.push(`Summary: ${c.summary}`);
+    if (c.issues?.length) {
+      c.issues.forEach((issue: string) => {
+        phases[phaseName].details.push(`Issue: ${issue}`);
+      });
+    }
+    if (c.criticalErrors?.length) {
+      c.criticalErrors.forEach((err: string) => {
+        phases[phaseName].details.push(`Critical Error: ${err}`);
+      });
+    }
+    
+    // Extract candidate responses as evidence
     if (c.transcript) {
-      c.transcript.slice(0, 3).forEach((t: any) => {
-        if (t.role === 'candidate' || t.role === 'user') {
-          phases['Chat Interview'].evidence.push(`"${t.content?.slice(0, 80)}..."`);
+      c.transcript.forEach((t: any) => {
+        if (t.role === 'candidate' || t.role === 'user' || t.role === 'assistant') {
+          const label = (t.role === 'candidate' || t.role === 'user') ? 'Candidate' : 'Customer';
+          phases[phaseName].evidence.push(`${label}: "${t.content?.slice(0, 150)}${t.content?.length > 150 ? '...' : ''}"`);
         }
       });
     }
@@ -341,20 +410,28 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     phases['Sales Simulation'] = {
       score: s.overallScore ? `${s.overallScore}%` : undefined,
       details: [
-        `Overall: ${s.overallScore || 0}%`,
-        `Rapport: ${s.rapportScore || 0}%`,
+        `Overall Score: ${s.overallScore || 0}%`,
+        `Rapport Building: ${s.rapportScore || 0}%`,
         `Objection Handling: ${s.objectionHandlingScore || 0}%`,
-        `Closing: ${s.closingScore || 0}%`,
+        `Closing Skills: ${s.closingScore || 0}%`,
+        `Product Knowledge: ${s.productKnowledgeScore || 0}%`,
       ],
       evidence: [],
     };
-    if (s.criticalErrors) {
-      phases['Sales Simulation'].details.push(...s.criticalErrors);
+    if (s.criticalErrors?.length) {
+      s.criticalErrors.forEach((err: string) => {
+        phases['Sales Simulation'].details.push(`Critical Error: ${err}`);
+      });
+    }
+    if (s.missedOpportunities?.length) {
+      s.missedOpportunities.forEach((opp: string) => {
+        phases['Sales Simulation'].details.push(`Missed Opportunity: ${opp}`);
+      });
     }
     if (s.transcript) {
-      s.transcript.slice(0, 2).forEach((t: any) => {
+      s.transcript.forEach((t: any) => {
         if (t.role === 'candidate' || t.role === 'user') {
-          phases['Sales Simulation'].evidence.push(`"${t.content?.slice(0, 80)}..."`);
+          phases['Sales Simulation'].evidence.push(`Candidate said: "${t.content?.slice(0, 150)}${t.content?.length > 150 ? '...' : ''}"`);
         }
       });
     }
@@ -367,16 +444,26 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
       score: v.overall_score ? `${v.overall_score}%` : undefined,
       result: v.recommendation,
       details: [
-        `Overall: ${v.overall_score || 0}%`,
-        v.executive_summary || '',
+        `Overall Score: ${v.overall_score || 0}%`,
+        `Recommendation: ${v.recommendation || 'N/A'}`,
       ],
       evidence: [],
     };
-    if (v.concerns?.length) phases['Voice Interview'].details.push(...v.concerns);
+    if (v.executive_summary) {
+      phases['Voice Interview'].details.push(`Summary: ${v.executive_summary}`);
+    }
+    if (v.concerns?.length) {
+      v.concerns.forEach((concern: string) => {
+        phases['Voice Interview'].details.push(`Concern: ${concern}`);
+      });
+    }
     if (v.question_breakdown) {
-      v.question_breakdown.slice(0, 2).forEach((q: any) => {
+      v.question_breakdown.forEach((q: any) => {
         if (q.notable_quote) {
           phases['Voice Interview'].evidence.push(`"${q.notable_quote}"`);
+        }
+        if (q.feedback) {
+          phases['Voice Interview'].details.push(`Q: ${q.question?.slice(0, 50)}... -> ${q.feedback}`);
         }
       });
     }
@@ -393,12 +480,18 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
 - Status: REJECTED
 - AI Score: ${application.ai_score || 0}/100`);
 
-  // Include phase-specific data
+  // Cover letter
+  if (application.cover_letter) {
+    sections.push(`\n## Cover Letter\n"${application.cover_letter}"`);
+  }
+
+  // Include phase-specific data with ALL details
   Object.entries(phaseData).forEach(([phase, data]) => {
     sections.push(`\n## ${phase}${data.score ? ` - ${data.score}` : ''}`);
+    sections.push(`Details:`);
     data.details.forEach(d => sections.push(`- ${d}`));
     if (data.evidence.length) {
-      sections.push(`Evidence/Quotes:`);
+      sections.push(`\nEvidence/Quotes from candidate:`);
       data.evidence.forEach(e => sections.push(`  ${e}`));
     }
   });
@@ -421,9 +514,16 @@ function validatePhaseBreakdown(aiPhases: any[], phaseData: PhaseData): any[] {
       result.push({
         phase,
         score: data.score || data.result || 'Completed',
-        issues: data.details.filter(d => d.includes('wrong') || d.includes('error') || d.includes('below')),
+        issues: data.details.filter(d => 
+          d.toLowerCase().includes('wrong') || 
+          d.toLowerCase().includes('error') || 
+          d.toLowerCase().includes('below') ||
+          d.toLowerCase().includes('incorrect') ||
+          d.toLowerCase().includes('issue') ||
+          d.toLowerCase().includes('concern')
+        ),
         evidence: data.evidence,
-        fix: 'Review performance and practice this skill area',
+        fix: 'Review this phase carefully and practice the specific skills tested. Focus on the issues identified above.',
       });
     }
   });
