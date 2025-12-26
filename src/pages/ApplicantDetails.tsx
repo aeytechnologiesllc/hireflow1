@@ -413,6 +413,55 @@ export default function ApplicantDetails() {
     };
   }, [id, queryClient]);
 
+  // Listen for AVA voice assistant section open commands
+  // Use a ref to access handleReanalyze to avoid stale closure
+  const handleReanalyzeRef = useRef<(() => void) | null>(null);
+  
+  useEffect(() => {
+    const handleAvaSection = (e: CustomEvent<{ section: string }>) => {
+      const { section } = e.detail;
+      console.log('AVA opening section:', section);
+      
+      switch (section) {
+        case 'analysis':
+          // Scroll to AI analysis card (it's visible on the page)
+          const analysisCard = document.querySelector('[data-section="ai-analysis"]');
+          if (analysisCard) {
+            analysisCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            toast.success('Showing AI Analysis');
+          }
+          break;
+        case 'resume':
+          setShowResumeDialog(true);
+          break;
+        case 'application':
+          setShowApplicationDialog(true);
+          break;
+        case 'notes':
+          setShowNotesDialog(true);
+          break;
+        case 'messages':
+          setShowMessageDialog(true);
+          break;
+        case 'interview_results':
+          setShowVoiceInterviewResults(true);
+          break;
+        case 'sales_results':
+          setShowSalesAnalysisDialog(true);
+          break;
+        case 'run_analysis':
+          // Trigger reanalysis via ref
+          if (handleReanalyzeRef.current) {
+            handleReanalyzeRef.current();
+          }
+          break;
+      }
+    };
+    
+    window.addEventListener('ava-open-section', handleAvaSection as EventListener);
+    return () => window.removeEventListener('ava-open-section', handleAvaSection as EventListener);
+  }, []);
+
   // Auto-advance in Autopilot mode: when application meets criteria, advance automatically
   const autoAdvanceTriggeredRef = useRef(false);
   useEffect(() => {
@@ -1570,6 +1619,11 @@ ${interviewType} Interview with AVA Results:
     }
   };
 
+  // Update the ref so the AVA event listener can access it
+  useEffect(() => {
+    handleReanalyzeRef.current = handleReanalyze;
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -2424,7 +2478,7 @@ ${interviewType} Interview with AVA Results:
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut", delay: 0.4 }}
       >
-      <Card className="bg-card border-border">
+      <Card className="bg-card border-border" data-section="ai-analysis">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">

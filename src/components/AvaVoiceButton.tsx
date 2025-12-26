@@ -115,6 +115,14 @@ export default function AvaVoiceButton() {
         }
       }
       
+      // Handle open_applicant_section tool
+      if (toolName === 'open_applicant_section' && result.action === 'open_section') {
+        window.dispatchEvent(new CustomEvent('ava-open-section', { 
+          detail: { section: result.section } 
+        }));
+        return;
+      }
+      
       if (toolName === 'schedule_interview' && result.success) {
         queryClient.invalidateQueries({ queryKey: ["interviews"] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });

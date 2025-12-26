@@ -548,6 +548,22 @@ You're Ava - smart, helpful, ENERGETIC, and quick. Not a slow task bot.
         },
         {
           type: "function",
+          name: "open_applicant_section",
+          description: "Open a specific section or dialog on the current applicant's details page. Use when user asks to 'show me the analysis', 'open the resume', 'show their application answers', 'open notes', 'show interview results', etc. ONLY works when already viewing an applicant.",
+          parameters: {
+            type: "object",
+            properties: {
+              section: { 
+                type: "string", 
+                description: "The section to open",
+                enum: ["analysis", "resume", "application", "notes", "messages", "interview_results", "sales_results", "run_analysis"]
+              }
+            },
+            required: ["section"]
+          }
+        },
+        {
+          type: "function",
           name: "send_message",
           description: "Send a message to an applicant on behalf of the employer. Use when employer wants to communicate with a candidate.",
           parameters: {
@@ -1716,7 +1732,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-12-17",
-        voice: "coral",  // More energetic and lively voice
+        voice: "sage",  // Warm and measured - professional without feeling rushed
         instructions,
         tools,
         tool_choice: "auto",
