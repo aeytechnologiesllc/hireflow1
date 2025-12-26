@@ -14,8 +14,21 @@ import {
 export type Application = Tables<"applications">;
 export type ApplicationInsert = TablesInsert<"applications">;
 
+export interface InterviewForApplication {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  candidate_response: string | null;
+  meeting_link: string | null;
+  duration_minutes: number | null;
+  interview_type: string | null;
+  proposed_times: any;
+  candidate_note: string | null;
+}
+
 export interface ApplicationWithJob extends Application {
   jobs: Tables<"jobs"> | null;
+  latestInterview?: InterviewForApplication | null;
 }
 
 export interface ApplicationWithCandidate extends Application {
@@ -36,7 +49,39 @@ export function useCandidateApplications() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as ApplicationWithJob[];
+
+      // Fetch interviews for these applications
+      const applicationIds = data.map((app) => app.id);
+      
+      const { data: interviews } = await supabase
+        .from("interviews")
+        .select("id, application_id, scheduled_at, status, candidate_response, meeting_link, duration_minutes, interview_type, proposed_times, candidate_note")
+        .in("application_id", applicationIds)
+        .eq("status", "scheduled")
+        .order("scheduled_at", { ascending: false });
+
+      // Map interviews to applications (get the latest one per application)
+      const interviewMap = new Map<string, InterviewForApplication>();
+      interviews?.forEach((interview) => {
+        if (!interviewMap.has(interview.application_id)) {
+          interviewMap.set(interview.application_id, {
+            id: interview.id,
+            scheduled_at: interview.scheduled_at,
+            status: interview.status,
+            candidate_response: interview.candidate_response,
+            meeting_link: interview.meeting_link,
+            duration_minutes: interview.duration_minutes,
+            interview_type: interview.interview_type,
+            proposed_times: interview.proposed_times,
+            candidate_note: interview.candidate_note,
+          });
+        }
+      });
+
+      return data.map((app) => ({
+        ...app,
+        latestInterview: interviewMap.get(app.id) || null,
+      })) as ApplicationWithJob[];
     },
     enabled: !!user,
   });
