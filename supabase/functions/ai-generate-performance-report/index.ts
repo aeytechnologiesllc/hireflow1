@@ -92,69 +92,77 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a direct, specific career coach creating a PREMIUM improvement blueprint for a rejected candidate.
+    const systemPrompt = `You are a friendly, supportive career coach creating a PREMIUM improvement blueprint for a rejected candidate.
+
+CRITICAL WRITING STYLE RULES:
+- Write in simple, conversational English - as if explaining to a friend over coffee
+- NEVER use phrases like "implied by", "indicates", "demonstrates deficiency", or technical jargon
+- Be direct and specific but warm - you're helping someone improve, not judging them
+- When referencing data, explain what it MEANS for them, not just what the numbers are
+- For cover letters: If they submitted something brief, say "Your cover letter was just X words" not "N/A"
+- Don't repeat technical data verbatim - summarize it in plain English
 
 YOUR OUTPUT MUST BE DETAILED, SPECIFIC, AND EVIDENCE-BASED:
 - Reference EXACT scores, quotes, and behaviors from the data
 - For each phase, cite EVERY specific mistake with evidence (not just 2)
-- No generic advice - give exact strategies with explanations
+- No generic advice - give exact strategies with step-by-step explanations
 - Every improvement must reference what they actually did wrong
-- Frameworks MUST include a plain-English explanation of what they mean
+- Frameworks MUST include a 1-2 sentence plain-English explanation of what they mean and how to use them
 
 CRITICAL: Generate a JSON with this EXACT structure:
 
 {
   "topRejectionReasons": [
-    "Specific reason with exact evidence (e.g., 'Quiz score 43% - failed 4 of 7 questions on product knowledge')",
-    "Specific reason with exact evidence - include actual quotes or scores",
-    "Specific reason with exact evidence"
+    "Plain-English reason with exact evidence (e.g., 'You got 3 out of 7 quiz questions wrong, scoring 43%. The passing score was 70%.')",
+    "Another reason explained simply with specific numbers or quotes",
+    "Third reason - be specific but conversational"
   ],
   "phaseBreakdown": [
     {
-      "phase": "Phase Name",
-      "score": "43%" or "28 WPM" or "Failed",
+      "phase": "Phase Name (e.g., 'Cover Letter' not 'Cover Letter (N/A)')",
+      "score": "43%" or "28 WPM" or "Very Brief",
       "issues": [
-        "Specific issue 1 with evidence (e.g., 'Misspelled customer name - wrote Charles instead of Alex')",
-        "Specific issue 2 with evidence",
-        "Specific issue 3 with evidence (include ALL issues, not just 2)"
+        "Plain-English issue (e.g., 'Your cover letter was only 5 words, which doesn't tell the employer anything about you')",
+        "Another issue explained simply",
+        "Third issue - include ALL issues you find in the data"
       ],
       "evidence": [
         "Direct quote from their response",
         "Another quote showing the problem",
         "Third quote if available"
       ],
-      "fix": "Detailed, actionable fix for this phase - at least 2 sentences explaining exactly what to do"
+      "fix": "Detailed, actionable fix written like advice from a mentor. At least 2 sentences explaining exactly what to do and why it helps."
     }
   ],
   "quickWins": [
-    "Specific action with exact resource (e.g., 'Visit typingtest.com and complete 3 five-minute tests today')",
+    "Specific action with exact resource (e.g., 'Go to TypingClub.com right now and complete the first 3 lessons - it takes about 15 minutes')",
     "Another specific action with tool/resource",
     "Third quick win with specific website or app",
     "Fourth quick win",
     "Fifth quick win"
   ],
   "honestReflection": {
-    "whatHappened": "3-4 sentences explaining exactly why they were rejected with specific evidence. Be direct but kind.",
-    "keyInsight": "One specific, memorable takeaway - the most important thing they must understand"
+    "whatHappened": "3-4 sentences explaining exactly why they were rejected. Be direct but kind. Use specific numbers and examples from their application.",
+    "keyInsight": "One specific, memorable takeaway in simple language - what's the #1 thing they need to understand?"
   },
   "strengthsToLeverage": {
     "identified": [
       {
-        "strength": "Specific strength observed",
-        "evidence": "Exact quote or behavior that showed this - be specific"
+        "strength": "Specific strength you noticed",
+        "evidence": "Exact quote or behavior that showed this strength"
       }
     ]
   },
   "improvementCoaching": [
     {
-      "area": "Specific skill gap (e.g., 'Written Communication Speed')",
-      "whatWasObserved": "Detailed explanation of what went wrong with specific examples and quotes. 2-3 sentences minimum.",
+      "area": "Skill they need to work on (e.g., 'Typing Speed')",
+      "whatWasObserved": "Explain what happened in plain English. For example: 'You typed at 28 words per minute, but chat support agents need to type at least 40 WPM to keep up with customer conversations.' 2-3 sentences.",
       "improvementStrategy": {
-        "framework": "Named method (e.g., 'CARE Approach')",
-        "explanation": "Plain-English explanation of what this framework means and how to use it (e.g., 'CARE stands for Clarify the issue, Acknowledge their feelings, Resolve the problem, and Empathize throughout - use this sequence in every customer interaction')"
+        "framework": "Named method (e.g., 'The CARE Approach')",
+        "explanation": "REQUIRED: Explain what this means in simple terms. For example: 'CARE stands for Clarify, Acknowledge, Resolve, Empathize. In every customer chat, first clarify what the issue is, then acknowledge how they feel, work to resolve it, and show empathy throughout. This makes customers feel heard.'"
       },
       "resource": {
-        "name": "Specific resource (e.g., 'TypingClub.com')",
+        "name": "Specific resource (e.g., 'TypingClub')",
         "url": "https://actual-url.com"
       }
     }
@@ -163,40 +171,40 @@ CRITICAL: Generate a JSON with this EXACT structure:
     "week1": {
       "focus": "Main skill to fix first",
       "dailyActions": [
-        "Day 1-2: Specific action with measurable goal",
-        "Day 3-4: Next specific action",
-        "Day 5-7: End of week action with checkpoint"
+        "Day 1-2: Specific action with measurable goal (e.g., 'Complete 3 typing lessons on TypingClub.com, aiming for 95% accuracy')",
+        "Day 3-4: Next specific action with clear goal",
+        "Day 5-7: End of week action with checkpoint to measure progress"
       ]
     },
     "week2": {
       "focus": "Secondary skill or building on week 1",
       "dailyActions": [
-        "Day 1-2: Specific action",
-        "Day 3-4: Specific action",
-        "Day 5-7: Specific action with review"
+        "Day 1-2: Specific action with measurable goal",
+        "Day 3-4: Specific action with clear goal",
+        "Day 5-7: Specific action with review checkpoint"
       ]
     },
     "week3": {
-      "focus": "Practice integration and mock scenarios",
+      "focus": "Practice putting it together",
       "dailyActions": [
-        "Day 1-2: Mock practice scenario",
-        "Day 3-4: Self-review and adjustment",
-        "Day 5-7: Timed practice under pressure"
+        "Day 1-2: Mock practice scenario with specific instructions",
+        "Day 3-4: Self-review and adjustment activities",
+        "Day 5-7: Timed practice to build confidence"
       ]
     },
     "week4": {
-      "focus": "Apply to new jobs with improved skills",
+      "focus": "Apply with confidence",
       "dailyActions": [
-        "Day 1-2: Update resume with new skills/certifications",
-        "Day 3-4: Submit 2-3 targeted applications",
-        "Day 5-7: Follow up and continue practicing"
+        "Day 1-2: Update resume with new skills learned",
+        "Day 3-4: Submit 2-3 applications using your improved skills",
+        "Day 5-7: Follow up on applications and continue practicing"
       ]
     }
   },
   "closingMessage": {
-    "personalNote": "3-4 encouraging sentences referencing something SPECIFIC they did well. Be warm and genuine.",
+    "personalNote": "3-4 warm, encouraging sentences. Reference something SPECIFIC they did well or showed potential in. Be genuine and supportive.",
     "immediateActions": [
-      "First thing to do TODAY - very specific",
+      "First thing to do TODAY - very specific and easy to start",
       "Second thing to do TODAY",
       "Third thing to do TODAY",
       "Fourth thing to do TODAY",
@@ -206,13 +214,14 @@ CRITICAL: Generate a JSON with this EXACT structure:
 }
 
 RULES:
-1. phaseBreakdown MUST include EVERY phase from the provided data with ALL specific issues (not just 2)
-2. topRejectionReasons must cite exact scores/quotes - never vague statements
-3. quickWins must be actionable TODAY with specific websites/apps
-4. improvementStrategy.explanation is REQUIRED - explain what the framework means in simple terms
-5. thirtyDayPlan must have detailed dailyActions for each week (3+ per week)
-6. Never use generic phrases like "improve your X" - always explain exactly how
-7. Use simple ASCII characters only - no special Unicode symbols`;
+1. phaseBreakdown MUST include EVERY phase from the provided data with ALL specific issues
+2. Write like a supportive mentor, not a robot - use "you" and "your" naturally
+3. topRejectionReasons must cite exact scores/quotes but explain what they mean
+4. quickWins must be actionable TODAY with specific websites/apps and time estimates
+5. improvementStrategy.explanation is REQUIRED - if you don't explain the framework, you've failed
+6. thirtyDayPlan must have detailed dailyActions for each week (3+ per week) with measurable goals
+7. NEVER say "N/A" for a phase - describe what was submitted, even if brief
+8. Use simple ASCII characters only - no special Unicode symbols like checkmarks or arrows`;
 
     const userPrompt = `Create a PREMIUM Improvement Blueprint for this rejected candidate. This is a paid feature - be THOROUGH and SPECIFIC.
 
@@ -318,14 +327,32 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
   // Typing Test
   if (parsedNotes?.typingTestResult) {
     const t = parsedNotes.typingTestResult;
+    const wpm = t.wpm || 0;
+    const accuracy = t.accuracy || 0;
+    const errors = t.errors || 0;
+    
+    // Build conversational, plain-English details
+    const speedNote = wpm < 40 
+      ? `You typed at ${wpm} words per minute. Chat support roles typically need 40 or more WPM to keep up with customer conversations.`
+      : `You typed at ${wpm} words per minute, which is a solid speed for chat support.`;
+    
+    // Only call out accuracy as a major issue if below 85%
+    let accuracyNote = '';
+    if (accuracy < 85) {
+      accuracyNote = `Your accuracy was ${accuracy}%, which means a lot of typos. For customer-facing roles, aim for 95% or higher.`;
+    } else if (accuracy < 95) {
+      accuracyNote = `Your accuracy was ${accuracy}%. That's okay, but for chat support aim for 95% or higher to look professional.`;
+    } else {
+      accuracyNote = `Your accuracy was ${accuracy}%, which is excellent.`;
+    }
+    
     phases['Typing Test'] = {
-      score: `${t.wpm || 0} WPM, ${t.accuracy || 0}% accuracy`,
+      score: `${wpm} WPM, ${accuracy}% accuracy`,
       details: [
-        `Speed: ${t.wpm || 0} WPM (${t.wpm < 40 ? 'below average for chat support - needs 40+ WPM' : 'adequate'})`,
-        `Accuracy: ${t.accuracy || 0}% (${t.accuracy < 95 ? 'too many errors - aim for 95%+' : 'good'})`,
-        `Total errors: ${t.errors || 0}`,
-        `Characters typed: ${t.characters || 'unknown'}`,
-      ],
+        speedNote,
+        accuracyNote,
+        errors > 0 ? `You made ${errors} errors during the test.` : '',
+      ].filter(Boolean),
       evidence: [],
     };
   }
@@ -333,21 +360,27 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
   // Quiz
   if (parsedNotes?.quizResult) {
     const q = parsedNotes.quizResult;
+    // Fix: use q.correct and q.total (correct property names), with fallbacks
+    const correctAnswers = q.correct ?? q.correctAnswers ?? 0;
+    const totalQuestions = q.total ?? q.totalQuestions ?? 0;
+    const score = q.score || 0;
+    const timeTaken = q.timeTaken ? Math.round(q.timeTaken / 60) : null;
+    
     phases['Quiz'] = {
-      score: `${q.score || 0}%`,
+      score: `${score}%`,
       details: [
-        `Score: ${q.score || 0}% (${q.correctAnswers || 0}/${q.totalQuestions || 0} correct)`,
-        `Time taken: ${q.timeTaken ? Math.round(q.timeTaken / 60) + ' minutes' : 'unknown'}`,
-      ],
+        `You got ${correctAnswers} out of ${totalQuestions} questions correct (${score}%).`,
+        timeTaken ? `You completed the quiz in about ${timeTaken} minutes.` : '',
+      ].filter(Boolean),
       evidence: [],
     };
     // Add wrong answers if available
     if (q.answers) {
       q.answers.forEach((ans: any, i: number) => {
         if (!ans.isCorrect && ans.userAnswer) {
-          phases['Quiz'].details.push(`Question ${i + 1}: Answered "${ans.userAnswer}" - INCORRECT`);
+          phases['Quiz'].details.push(`Question ${i + 1}: You answered "${ans.userAnswer}" - this was incorrect.`);
           if (ans.question) {
-            phases['Quiz'].evidence.push(`Q: "${ans.question.slice(0, 100)}" -> Their answer: "${ans.userAnswer}"`);
+            phases['Quiz'].evidence.push(`Question: "${ans.question.slice(0, 100)}" - Your answer: "${ans.userAnswer}"`);
           }
         }
       });
@@ -480,9 +513,19 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
 - Status: REJECTED
 - AI Score: ${application.ai_score || 0}/100`);
 
-  // Cover letter
+  // Cover letter - provide context about length
   if (application.cover_letter) {
-    sections.push(`\n## Cover Letter\n"${application.cover_letter}"`);
+    const coverLetter = application.cover_letter.trim();
+    const wordCount = coverLetter.split(/\s+/).filter(Boolean).length;
+    let lengthNote = '';
+    if (wordCount < 20) {
+      lengthNote = `(Very Brief - only ${wordCount} words. A strong cover letter is typically 150-300 words.)`;
+    } else if (wordCount < 50) {
+      lengthNote = `(Short - ${wordCount} words. Consider expanding to 150-300 words for more impact.)`;
+    } else {
+      lengthNote = `(${wordCount} words)`;
+    }
+    sections.push(`\n## Cover Letter ${lengthNote}\n"${coverLetter}"`);
   }
 
   // Include phase-specific data with ALL details
