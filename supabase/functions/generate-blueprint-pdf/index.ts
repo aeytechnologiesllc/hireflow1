@@ -167,7 +167,7 @@ function drawExecutiveSummary(doc: jsPDF, bp: any, name: string, job: string, pa
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(COLORS.error.r, COLORS.error.g, COLORS.error.b);
-    doc.text('Top 3 Rejection Drivers', margin + 6, y + 9);
+    doc.text('Key Factors in Application Outcome', margin + 6, y + 9);
     
     let dy = y + 18;
     doc.setFont('helvetica', 'normal');
@@ -221,6 +221,17 @@ function drawExecutiveSummary(doc: jsPDF, bp: any, name: string, job: string, pa
   doc.setFontSize(8);
   doc.setTextColor(COLORS.muted.r, COLORS.muted.g, COLORS.muted.b);
   doc.text('See the following pages for detailed phase-by-phase analysis and your personalized 30-day improvement plan.', margin, y + 5);
+  
+  // Developmental disclaimer
+  y += 15;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7);
+  doc.setTextColor(COLORS.muted.r, COLORS.muted.g, COLORS.muted.b);
+  const disclaimer = 'This report is intended as developmental feedback to support improvement and does not represent a judgment of personal character or future potential.';
+  const disclaimerLines = wrapText(doc, disclaimer, contentW);
+  disclaimerLines.forEach((line, i) => {
+    doc.text(line, margin, y + i * 4);
+  });
 }
 
 serve(async (req) => {

@@ -96,9 +96,17 @@ serve(async (req) => {
 
 TONE & LANGUAGE RULES (CRITICAL):
 - Write in simple, conversational English - as if explaining to a friend over coffee
-- Use PROFESSIONAL, role-relative language. Never use emotionally charged words like:
-  * NEVER SAY: "extremely poor", "very low", "failed", "critical", "deficiency", "terrible"
-  * INSTEAD SAY: "Below role requirements", "Significant gap relative to expectations", "Not currently meeting baseline requirements", "Performance gap", "Area needing development"
+- Use PROFESSIONAL, role-relative language. Anchor all critiques to job requirements, not personal assessment.
+- NEVER USE these emotionally charged phrases - use the professional alternatives instead:
+  * NEVER: "extremely poor" or "very poor" -> SAY: "Significantly below role requirements"
+  * NEVER: "failed" or "failure" -> SAY: "Did not meet" or "Was below requirements"
+  * NEVER: "critical" (as severity) -> SAY: "Significant" or "Notable"
+  * NEVER: "deficiency" or "deficiencies" -> SAY: "Gap" or "Area for development"
+  * NEVER: "terrible" or "awful" -> SAY: "Needs substantial improvement"
+  * NEVER: "major deficiencies" or "severe deficiencies" -> SAY: "Substantial gaps relative to expectations"
+  * NEVER: "severely damaged credibility" -> SAY: "Reduced employer confidence due to inconsistencies"
+  * NEVER: "unacceptable" -> SAY: "Below baseline requirements"
+  * NEVER: "incompetent" -> SAY: "Not yet at required skill level"
 - When describing low performance, frame it relative to role expectations:
   * EXAMPLE: "Your typing speed of 28 WPM is below the typical 40+ WPM requirement for chat support roles"
   * NOT: "Your typing speed was extremely low"
@@ -106,6 +114,10 @@ TONE & LANGUAGE RULES (CRITICAL):
 - When referencing data, explain what it MEANS for them, not just what the numbers are
 - For cover letters: If they submitted something brief, say "Your cover letter was just X words" not "N/A"
 - Don't repeat technical data verbatim - summarize it in plain English
+
+FRAMING GUIDANCE:
+- For "topRejectionDrivers", frame them as "Key Factors in Your Application Outcome" - focus on the gap between performance and requirements, not personal judgment
+- Always anchor critiques to "relative to employer expectations" or "relative to role requirements"
 
 AI-ASSISTED CONTENT CLARIFICATION:
 - If you detect or mention "AI-assisted content", "POSSIBLY_AI_ASSISTED", or similar patterns in resume/cover letter analysis:
@@ -237,6 +249,7 @@ CRITICAL: Generate a JSON with this EXACT structure:
   },
   "closingMessage": {
     "personalNote": "3-4 warm, encouraging sentences. Reference something SPECIFIC they did well or showed potential in. Be genuine and supportive.",
+    "developmentalDisclaimer": "This report is intended as developmental feedback to support improvement and does not represent a judgment of personal character or future potential.",
     "immediateActions": [
       "First thing to do TODAY - very specific and easy to start",
       "Second thing to do TODAY",
@@ -246,6 +259,10 @@ CRITICAL: Generate a JSON with this EXACT structure:
     ]
   }
 }
+
+DEVELOPMENTAL DISCLAIMER (REQUIRED):
+- You MUST include this exact sentence in closingMessage.developmentalDisclaimer: "This report is intended as developmental feedback to support improvement and does not represent a judgment of personal character or future potential."
+- This disclaimer is legally important and must be present in every report.
 
 RULES:
 1. phaseBreakdown MUST include EVERY phase from the provided data with ALL specific issues
