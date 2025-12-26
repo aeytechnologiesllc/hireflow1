@@ -1308,6 +1308,10 @@ export default function ApplicantDetails() {
       const reviewPhase = phases.find(p => p.type === "review") || phases[1];
       const reviewPhaseId = reviewPhase?.id || "review";
       
+      // Clear skipped phases from notes
+      const updatedNotes = { ...parsedNotes };
+      delete updatedNotes.employerSkippedPhases;
+      
       await updateApplication.mutateAsync({ 
         id: application.id, 
         status: "reviewing",
@@ -1315,6 +1319,7 @@ export default function ApplicantDetails() {
         phase_ai_analysis: null,  // Clear for fresh review
         rejected_by: null,  // Clear rejection attribution
         rejected_by_type: null,
+        notes: updatedNotes,  // Clear skipped phases
       });
       
       // Create notification for candidate about reconsideration
