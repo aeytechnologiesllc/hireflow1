@@ -244,21 +244,28 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
               <span>Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
             </div>
 
-            {application.ai_score && (
-              <div className="mt-3 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <div className="text-xs font-medium text-muted-foreground">AI Score:</div>
-                <div className="flex items-center gap-1">
-                  <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${application.ai_score}%` }}
-                    />
+            {application.ai_score && (() => {
+              const passingScore = application.jobs?.passing_score || 60;
+              const isFailing = application.ai_score < passingScore;
+              const scoreColor = isFailing ? "text-rose-400" : "text-primary";
+              const barColor = isFailing ? "bg-rose-400" : "bg-primary";
+              
+              return (
+                <div className="mt-3 flex items-center gap-2">
+                  <Sparkles className={`h-4 w-4 ${scoreColor}`} />
+                  <div className="text-xs font-medium text-muted-foreground">AI Score:</div>
+                  <div className="flex items-center gap-1">
+                    <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${barColor} rounded-full`}
+                        style={{ width: `${application.ai_score}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-medium ${scoreColor}`}>{application.ai_score}%</span>
                   </div>
-                  <span className="text-sm font-medium text-primary">{application.ai_score}%</span>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </CardContent>
