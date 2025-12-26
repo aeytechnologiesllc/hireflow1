@@ -351,7 +351,9 @@ function buildApplicationFormNarrative(input: AvaPhaseNarrativeInput): string {
   const opening: string[] = ["I reviewed the application form and checked the supporting documents."];
   
   if (analysis.resumeStatus?.includes("UNAVAILABLE")) {
-    opening.push("The resume couldn't be parsed — it's in a format I can't read directly, so I had to rely on the application answers instead.");
+    opening.push("The resume file couldn't be processed, so I focused on the application answers and other materials provided.");
+  } else if (analysis.resumeStatus?.includes("VALID_RESUME")) {
+    opening.push("I was able to review the resume along with the rest of the application.");
   } else if (analysis.resumeNotes) {
     opening.push(analysis.resumeNotes);
   }

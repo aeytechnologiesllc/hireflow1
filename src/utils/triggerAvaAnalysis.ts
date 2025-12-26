@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { detectResumeUrl, parseApplicationNotes } from "./detectResumeUrl";
-import { extractPdfTextFromUrl } from "./pdfText";
+import { convertPdfToImage } from "./pdfToImage";
 
 export interface EvaluationResult {
   score: number | null;
@@ -40,21 +40,18 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
     console.log("[triggerAvaAnalysis] Detected resume URL:", detectedResumeUrl);
 
-    // Extract resume content - text extraction only (server handles PDF attachment if needed)
-    let resumeText: string | null = null;
+    // Convert resume PDF to image for AI vision analysis (PRIMARY METHOD)
+    // AI cannot read PDFs directly - must convert to image
+    let resumeImage: string | null = null;
     
     if (detectedResumeUrl) {
-      console.log("[triggerAvaAnalysis] Attempting to extract resume text...");
+      console.log("[triggerAvaAnalysis] Converting resume PDF to image for AI vision analysis...");
+      resumeImage = await convertPdfToImage(detectedResumeUrl);
       
-      // Try text extraction
-      const textResult = await extractPdfTextFromUrl(detectedResumeUrl);
-      
-      if (textResult.extracted && textResult.text.length >= 100) {
-        console.log("[triggerAvaAnalysis] Text extraction successful, length:", textResult.text.length);
-        resumeText = textResult.text;
+      if (resumeImage) {
+        console.log("[triggerAvaAnalysis] Resume converted to image successfully, size:", resumeImage.length);
       } else {
-        // Don't do client-side image conversion - let server handle PDF directly via resumeUrl
-        console.log("[triggerAvaAnalysis] Text extraction insufficient, will send URL for server-side processing");
+        console.log("[triggerAvaAnalysis] Failed to convert resume to image - will analyze based on other data");
       }
     }
 
@@ -97,16 +94,14 @@ Cover Letter:
 ${application.cover_letter || "Not provided"}
 `;
 
-    // Add resume text if extracted
-    if (resumeText) {
+    // Note about resume handling - actual resume content comes via image
+    if (resumeImage) {
       content += `
-RESUME CONTENT (Extracted Text):
-${resumeText}
+Resume: Provided (will be analyzed via image attachment)
 `;
     } else if (detectedResumeUrl) {
       content += `
-Resume URL: ${detectedResumeUrl}
-Note: Resume text could not be extracted client-side. Server will attempt to attach and analyze the PDF directly.
+Resume: A resume was uploaded but could not be converted for analysis
 `;
     } else {
       content += `
@@ -206,16 +201,14 @@ ${interviewType} Interview with AVA Results:
     }
 
     console.log("[triggerAvaAnalysis] Calling ai-analyze edge function");
-    console.log("[triggerAvaAnalysis] Resume extraction method:", resumeText ? "text" : detectedResumeUrl ? "url-only (server will handle)" : "none");
+    console.log("[triggerAvaAnalysis] Resume method:", resumeImage ? "image (vision API)" : "no resume image");
 
-    // Call the AI analysis edge function
-    // NOTE: Send resumeUrl but NOT resumeImage - server-side ai-analyze will fetch and attach PDF directly
+    // Call the AI analysis edge function with resume image for vision API
     const { data, error } = await supabase.functions.invoke("ai-analyze", {
       body: {
         type: "resume",
         content,
-        resumeUrl: detectedResumeUrl,
-        resumeText: resumeText || undefined,
+        resumeImage: resumeImage || undefined,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
@@ -281,45 +274,8 @@ ${interviewType} Interview with AVA Results:
       }
     }
     
-    // CODE-BASED COMPANY NAME DETECTION
-    // Don't trust AI's self-report - directly check the resume text for missing company names
-    if (newScore !== null && newScore > 60 && resumeText) {
-      console.log("[triggerAvaAnalysis] POST-PROCESSING: Running code-based company name detection...");
-      
-      // Patterns that indicate job positions WITHOUT actual company names
-      // e.g., "Chat Support Specialist – Remote" or "Customer Service Rep - Work from Home"
-      const jobTitleWithoutCompanyPatterns = [
-        /(?:specialist|manager|developer|engineer|analyst|associate|coordinator|representative|consultant|lead|senior|junior|intern|agent|supervisor|director|executive|assistant|administrator|clerk|technician|support)\s*[-–—]\s*(?:remote|work from home|wfh|freelance|self[- ]?employed|contract)/gi,
-        /(?:remote|work from home|wfh)\s*[-–—]\s*(?:specialist|manager|developer|engineer|analyst|associate|coordinator|representative)/gi,
-      ];
-      
-      const hasJobTitleWithoutCompany = jobTitleWithoutCompanyPatterns.some(p => p.test(resumeText));
-      
-      // Check if there are actual company/employer names present
-      // Real companies typically include: Inc, LLC, Corp, Ltd, Co., Technologies, Solutions, Group, etc.
-      // Or are well-known brands like Amazon, Google, Microsoft, etc.
-      const companyNamePatterns = [
-        /\b(?:Inc\.?|LLC|Corp\.?|Ltd\.?|Co\.|Company|Technologies|Solutions|Group|Holdings|Partners|Associates|Enterprises|Services|Systems|Industries|Labs?|Studio|Agency)\b/gi,
-        /\b(?:Amazon|Google|Microsoft|Apple|Meta|Facebook|Netflix|Uber|Lyft|Airbnb|Stripe|Shopify|Salesforce|Oracle|IBM|Intel|Cisco|Adobe|VMware|Dell|HP|Samsung|Sony|Nike|Walmart|Target|Costco|Starbucks|McDonald's|Chipotle)\b/gi,
-        /(?:at|for|with|joined)\s+[A-Z][a-zA-Z\s&]+(?:Inc|LLC|Corp|Ltd|Co\.|Company)/i,
-      ];
-      
-      const hasRealCompanyName = companyNamePatterns.some(p => p.test(resumeText));
-      
-      // If we detect job titles without companies and no real company names found
-      if (hasJobTitleWithoutCompany && !hasRealCompanyName) {
-        console.log("[triggerAvaAnalysis] POST-PROCESSING: Code detected job titles without company names (e.g., 'Title - Remote'), capping score from", newScore, "to 60");
-        newScore = Math.min(newScore, 60);
-      }
-      
-      // Additional check: Look for work experience section patterns without company names
-      // Pattern: dates followed by job title, but no company name between/around them
-      const experienceWithDates = resumeText.match(/\b(20\d{2}|19\d{2})\s*[-–—to]+\s*(20\d{2}|19\d{2}|present|current)/gi);
-      if (experienceWithDates && experienceWithDates.length > 0 && !hasRealCompanyName) {
-        console.log("[triggerAvaAnalysis] POST-PROCESSING: Found work dates but no company names, capping score from", newScore, "to 60");
-        newScore = Math.min(newScore, 60);
-      }
-    }
+    // Note: Code-based company name detection removed since we now use image-based resume analysis
+    // The AI vision model will handle company name detection directly from the resume image
     
     // Always use the new score from analysis (no preservation of old scores)
     // Update the application with AI analysis
