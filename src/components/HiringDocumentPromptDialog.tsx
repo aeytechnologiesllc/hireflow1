@@ -6,17 +6,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Upload, PartyPopper, Package } from "lucide-react";
+import { FileText, PartyPopper, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 interface HiringDocumentPromptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   candidateName: string;
   jobTitle: string;
-  onCreateDocument: () => void;
-  onUploadDocument: () => void;
-  onCreatePackage: () => void;
+  applicationId: string;
   onSkip: () => void;
 }
 
@@ -25,11 +24,17 @@ export function HiringDocumentPromptDialog({
   onOpenChange,
   candidateName,
   jobTitle,
-  onCreateDocument,
-  onUploadDocument,
-  onCreatePackage,
+  applicationId,
   onSkip,
 }: HiringDocumentPromptDialogProps) {
+  const navigate = useNavigate();
+
+  const handleSendDocuments = () => {
+    onOpenChange(false);
+    // Navigate to Documents page with query params to auto-open wizard for this applicant
+    navigate(`/documents?applicant_id=${applicationId}&action=create`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -55,37 +60,18 @@ export function HiringDocumentPromptDialog({
 
         <p className="text-sm text-muted-foreground text-center pb-4">
           Documents like offer letters, employment contracts, or NDAs can be
-          sent for signature.
+          created and sent for signature.
         </p>
 
         <div className="space-y-3">
           <Button
-            onClick={onCreatePackage}
+            onClick={handleSendDocuments}
             className="w-full bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-primary-foreground"
           >
-            <Package className="mr-2 h-4 w-4" />
-            Create Hiring Package
+            <FileText className="mr-2 h-4 w-4" />
+            Send Hiring Documents
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={onCreateDocument}
-              variant="secondary"
-              className="w-full"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              Single Document
-            </Button>
-
-            <Button
-              onClick={onUploadDocument}
-              variant="secondary"
-              className="w-full"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload
-            </Button>
-          </div>
 
           <Button
             onClick={onSkip}

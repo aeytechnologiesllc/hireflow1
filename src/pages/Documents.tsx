@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -83,8 +84,27 @@ export default function Documents() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<DocumentWithApplication | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [preSelectedApplicationId, setPreSelectedApplicationId] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle query params to auto-open wizard for a specific applicant
+  useEffect(() => {
+    const applicantId = searchParams.get("applicant_id");
+    const action = searchParams.get("action");
+    
+    if (applicantId && action === "create" && isEmployer && canSendDocuments) {
+      // Set pre-selected application and open the wizard
+      setPreSelectedApplicationId(applicantId);
+      setWizardOpen(true);
+      
+      // Clear the query params
+      searchParams.delete("applicant_id");
+      searchParams.delete("action");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, isEmployer, canSendDocuments]);
 
   // Search and date filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -561,7 +581,15 @@ export default function Documents() {
         </motion.div>
       )}
 
-      <DocumentWizard open={wizardOpen} onOpenChange={setWizardOpen} applications={applications} />
+      <DocumentWizard 
+        open={wizardOpen} 
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) setPreSelectedApplicationId(undefined);
+        }} 
+        applications={applications}
+        preSelectedApplicationId={preSelectedApplicationId}
+      />
       <DocumentRequestWizard open={requestWizardOpen} onOpenChange={setRequestWizardOpen} applications={applications} />
       <DocumentSigningDialog document={selectedDocument} open={signingDialogOpen} onOpenChange={setSigningDialogOpen} />
       <SignedDocumentViewer document={selectedDocument} open={viewerOpen} onOpenChange={setViewerOpen} />
