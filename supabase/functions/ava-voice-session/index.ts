@@ -180,15 +180,16 @@ serve(async (req) => {
         .eq("user_id", user.id)
         .single();
 
-      // If viewing a specific applicant, fetch their context
+      // If viewing a specific applicant, fetch their context with FULL assessment data
       let currentApplicantContext = "";
       if (applicationId) {
-        console.log("Fetching current applicant context for:", applicationId);
+        console.log("Fetching comprehensive applicant context for:", applicationId);
         const { data: currentApp } = await supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, notes, created_at, candidate_id,
-            jobs!inner(id, title, employer_id)
+            id, status, phase, ai_score, ai_analysis, phase_ai_analysis, notes, created_at, candidate_id,
+            voice_interview_result, voice_interview_transcript, voice_interview_duration,
+            jobs!inner(id, title, employer_id, workflow_steps)
           `)
           .eq("id", applicationId)
           .eq("jobs.employer_id", user.id)
@@ -198,18 +199,11 @@ serve(async (req) => {
           // Fetch candidate profile separately
           const { data: candidateProfile } = await supabaseClient
             .from("profiles")
-            .select("full_name, email")
+            .select("full_name, email, skills, experience_years, bio")
             .eq("user_id", currentApp.candidate_id)
             .single();
 
-          // Fetch the job's workflow steps to provide AVA with valid phase IDs
-          const { data: jobData } = await supabaseClient
-            .from("jobs")
-            .select("workflow_steps")
-            .eq("id", (currentApp.jobs as any)?.id)
-            .single();
-
-          const workflowSteps = (jobData?.workflow_steps as any[]) || [];
+          const workflowSteps = ((currentApp.jobs as any)?.workflow_steps as any[]) || [];
           
           // Build list of all valid phases with their exact IDs
           const validPhases = [
@@ -230,28 +224,162 @@ serve(async (req) => {
             p.type === currentApp.phase ||
             p.type === currentApp.phase?.toLowerCase().replace(/[\s-]/g, '_')
           );
+          const currentPhaseIndex = validPhases.findIndex(p => 
+            p.id === currentApp.phase || p.type === currentApp.phase
+          );
+
+          // Parse notes JSON for assessment data
+          const notes = typeof currentApp.notes === 'string' 
+            ? JSON.parse(currentApp.notes || '{}') 
+            : (currentApp.notes || {});
+          
+          // Build phase completion history
+          const phaseHistory: string[] = [];
+          validPhases.forEach((phase, idx) => {
+            if (idx < currentPhaseIndex) {
+              // Phase was completed
+              phaseHistory.push(`✓ ${phase.title} - Completed`);
+            } else if (idx === currentPhaseIndex) {
+              phaseHistory.push(`▸ ${phase.title} - Current`);
+            } else {
+              // Check if phase was skipped (exists in workflow but no data)
+              const phaseHasData = notes[`${phase.type}Result`] || notes[`${phase.type}Score`];
+              if (!phaseHasData && phase.type !== 'application' && phase.type !== 'review' && phase.type !== 'interview' && phase.type !== 'hired') {
+                phaseHistory.push(`○ ${phase.title} - Not yet completed`);
+              } else {
+                phaseHistory.push(`○ ${phase.title} - Upcoming`);
+              }
+            }
+          });
+
+          // Build comprehensive assessment summary
+          const assessmentData: string[] = [];
+          
+          // Quiz results
+          if (notes.quizAnswers) {
+            const quizScore = notes.quizAnswers.score ?? notes.quizAnswers.percentage;
+            assessmentData.push(`QUIZ: ${quizScore !== undefined ? `${quizScore}%` : 'Completed'} ${notes.quizAnswers.passed ? '(Passed)' : notes.quizAnswers.passed === false ? '(Failed)' : ''}`);
+            if (notes.quizAnswers.answers && Array.isArray(notes.quizAnswers.answers)) {
+              const correct = notes.quizAnswers.answers.filter((a: any) => a.isCorrect).length;
+              assessmentData.push(`   → ${correct}/${notes.quizAnswers.answers.length} correct`);
+            }
+          }
+          
+          // Typing test results
+          if (notes.typingTestResult) {
+            assessmentData.push(`TYPING TEST: ${notes.typingTestResult.wpm} WPM, ${notes.typingTestResult.accuracy}% accuracy`);
+          }
+          
+          // Video intro
+          if (notes.videoIntroUrl) {
+            assessmentData.push(`VIDEO INTRO: Submitted`);
+          }
+          
+          // Portfolio analysis
+          if (notes.portfolioAnalysis || notes.portfolioResult) {
+            const portfolio = notes.portfolioAnalysis || notes.portfolioResult;
+            assessmentData.push(`PORTFOLIO: Reviewed`);
+            if (portfolio.summary) assessmentData.push(`   → ${portfolio.summary}`);
+            if (portfolio.strengths) assessmentData.push(`   → Strengths: ${Array.isArray(portfolio.strengths) ? portfolio.strengths.join(', ') : portfolio.strengths}`);
+          }
+          
+          // Chat simulation
+          if (notes.chatSimulationResult) {
+            const chat = notes.chatSimulationResult;
+            assessmentData.push(`CHAT SIMULATION: ${chat.overall_score || chat.score || 'Completed'}`);
+            if (chat.summary) assessmentData.push(`   → ${chat.summary}`);
+          }
+          
+          // Sales simulation
+          if (notes.salesSimulationResult) {
+            const sales = notes.salesSimulationResult;
+            assessmentData.push(`SALES SIMULATION: ${sales.overall_score || sales.score || 'Completed'}`);
+            if (sales.summary) assessmentData.push(`   → ${sales.summary}`);
+          }
+          
+          // Chat interview
+          if (notes.chatInterviewResult) {
+            const interview = notes.chatInterviewResult;
+            assessmentData.push(`CHAT INTERVIEW: ${interview.overall_score || 'Completed'}`);
+            if (interview.recommendation) assessmentData.push(`   → ${interview.recommendation}`);
+          }
+          
+          // Voice interview (from dedicated columns)
+          const voiceResult = currentApp.voice_interview_result as any;
+          if (voiceResult) {
+            assessmentData.push(`VOICE INTERVIEW: ${voiceResult.overall_score || voiceResult.recommendation || 'Completed'}`);
+            if (voiceResult.summary) assessmentData.push(`   → ${voiceResult.summary}`);
+            if (voiceResult.strengths) assessmentData.push(`   → Strengths: ${Array.isArray(voiceResult.strengths) ? voiceResult.strengths.join(', ') : voiceResult.strengths}`);
+            if (voiceResult.concerns) assessmentData.push(`   → Concerns: ${Array.isArray(voiceResult.concerns) ? voiceResult.concerns.join(', ') : voiceResult.concerns}`);
+            if (currentApp.voice_interview_duration) {
+              assessmentData.push(`   → Duration: ${Math.round(currentApp.voice_interview_duration / 60)} minutes`);
+            }
+          }
+          
+          // Parse main AI analysis (resume analysis)
+          let aiAnalysisSummary = "";
+          if (currentApp.ai_analysis) {
+            try {
+              const analysis = typeof currentApp.ai_analysis === 'string' 
+                ? JSON.parse(currentApp.ai_analysis) 
+                : currentApp.ai_analysis;
+              if (analysis.summary) aiAnalysisSummary = `RESUME ANALYSIS: ${analysis.summary}`;
+              if (analysis.strengths) aiAnalysisSummary += `\n   → Strengths: ${Array.isArray(analysis.strengths) ? analysis.strengths.slice(0, 3).join(', ') : analysis.strengths}`;
+              if (analysis.concerns || analysis.weaknesses) {
+                const concerns = analysis.concerns || analysis.weaknesses;
+                aiAnalysisSummary += `\n   → Concerns: ${Array.isArray(concerns) ? concerns.slice(0, 3).join(', ') : concerns}`;
+              }
+              if (analysis.recommendation) aiAnalysisSummary += `\n   → My recommendation: ${analysis.recommendation}`;
+            } catch {
+              aiAnalysisSummary = `RESUME ANALYSIS: ${currentApp.ai_analysis.substring(0, 300)}...`;
+            }
+          }
+          
+          // Phase-specific AI analysis
+          let phaseAnalysisSummary = "";
+          if (currentApp.phase_ai_analysis) {
+            try {
+              const phaseAnalysis = typeof currentApp.phase_ai_analysis === 'string' 
+                ? JSON.parse(currentApp.phase_ai_analysis) 
+                : currentApp.phase_ai_analysis;
+              phaseAnalysisSummary = `LATEST PHASE ANALYSIS (${phaseAnalysis.type || 'assessment'}): ${phaseAnalysis.summary || phaseAnalysis.recommendation || 'Completed'}`;
+            } catch {
+              phaseAnalysisSummary = `LATEST PHASE ANALYSIS: ${String(currentApp.phase_ai_analysis).substring(0, 200)}...`;
+            }
+          }
 
           currentApplicantContext = `
-CURRENT APPLICANT CONTEXT (the user is viewing this applicant right now):
+CURRENT APPLICANT - COMPREHENSIVE DOSSIER (user is viewing this applicant right now):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BASIC INFO:
 - Application ID: ${currentApp.id}
 - Candidate Name: ${candidateProfile?.full_name || 'Unknown'}
-- Candidate Email: ${candidateProfile?.email || 'Unknown'}
+- Email: ${candidateProfile?.email || 'Unknown'}
 - Job: ${(currentApp.jobs as any)?.title || 'Unknown'}
-- Current Phase: ${currentPhaseDetails?.title || currentApp.phase || 'application'} (ID: ${currentApp.phase || 'application'})
+- Current Phase: ${currentPhaseDetails?.title || currentApp.phase || 'application'}
 - Status: ${currentApp.status}
-- AI Score: ${currentApp.ai_score || 'Not scored yet'}
+- My Overall Score: ${currentApp.ai_score || 'Not scored yet'}/100
+- Experience: ${candidateProfile?.experience_years ? `${candidateProfile.experience_years} years` : 'Not specified'}
+- Skills: ${candidateProfile?.skills?.join(', ') || 'Not specified'}
 - Applied: ${new Date(currentApp.created_at).toLocaleDateString()}
+
+PHASE PROGRESS:
+${phaseHistory.join('\n')}
+
+${assessmentData.length > 0 ? `ASSESSMENT RESULTS (my analysis of each phase):\n${assessmentData.join('\n')}` : 'No assessments completed yet.'}
+
+${aiAnalysisSummary ? `\n${aiAnalysisSummary}` : ''}
+${phaseAnalysisSummary ? `\n${phaseAnalysisSummary}` : ''}
 
 WORKFLOW PHASES FOR THIS JOB (use exact step IDs when moving applicants):
 ${validPhases.map((p, i) => `${i + 1}. ID: "${p.id}" - ${p.title}`).join('\n')}
 
-CRITICAL: When using move_applicant_to_phase, you MUST use the exact step ID from this list, NOT human-readable names.
-Example: To move to "${workflowSteps[0]?.title || 'next phase'}", use new_phase: "${workflowSteps[0]?.id || 'review'}"
-
-IMPORTANT: When the user asks about "this applicant", "the current applicant", "this candidate", or refers to the person they're viewing, use the context above.
-When asked to move this applicant to a different phase, use application_id: "${currentApp.id}"
+CRITICAL: When using move_applicant_to_phase, use the exact step ID from this list.
+IMPORTANT: When the user asks about "this applicant", "the current applicant", etc., use the context above.
+Application ID for actions: "${currentApp.id}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
-          console.log("Current applicant context added:", candidateProfile?.full_name, currentApp.phase, "Valid phases:", validPhases.map(p => p.id));
+          console.log("Comprehensive applicant context added:", candidateProfile?.full_name, "Phase:", currentApp.phase);
         }
       }
 
@@ -426,7 +554,24 @@ ${googleCalendarConnected ? `- You CAN create calendar events with Google Meet l
 - Use schedule_interview tool with application_id and date_time` : `- Google Calendar not connected, can't create events
 - Tell user to connect Google Calendar in Settings first`}
 
-=== PERSONALITY ===
+=== PERSONALITY & IDENTITY (CRITICAL) ===
+You are Ava - a real person on the hiring team, not a machine. Speak about yourself in first person.
+
+NEVER SAY (these reveal you as AI):
+- "AI score" → Say "my score" or "I gave them a 78"
+- "The AI analysis shows..." → Say "I analyzed..." or "Based on my analysis..."
+- "AI-generated" → Say "I created..." or "I put together..."
+- "This candidate's AI assessment..." → Say "My assessment of them..."
+- "The artificial intelligence determined..." → Just say "I think..." or "I found..."
+
+ALWAYS PERSONIFY YOUR WORK:
+- "I scored them at 78 - that's pretty solid"
+- "Based on my analysis of their resume..."
+- "I noticed some concerns with their experience..."
+- "My recommendation is to move them forward"
+- "When I reviewed their quiz results, I saw..."
+- "I interviewed them and they did great on..."
+
 You're Ava - smart, helpful, ENERGETIC, and quick. Not a slow task bot.
 
 - Be enthusiastic and upbeat in tone - sound excited to help!
@@ -436,7 +581,19 @@ You're Ava - smart, helpful, ENERGETIC, and quick. Not a slow task bot.
 - Sound like you genuinely care about helping them hire well
 - Add occasional observations: "Ooh, strong candidate!" / "Nice, that's solid!"
 - Pronounce your name as "Ava" (not A-V-A)
-- NEVER pause unnecessarily or speak slowly - be snappy and responsive`;
+- NEVER pause unnecessarily or speak slowly - be snappy and responsive
+
+=== GREETING BEHAVIOR (CRITICAL) ===
+When the conversation starts, YOU speak first with a SHORT, contextual greeting.
+Do NOT wait for the user to say "hey" or "can you hear me" - you initiate immediately.
+
+${currentRoute?.includes('/applicants/') && applicationId ? `You're on an applicant's profile. Greet with something like: "Hey! Looking at [name]'s profile - want a quick rundown?"` : ''}
+${currentRoute === '/dashboard' ? `You're on the dashboard. Greet with something like: "Hey! What can I help you with?"` : ''}
+${currentRoute === '/jobs' ? `You're on the jobs page. Greet with something like: "Hey! Looking at your jobs - need anything?"` : ''}
+${currentRoute === '/applicants' && !applicationId ? `You're on the applicants list. Greet with something like: "Hey! Want me to tell you about any of your applicants?"` : ''}
+${!currentRoute || (!currentRoute.includes('/applicants') && currentRoute !== '/dashboard' && currentRoute !== '/jobs') ? `Greet with something short like: "Hey! What can I help with?"` : ''}
+
+Keep greetings to ONE short sentence - don't ramble.`;
 
       // Add the describe_current_view tool
       const describeCurrentViewTool = {

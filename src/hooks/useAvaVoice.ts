@@ -473,16 +473,15 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // Start monitoring connection quality
       startConnectionQualityMonitoring();
       
-      // For interview mode, trigger AVA to start speaking first
-      if (optionsRef.current.mode === 'interview') {
-        setTimeout(() => {
-          if (dcRef.current?.readyState === 'open') {
-            console.log('Triggering AVA to start interview');
-            dcRef.current.send(JSON.stringify({ type: 'response.create' }));
-            startProcessingTimeout();
-          }
-        }, 500); // Small delay to ensure connection is stable
-      }
+      // Trigger AVA to start speaking first (both interview and assistant mode)
+      // In assistant mode, she'll greet contextually based on current page
+      setTimeout(() => {
+        if (dcRef.current?.readyState === 'open') {
+          console.log('Triggering AVA to greet first, mode:', optionsRef.current.mode);
+          dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+          startProcessingTimeout();
+        }
+      }, 500); // Small delay to ensure connection is stable
     });
 
     dcRef.current.addEventListener('message', async (e) => {
