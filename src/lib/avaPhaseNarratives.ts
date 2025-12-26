@@ -457,7 +457,7 @@ function buildQuizNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, wasRejected, quizData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} position` : '';
+  const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
 
   if (quizData && quizData.answers && quizData.answers.length > 0) {
     const { answers, score, correct, total, passed, antiCheatViolations, totalViolations } = quizData;
@@ -468,102 +468,124 @@ function buildQuizNarrative(input: AvaPhaseNarrativeInput): string {
     const correctMC = mcQuestions.filter(a => a.isCorrect === true);
     const incorrectMC = mcQuestions.filter(a => a.isCorrect === false);
     
-    // Dynamic opening based on performance
+    // Natural opening based on performance
     if (passed && score >= 80) {
-      paragraphs.push(`Strong knowledge demonstration${roleContext}. ${mcQuestions.length > 0 ? `${correctMC.length}/${mcQuestions.length} correct (${score}%)` : `Score: ${score}%`}.`);
+      paragraphs.push(`They did well on the knowledge assessment${roleContext}, getting ${correctMC.length} out of ${mcQuestions.length} questions right for a ${score}% score. That's a solid foundation.`);
     } else if (passed) {
-      paragraphs.push(`Passed the assessment${roleContext} with ${score}%. ${mcQuestions.length > 0 ? `${correctMC.length}/${mcQuestions.length} questions correct.` : ''}`);
+      paragraphs.push(`They passed the knowledge assessment${roleContext} with a ${score}% score—${correctMC.length} out of ${mcQuestions.length} correct. Not perfect, but they cleared the bar.`);
     } else {
-      paragraphs.push(`Did not meet passing threshold${roleContext}. Score: ${score}%. ${mcQuestions.length > 0 ? `${correctMC.length}/${mcQuestions.length} correct.` : ''}`);
+      paragraphs.push(`They struggled with the knowledge assessment${roleContext}, scoring just ${score}%—only ${correctMC.length} out of ${mcQuestions.length} questions right. That's below what I'd need to feel confident moving forward.`);
     }
     
-    // Knowledge gap analysis - what topics they struggled with
+    // Knowledge gap analysis - describe what they got wrong naturally
     if (incorrectMC.length > 0) {
-      const wrongTopics: string[] = [];
+      const wrongDescriptions: string[] = [];
       for (const wrong of incorrectMC.slice(0, 3)) {
-        const qSnippet = wrong.question.length > 60 
-          ? wrong.question.substring(0, 60) + "..." 
-          : wrong.question;
-        if (wrong.selectedAnswerText.toLowerCase() !== 'not answered') {
-          wrongTopics.push(`"${qSnippet}" → answered "${wrong.selectedAnswerText.substring(0, 40)}"`);
+        const qLower = wrong.question.toLowerCase();
+        const answerText = wrong.selectedAnswerText?.toLowerCase() || '';
+        
+        if (answerText === 'not answered' || !answerText) {
+          // Describe what they skipped
+          if (qLower.includes('customer')) {
+            wrongDescriptions.push("skipped a question about handling customer situations");
+          } else if (qLower.includes('multitask')) {
+            wrongDescriptions.push("left the multitasking question blank");
+          } else {
+            wrongDescriptions.push("left a key question unanswered");
+          }
         } else {
-          wrongTopics.push(`"${qSnippet}" → left unanswered`);
+          // Describe their incorrect thinking
+          if (qLower.includes('transfer') && answerText.includes('transfer')) {
+            wrongDescriptions.push("said they'd transfer a customer immediately without explanation");
+          } else if (qLower.includes('unsure') && (answerText.includes("don't know") || answerText.includes('end'))) {
+            wrongDescriptions.push("would tell customers they don't know and end the conversation");
+          } else if (qLower.includes('multitask') && answerText.includes('false')) {
+            wrongDescriptions.push("incorrectly answered that multitasking isn't important");
+          } else {
+            // Generic but still natural
+            const topicHint = qLower.length > 50 ? qLower.substring(0, 50) : qLower;
+            wrongDescriptions.push(`got the question about "${topicHint}..." wrong`);
+          }
         }
       }
       
-      if (wrongTopics.length > 0) {
-        paragraphs.push(`Knowledge gaps:\n• ${wrongTopics.join('\n• ')}`);
+      if (wrongDescriptions.length > 0) {
+        if (wrongDescriptions.length === 1) {
+          paragraphs.push(`Looking at what they missed: they ${wrongDescriptions[0]}. That's a fundamental concept for this kind of role.`);
+        } else {
+          const lastItem = wrongDescriptions.pop();
+          paragraphs.push(`Looking at what they missed: they ${wrongDescriptions.join(", ")}, and ${lastItem}. These are fundamental concepts for this role.`);
+        }
       }
     }
     
-    // Open-ended response quality
+    // Open-ended response quality - natural description
     let textLowEffortCount = 0;
     if (textQuestions.length > 0) {
-      const textInsights: string[] = [];
-      
       for (const tq of textQuestions) {
         const answer = tq.textAnswer || tq.selectedAnswerText || '';
-        
         if (!answer || answer.trim().length < 10 || 
             /^(i don'?t know|idk|n\/?a|none|no|yes|\?+|\.+|test|asdf|dasd|[a-z]{1,5}s?)$/i.test(answer.trim())) {
           textLowEffortCount++;
         }
       }
       
-      if (textLowEffortCount > 0) {
-        paragraphs.push(`Open-ended responses: ${textLowEffortCount}/${textQuestions.length} showed minimal effort.`);
-      } else if (textQuestions.length > 0) {
-        paragraphs.push(`Open-ended responses: Provided thoughtful answers to all ${textQuestions.length} questions.`);
+      if (textLowEffortCount === textQuestions.length) {
+        paragraphs.push(`On the written questions, they gave bare-minimum answers across the board—single words or vague responses that don't show any real thought.`);
+      } else if (textLowEffortCount > textQuestions.length / 2) {
+        paragraphs.push(`Most of their written responses were pretty thin—minimal effort that makes me wonder how seriously they're taking this.`);
+      } else if (textLowEffortCount > 0) {
+        paragraphs.push(`Some of their written responses were thoughtful, but ${textLowEffortCount} of them looked like minimal effort.`);
+      } else {
+        paragraphs.push(`On the written questions, they put in solid effort—thoughtful answers that show they're engaged.`);
       }
     }
     
-    // Anti-cheat violations
+    // Anti-cheat violations - more conversational
     if (totalViolations && totalViolations > 0 && antiCheatViolations) {
       const tabSwitches = antiCheatViolations.filter(v => v.type === 'tab_switch').length;
       const copyAttempts = antiCheatViolations.filter(v => v.type === 'copy_attempt').length;
       const pasteAttempts = antiCheatViolations.filter(v => v.type === 'paste_attempt').length;
       
-      const violationParts: string[] = [];
-      if (tabSwitches > 0) violationParts.push(`${tabSwitches} tab switch${tabSwitches !== 1 ? 'es' : ''}`);
-      if (copyAttempts > 0) violationParts.push(`${copyAttempts} copy attempt${copyAttempts !== 1 ? 's' : ''}`);
-      if (pasteAttempts > 0) violationParts.push(`${pasteAttempts} paste attempt${pasteAttempts !== 1 ? 's' : ''}`);
+      const parts: string[] = [];
+      if (tabSwitches > 0) parts.push(`switched tabs ${tabSwitches} time${tabSwitches !== 1 ? 's' : ''}`);
+      if (copyAttempts > 0) parts.push(`tried to copy text ${copyAttempts} time${copyAttempts !== 1 ? 's' : ''}`);
+      if (pasteAttempts > 0) parts.push(`attempted to paste ${pasteAttempts} time${pasteAttempts !== 1 ? 's' : ''}`);
       
-      if (violationParts.length > 0) {
-        paragraphs.push(`⚠️ Integrity: ${totalViolations} violation${totalViolations !== 1 ? 's' : ''} detected (${violationParts.join(", ")}).`);
+      if (parts.length > 0) {
+        paragraphs.push(`I also noticed some potential integrity issues—they ${parts.join(" and ")} during the assessment, which could indicate they were looking up answers.`);
       }
     }
     
-    // Training recommendation if applicable
+    // Training recommendation - natural advice
     if (!passed || score < 60) {
       if (textLowEffortCount > textQuestions.length / 2) {
-        paragraphs.push(`If hired: Would need substantial training and should demonstrate more commitment in assessments.`);
+        paragraphs.push(`If you did decide to bring them on, they'd need significant training on these fundamentals—and honestly, the low-effort written answers make me wonder about their commitment level.`);
       } else {
-        paragraphs.push(`If hired: Would need focused training on the knowledge areas tested.`);
+        paragraphs.push(`If you did move forward with them, expect to invest in training on these knowledge areas.`);
       }
     }
     
   } else {
-    // Fallback
+    // Fallback - still make it natural
     const scoreMatch = baseFacts.match(/(\d+)%/);
     if (scoreMatch) {
       const score = parseInt(scoreMatch[1], 10);
-      paragraphs.push(`Quiz score${roleContext}: ${score}%.`);
-      
       if (score >= 80) {
-        paragraphs.push("Solid knowledge base demonstrated.");
+        paragraphs.push(`They did well on the quiz${roleContext} with a ${score}% score—shows they've got the knowledge base.`);
       } else if (score >= 60) {
-        paragraphs.push("Adequate knowledge with some gaps.");
+        paragraphs.push(`They got a ${score}% on the quiz${roleContext}. Adequate, though there are some gaps to be aware of.`);
       } else {
-        paragraphs.push("Significant knowledge gaps identified.");
+        paragraphs.push(`The quiz${roleContext} was rough—only ${score}%. Significant knowledge gaps here.`);
       }
     } else {
-      paragraphs.push(baseFacts);
+      paragraphs.push(`They completed the quiz${roleContext}. ${baseFacts}`);
     }
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong knowledge demonstration/gi, "Quiz completed");
+    narrative = narrative.replace(/They did well/gi, "They completed the quiz");
   }
   return narrative;
 }
@@ -572,67 +594,70 @@ function buildTypingNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, wasRejected, typingData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
 
   if (typingData) {
     const { wpm, accuracy, passed, requiredWpm } = typingData;
     
-    // Dynamic opening based on performance
+    // Natural opening that tells a story
     if (requiredWpm) {
       if (wpm >= requiredWpm + 20) {
-        paragraphs.push(`Excellent typing speed${roleContext}: ${wpm} WPM (${accuracy}% accuracy). Exceeds requirement of ${requiredWpm} WPM by ${wpm - requiredWpm} words.`);
+        paragraphs.push(`Their typing came in at ${wpm} WPM with ${accuracy}% accuracy—well above the ${requiredWpm} WPM we're looking for${roleContext}. Speed won't be a bottleneck here.`);
       } else if (wpm >= requiredWpm) {
-        paragraphs.push(`Meets typing requirement${roleContext}: ${wpm} WPM with ${accuracy}% accuracy. Required: ${requiredWpm} WPM.`);
+        paragraphs.push(`They hit ${wpm} WPM with ${accuracy}% accuracy, which meets our requirement of ${requiredWpm} WPM${roleContext}. They cleared the bar.`);
       } else {
-        paragraphs.push(`Below typing requirement${roleContext}: ${wpm} WPM (required: ${requiredWpm} WPM). Accuracy: ${accuracy}%.`);
+        const gap = requiredWpm - wpm;
+        paragraphs.push(`Their typing came in at ${wpm} WPM, which is ${gap} words per minute below our ${requiredWpm} WPM requirement${roleContext}. Accuracy was ${accuracy}%.`);
+        paragraphs.push(`For a role that requires regular typing, this could slow down their productivity.`);
       }
     } else {
-      paragraphs.push(`Typing test result: ${wpm} WPM with ${accuracy}% accuracy.`);
+      // No requirement set - give context
+      paragraphs.push(`They typed at ${wpm} WPM with ${accuracy}% accuracy.`);
       
       if (wpm >= 70) {
-        paragraphs.push("Speed: Above average, suitable for high-volume typing roles.");
+        paragraphs.push(`That's above average—they'd handle high-volume typing work without issues.`);
       } else if (wpm >= 50) {
-        paragraphs.push("Speed: Average, suitable for moderate typing requirements.");
+        paragraphs.push(`That's about average, fine for moderate typing needs.`);
       } else if (wpm >= 35) {
-        paragraphs.push("Speed: Below average, may be limiting for typing-intensive roles.");
+        paragraphs.push(`That's below average, which could be limiting if the role involves a lot of typing.`);
       } else {
-        paragraphs.push("Speed: Slow, would be a concern for roles requiring regular typing.");
+        paragraphs.push(`That's pretty slow—something to consider if typing is a regular part of the job.`);
       }
     }
     
-    // Accuracy assessment
+    // Accuracy insight - woven in naturally
     if (accuracy >= 98) {
-      paragraphs.push("Accuracy: Near-perfect, shows attention to detail.");
-    } else if (accuracy >= 95) {
-      paragraphs.push("Accuracy: Good, minimal errors.");
-    } else if (accuracy >= 90) {
-      paragraphs.push("Accuracy: Moderate, some errors observed.");
-    } else {
-      paragraphs.push("Accuracy: Needs improvement, frequent errors.");
+      paragraphs.push(`The near-perfect accuracy shows good attention to detail.`);
+    } else if (accuracy < 90) {
+      paragraphs.push(`The ${accuracy}% accuracy means they're making fairly frequent errors—might need to slow down.`);
     }
     
-    // Speed vs accuracy trade-off
+    // Speed vs accuracy trade-off - natural observation
     if (wpm >= 60 && accuracy < 92) {
-      paragraphs.push("Note: Prioritized speed over accuracy.");
+      paragraphs.push(`Looks like they prioritized speed over accuracy—something to keep in mind.`);
     } else if (wpm < 45 && accuracy >= 98) {
-      paragraphs.push("Note: Prioritized accuracy over speed.");
+      paragraphs.push(`They were clearly being careful to avoid mistakes, which is why the speed is lower.`);
     }
     
   } else {
-    // Fallback
+    // Fallback - still natural
     const wpmMatch = baseFacts.match(/(\d+)\s*WPM/i);
     const accMatch = baseFacts.match(/(\d+)%/);
     
     if (wpmMatch) {
-      paragraphs.push(`Typing result${roleContext}: ${wpmMatch[1]} WPM${accMatch ? ` with ${accMatch[1]}% accuracy` : ''}.`);
+      const wpm = parseInt(wpmMatch[1], 10);
+      paragraphs.push(`They typed at ${wpm} WPM${accMatch ? ` with ${accMatch[1]}% accuracy` : ''}${roleContext}.`);
+      if (wpm < 40) {
+        paragraphs.push(`That's on the slower side for most typing-heavy roles.`);
+      }
     } else {
-      paragraphs.push(baseFacts);
+      paragraphs.push(`They completed the typing test${roleContext}. ${baseFacts}`);
     }
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Excellent typing speed/gi, "Typing speed recorded");
+    narrative = narrative.replace(/Speed won't be a bottleneck/gi, "Typing test completed");
   }
   return narrative;
 }
@@ -641,7 +666,7 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, voiceInterviewResult, wasRejected, voiceData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} position` : '';
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
   
   // Use voiceData if available, otherwise fall back to voiceInterviewResult
   const data = voiceData || voiceInterviewResult;
@@ -649,149 +674,166 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
   if (data) {
     const score = data.overall_score || data.overallScore;
     
-    // Dynamic opening based on score
+    // Natural opening based on score
     if (score !== undefined) {
       if (score >= 80) {
-        paragraphs.push(`Strong interview performance${roleContext}. Overall score: ${score}/100.`);
+        paragraphs.push(`The voice interview went really well${roleContext}. They came across confident and articulate, scoring ${score} out of 100.`);
       } else if (score >= 60) {
-        paragraphs.push(`Adequate interview performance${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`The voice interview was decent${roleContext}—they scored ${score} out of 100. Solid, but not outstanding.`);
       } else {
-        paragraphs.push(`Interview revealed areas for development${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`The voice interview${roleContext} revealed some areas for development. They scored ${score} out of 100, which suggests they'd need coaching on their communication skills.`);
       }
     } else {
-      paragraphs.push(`Completed voice interview${roleContext}.`);
+      paragraphs.push(`They completed the voice interview${roleContext}.`);
     }
     
-    // Question-by-question analysis if available
+    // Question-by-question analysis if available - natural flow
     if (data.questions && data.questions.length > 0) {
       const strongAnswers = data.questions.filter(q => q.score && q.score >= 80);
       const weakAnswers = data.questions.filter(q => q.score && q.score < 60);
       
-      if (strongAnswers.length > 0) {
-        const strongTopics = strongAnswers.slice(0, 2).map(q => {
-          const topic = q.question.length > 40 ? q.question.substring(0, 40) + "..." : q.question;
-          return `"${topic}" (${q.score}/100)`;
-        });
-        paragraphs.push(`Strong answers on: ${strongTopics.join(", ")}.`);
-      }
-      
-      if (weakAnswers.length > 0) {
-        const weakTopics = weakAnswers.slice(0, 2).map(q => {
-          const topic = q.question.length > 40 ? q.question.substring(0, 40) + "..." : q.question;
-          return `"${topic}" (${q.score}/100)`;
-        });
-        paragraphs.push(`Areas to probe: ${weakTopics.join(", ")}.`);
+      if (strongAnswers.length > 0 && weakAnswers.length > 0) {
+        const strongTopic = strongAnswers[0].question.length > 40 
+          ? strongAnswers[0].question.substring(0, 40) + "..." 
+          : strongAnswers[0].question;
+        const weakTopic = weakAnswers[0].question.length > 40 
+          ? weakAnswers[0].question.substring(0, 40) + "..." 
+          : weakAnswers[0].question;
+        paragraphs.push(`They shined when talking about "${strongTopic}" but struggled with "${weakTopic}"—worth probing in a follow-up conversation.`);
+      } else if (strongAnswers.length > 0) {
+        paragraphs.push(`They gave particularly strong answers throughout, especially on topics like their experience and motivation.`);
+      } else if (weakAnswers.length > 0) {
+        const weakTopic = weakAnswers[0].question.length > 40 
+          ? weakAnswers[0].question.substring(0, 40) + "..." 
+          : weakAnswers[0].question;
+        paragraphs.push(`They struggled with questions like "${weakTopic}"—you might want to dig deeper there if you meet with them.`);
       }
     }
     
-    // Summary insight
+    // Summary insight - integrate naturally
     if (data.summary && data.summary.length > 10) {
-      const summaryPreview = data.summary.length > 200 
-        ? data.summary.substring(0, 200) + "..." 
+      const summaryPreview = data.summary.length > 180 
+        ? data.summary.substring(0, 180) + "..." 
         : data.summary;
-      paragraphs.push(`Summary: ${summaryPreview}`);
+      paragraphs.push(summaryPreview);
     }
     
-    // Duration
+    // Duration - casual mention
     if (data.duration) {
       const minutes = Math.round(data.duration / 60);
-      paragraphs.push(`Duration: ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+      if (minutes > 10) {
+        paragraphs.push(`They took their time with it—about ${minutes} minutes total.`);
+      } else if (minutes < 3) {
+        paragraphs.push(`It was a quick interview, just ${minutes} minute${minutes !== 1 ? 's' : ''}—might indicate they rushed through it.`);
+      }
     }
     
   } else {
-    paragraphs.push(`Voice interview completed${roleContext}.`);
-    paragraphs.push(baseFacts);
+    paragraphs.push(`They completed the voice interview${roleContext}. ${baseFacts}`);
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong interview performance/gi, "Interview completed");
+    narrative = narrative.replace(/went really well/gi, "was completed");
   }
   return narrative;
 }
 
 function buildPortfolioNarrative(input: AvaPhaseNarrativeInput): string {
-  const { baseFacts, wasRejected, portfolioData } = input;
+  const { baseFacts, wasRejected, portfolioData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  paragraphs.push("I looked at the work samples they submitted.");
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
 
   if (portfolioData) {
     const { score, feedback, fileCount, analysis } = portfolioData;
     
-    if (fileCount) {
-      paragraphs.push(`They submitted ${fileCount} portfolio item${fileCount !== 1 ? 's' : ''} for review.`);
+    // Natural opening
+    if (fileCount && fileCount > 1) {
+      paragraphs.push(`I looked through the ${fileCount} work samples they submitted${roleContext}.`);
+    } else {
+      paragraphs.push(`I reviewed the portfolio work they submitted${roleContext}.`);
     }
     
+    // Score-based assessment - natural language
     if (score !== undefined) {
-      paragraphs.push(`The portfolio received a score of ${score}/100.`);
-      
       if (score >= 85) {
-        paragraphs.push("This is impressive work. The quality and presentation show strong technical skills and creativity.");
+        paragraphs.push(`This is impressive work—scored ${score} out of 100. The quality and presentation show real skill and creativity. Definitely someone who takes pride in their craft.`);
       } else if (score >= 70) {
-        paragraphs.push("The portfolio shows solid skills. The work is competent with some standout pieces.");
+        paragraphs.push(`Solid portfolio overall, coming in at ${score} out of 100. The work is competent with some standout pieces, though not everything hit the mark.`);
       } else if (score >= 50) {
-        paragraphs.push("The portfolio is decent but has room for improvement. Some pieces are stronger than others.");
+        paragraphs.push(`The portfolio is decent but has room to grow—${score} out of 100. Some pieces are stronger than others, and there's potential here that's not fully realized yet.`);
       } else {
-        paragraphs.push("The portfolio needs more polish to meet expectations. The work shows potential but isn't quite there yet.");
+        paragraphs.push(`The portfolio needs more polish to meet our expectations—${score} out of 100. The work shows they're still developing their skills.`);
       }
     }
     
-    if (feedback) {
-      paragraphs.push(`Specific feedback: ${feedback}`);
+    // Feedback integration - natural flow
+    if (feedback && feedback.length > 10) {
+      paragraphs.push(feedback);
     }
     
-    if (analysis) {
+    if (analysis && analysis.length > 10 && analysis !== feedback) {
       paragraphs.push(analysis);
     }
     
   } else {
-    paragraphs.push(baseFacts);
-
+    // Fallback
+    paragraphs.push(`They submitted portfolio work for review${roleContext}.`);
+    
     const scoreMatch = baseFacts.match(/(\d+)\/100/);
     if (scoreMatch) {
       const score = parseInt(scoreMatch[1], 10);
       if (score >= 80) {
-        paragraphs.push("The portfolio shows strong technical skills and creativity.");
+        paragraphs.push(`Strong work overall—shows they've got the technical chops and creative eye.`);
       } else if (score >= 60) {
-        paragraphs.push("The work is decent, though there's room for improvement.");
+        paragraphs.push(`Decent portfolio, though there's room for improvement.`);
       } else {
-        paragraphs.push("The portfolio needs more polish to meet expectations.");
+        paragraphs.push(`The work needs more polish—not quite where we'd want it to be.`);
       }
-    } else {
-      paragraphs.push("The portfolio is available for your review.");
+    } else if (baseFacts && baseFacts.length > 10) {
+      paragraphs.push(baseFacts);
     }
+    
+    paragraphs.push(`The files are available for you to review directly if you want to take a closer look.`);
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/strong technical skills/gi, "the work").replace(/creativity/gi, "their approach");
+    narrative = narrative.replace(/impressive work/gi, "work reviewed").replace(/real skill/gi, "effort");
   }
   return narrative;
 }
 
 function buildVideoNarrative(input: AvaPhaseNarrativeInput): string {
-  const { wasRejected, videoData } = input;
+  const { wasRejected, videoData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  paragraphs.push("I watched their video introduction.");
-  paragraphs.push("The candidate recorded and submitted a video introduction.");
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
+
+  // Natural opening
+  paragraphs.push(`They recorded a video introduction${roleContext}.`);
   
   if (videoData && videoData.duration) {
     const minutes = Math.floor(videoData.duration / 60);
     const seconds = videoData.duration % 60;
-    if (minutes > 0) {
-      paragraphs.push(`The video is ${minutes} minute${minutes !== 1 ? 's' : ''} and ${seconds} second${seconds !== 1 ? 's' : ''} long.`);
+    
+    if (minutes > 2) {
+      paragraphs.push(`They took their time with it—${minutes} minutes and ${seconds} seconds. Shows they put thought into presenting themselves.`);
+    } else if (minutes >= 1) {
+      paragraphs.push(`It's about ${minutes} minute${minutes !== 1 ? 's' : ''} long, which is a good length to get a sense of who they are.`);
+    } else if (seconds < 30) {
+      paragraphs.push(`It's just ${seconds} seconds—pretty brief. Might indicate they rushed through it or weren't sure what to say.`);
     } else {
-      paragraphs.push(`The video is ${seconds} second${seconds !== 1 ? 's' : ''} long.`);
+      paragraphs.push(`It's ${seconds} seconds long—short but sometimes that's all you need.`);
     }
   }
   
-  paragraphs.push("The video is available for you to review directly — it's often the best way to get a sense of their personality, communication style, and presence.");
+  paragraphs.push(`I'd recommend watching it yourself—video intros are often the best way to get a feel for someone's personality, communication style, and presence that doesn't come through on paper.`);
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/best way to get a sense/gi, "a way to see");
+    narrative = narrative.replace(/best way to get a feel/gi, "a way to see more about");
   }
   return narrative;
 }
@@ -800,7 +842,7 @@ function buildChatSimulationNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, wasRejected, chatSimulationData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
 
   if (chatSimulationData) {
     const { 
@@ -809,106 +851,131 @@ function buildChatSimulationNarrative(input: AvaPhaseNarrativeInput): string {
       strengths, improvements, overallFeedback, antiCheatSummary 
     } = chatSimulationData;
     
-    // Dynamic opening based on performance
+    // Natural opening based on performance
     if (score !== undefined) {
       if (score >= 80) {
-        paragraphs.push(`Strong performance in the customer support simulation${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`They handled the customer simulation really well${roleContext}, scoring ${score} out of 100. Showed they can think on their feet and keep customers happy.`);
       } else if (score >= 60) {
-        paragraphs.push(`Adequate performance in the customer simulation${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`They did okay in the customer simulation${roleContext}—${score} out of 100. Not bad, but there's room to sharpen their approach.`);
       } else if (score >= 40) {
-        paragraphs.push(`Below-average performance in customer simulation${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`The customer simulation${roleContext} was a struggle for them—just ${score} out of 100. They had trouble navigating the customer's needs effectively.`);
       } else {
-        paragraphs.push(`Significant challenges observed in customer simulation${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`In the customer simulation${roleContext}, they scored just ${score} out of 100—struggling with the basics of customer interaction. This is a concern for any customer-facing role.`);
       }
     } else {
-      paragraphs.push(`Completed the customer support simulation${roleContext}.`);
+      paragraphs.push(`They completed the customer support simulation${roleContext}.`);
     }
     
-    // Scenario context
+    // Scenario context - natural mention
     if (scenario) {
-      paragraphs.push(`Scenario: ${scenario}.`);
+      paragraphs.push(`The scenario involved ${scenario.toLowerCase()}.`);
     }
     
-    // Rubric breakdown - show scores for each dimension
-    const rubricParts: string[] = [];
-    if (empathy !== undefined) rubricParts.push(`Empathy ${empathy}/100`);
-    if (problemSolving !== undefined) rubricParts.push(`Problem-Solving ${problemSolving}/100`);
-    if (communication !== undefined) rubricParts.push(`Communication ${communication}/100`);
-    if (professionalism !== undefined) rubricParts.push(`Professionalism ${professionalism}/100`);
-    
-    if (rubricParts.length > 0) {
-      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
+    // Rubric breakdown - woven into narrative naturally
+    const rubricInsights: string[] = [];
+    if (empathy !== undefined) {
+      if (empathy >= 80) rubricInsights.push("showed genuine empathy");
+      else if (empathy < 50) rubricInsights.push("struggled to show empathy");
+    }
+    if (problemSolving !== undefined) {
+      if (problemSolving >= 80) rubricInsights.push("solved problems effectively");
+      else if (problemSolving < 50) rubricInsights.push("had trouble problem-solving");
+    }
+    if (communication !== undefined) {
+      if (communication >= 80) rubricInsights.push("communicated clearly");
+      else if (communication < 50) rubricInsights.push("communication was unclear at times");
+    }
+    if (professionalism !== undefined) {
+      if (professionalism >= 80) rubricInsights.push("stayed professional throughout");
+      else if (professionalism < 50) rubricInsights.push("professionalism could use work");
     }
     
-    // Strengths
-    if (strengths && strengths.length > 0) {
-      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
-    }
-    
-    // Areas for improvement
-    if (improvements && improvements.length > 0) {
-      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
-    }
-    
-    // Overall feedback from AI
-    if (overallFeedback) {
-      paragraphs.push(`Evaluation: ${overallFeedback}`);
-    } else if (evaluation) {
-      paragraphs.push(`Analysis: ${evaluation}`);
-    }
-    
-    // Anti-cheat violations
-    if (antiCheatSummary && antiCheatSummary.hasViolations) {
-      const violationParts: string[] = [];
-      if (antiCheatSummary.tabSwitches) violationParts.push(`${antiCheatSummary.tabSwitches} tab switch${antiCheatSummary.tabSwitches !== 1 ? 'es' : ''}`);
-      if (antiCheatSummary.copyPasteAttempts) violationParts.push(`${antiCheatSummary.copyPasteAttempts} copy/paste attempt${antiCheatSummary.copyPasteAttempts !== 1 ? 's' : ''}`);
-      
-      if (violationParts.length > 0) {
-        paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected (${violationParts.join(", ")}).`);
+    if (rubricInsights.length > 0) {
+      if (rubricInsights.length === 1) {
+        paragraphs.push(`Notably, they ${rubricInsights[0]}.`);
       } else {
-        paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected.`);
+        const lastInsight = rubricInsights.pop();
+        paragraphs.push(`Looking at the breakdown: they ${rubricInsights.join(", ")}, and ${lastInsight}.`);
       }
     }
     
-    // Message analysis (fallback if no rubric data)
-    if (!rubricParts.length && messages && messages.length > 0) {
+    // Strengths - natural flow
+    if (strengths && strengths.length > 0) {
+      if (strengths.length === 1) {
+        paragraphs.push(`One thing that stood out: ${strengths[0].toLowerCase()}.`);
+      } else {
+        paragraphs.push(`Things they did well: ${strengths.slice(0, 3).map(s => s.toLowerCase()).join(", ")}.`);
+      }
+    }
+    
+    // Areas for improvement - conversational
+    if (improvements && improvements.length > 0) {
+      if (improvements.length === 1) {
+        paragraphs.push(`The main area to work on: ${improvements[0].toLowerCase()}.`);
+      } else {
+        paragraphs.push(`Areas that need work: ${improvements.slice(0, 3).map(i => i.toLowerCase()).join(", ")}.`);
+      }
+    }
+    
+    // Overall feedback from AI - integrate naturally
+    if (overallFeedback && overallFeedback.length > 10) {
+      paragraphs.push(overallFeedback);
+    } else if (evaluation && evaluation.length > 10) {
+      paragraphs.push(evaluation);
+    }
+    
+    // Anti-cheat violations - conversational
+    if (antiCheatSummary && antiCheatSummary.hasViolations) {
+      const parts: string[] = [];
+      if (antiCheatSummary.tabSwitches) parts.push(`switched tabs ${antiCheatSummary.tabSwitches} time${antiCheatSummary.tabSwitches !== 1 ? 's' : ''}`);
+      if (antiCheatSummary.copyPasteAttempts) parts.push(`tried to copy/paste ${antiCheatSummary.copyPasteAttempts} time${antiCheatSummary.copyPasteAttempts !== 1 ? 's' : ''}`);
+      
+      if (parts.length > 0) {
+        paragraphs.push(`I should mention—they ${parts.join(" and ")} during the simulation, which could mean they were looking for help outside the exercise.`);
+      }
+    }
+    
+    // Message analysis (fallback if no rubric data) - natural observations
+    if (!rubricInsights.length && messages && messages.length > 0) {
       const candidateMessages = messages.filter(m => m.role === 'user' || m.role === 'candidate');
       if (candidateMessages.length > 0) {
         const shortResponses = candidateMessages.filter(m => m.content.length < 30).length;
         const detailedResponses = candidateMessages.filter(m => m.content.length > 100).length;
         
         if (shortResponses > candidateMessages.length / 2) {
-          paragraphs.push(`Response depth: Brief responses throughout. For customer service, more thorough responses are typically expected.`);
+          paragraphs.push(`Their responses tended to be brief—for customer service, you usually want someone who gives more thorough answers.`);
         } else if (detailedResponses > candidateMessages.length / 2) {
-          paragraphs.push(`Response depth: Provided detailed, thorough responses - good for complex customer issues.`);
+          paragraphs.push(`They gave detailed, thorough responses, which is what you want for handling complex customer issues.`);
         }
         
-        // Check for empathy indicators
         const empathyPhrases = candidateMessages.filter(m => 
           /sorry|understand|frustrating|help you|apologize|appreciate/i.test(m.content)
         ).length;
         
         if (empathyPhrases >= 2) {
-          paragraphs.push(`Empathy: Showed appropriate empathy and customer acknowledgment.`);
+          paragraphs.push(`They showed good empathy throughout—acknowledging the customer's feelings and apologizing where appropriate.`);
         } else if (candidateMessages.length >= 3 && empathyPhrases === 0) {
-          paragraphs.push(`Empathy: Limited empathy language observed - area for coaching.`);
+          paragraphs.push(`I didn't see much empathy language in their responses—that's something they'd need coaching on.`);
         }
       }
     }
     
-    // Recommendation
-    if (recommendation) {
-      paragraphs.push(`Recommendation: ${recommendation}`);
+    // Recommendation - natural closing
+    if (recommendation && recommendation.length > 5) {
+      if (recommendation.toLowerCase().includes('not recommend') || recommendation.toLowerCase().includes('pass on')) {
+        paragraphs.push(`Based on this simulation, I'd lean toward passing on this candidate for customer-facing work.`);
+      } else if (recommendation.toLowerCase().includes('recommend') || recommendation.toLowerCase().includes('proceed')) {
+        paragraphs.push(`Overall, I think they've got the foundation to handle customer interactions.`);
+      }
     }
     
   } else {
-    paragraphs.push(`Completed the chat simulation${roleContext}.`);
-    paragraphs.push(baseFacts);
+    paragraphs.push(`They completed the chat simulation${roleContext}. ${baseFacts}`);
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong performance|excellent performance/gi, "Completed the simulation");
+    narrative = narrative.replace(/handled the customer simulation really well/gi, "completed the customer simulation");
   }
   return narrative;
 }
@@ -917,7 +984,7 @@ function buildChatInterviewNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, wasRejected, chatInterviewData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} position` : '';
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
 
   if (chatInterviewData) {
     const { 
@@ -927,63 +994,79 @@ function buildChatInterviewNarrative(input: AvaPhaseNarrativeInput): string {
     } = chatInterviewData;
     const finalScore = score || overallScore;
     
-    // Dynamic opening based on score
+    // Natural opening based on score
     if (finalScore !== undefined) {
       if (finalScore >= 80) {
-        paragraphs.push(`Strong chat interview performance${roleContext}. Score: ${finalScore}/100.`);
+        paragraphs.push(`The chat interview went great${roleContext}—they scored ${finalScore} out of 100. Came across as engaged, knowledgeable, and well-prepared.`);
       } else if (finalScore >= 60) {
-        paragraphs.push(`Adequate chat interview performance${roleContext}. Score: ${finalScore}/100.`);
+        paragraphs.push(`The chat interview was solid${roleContext}, scoring ${finalScore} out of 100. Good enough to warrant further consideration.`);
       } else {
-        paragraphs.push(`Chat interview revealed areas for development${roleContext}. Score: ${finalScore}/100.`);
+        paragraphs.push(`The chat interview${roleContext} revealed some gaps. They scored ${finalScore} out of 100, which suggests they'd need development in key areas.`);
       }
     } else {
-      paragraphs.push(`Completed the chat interview${roleContext}.`);
+      paragraphs.push(`They completed the chat interview${roleContext}.`);
     }
     
-    // Rubric breakdown
-    const rubricParts: string[] = [];
-    if (communication !== undefined) rubricParts.push(`Communication ${communication}/100`);
-    if (technicalKnowledge !== undefined) rubricParts.push(`Technical Knowledge ${technicalKnowledge}/100`);
-    if (problemSolving !== undefined) rubricParts.push(`Problem-Solving ${problemSolving}/100`);
-    if (enthusiasm !== undefined) rubricParts.push(`Enthusiasm ${enthusiasm}/100`);
-    
-    if (rubricParts.length > 0) {
-      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
+    // Rubric breakdown - woven into narrative
+    const insights: string[] = [];
+    if (communication !== undefined) {
+      if (communication >= 80) insights.push("communicated clearly and confidently");
+      else if (communication < 50) insights.push("communication could be clearer");
+    }
+    if (technicalKnowledge !== undefined) {
+      if (technicalKnowledge >= 80) insights.push("demonstrated solid technical knowledge");
+      else if (technicalKnowledge < 50) insights.push("showed gaps in technical understanding");
+    }
+    if (problemSolving !== undefined) {
+      if (problemSolving >= 80) insights.push("approached problems methodically");
+      else if (problemSolving < 50) insights.push("struggled with problem-solving questions");
+    }
+    if (enthusiasm !== undefined) {
+      if (enthusiasm >= 80) insights.push("seemed genuinely enthusiastic about the role");
+      else if (enthusiasm < 50) insights.push("didn't show much enthusiasm");
     }
     
-    // Strengths
+    if (insights.length > 0) {
+      if (insights.length === 1) {
+        paragraphs.push(`Notably, they ${insights[0]}.`);
+      } else {
+        const lastInsight = insights.pop();
+        paragraphs.push(`Looking at the details: they ${insights.join(", ")}, and ${lastInsight}.`);
+      }
+    }
+    
+    // Strengths - conversational
     if (strengths && strengths.length > 0) {
-      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
+      paragraphs.push(`What stood out: ${strengths.slice(0, 3).map(s => s.toLowerCase()).join(", ")}.`);
     }
     
-    // Areas for improvement
+    // Areas for improvement - natural
     if (improvements && improvements.length > 0) {
-      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
+      paragraphs.push(`Areas to develop: ${improvements.slice(0, 3).map(i => i.toLowerCase()).join(", ")}.`);
     }
     
     // Overall feedback
-    if (overallFeedback) {
-      paragraphs.push(`Evaluation: ${overallFeedback}`);
-    } else if (summary) {
-      paragraphs.push(`Summary: ${summary}`);
+    if (overallFeedback && overallFeedback.length > 10) {
+      paragraphs.push(overallFeedback);
+    } else if (summary && summary.length > 10) {
+      paragraphs.push(summary);
     }
     
-    // Session details
+    // Session details - casual mention
     if (messageCount && duration) {
       const minutes = Math.round(duration / 60);
-      paragraphs.push(`Session: ${messageCount} messages over ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
-    } else if (messageCount) {
-      paragraphs.push(`Session: ${messageCount} messages exchanged.`);
+      if (minutes >= 10) {
+        paragraphs.push(`They were engaged throughout—${messageCount} messages exchanged over about ${minutes} minutes.`);
+      }
     }
     
   } else {
-    paragraphs.push(`Completed the chat interview${roleContext}.`);
-    paragraphs.push(baseFacts);
+    paragraphs.push(`They completed the chat interview${roleContext}. ${baseFacts}`);
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong chat interview performance/gi, "Chat interview completed");
+    narrative = narrative.replace(/went great/gi, "was completed");
   }
   return narrative;
 }
@@ -992,7 +1075,7 @@ function buildSalesSimulationNarrative(input: AvaPhaseNarrativeInput): string {
   const { baseFacts, wasRejected, salesSimulationData, jobTitle } = input;
   const paragraphs: string[] = [];
 
-  const roleContext = jobTitle ? ` for the ${jobTitle} role` : '';
+  const roleContext = jobTitle ? ` for ${jobTitle}` : '';
 
   if (salesSimulationData) {
     const { 
@@ -1001,81 +1084,106 @@ function buildSalesSimulationNarrative(input: AvaPhaseNarrativeInput): string {
       strengths, improvements, overallFeedback, antiCheatSummary
     } = salesSimulationData;
     
-    // Dynamic opening based on performance
+    // Natural opening based on performance
     if (score !== undefined) {
       if (score >= 85) {
-        paragraphs.push(`Strong sales performance${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`They crushed the sales simulation${roleContext}—${score} out of 100. Natural sales instincts and good technique throughout.`);
       } else if (score >= 70) {
-        paragraphs.push(`Adequate sales performance${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`They did well in the sales simulation${roleContext}, scoring ${score} out of 100. Solid fundamentals with some areas to refine.`);
       } else if (score >= 50) {
-        paragraphs.push(`Below-average sales performance${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`The sales simulation${roleContext} was mixed—${score} out of 100. They've got potential but need more polish on their approach.`);
       } else {
-        paragraphs.push(`Significant challenges in sales simulation${roleContext}. Score: ${score}/100.`);
+        paragraphs.push(`The sales simulation${roleContext} was a struggle, scoring just ${score} out of 100. They'd need significant coaching to be effective in a sales role.`);
       }
     } else {
-      paragraphs.push(`Completed the sales simulation${roleContext}.`);
+      paragraphs.push(`They completed the sales simulation${roleContext}.`);
     }
     
-    // Rubric breakdown - show scores for each dimension
-    const rubricParts: string[] = [];
-    if (rapport !== undefined) rubricParts.push(`Rapport ${rapport}/100`);
-    if (needsDiscovery !== undefined) rubricParts.push(`Needs Discovery ${needsDiscovery}/100`);
-    if (productKnowledge !== undefined) rubricParts.push(`Product Knowledge ${productKnowledge}/100`);
-    if (objectionHandling !== undefined) rubricParts.push(`Objection Handling ${objectionHandling}/100`);
-    if (closingSkills !== undefined) rubricParts.push(`Closing ${closingSkills}/100`);
-    
-    if (rubricParts.length > 0) {
-      paragraphs.push(`Rubric: ${rubricParts.join(", ")}.`);
+    // Rubric breakdown - woven into narrative naturally
+    const salesInsights: string[] = [];
+    if (rapport !== undefined) {
+      if (rapport >= 80) salesInsights.push("built good rapport with the prospect");
+      else if (rapport < 50) salesInsights.push("struggled to build rapport");
+    }
+    if (needsDiscovery !== undefined) {
+      if (needsDiscovery >= 80) salesInsights.push("asked smart discovery questions");
+      else if (needsDiscovery < 50) salesInsights.push("missed opportunities to understand needs");
+    }
+    if (productKnowledge !== undefined) {
+      if (productKnowledge >= 80) salesInsights.push("knew the product well");
+      else if (productKnowledge < 50) salesInsights.push("seemed uncertain about product details");
+    }
+    if (objectionHandling !== undefined) {
+      if (objectionHandling >= 80) salesInsights.push("handled objections smoothly");
+      else if (objectionHandling < 50) salesInsights.push("got flustered by objections");
+    }
+    if (closingSkills !== undefined) {
+      if (closingSkills >= 80) salesInsights.push("closed confidently");
+      else if (closingSkills < 50) salesInsights.push("didn't really try to close");
     }
     
-    // Strengths
+    if (salesInsights.length > 0) {
+      if (salesInsights.length === 1) {
+        paragraphs.push(`Notably, they ${salesInsights[0]}.`);
+      } else {
+        const lastInsight = salesInsights.pop();
+        paragraphs.push(`Breaking it down: they ${salesInsights.join(", ")}, and ${lastInsight}.`);
+      }
+    }
+    
+    // Strengths - natural
     if (strengths && strengths.length > 0) {
-      paragraphs.push(`Strengths: ${strengths.join(", ")}.`);
+      paragraphs.push(`What they did well: ${strengths.slice(0, 3).map(s => s.toLowerCase()).join(", ")}.`);
     }
     
-    // Areas for improvement
+    // Areas for improvement - conversational
     if (improvements && improvements.length > 0) {
-      paragraphs.push(`Areas for improvement:\n• ${improvements.join("\n• ")}`);
+      paragraphs.push(`What they need to work on: ${improvements.slice(0, 3).map(i => i.toLowerCase()).join(", ")}.`);
     }
     
     // Overall feedback
-    if (overallFeedback) {
-      paragraphs.push(`Evaluation: ${overallFeedback}`);
-    } else if (evaluation) {
-      paragraphs.push(`Analysis: ${evaluation}`);
+    if (overallFeedback && overallFeedback.length > 10) {
+      paragraphs.push(overallFeedback);
+    } else if (evaluation && evaluation.length > 10) {
+      paragraphs.push(evaluation);
     }
     
-    // Anti-cheat violations
+    // Anti-cheat violations - casual mention
     if (antiCheatSummary && antiCheatSummary.hasViolations) {
-      paragraphs.push(`⚠️ Integrity: ${antiCheatSummary.violationCount} violation${antiCheatSummary.violationCount !== 1 ? 's' : ''} detected.`);
+      paragraphs.push(`I noticed they stepped away from the simulation ${antiCheatSummary.violationCount} time${antiCheatSummary.violationCount !== 1 ? 's' : ''}—might have been looking for help.`);
     }
     
-    // Recommendation
-    if (recommendation) {
-      paragraphs.push(`Recommendation: ${recommendation}`);
-    }
-    
-    // Fallback to conversation analysis if no rubric
-    if (!rubricParts.length && messages && messages.length > 0) {
+    // Conversation analysis fallback
+    if (!salesInsights.length && messages && messages.length > 0) {
       const candidateMessages = messages.filter(m => m.role === 'user' || m.role === 'candidate');
       if (candidateMessages.length >= 3) {
         const closingKeywords = candidateMessages.some(m => 
           /shall we proceed|ready to|sign up|get started|next step/i.test(m.content)
         );
         if (closingKeywords) {
-          paragraphs.push("They made appropriate attempts to move the conversation toward a close.");
+          paragraphs.push(`They made efforts to move the conversation toward a close, which shows some sales instinct.`);
+        } else {
+          paragraphs.push(`They didn't really try to close the deal—something a good sales rep would push for.`);
         }
       }
     }
     
+    // Recommendation - natural closing
+    if (recommendation && recommendation.length > 5) {
+      if (recommendation.toLowerCase().includes('not recommend') || recommendation.toLowerCase().includes('pass')) {
+        paragraphs.push(`Based on this, I'd have concerns about putting them in a sales role.`);
+      } else if (recommendation.toLowerCase().includes('recommend') || recommendation.toLowerCase().includes('proceed')) {
+        paragraphs.push(`Overall, they've shown they can handle the sales conversation.`);
+      }
+    }
+    
   } else {
-    paragraphs.push(`Completed the sales simulation${roleContext}.`);
-    paragraphs.push(baseFacts);
+    paragraphs.push(`They completed the sales simulation${roleContext}. ${baseFacts}`);
   }
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/Strong sales performance/gi, "Sales simulation completed");
+    narrative = narrative.replace(/crushed the sales simulation/gi, "completed the sales simulation");
   }
   return narrative;
 }
