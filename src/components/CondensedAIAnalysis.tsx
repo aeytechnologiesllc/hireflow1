@@ -21,6 +21,9 @@ interface ParsedAnalysis {
   recommendation: string | null;
   fullSummary: string;
   sections: ParsedSection[];
+  jobFitAnalysis?: string;
+  personalityProfile?: string;
+  cultureFit?: string;
 }
 
 interface ParsedSection {
@@ -34,14 +37,22 @@ interface PhaseResult {
   details: string;
 }
 
+// Job context for dynamic analysis
+interface JobContext {
+  title?: string;
+  requiredSkills?: string[];
+  description?: string;
+  companyName?: string;
+}
+
 // Application notes structure from parsedNotes
 interface ApplicationNotes {
   quizResult?: { score: number; passed: boolean; total?: number };
   portfolioResult?: { score: number; feedback?: string };
   typingTestResult?: { wpm: number; accuracy: number; passed?: boolean };
-  chatSimulationResult?: { score?: number; passed?: boolean };
-  chatInterviewResult?: { score?: number; passed?: boolean };
-  salesSimulationResult?: { score?: number; passed?: boolean };
+  chatSimulationResult?: { score?: number; passed?: boolean; evaluation?: string; scenario?: string };
+  chatInterviewResult?: { score?: number; passed?: boolean; summary?: string };
+  salesSimulationResult?: { score?: number; passed?: boolean; evaluation?: string };
   videoIntroUrl?: string;
   applicationAnswers?: Array<{ question: string; answer: string }>;
   [key: string]: any;
@@ -290,13 +301,14 @@ function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseRes
   return results;
 }
 
-// Generate a comprehensive full summary from all sections - building a 15+ sentence narrative
+// Generate a comprehensive full summary - dynamic, job-aware, no hardcoded phrases
 function generateFullSummary(
   sections: ParsedSection[], 
   recommendation: string | null,
   applicationNotes?: ApplicationNotes,
   voiceInterviewResult?: any,
-  authoritativeScore?: number | null
+  authoritativeScore?: number | null,
+  jobContext?: JobContext
 ): string {
   // Get phase results from actual notes data (authoritative source)
   const notesPhaseResults = getPhaseResultsFromNotes(applicationNotes);
@@ -313,7 +325,7 @@ function generateFullSummary(
     }
   }
   
-  // Collect data from all sections (for non-phase data like resume findings, skills, etc.)
+  // Collect data from all sections
   const phaseResults: PhaseResult[] = notesPhaseResults.length > 0 ? notesPhaseResults : [];
   const resumeFindings: string[] = [];
   const skillsInfo: string[] = [];
@@ -324,6 +336,8 @@ function generateFullSummary(
   const crossRefFindings: string[] = [];
   let overallScore: string | null = null;
   let recommendationText: string | null = recommendation;
+  let jobFitDetails: string[] = [];
+  let cultureIndicators: string[] = [];
   
   for (const section of sections) {
     const titleLower = section.title.toLowerCase();
@@ -544,228 +558,166 @@ function generateFullSummary(
     }
   }
   
-  // Build comprehensive narrative in AVA's first-person voice with paragraph breaks
+  // Build comprehensive narrative - DYNAMIC, job-aware, no hardcoded phrases
   const paragraphs: string[] = [];
+  const jobTitle = jobContext?.title || 'this position';
+  const companyName = jobContext?.companyName;
+  const requiredSkills = jobContext?.requiredSkills || [];
   
-  // ============= PARAGRAPH 1: Opening + Phase Results =============
+  // Use authoritative score
+  const finalScoreNum = authoritativeScore ?? (overallScore ? parseInt(overallScore) : null);
+  
+  // ============= PARAGRAPH 1: Dynamic Opening Based on Assessment =============
   const openingSentences: string[] = [];
   
-  // Conversational opening
-  if (phaseResults.length > 0) {
-    openingSentences.push(`Hey! I've finished reviewing this applicant and here's what I found.`);
-    openingSentences.push(`They completed ${phaseResults.length} phase${phaseResults.length > 1 ? 's' : ''} of the application process.`);
+  // Dynamic opening based on what we found - NOT hardcoded
+  if (finalScoreNum !== null) {
+    if (finalScoreNum >= 80) {
+      openingSentences.push(`This is a strong candidate for ${jobTitle}.`);
+    } else if (finalScoreNum >= 60) {
+      openingSentences.push(`This candidate shows potential for ${jobTitle}, with some areas to consider.`);
+    } else if (finalScoreNum >= 40) {
+      openingSentences.push(`I have reservations about this candidate for ${jobTitle}.`);
+    } else {
+      openingSentences.push(`This candidate doesn't appear to be a good fit for ${jobTitle}.`);
+    }
+  } else if (phaseResults.length > 0) {
+    openingSentences.push(`Here's my assessment based on ${phaseResults.length} completed evaluation${phaseResults.length !== 1 ? 's' : ''}.`);
   } else {
-    openingSentences.push(`Hey! I've taken a look at this application.`);
-    openingSentences.push(`They've submitted their application for review, but haven't completed any assessment phases yet.`);
+    openingSentences.push(`Initial application received - awaiting assessment phases.`);
   }
   
-  // Phase-by-phase breakdown in first person
+  // Key performance highlights (not listing phases, but highlighting standouts)
+  const standoutPhases: string[] = [];
+  const concernPhases: string[] = [];
+  
   for (const phase of phaseResults) {
-    if (phase.phase === 'Quiz') {
-      const score = parseInt(phase.score);
-      if (score >= 90) {
-        openingSentences.push(`I was really impressed with their quiz performance - they scored ${phase.score}! That tells me they really know the material.`);
-      } else if (score >= 70) {
-        openingSentences.push(`Their quiz score of ${phase.score} is solid - shows they have a good grasp of the fundamentals.`);
-      } else if (score >= 50) {
-        openingSentences.push(`They got ${phase.score} on the quiz, which is okay but there are definitely some knowledge gaps I noticed.`);
-      } else {
-        openingSentences.push(`The quiz score of ${phase.score} is concerning to me - it suggests they're missing some fundamental knowledge we need.`);
+    const scoreNum = parseInt(phase.score);
+    if (!isNaN(scoreNum)) {
+      if (phase.phase === 'Quiz') {
+        if (scoreNum >= 80) standoutPhases.push(`strong knowledge assessment (${phase.score})`);
+        else if (scoreNum < 50) concernPhases.push(`knowledge gaps in assessment (${phase.score})`);
+      }
+      if (phase.phase === 'Portfolio') {
+        if (scoreNum >= 80) standoutPhases.push(`impressive portfolio work (${phase.score})`);
+        else if (scoreNum < 50) concernPhases.push(`portfolio below expectations (${phase.score})`);
+      }
+      if (phase.phase === 'Voice Interview') {
+        if (scoreNum >= 80) standoutPhases.push(`excellent communication in interview (${phase.score})`);
+        else if (scoreNum < 50) concernPhases.push(`communication challenges in interview (${phase.score})`);
+      }
+      if (phase.phase === 'Chat Simulation') {
+        if (scoreNum >= 80) standoutPhases.push(`handled customer scenarios well (${phase.score})`);
+        else if (scoreNum < 50) concernPhases.push(`struggled with customer simulation (${phase.score})`);
       }
     }
-    
-    if (phase.phase === 'Portfolio') {
-      const score = parseInt(phase.score);
-      if (score >= 80) {
-        openingSentences.push(`Their portfolio really caught my eye - scored ${phase.score}. Great technical work and creativity there!`);
-      } else if (score >= 60) {
-        openingSentences.push(`The portfolio came in at ${phase.score}. It's decent work, but honestly, I expected a bit more polish for this role.`);
-      } else {
-        openingSentences.push(`Their portfolio scored ${phase.score}, which is below what I'd hope to see. There's definitely room for improvement.`);
-      }
-    }
-    
-    if (phase.phase === 'Voice Interview') {
-      const score = parseInt(phase.score);
-      if (score >= 80) {
-        openingSentences.push(`The voice interview went great - ${phase.score}! They communicated well and seemed genuinely engaged.`);
-      } else if (score >= 60) {
-        openingSentences.push(`Their voice interview was rated ${phase.score}. Communication was adequate, though nothing that really stood out.`);
-      } else if (score >= 40) {
-        openingSentences.push(`Here's where I got a bit concerned - the voice interview only scored ${phase.score}. They seemed disengaged and I had trouble connecting with them.`);
-      } else {
-        openingSentences.push(`I have to be honest - the voice interview worried me. Only ${phase.score}. They really struggled with communication and didn't seem prepared.`);
-      }
-    }
-    
     if (phase.phase === 'Typing Test') {
-      openingSentences.push(`They completed the typing test at ${phase.score}, which I noted.`);
+      const wpm = parseInt(phase.score);
+      if (wpm >= 60) standoutPhases.push(`good typing speed (${phase.score})`);
+      else if (wpm < 30) concernPhases.push(`slow typing speed (${phase.score})`);
     }
-    
-    if (phase.phase === 'Video Introduction') {
-      openingSentences.push(`They did submit a video introduction, which I reviewed.`);
-    }
-    
-    if (phase.phase === 'Chat Simulation') {
-      openingSentences.push(`They went through the chat simulation exercise as well.`);
-    }
+  }
+  
+  if (standoutPhases.length > 0) {
+    openingSentences.push(`Strengths: ${standoutPhases.join(', ')}.`);
+  }
+  if (concernPhases.length > 0) {
+    openingSentences.push(`Concerns: ${concernPhases.join(', ')}.`);
   }
   
   if (openingSentences.length > 0) {
     paragraphs.push(openingSentences.join(' '));
   }
   
-  // ============= PARAGRAPH 2: Resume & Skills Analysis =============
-  const resumeSentences: string[] = [];
+  // ============= PARAGRAPH 2: Job Fit & Skills Analysis =============
+  const fitSentences: string[] = [];
   
-  if (resumeFindings.length > 0 || crossRefFindings.length > 0) {
-    resumeSentences.push(`Now, I have to flag something important about the resume.`);
-    
-    // Resume findings in conversational tone
-    for (const finding of resumeFindings) {
-      if (finding.toLowerCase().includes('different person')) {
-        resumeSentences.push(`The resume they submitted doesn't seem to match - it looks like it might belong to someone else entirely.`);
-      } else if (finding.toLowerCase().includes('belong to the applicant')) {
-        resumeSentences.push(`Good news - the resume does appear to be theirs.`);
-      } else if (finding.toLowerCase().includes('authenticity')) {
-        resumeSentences.push(finding + '.');
-      } else {
-        resumeSentences.push(finding + '.');
-      }
-    }
-    
-    // Cross-reference findings
-    for (const finding of crossRefFindings) {
-      if (finding.toLowerCase().includes('name') && finding.toLowerCase().includes('not match')) {
-        resumeSentences.push(`The name on the resume doesn't match what they put on their application - that's a red flag for me.`);
-      } else if (finding.toLowerCase().includes('inconsistent')) {
-        resumeSentences.push(`I'm seeing some inconsistencies between their resume and application data.`);
-      } else if (finding.toLowerCase().includes('match') && finding.toLowerCase().includes('name')) {
-        resumeSentences.push(`At least the names check out and match up.`);
-      }
-    }
+  // Skills match vs job requirements
+  const matchingSkillsList = skillsInfo.filter(s => s.toLowerCase().includes('matching')).map(s => cleanPlaceholderFromText(s.replace(/matching skills:\s*/i, ''))).filter(Boolean);
+  const missingSkillsList = skillsInfo.filter(s => s.toLowerCase().includes('missing') || s.toLowerCase().includes('gap')).map(s => cleanPlaceholderFromText(s.replace(/missing skills:\s*|skills gap[s]? identified:\s*/gi, ''))).filter(Boolean);
+  
+  if (matchingSkillsList.length > 0 && matchingSkillsList[0] && !isPlaceholderValue(matchingSkillsList[0])) {
+    fitSentences.push(`Relevant skills found: ${matchingSkillsList[0]}.`);
   }
   
-  // Skills assessment
-  if (skillsInfo.length > 0) {
-    for (const skill of skillsInfo) {
-      // Skip placeholder values entirely
-      if (isPlaceholderValue(skill)) continue;
-      
-      const cleanedSkill = cleanPlaceholderFromText(skill);
-      if (!cleanedSkill) continue;
-      
-      if (cleanedSkill.toLowerCase().includes('no matching skills')) {
-        resumeSentences.push(`I couldn't find any of the skills we need for this position on their resume.`);
-      } else if (cleanedSkill.toLowerCase().includes('skills gap')) {
-        const gapMatch = cleanedSkill.match(/Skills gaps identified:\s*(.+)/i);
-        if (gapMatch) {
-          const gapValue = cleanPlaceholderFromText(gapMatch[1]);
-          if (gapValue && !isPlaceholderValue(gapValue)) {
-            resumeSentences.push(`We're looking for things like ${gapValue} - and those weren't showing up.`);
-          }
-        }
-      } else if (cleanedSkill.toLowerCase().includes('matching skills')) {
-        const skillValue = cleanPlaceholderFromText(cleanedSkill.replace(/Matching skills:\s*/i, ''));
-        if (skillValue && !isPlaceholderValue(skillValue)) {
-          resumeSentences.push(`On the positive side, I did find some relevant skills: ${skillValue}.`);
-        }
-      }
-    }
+  if (missingSkillsList.length > 0 && missingSkillsList[0] && !isPlaceholderValue(missingSkillsList[0]) && !missingSkillsList[0].toLowerCase().includes('none')) {
+    fitSentences.push(`Skills to develop: ${missingSkillsList[0]}.`);
   }
   
-  // Experience
-  if (experienceInfo.length > 0) {
-    for (const exp of experienceInfo.slice(0, 2)) {
-      if (exp.toLowerCase().includes('unknown')) {
-        resumeSentences.push(`I couldn't get a clear picture of their experience level from what they submitted.`);
-      } else {
-        resumeSentences.push(exp + ' - based on the application data.');
-      }
-    }
+  // Experience context
+  const expSummary = experienceInfo.find(e => !e.toLowerCase().includes('unknown') && !isPlaceholderValue(e));
+  if (expSummary) {
+    fitSentences.push(expSummary + '.');
   }
   
-  if (resumeSentences.length > 0) {
-    paragraphs.push(resumeSentences.join(' '));
+  // Resume verification issues (only if significant)
+  const hasNameMismatch = crossRefFindings.some(f => f.toLowerCase().includes('mismatch') || f.toLowerCase().includes('not match'));
+  const hasResumeIssue = resumeFindings.some(f => f.toLowerCase().includes('different person') || f.toLowerCase().includes('wrong'));
+  
+  if (hasNameMismatch || hasResumeIssue) {
+    fitSentences.push(`⚠️ Document verification flagged: ${hasNameMismatch ? 'name discrepancy detected' : 'resume authenticity concerns'}.`);
   }
   
-  // ============= PARAGRAPH 3: Concerns & Red Flags =============
-  const concernsSentences: string[] = [];
-  const uniqueConcerns = [...new Set(concerns)];
+  if (fitSentences.length > 0) {
+    paragraphs.push(fitSentences.join(' '));
+  }
   
+  // ============= PARAGRAPH 3: Personality & Culture Fit =============
+  const cultureSentences: string[] = [];
+  
+  // Only include meaningful personality insights
+  const meaningfulPersonality = personalityInfo.filter(p => p && p.length > 10 && !isPlaceholderValue(p));
+  if (meaningfulPersonality.length > 0) {
+    cultureSentences.push(`Personality profile: ${meaningfulPersonality.slice(0, 2).join('. ')}.`);
+  }
+  
+  // Culture indicators from analysis
+  const uniqueCultureIndicators = [...new Set(cultureIndicators)].filter(c => c && !isPlaceholderValue(c));
+  if (uniqueCultureIndicators.length > 0) {
+    cultureSentences.push(`Work style indicators: ${uniqueCultureIndicators.join(', ')}.`);
+  }
+  
+  if (cultureSentences.length > 0) {
+    paragraphs.push(cultureSentences.join(' '));
+  }
+  
+  // ============= PARAGRAPH 4: Concerns (only if significant) =============
+  const uniqueConcerns = [...new Set(concerns)].filter(c => c && c.length > 5 && !isPlaceholderValue(c));
   if (uniqueConcerns.length > 0) {
-    concernsSentences.push(`Between you and me, there are some real concerns here.`);
-    concernsSentences.push(`Key concerns include: ${uniqueConcerns.join(', ')}.`);
+    const concernList = uniqueConcerns.slice(0, 3).join('; ');
+    paragraphs.push(`Key concerns: ${concernList}.`);
   }
   
-  // Strengths (balance it out)
-  const uniqueStrengths = [...new Set(strengths)].filter(s => s && s.toLowerCase() !== 'none');
-  if (uniqueStrengths.length > 0) {
-    if (uniqueStrengths.length === 1) {
-      concernsSentences.push(`A notable strength is ${uniqueStrengths[0]}.`);
-    } else {
-      concernsSentences.push(`On the positive side, I did notice: ${uniqueStrengths.slice(0, 3).join(', ')}.`);
-    }
-  }
+  // ============= PARAGRAPH 5: Final Verdict =============
+  const verdictSentences: string[] = [];
   
-  // Personality insights
-  if (personalityInfo.length > 0) {
-    const personalityNote = personalityInfo.slice(0, 2).join(' ');
-    concernsSentences.push(`Personality indicators suggest: ${personalityNote}.`);
-  }
-  
-  if (concernsSentences.length > 0) {
-    paragraphs.push(concernsSentences.join(' '));
-  }
-  
-  // ============= PARAGRAPH 4: Final Recommendation =============
-  const closingSentences: string[] = [];
-  
-  // Use authoritative score if provided, otherwise use parsed overallScore
-  const finalScore = authoritativeScore !== undefined && authoritativeScore !== null 
-    ? authoritativeScore.toString() 
-    : overallScore;
-  
-  if (finalScore) {
-    closingSentences.push(`After reviewing everything, I'm giving this candidate ${finalScore}/100.`);
+  if (finalScoreNum !== null) {
+    verdictSentences.push(`Overall score: ${finalScoreNum}/100.`);
   }
   
   if (recommendationText) {
-    const cleanRec = recommendationText.replace(/^\*\*|\*\*$/g, '').trim().toLowerCase();
-    if (cleanRec.includes('not recommended') || cleanRec.includes('reject')) {
-      closingSentences.push(`My recommendation? I don't think we should move forward with them.`);
-      if (uniqueConcerns.length > 0) {
-        closingSentences.push(`The concerns I mentioned are just too significant to overlook.`);
-      }
-    } else if (cleanRec.includes('proceed') || cleanRec.includes('interview')) {
-      closingSentences.push(`My recommendation is to proceed with an interview.`);
-      closingSentences.push(`I'd like to get to know them better before making a final call.`);
-    } else if (cleanRec.includes('hire') || cleanRec.includes('recommend')) {
-      closingSentences.push(`I think this could be a great fit! I'd recommend moving forward with them.`);
+    const cleanRec = recommendationText.replace(/^\*\*|\*\*$/g, '').trim();
+    verdictSentences.push(`Recommendation: ${cleanRec}.`);
+  } else if (finalScoreNum !== null) {
+    if (finalScoreNum >= 75) {
+      verdictSentences.push(`This candidate is worth advancing to the next stage.`);
+    } else if (finalScoreNum >= 50) {
+      verdictSentences.push(`Consider based on your specific priorities for this role.`);
     } else {
-      closingSentences.push(`Recommendation: ${recommendationText}.`);
-    }
-  } else if (finalScore) {
-    const score = parseInt(finalScore);
-    if (score >= 70) {
-      closingSentences.push(`Overall, I think this candidate shows real promise.`);
-    } else if (score >= 50) {
-      closingSentences.push(`They're on the fence - could go either way depending on what you prioritize.`);
-    } else {
-      closingSentences.push(`Honestly? I have reservations about moving forward with this one.`);
+      verdictSentences.push(`I recommend passing on this candidate.`);
     }
   }
   
-  if (closingSentences.length > 0) {
-    paragraphs.push(closingSentences.join(' '));
+  if (verdictSentences.length > 0) {
+    paragraphs.push(verdictSentences.join(' '));
   }
   
-  // Join paragraphs with double line breaks
+  // Return dynamic summary or minimal fallback
   if (paragraphs.length > 0) {
     return paragraphs.join('\n\n');
   }
   
-  return "Hey! I've reviewed this application. Check out the detailed sections below for all my findings and insights.";
+  return "Application received. Complete the phase-by-phase analysis below for detailed insights.";
 }
 
 // ============= Parsing Logic =============
