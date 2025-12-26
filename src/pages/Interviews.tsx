@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, EyeOff, AlertCircle, Trash2 } from "lucide-react";
+import { Calendar, Clock, Video, MoreVertical, CheckCircle, XCircle, EyeOff, AlertCircle, Trash2, Check, RefreshCw, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -20,7 +20,9 @@ import { toast } from "sonner";
 import { format, isPast, isFuture } from "date-fns";
 
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
+import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
 
@@ -44,9 +46,11 @@ interface InterviewCardProps {
   isEmployer: boolean;
   canScheduleInterviews: boolean;
   onStatusChange: (id: string, status: string) => void;
-  
   onReviewReschedule: (interview: InterviewWithDetails) => void;
   onDeleteInterview: (id: string) => void;
+  onCandidateConfirm: (interviewId: string) => Promise<void>;
+  onCandidateReschedule: (interview: InterviewWithDetails) => void;
+  isConfirming: boolean;
 }
 
 function InterviewCard({ 
@@ -55,7 +59,10 @@ function InterviewCard({
   canScheduleInterviews, 
   onStatusChange, 
   onReviewReschedule,
-  onDeleteInterview
+  onDeleteInterview,
+  onCandidateConfirm,
+  onCandidateReschedule,
+  isConfirming,
 }: InterviewCardProps) {
   const application = interview.applications;
   const job = application?.jobs;
@@ -67,6 +74,12 @@ function InterviewCard({
 
   const isUpcoming = interview.status === "scheduled" && isFuture(new Date(interview.scheduled_at));
   const needsAction = interview.candidate_response === "reschedule_requested";
+  
+  // Candidate-specific status checks
+  const candidateNeedsToConfirm = !isEmployer && isUpcoming && 
+    (!interview.candidate_response || interview.candidate_response === "pending");
+  const candidateConfirmed = !isEmployer && interview.candidate_response === "confirmed";
+  const candidateRequestedReschedule = !isEmployer && interview.candidate_response === "reschedule_requested";
 
   return (
     <Card className={`
@@ -112,6 +125,24 @@ function InterviewCard({
                     Awaiting Response
                   </Badge>
                 )}
+                
+                {/* Show candidate-specific status badges */}
+                {candidateNeedsToConfirm && (
+                  <Badge className="bg-primary/20 text-primary border-primary/30 animate-pulse">
+                    Action Required
+                  </Badge>
+                )}
+                {candidateConfirmed && (
+                  <Badge className="bg-success/20 text-success border-success/30">
+                    Confirmed
+                  </Badge>
+                )}
+                {candidateRequestedReschedule && (
+                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
+                    Reschedule Pending
+                  </Badge>
+                )}
+                
                 {/* Review button for reschedule requests */}
                 {isEmployer && needsAction && canScheduleInterviews && (
                   <Button
@@ -188,12 +219,42 @@ function InterviewCard({
               )}
             </div>
 
-            <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Video className="h-4 w-4" />
                 <span className="capitalize">{interview.interview_type || "Video"} Interview</span>
               </div>
-              {interview.meeting_link && isUpcoming && (
+              
+              {/* Candidate action buttons - show confirm/reschedule when pending */}
+              {candidateNeedsToConfirm && (
+                <>
+                  <Button 
+                    size="sm" 
+                    className="gap-1"
+                    onClick={() => onCandidateConfirm(interview.id)}
+                    disabled={isConfirming}
+                  >
+                    {isConfirming ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Confirm Interview
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1"
+                    onClick={() => onCandidateReschedule(interview)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Request Reschedule
+                  </Button>
+                </>
+              )}
+              
+              {/* Show Join Meeting for confirmed candidates or employers */}
+              {interview.meeting_link && isUpcoming && (isEmployer || candidateConfirmed) && (
                 <Button size="sm" className="gap-1" asChild>
                   <a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
                     <Video className="h-4 w-4" />
@@ -215,6 +276,7 @@ function InterviewCard({
 
 export default function Interviews() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer";
@@ -223,6 +285,8 @@ export default function Interviews() {
   const updateInterview = useUpdateInterview();
   const deleteInterview = useDeleteInterview();
   const [rescheduleInterview, setRescheduleInterview] = useState<InterviewWithDetails | null>(null);
+  const [candidateRescheduleInterview, setCandidateRescheduleInterview] = useState<InterviewWithDetails | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Real-time subscription for interview updates
   useEffect(() => {
@@ -313,6 +377,39 @@ export default function Interviews() {
     }
   };
 
+  // Candidate confirm handler
+  const handleCandidateConfirm = async (interviewId: string) => {
+    setIsConfirming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
+        body: {
+          action: "confirm",
+          interviewId,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to confirm interview");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      toast.success("Interview confirmed!");
+      refetch();
+    } catch (error) {
+      console.error("Error confirming interview:", error);
+      toast.error("Failed to confirm interview");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  // Candidate reschedule handler
+  const handleCandidateReschedule = (interview: InterviewWithDetails) => {
+    setCandidateRescheduleInterview(interview);
+  };
+
   // Fix filtering: upcoming = scheduled + future, past = everything else
   const upcomingInterviews = interviews?.filter(
     (i) => i.status === "scheduled" && isFuture(new Date(i.scheduled_at))
@@ -373,6 +470,9 @@ export default function Interviews() {
                   onStatusChange={handleStatusChange}
                   onReviewReschedule={handleReviewReschedule}
                   onDeleteInterview={handleDeleteInterview}
+                  onCandidateConfirm={handleCandidateConfirm}
+                  onCandidateReschedule={handleCandidateReschedule}
+                  isConfirming={isConfirming}
                 />
               ))}
             </div>
@@ -391,6 +491,9 @@ export default function Interviews() {
                   onStatusChange={handleStatusChange}
                   onReviewReschedule={handleReviewReschedule}
                   onDeleteInterview={handleDeleteInterview}
+                  onCandidateConfirm={handleCandidateConfirm}
+                  onCandidateReschedule={handleCandidateReschedule}
+                  isConfirming={isConfirming}
                 />
               ))}
             </div>
@@ -421,6 +524,21 @@ export default function Interviews() {
         candidateNote={rescheduleInterview?.candidate_note || null}
         onMessageCandidate={handleMessageCandidate}
       />
+
+      {/* Candidate Reschedule Dialog */}
+      {candidateRescheduleInterview && (
+        <CandidateRescheduleRequestDialog
+          open={!!candidateRescheduleInterview}
+          onOpenChange={(open) => !open && setCandidateRescheduleInterview(null)}
+          interviewId={candidateRescheduleInterview.id}
+          applicationId={candidateRescheduleInterview.applications?.id || ""}
+          currentScheduledAt={candidateRescheduleInterview.scheduled_at}
+          onSuccess={() => {
+            refetch();
+            setCandidateRescheduleInterview(null);
+          }}
+        />
+      )}
     </div>
   );
 }

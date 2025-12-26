@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye
+  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye, AlertCircle, Check
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -91,6 +91,16 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
   const job = application.jobs;
   const phase = application.phase || "application";
   const phaseType = getPhaseType(phase, (job as any)?.workflow_steps as any[]);
+  
+  // Get interview status for this application
+  const latestInterview = application.latestInterview;
+  const hasScheduledInterview = latestInterview && latestInterview.status === "scheduled";
+  const interviewNeedsConfirmation = hasScheduledInterview && 
+    (!latestInterview.candidate_response || latestInterview.candidate_response === "pending");
+  const interviewRescheduleRequested = hasScheduledInterview && 
+    latestInterview.candidate_response === "reschedule_requested";
+  const interviewConfirmed = hasScheduledInterview && 
+    latestInterview.candidate_response === "confirmed";
   
   // Parse notes to check if phase has been submitted
   let notes: Record<string, any> = {};
@@ -245,7 +255,29 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                     Awaiting Review
                   </Badge>
                 )}
-                {isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && (
+                
+                {/* Interview status badges - show when in interview phase */}
+                {isWaitingPhase && application.status === "interview" && interviewNeedsConfirmation && (
+                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1 animate-pulse">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Interview Action Required
+                  </Badge>
+                )}
+                {isWaitingPhase && application.status === "interview" && interviewRescheduleRequested && (
+                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    Reschedule Pending
+                  </Badge>
+                )}
+                {isWaitingPhase && application.status === "interview" && interviewConfirmed && (
+                  <Badge className="bg-success/20 text-success border-success/30 gap-1.5 px-3 py-1">
+                    <Check className="h-3.5 w-3.5" />
+                    Interview Confirmed
+                  </Badge>
+                )}
+                
+                {/* Employer reviewing - only show when not in interview status or no interview scheduled */}
+                {isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && application.status !== "interview" && (
                   <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
                     <Eye className="h-3.5 w-3.5" />
                     Employer Reviewing
