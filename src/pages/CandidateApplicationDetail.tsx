@@ -610,6 +610,11 @@ export default function CandidateApplicationDetail() {
         onClose={() => setStatusScreen(null)}
         onDownloadReport={handleDownloadReport}
         isGeneratingReport={isGeneratingReportHook}
+        interviewId={candidateInterview?.id}
+        applicationId={id}
+        candidateResponse={candidateInterview?.candidate_response}
+        onInterviewConfirmed={() => refetchInterview()}
+        onRescheduleRequested={() => refetchInterview()}
       />
 
       <div className="space-y-6">
