@@ -529,18 +529,34 @@ export default function Documents() {
       ) : (documents && documents.length > 0) || (isEmployer && documentRequests && documentRequests.length > 0) ? (
         <motion.div variants={staggerItem}>
           <Tabs defaultValue="all" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">All ({filteredDocuments.length + (isEmployer ? documentRequests.length : 0)})</TabsTrigger>
-              <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
-              <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
-              <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
-              {isEmployer && (
-                <>
-                  <TabsTrigger value="pending-uploads">Pending Uploads ({pendingUploadRequests.length})</TabsTrigger>
-                  <TabsTrigger value="received">Received ({receivedRequests.length})</TabsTrigger>
-                </>
-              )}
-            </TabsList>
+            <div className="overflow-x-auto -mx-1 px-1 pb-2">
+              <TabsList className="mb-4 inline-flex w-auto min-w-full sm:w-full gap-1">
+                <TabsTrigger value="all" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                  All ({filteredDocuments.length + (isEmployer ? documentRequests.length : 0)})
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                  Pending ({pendingDocs.length})
+                </TabsTrigger>
+                <TabsTrigger value="signed" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                  Signed ({signedDocs.length})
+                </TabsTrigger>
+                <TabsTrigger value="declined" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                  Declined ({declinedDocs.length})
+                </TabsTrigger>
+                {isEmployer && (
+                  <>
+                    <TabsTrigger value="pending-uploads" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                      <span className="hidden sm:inline">Pending Uploads</span>
+                      <span className="sm:hidden">Uploads</span>
+                      <span className="ml-1">({pendingUploadRequests.length})</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="received" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+                      Received ({receivedRequests.length})
+                    </TabsTrigger>
+                  </>
+                )}
+              </TabsList>
+            </div>
 
             <TabsContent value="all" className="space-y-4">
               {/* Show documents */}
