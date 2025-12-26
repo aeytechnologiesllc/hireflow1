@@ -918,7 +918,7 @@ export default function CreateJob() {
               {isEditMode ? "Edit Job" : "Create New Job"}
             </h2>
             <p className="text-muted-foreground mt-1">
-              {isEditMode ? "Update your job posting" : "AI-powered job posting wizard"}
+              {isEditMode ? "Update your job posting" : "Ava-powered job posting wizard"}
             </p>
           </div>
         </div>

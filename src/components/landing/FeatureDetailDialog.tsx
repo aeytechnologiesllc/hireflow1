@@ -387,7 +387,7 @@ const DocumentFlow = () => {
 // Get the appropriate visual for each feature
 const getFeatureVisual = (title: string) => {
   switch (title) {
-    case "AI-Powered Screening":
+    case "Ava-Powered Screening":
       return (
         <div className="flex items-center justify-center gap-6">
           <CircularProgress value={92} label="Match" color="#a855f7" />

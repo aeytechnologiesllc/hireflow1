@@ -455,7 +455,7 @@ function Scene1Hero() {
         transition={{ delay: 0.8 }}
       >
         {[
-          { icon: Mic, label: "Voice AI", color: "from-emerald-500 to-teal-500" },
+          { icon: Mic, label: "Ava Voice", color: "from-emerald-500 to-teal-500" },
           { icon: Brain, label: "Smart Analysis", color: "from-purple-500 to-pink-500" },
           { icon: FileText, label: "E-Signatures", color: "from-blue-500 to-cyan-500" },
           { icon: Zap, label: "Autopilot", color: "from-orange-500 to-amber-500" },
@@ -537,7 +537,7 @@ function Scene2Workflow() {
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
           <Sparkles className="w-6 h-6 text-white" />
         </div>
-        <span className="text-3xl font-bold text-foreground">AI Workflow Generation</span>
+        <span className="text-3xl font-bold text-foreground">Ava Workflow Generation</span>
       </motion.div>
 
       <motion.div 
@@ -827,7 +827,7 @@ function Scene4Pipeline() {
             <div className="w-14 h-14 rounded-full border-4 border-emerald-500 flex items-center justify-center">
               <span className="text-xl font-bold text-emerald-500">94</span>
             </div>
-            <span className="text-sm text-muted-foreground">AI Score</span>
+            <span className="text-sm text-muted-foreground">Ava Score</span>
           </div>
         </div>
 
@@ -1392,7 +1392,7 @@ function Scene9CTA() {
     {
       name: "Growth",
       price: pricing.growth.monthly,
-      features: ["3 Active Jobs", "50 Applicants/Job", "AI Analysis"],
+      features: ["3 Active Jobs", "50 Applicants/Job", "Ava Analysis"],
       color: "from-blue-500 to-cyan-500"
     },
     {

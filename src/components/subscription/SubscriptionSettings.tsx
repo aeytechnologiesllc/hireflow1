@@ -168,7 +168,7 @@ export default function SubscriptionSettings() {
                     <p className="text-xs text-muted-foreground">Billed {pricing.growth.yearlyFormatted}/year</p>
                   )}
                   <ul className="space-y-2 text-sm">
-                    {["3 Active Jobs", "50 Applicants/month", "AI Screening", "Documents"].map((feature) => (
+                    {["3 Active Jobs", "50 Applicants/month", "Ava Screening", "Documents"].map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-primary flex-shrink-0" />
                         <span className="text-muted-foreground">{feature}</span>
@@ -256,7 +256,7 @@ export default function SubscriptionSettings() {
               >
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                    <Zap className="h-3 w-3" /> Voice AI
+                    <Zap className="h-3 w-3" /> Ava Voice
                   </span>
                 </div>
                 <div className="space-y-4">
@@ -389,7 +389,7 @@ export default function SubscriptionSettings() {
           />
           <UsageStat
             icon={BarChart3}
-            label="AI Analyses"
+            label="Ava Analyses"
             current={usage.ai_analyses_used}
             limit={limits.aiAnalyses}
           />

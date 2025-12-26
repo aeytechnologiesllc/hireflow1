@@ -140,7 +140,7 @@ Resume URL: ${resumeUrl || "Not provided"}
           <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
             <Sparkles className="h-4 w-4 text-primary" />
             <span className="text-sm text-muted-foreground">
-              Your application will be analyzed by AI to help employers understand your fit
+              Your application will be analyzed by Ava to help employers understand your fit
             </span>
           </div>
 

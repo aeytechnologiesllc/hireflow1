@@ -266,7 +266,7 @@ export async function processAutopilotCatchUp(
 
         // Check if score is below threshold - REJECT regardless of phase completion
         if (aiScore !== null && aiScore < passingScore) {
-          const rejectionReason = `Overall AI score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
+          const rejectionReason = `Overall Ava score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
           
           console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - score ${aiScore} below passing ${passingScore}`);
           

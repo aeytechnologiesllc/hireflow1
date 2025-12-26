@@ -30,10 +30,10 @@ const features = [
   {
     icon: Sparkles,
     title: "Ava-Powered Screening",
-    description: "AVA evaluates every candidate with custom workflows and intelligent scoring in seconds",
+    description: "Ava evaluates every candidate with custom workflows and intelligent scoring in seconds",
     titleColor: "text-foreground",
     iconBg: "bg-fuchsia-500",
-    detailedDescription: "AVA, our intelligent AI assistant, automatically reviews and scores every application the moment it's submitted. Using advanced natural language processing and machine learning, AVA analyzes resumes, cover letters, and application responses to identify the most qualified candidates.",
+    detailedDescription: "Ava, our intelligent assistant, automatically reviews and scores every application the moment it's submitted. Using advanced natural language processing and machine learning, Ava analyzes resumes, cover letters, and application responses to identify the most qualified candidates.",
     highlights: [
       "Instant evaluation of all incoming applications",
       "Smart scoring based on job requirements",
@@ -47,9 +47,9 @@ const features = [
     description: "Generate perfect application questions and screening steps in under 30 seconds",
     titleColor: "text-emerald-400",
     iconBg: "bg-fuchsia-500",
-    detailedDescription: "Create comprehensive job postings in seconds, not hours. Simply enter your job title and let AVA generate everything else — from job descriptions and requirements to custom screening questions and assessment workflows.",
+    detailedDescription: "Create comprehensive job postings in seconds, not hours. Simply enter your job title and let Ava generate everything else — from job descriptions and requirements to custom screening questions and assessment workflows.",
     highlights: [
-      "AI-generated job descriptions",
+      "Ava-generated job descriptions",
       "Smart application questions",
       "Auto-configured screening workflows",
       "One-click publishing"
