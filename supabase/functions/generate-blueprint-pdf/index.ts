@@ -104,10 +104,133 @@ function drawFooter(doc: jsPDF, page: number, total: number, docId: string) {
   doc.text('HireFlow Improvement Blueprint', w / 2, fy, { align: 'center' });
 }
 
+// Map new ImprovementBlueprintData schema to PDF-expected flat structure
+function mapBlueprintData(raw: any): any {
+  // If blueprintData wrapper exists, extract from it
+  const bp = raw.blueprintData || raw;
+  
+  console.log('[PDF] Mapping blueprint data...');
+  console.log('[PDF] Has blueprintData wrapper:', !!raw.blueprintData);
+  console.log('[PDF] Raw keys:', Object.keys(raw));
+  if (bp) console.log('[PDF] Blueprint keys:', Object.keys(bp));
+
+  // Extract metadata
+  const meta = bp.metadata || {};
+  const candidateName = meta.candidateName || bp.candidateName || 'Candidate';
+  const jobTitle = meta.jobTitle || bp.jobTitle || 'Position';
+  const overallScore = meta.overallScore ?? bp.overallScore ?? 0;
+  const completedPhases = meta.completedPhases || [];
+  const dataDepthMessage = meta.dataDepthMessage || '';
+
+  console.log('[PDF] Mapped: candidateName =', candidateName);
+  console.log('[PDF] Mapped: jobTitle =', jobTitle);
+  console.log('[PDF] Mapped: overallScore =', overallScore);
+
+  // Extract key insight from honestReflection
+  const keyInsight = bp.honestReflection?.keyInsight || bp.keyInsight || '';
+  const encouragement = bp.honestReflection?.scoreContext || bp.encouragement || '';
+
+  // Map strengths from strengthsToLeverage.identified
+  let strengths: any[] = [];
+  if (bp.strengthsToLeverage?.identified?.length) {
+    strengths = bp.strengthsToLeverage.identified.slice(0, 3).map((s: any) => ({
+      title: s.strength || 'Strength',
+      description: s.evidence ? `${s.evidence} ${s.futureStrategy || ''}`.trim() : s.futureStrategy || ''
+    }));
+  } else if (bp.strengths?.length) {
+    strengths = bp.strengths.slice(0, 3);
+  }
+  console.log('[PDF] Mapped strengths count:', strengths.length);
+
+  // Map improvements from improvementCoaching
+  let improvements: any[] = [];
+  if (bp.improvementCoaching?.length) {
+    improvements = bp.improvementCoaching.slice(0, 3).map((imp: any) => ({
+      area: imp.area || 'Area',
+      suggestion: imp.whyThisMatters 
+        ? `${imp.whyThisMatters} ${imp.improvementStrategy?.framework || ''}`.trim()
+        : imp.improvementStrategy?.framework || imp.whatWasObserved || ''
+    }));
+  } else if (bp.improvements?.length) {
+    improvements = bp.improvements.slice(0, 3);
+  }
+  console.log('[PDF] Mapped improvements count:', improvements.length);
+
+  // Map weekly plan from thirtyDayPlan
+  let weeklyPlan: any[] = [];
+  if (bp.thirtyDayPlan) {
+    const plan = bp.thirtyDayPlan;
+    const weeks = ['week1', 'week2', 'week3', 'week4'];
+    weeklyPlan = weeks
+      .filter(w => plan[w])
+      .slice(0, 4)
+      .map((w, i) => ({
+        theme: `Week ${i + 1}`,
+        focus: plan[w].focus || '',
+        activities: plan[w].dailyActions || []
+      }));
+  } else if (bp.weeklyPlan?.length) {
+    weeklyPlan = bp.weeklyPlan.slice(0, 4);
+  }
+  console.log('[PDF] Mapped weeklyPlan count:', weeklyPlan.length);
+
+  // Map resources from improvementCoaching[].resource
+  let resources: any[] = [];
+  if (bp.improvementCoaching?.length) {
+    resources = bp.improvementCoaching
+      .filter((imp: any) => imp.resource?.name)
+      .slice(0, 3)
+      .map((imp: any) => ({
+        name: imp.resource.name,
+        url: imp.resource.url || '',
+        description: imp.resource.whyHelpful || ''
+      }));
+  } else if (bp.resources?.length) {
+    resources = bp.resources.slice(0, 3);
+  }
+  console.log('[PDF] Mapped resources count:', resources.length);
+
+  // Map immediate actions from closingMessage
+  let immediateActions: string[] = [];
+  if (bp.closingMessage?.immediateActions?.length) {
+    immediateActions = bp.closingMessage.immediateActions.slice(0, 5);
+  } else if (bp.immediateActions?.length) {
+    immediateActions = bp.immediateActions.slice(0, 5);
+  }
+  console.log('[PDF] Mapped immediateActions count:', immediateActions.length);
+
+  // Map closing message
+  const closingMessage = bp.closingMessage?.personalNote || bp.closingMessage?.finalThought || bp.closingMessage || '';
+
+  return {
+    candidateName,
+    jobTitle,
+    overallScore,
+    keyInsight,
+    encouragement,
+    strengths,
+    improvements,
+    weeklyPlan,
+    resources,
+    immediateActions,
+    closingMessage: typeof closingMessage === 'string' ? closingMessage : '',
+    metadata: {
+      completedPhases,
+      dataDepthMessage
+    }
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
-    const data = await req.json();
+    const rawData = await req.json();
+    console.log('[PDF] Received raw data keys:', Object.keys(rawData));
+    
+    // Map the data to expected structure
+    const data = mapBlueprintData(rawData);
+    console.log('[PDF] Final mapped data - candidateName:', data.candidateName, 'score:', data.overallScore);
+    
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
     const margin = SPACING.page, contentW = pageW - margin * 2, boxP = SPACING.box;
@@ -126,9 +249,9 @@ serve(async (req) => {
     // Candidate card
     drawRoundedRect(doc, margin, y, contentW, 28, 3, COLORS.light, COLORS.muted);
     doc.setTextColor(COLORS.dark.r, COLORS.dark.g, COLORS.dark.b); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-    doc.text(truncateLine(doc, data.candidateName || 'Candidate', contentW - 20), margin + boxP, y + 12);
+    doc.text(truncateLine(doc, data.candidateName, contentW - 20), margin + boxP, y + 12);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(COLORS.body.r, COLORS.body.g, COLORS.body.b);
-    doc.text(truncateLine(doc, `Applied for: ${data.jobTitle || 'Position'}`, contentW - 20), margin + boxP, y + 21);
+    doc.text(truncateLine(doc, `Applied for: ${data.jobTitle}`, contentW - 20), margin + boxP, y + 21);
     y += 38;
 
     // Data sources
@@ -275,10 +398,13 @@ serve(async (req) => {
     const total = doc.getNumberOfPages();
     for (let p = 1; p <= total; p++) { doc.setPage(p); drawFooter(doc, p, total, docId); }
 
-    return new Response(JSON.stringify({ pdf: doc.output('datauristring').split(',')[1], pages: total }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const fileName = `Improvement_Blueprint_${data.candidateName.replace(/\s+/g, '_')}.pdf`;
+    console.log('[PDF] Generated successfully:', fileName, 'pages:', total);
+    
+    return new Response(JSON.stringify({ pdf: doc.output('datauristring').split(',')[1], pages: total, fileName }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-    console.error('Error:', errorMessage);
+    console.error('[PDF] Error:', errorMessage);
     return new Response(JSON.stringify({ error: errorMessage }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
