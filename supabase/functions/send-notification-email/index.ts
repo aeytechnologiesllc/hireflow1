@@ -9,15 +9,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Dynamic base URL - derives from Supabase project
+// Production base URL - uses APP_BASE_URL env variable
 const getAppBaseUrl = (): string => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  // Extract project ref from supabase URL (e.g., https://xyz.supabase.co -> xyz)
-  const match = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
-  if (match) {
-    return `https://${match[1]}.lovable.app`;
+  const appBaseUrl = Deno.env.get("APP_BASE_URL");
+  if (appBaseUrl) {
+    return appBaseUrl.replace(/\/$/, ''); // Remove trailing slash if present
   }
-  // Fallback
+  // Fallback to production domain
   return "https://hireflownow.com";
 };
 
