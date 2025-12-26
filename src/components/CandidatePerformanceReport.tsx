@@ -1,17 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, FileText, Loader2, Sparkles, TrendingUp, Target, Award, Brain, MessageSquare } from "lucide-react";
-import { usePerformanceReport } from "@/hooks/usePerformanceReport";
+import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 
 interface CandidatePerformanceReportProps {
   applicationId: string;
 }
 
 export function CandidatePerformanceReport({ applicationId }: CandidatePerformanceReportProps) {
-  const { downloadReport, isGenerating } = usePerformanceReport();
+  const { downloadBlueprint, isGenerating } = useImprovementBlueprint();
 
   const handleDownloadReport = () => {
-    downloadReport(applicationId);
+    downloadBlueprint(applicationId);
   };
 
   return (
@@ -26,11 +26,11 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-              Ava Performance Report
+              Personal Improvement Blueprint
               <Sparkles className="h-4 w-4 text-primary" />
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Get comprehensive Ava-powered insights from your application
+              Get personalized insights and a 30-day growth plan
             </p>
           </div>
         </div>
@@ -38,19 +38,19 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Brain className="h-4 w-4 text-primary" />
-            <span>Personality profile</span>
+            <span>Strengths analysis</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Target className="h-4 w-4 text-primary" />
-            <span>Skills breakdown</span>
+            <span>Improvement areas</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MessageSquare className="h-4 w-4 text-success" />
-            <span>Interview quotes</span>
+            <span>Coaching strategies</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <TrendingUp className="h-4 w-4 text-success" />
-            <span>Growth roadmap</span>
+            <span>30-day plan</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Award className="h-4 w-4 text-warning" />
@@ -59,8 +59,8 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
         </div>
 
         <p className="text-sm text-muted-foreground">
-          A 7-page comprehensive PDF with personalized Ava analysis, interview feedback with direct quotes, 
-          personality insights, and a curated growth roadmap with real resource links to help you improve.
+          A comprehensive PDF with personalized feedback, your strengths to leverage, 
+          improvement coaching with practice scripts, and a curated 30-day action plan.
         </p>
 
         <Button
@@ -72,18 +72,18 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
           {isGenerating ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              Generating Ava Analysis...
+              Generating Blueprint...
             </>
           ) : (
             <>
               <Download className="h-5 w-5" />
-              Download Your Performance Report
+              Download Your Improvement Blueprint
             </>
           )}
         </Button>
 
         <p className="text-xs text-center text-muted-foreground">
-          7-page PDF • Ava-powered analysis • Real improvement resources
+          3-page PDF • Personalized coaching • Real improvement resources
         </p>
       </CardContent>
     </Card>
