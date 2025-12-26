@@ -8,9 +8,10 @@ interface WorkflowStep {
   title: string;
 }
 
-interface CatchUpResult {
+export interface CatchUpResult {
   processed: number;
   advanced: number;
+  rejected: number;
   failed: number;
 }
 
@@ -167,6 +168,7 @@ export async function processAutopilotCatchUp(
   const result: CatchUpResult = {
     processed: 0,
     advanced: 0,
+    rejected: 0,
     failed: 0,
   };
 
@@ -313,8 +315,32 @@ export async function processAutopilotCatchUp(
           } else {
             console.log(`[processAutopilotCatchUp] Application ${application.id} at final phase`);
           }
+        } else if (aiScore !== null && aiScore < passingScore) {
+          // Reject the application - score is below passing threshold
+          const rejectionReason = `Overall AI score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
+          
+          console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - score ${aiScore} below passing ${passingScore}`);
+          
+          const { error: rejectError } = await supabase
+            .from("applications")
+            .update({
+              status: "rejected",
+              rejected_by: "ava",
+              rejected_by_type: "ava",
+              phase_ai_analysis: rejectionReason,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", application.id);
+
+          if (rejectError) {
+            console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
+            result.failed++;
+          } else {
+            result.rejected++;
+            console.log(`[processAutopilotCatchUp] Rejected application ${application.id}`);
+          }
         } else {
-          console.log(`[processAutopilotCatchUp] Application ${application.id} score ${aiScore} below passing ${passingScore}`);
+          console.log(`[processAutopilotCatchUp] Application ${application.id} has no score yet, skipping rejection`);
         }
       } catch (appProcessError) {
         console.error(`[processAutopilotCatchUp] Error processing application ${application.id}:`, appProcessError);
@@ -322,7 +348,7 @@ export async function processAutopilotCatchUp(
       }
     }
 
-    console.log(`[processAutopilotCatchUp] Complete. Processed: ${result.processed}, Advanced: ${result.advanced}, Failed: ${result.failed}`);
+    console.log(`[processAutopilotCatchUp] Complete. Processed: ${result.processed}, Advanced: ${result.advanced}, Rejected: ${result.rejected}, Failed: ${result.failed}`);
     return result;
   } catch (error) {
     console.error("[processAutopilotCatchUp] Unexpected error:", error);
