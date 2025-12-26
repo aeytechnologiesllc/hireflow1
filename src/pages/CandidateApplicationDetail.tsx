@@ -405,11 +405,7 @@ export default function CandidateApplicationDetail() {
       });
     }
 
-    // Add Review phase - in BOTH autopilot AND manual modes
-    // In manual mode, once all candidate phases are done, they wait for employer review
-    allPhases.push(
-      { id: "review", title: "Employer Review", icon: Eye, type: "review" }
-    );
+    // No explicit Review phase - employer reviews/approves before Ava Interview or Interview
     
     // Add Ava Interview AFTER review if it exists in workflow
     if (voiceInterviewStep) {
@@ -464,10 +460,6 @@ export default function CandidateApplicationDetail() {
       // If application is rejected, show current phase as rejected
       if (application?.status === "rejected") {
         return "rejected";
-      }
-      // Special handling for "review" phase - employer is reviewing, not candidate action
-      if (phase.type === "review" || phase.id === "review") {
-        return "under_review";
       }
       
       // Check if phase data exists (use type-specific keys)
