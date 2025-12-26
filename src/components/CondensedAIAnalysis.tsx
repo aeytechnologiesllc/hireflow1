@@ -933,6 +933,185 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
 
 // ============= Phase-Based Analysis Component =============
 
+// Extract insights for a specific phase from the AI analysis sections
+type PhaseType = 'application_form' | 'quiz' | 'portfolio' | 'video' | 'typing' | 'chat_simulation' | 'chat_interview' | 'sales_simulation' | 'voice_interview' | 'resume';
+
+function extractPhaseInsights(
+  rawSections: ParsedSection[], 
+  phaseType: PhaseType,
+  wasRejected: boolean = false
+): string | null {
+  const insights: string[] = [];
+  
+  for (const section of rawSections) {
+    const titleLower = section.title.toLowerCase();
+    
+    switch (phaseType) {
+      case 'application_form':
+        // Look for AI-generated content detection
+        if (titleLower.includes('ai-generated') || titleLower.includes('ai content') || titleLower.includes('content detection')) {
+          for (const item of section.items) {
+            if (item.toLowerCase().includes('application') && !isPlaceholderValue(item)) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned && cleaned.length > 10) insights.push(cleaned);
+            }
+          }
+        }
+        // Look for cross-reference findings
+        if (titleLower.includes('cross-reference') || titleLower.includes('verification')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 15) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        // Look for authenticity assessment
+        if (titleLower.includes('authenticity')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item)) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        // Look for application answer analysis
+        if (titleLower.includes('application') && (titleLower.includes('answer') || titleLower.includes('analysis'))) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'quiz':
+        // Extract quiz-specific analysis
+        if (titleLower.includes('quiz') || titleLower.includes('assessment') || titleLower.includes('knowledge')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'portfolio':
+        // Extract portfolio-specific analysis
+        if (titleLower.includes('portfolio') || titleLower.includes('work sample')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'video':
+        // Extract video intro analysis
+        if (titleLower.includes('video') || titleLower.includes('presentation')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'typing':
+        // Extract typing test analysis
+        if (titleLower.includes('typing') || titleLower.includes('speed') || titleLower.includes('wpm')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'chat_simulation':
+        // Extract chat simulation analysis
+        if (titleLower.includes('chat') && titleLower.includes('simulation')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'chat_interview':
+        // Extract chat interview analysis
+        if (titleLower.includes('chat') && titleLower.includes('interview')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'sales_simulation':
+        // Extract sales simulation analysis
+        if (titleLower.includes('sales') || titleLower.includes('objection') || titleLower.includes('negotiation')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'voice_interview':
+        // Extract voice interview analysis
+        if (titleLower.includes('voice') || titleLower.includes('interview') || titleLower.includes('communication')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+        
+      case 'resume':
+        // Extract resume analysis
+        if (titleLower.includes('resume') || titleLower.includes('document') || titleLower.includes('cv')) {
+          for (const item of section.items) {
+            if (!isPlaceholderValue(item) && item.length > 10) {
+              const cleaned = cleanPlaceholderFromText(item);
+              if (cleaned) insights.push(cleaned);
+            }
+          }
+        }
+        break;
+    }
+  }
+  
+  if (insights.length === 0) return null;
+  
+  // Combine insights (take first 2-3 most relevant)
+  let summary = insights.slice(0, 2).join(' ').trim();
+  
+  // If rejected, tone down overly positive language
+  if (wasRejected && summary) {
+    summary = summary
+      .replace(/excellent|outstanding|exceptional|perfect|impressive|superb|remarkable/gi, 'adequate')
+      .replace(/highly recommend|strong candidate|great fit|top candidate|ideal/gi, 'reviewed')
+      .replace(/exceeded expectations|above average|exemplary/gi, 'met requirements');
+  }
+  
+  return summary || null;
+}
+
 interface CompletedPhase {
   id: string;
   name: string;
@@ -948,6 +1127,7 @@ interface PhaseBasedAnalysisProps {
   rawSections: ParsedSection[];
   isDetailOpen: boolean;
   setIsDetailOpen: (open: boolean) => void;
+  wasRejected?: boolean;
 }
 
 function PhaseBasedAnalysis({ 
@@ -955,16 +1135,18 @@ function PhaseBasedAnalysis({
   voiceInterviewResult, 
   rawSections,
   isDetailOpen,
-  setIsDetailOpen
+  setIsDetailOpen,
+  wasRejected = false
 }: PhaseBasedAnalysisProps) {
   
-  // Build completed phases from applicationNotes
+  // Build completed phases from applicationNotes with AI insights
   const completedPhases = useMemo(() => {
     const phases: CompletedPhase[] = [];
+    const hasAIAnalysis = rawSections.length > 0;
     
     if (!applicationNotes) {
       // If no notes, check if we have raw sections to show basic analysis
-      if (rawSections.length > 0) {
+      if (hasAIAnalysis) {
         phases.push({
           id: 'application',
           name: 'Application Review',
@@ -975,117 +1157,149 @@ function PhaseBasedAnalysis({
       return phases;
     }
     
-    // Application form answers
+    // Application form answers - WITH detailed analysis
     if (applicationNotes.applicationAnswers && applicationNotes.applicationAnswers.length > 0) {
+      const insights = extractPhaseInsights(rawSections, 'application_form', wasRejected);
+      const count = applicationNotes.applicationAnswers.length;
       phases.push({
         id: 'application_form',
         name: 'Application Form',
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-        summary: `Submitted ${applicationNotes.applicationAnswers.length} application answer(s).`
+        summary: insights 
+          ? `Submitted ${count} answer(s). ${insights}` 
+          : (hasAIAnalysis 
+              ? `Submitted ${count} answer(s). Analysis complete.`
+              : `Submitted ${count} answer(s). Awaiting analysis.`)
       });
     }
     
-    // Quiz results
+    // Quiz results - WITH detailed analysis
     if (applicationNotes.quizResult && typeof applicationNotes.quizResult.score === 'number') {
       const quiz = applicationNotes.quizResult;
+      const insights = extractPhaseInsights(rawSections, 'quiz', wasRejected);
+      const baseInfo = `Scored ${quiz.score}%${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ''}.`;
       phases.push({
         id: 'quiz',
         name: 'Quiz Assessment',
         icon: quiz.passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
         score: `${quiz.score}%`,
-        summary: `Scored ${quiz.score}% on the knowledge assessment${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ''}.`,
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
         passed: quiz.passed
       });
     }
     
-    // Typing test
+    // Typing test - WITH detailed analysis
     if (applicationNotes.typingTestResult && typeof applicationNotes.typingTestResult.wpm === 'number') {
       const typing = applicationNotes.typingTestResult;
       const passed = typing.passed !== false;
+      const insights = extractPhaseInsights(rawSections, 'typing', wasRejected);
+      const baseInfo = `Achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`;
       phases.push({
         id: 'typing_test',
         name: 'Typing Test',
         icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
         score: `${typing.wpm} WPM`,
-        summary: `Achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`,
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
         passed
       });
     }
     
-    // Portfolio
+    // Portfolio - WITH detailed analysis
     if (applicationNotes.portfolioResult) {
       const portfolio = applicationNotes.portfolioResult;
       const score = portfolio.score;
+      const insights = extractPhaseInsights(rawSections, 'portfolio', wasRejected);
+      const baseInfo = portfolio.feedback || `Portfolio submitted${score ? ` with a score of ${score}/100` : ''}.`;
       phases.push({
         id: 'portfolio',
         name: 'Portfolio Review',
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: score ? `${score}/100` : undefined,
-        summary: portfolio.feedback || `Portfolio submitted${score ? ` with a score of ${score}/100` : ''}.`
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo
       });
     }
     
-    // Video intro
+    // Video intro - WITH detailed analysis
     if (applicationNotes.videoIntroUrl) {
+      const insights = extractPhaseInsights(rawSections, 'video', wasRejected);
       phases.push({
         id: 'video_intro',
         name: 'Video Introduction',
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-        summary: 'Video introduction recorded and submitted.'
+        summary: insights 
+          ? `Video introduction recorded. ${insights}` 
+          : 'Video introduction recorded and submitted.'
       });
     }
     
-    // Chat simulation
+    // Chat simulation - WITH detailed analysis
     if (applicationNotes.chatSimulationResult) {
       const chat = applicationNotes.chatSimulationResult;
       const passed = chat.passed !== false;
+      const insights = extractPhaseInsights(rawSections, 'chat_simulation', wasRejected);
+      const baseInfo = `Completed chat simulation${chat.score ? ` with a score of ${chat.score}/100` : ''}.`;
       phases.push({
         id: 'chat_simulation',
         name: 'Chat Simulation',
         icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
         score: chat.score ? `${chat.score}/100` : undefined,
-        summary: `Completed chat simulation${chat.score ? ` with a score of ${chat.score}/100` : ''}.`,
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
         passed
       });
     }
     
-    // Chat interview
+    // Chat interview - WITH detailed analysis
     if (applicationNotes.chatInterviewResult) {
       const interview = applicationNotes.chatInterviewResult;
+      const insights = extractPhaseInsights(rawSections, 'chat_interview', wasRejected);
+      const baseInfo = `Completed chat interview${interview.score ? ` with a score of ${interview.score}/100` : ''}.`;
       phases.push({
         id: 'chat_interview',
         name: 'Chat Interview',
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: interview.score ? `${interview.score}/100` : undefined,
-        summary: `Completed chat interview${interview.score ? ` with a score of ${interview.score}/100` : ''}.`
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo
       });
     }
     
-    // Sales simulation
+    // Sales simulation - WITH detailed analysis
     if (applicationNotes.salesSimulationResult) {
       const sales = applicationNotes.salesSimulationResult;
       const passed = sales.passed !== false;
+      const insights = extractPhaseInsights(rawSections, 'sales_simulation', wasRejected);
+      const baseInfo = `Completed sales simulation${sales.score ? ` with a score of ${sales.score}/100` : ''}.`;
       phases.push({
         id: 'sales_simulation',
         name: 'Sales Simulation',
         icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
         score: sales.score ? `${sales.score}/100` : undefined,
-        summary: `Completed sales simulation${sales.score ? ` with a score of ${sales.score}/100` : ''}.`,
+        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
         passed
       });
     }
     
-    // Voice interview
+    // Voice interview - WITH detailed analysis
     if (voiceInterviewResult) {
       const score = voiceInterviewResult.overall_score || voiceInterviewResult.overallScore;
       const recommendation = voiceInterviewResult.recommendation;
       const summary = voiceInterviewResult.summary;
+      const insights = extractPhaseInsights(rawSections, 'voice_interview', wasRejected);
+      
+      // Use the voice interview's own summary if available
+      let phaseSummary = summary || `Completed voice interview${score ? ` with a score of ${score}/100` : ''}`;
+      if (recommendation && !wasRejected) {
+        phaseSummary += `. Recommendation: ${recommendation}`;
+      }
+      if (insights) {
+        phaseSummary += ` ${insights}`;
+      }
+      
       phases.push({
         id: 'voice_interview',
         name: 'Voice Interview',
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: score ? `${score}/100` : undefined,
-        summary: summary || `Completed voice interview${score ? ` with a score of ${score}/100` : ''}${recommendation ? `. Recommendation: ${recommendation}` : ''}.`
+        summary: phaseSummary
       });
     }
     
@@ -1096,22 +1310,29 @@ function PhaseBasedAnalysis({
         // Video intro via step
         if ((stepData.type === 'video_intro' || stepData.type === 'video_message') && stepData.videoUrl) {
           if (!phases.some(p => p.id === 'video_intro')) {
+            const insights = extractPhaseInsights(rawSections, 'video', wasRejected);
             phases.push({
               id: 'video_intro',
               name: 'Video Introduction',
               icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-              summary: 'Video introduction recorded and submitted.'
+              summary: insights 
+                ? `Video introduction recorded. ${insights}` 
+                : 'Video introduction recorded and submitted.'
             });
           }
         }
         // Portfolio via step
         if (stepData.type === 'portfolio_upload' && stepData.completed) {
           if (!phases.some(p => p.id === 'portfolio')) {
+            const insights = extractPhaseInsights(rawSections, 'portfolio', wasRejected);
+            const count = stepData.portfolioUrls?.length || 0;
             phases.push({
               id: 'portfolio',
               name: 'Portfolio Upload',
               icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-              summary: `${stepData.portfolioUrls?.length || 'Files'} portfolio item(s) uploaded.`
+              summary: insights 
+                ? `${count} portfolio item(s) uploaded. ${insights}` 
+                : `${count} portfolio item(s) uploaded.`
             });
           }
         }
@@ -1119,7 +1340,7 @@ function PhaseBasedAnalysis({
     });
     
     return phases;
-  }, [applicationNotes, voiceInterviewResult, rawSections]);
+  }, [applicationNotes, voiceInterviewResult, rawSections, wasRejected]);
   
   // If no completed phases, don't show anything
   if (completedPhases.length === 0) {
@@ -1292,6 +1513,7 @@ export function CondensedAIAnalysis({
         rawSections={parsed.sections}
         isDetailOpen={isDetailOpen}
         setIsDetailOpen={setIsDetailOpen}
+        wasRejected={isRejected}
       />
     </div>
   );
