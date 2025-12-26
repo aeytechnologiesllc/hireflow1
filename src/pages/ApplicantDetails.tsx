@@ -2549,7 +2549,11 @@ ${interviewType} Interview with AVA Results:
               </div>
 
               {/* Condensed AI Analysis */}
-              <CondensedAIAnalysis content={application.ai_analysis} />
+              <CondensedAIAnalysis 
+                content={application.ai_analysis} 
+                applicationNotes={parsedNotes}
+                voiceInterviewResult={application.voice_interview_result}
+              />
             </>
           )}
 

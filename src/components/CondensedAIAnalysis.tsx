@@ -27,6 +27,25 @@ interface ParsedSection {
   items: string[];
 }
 
+interface PhaseResult {
+  phase: string;
+  score: string;
+  details: string;
+}
+
+// Application notes structure from parsedNotes
+interface ApplicationNotes {
+  quizResult?: { score: number; passed: boolean; total?: number };
+  portfolioResult?: { score: number; feedback?: string };
+  typingTestResult?: { wpm: number; accuracy: number; passed?: boolean };
+  chatSimulationResult?: { score?: number; passed?: boolean };
+  chatInterviewResult?: { score?: number; passed?: boolean };
+  salesSimulationResult?: { score?: number; passed?: boolean };
+  videoIntroUrl?: string;
+  applicationAnswers?: Array<{ question: string; answer: string }>;
+  [key: string]: any;
+}
+
 // ============= Human-Readable Helpers =============
 
 // Detect placeholder values that shouldn't be displayed to users
@@ -168,10 +187,132 @@ function generateParagraphSummary(items: string[]): string {
   return sentences.join(' ');
 }
 
+// Extract phase results directly from application notes (authoritative source)
+function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseResult[] {
+  if (!notes) return [];
+  
+  const results: PhaseResult[] = [];
+  
+  // Quiz results
+  if (notes.quizResult && typeof notes.quizResult.score === 'number') {
+    results.push({
+      phase: 'Quiz',
+      score: `${notes.quizResult.score}%`,
+      details: notes.quizResult.passed ? 'Passed' : 'Did not pass'
+    });
+  }
+  
+  // Portfolio results
+  if (notes.portfolioResult && typeof notes.portfolioResult.score === 'number') {
+    results.push({
+      phase: 'Portfolio',
+      score: `${notes.portfolioResult.score}/100`,
+      details: notes.portfolioResult.feedback || 'Submitted'
+    });
+  }
+  
+  // Typing test results
+  if (notes.typingTestResult && typeof notes.typingTestResult.wpm === 'number') {
+    results.push({
+      phase: 'Typing Test',
+      score: `${notes.typingTestResult.wpm} WPM`,
+      details: `${notes.typingTestResult.accuracy}% accuracy`
+    });
+  }
+  
+  // Chat simulation results
+  if (notes.chatSimulationResult) {
+    const score = notes.chatSimulationResult.score;
+    results.push({
+      phase: 'Chat Simulation',
+      score: score !== undefined ? `${score}/100` : 'Completed',
+      details: notes.chatSimulationResult.passed ? 'Passed' : 'Completed'
+    });
+  }
+  
+  // Chat interview results
+  if (notes.chatInterviewResult) {
+    const score = notes.chatInterviewResult.score;
+    results.push({
+      phase: 'Chat Interview',
+      score: score !== undefined ? `${score}/100` : 'Completed',
+      details: 'Completed'
+    });
+  }
+  
+  // Sales simulation results
+  if (notes.salesSimulationResult) {
+    const score = notes.salesSimulationResult.score;
+    results.push({
+      phase: 'Sales Simulation',
+      score: score !== undefined ? `${score}/100` : 'Completed',
+      details: 'Completed'
+    });
+  }
+  
+  // Video intro
+  if (notes.videoIntroUrl) {
+    results.push({
+      phase: 'Video Introduction',
+      score: 'Submitted',
+      details: 'Video recorded'
+    });
+  }
+  
+  // Check for step-based video submissions (newer format)
+  Object.keys(notes).forEach(key => {
+    const stepData = notes[key];
+    if (stepData && typeof stepData === 'object') {
+      if ((stepData.type === 'video_intro' || stepData.type === 'video_message') && stepData.videoUrl) {
+        // Avoid duplicates
+        if (!results.some(r => r.phase === 'Video Introduction')) {
+          results.push({
+            phase: 'Video Introduction',
+            score: 'Submitted',
+            details: 'Video recorded'
+          });
+        }
+      }
+      // Portfolio upload via step
+      if (stepData.type === 'portfolio_upload' && stepData.completed) {
+        if (!results.some(r => r.phase === 'Portfolio')) {
+          results.push({
+            phase: 'Portfolio',
+            score: 'Submitted',
+            details: `${stepData.portfolioUrls?.length || 0} files uploaded`
+          });
+        }
+      }
+    }
+  });
+  
+  return results;
+}
+
 // Generate a comprehensive full summary from all sections - building a 15+ sentence narrative
-function generateFullSummary(sections: ParsedSection[], recommendation: string | null): string {
-  // Collect data from all sections
-  const phaseResults: { phase: string; score: string; details: string }[] = [];
+function generateFullSummary(
+  sections: ParsedSection[], 
+  recommendation: string | null,
+  applicationNotes?: ApplicationNotes,
+  voiceInterviewResult?: any
+): string {
+  // Get phase results from actual notes data (authoritative source)
+  const notesPhaseResults = getPhaseResultsFromNotes(applicationNotes);
+  
+  // Add voice interview from application data if available
+  if (voiceInterviewResult) {
+    const score = voiceInterviewResult.overallScore || voiceInterviewResult.overall_score;
+    if (score !== undefined) {
+      notesPhaseResults.push({
+        phase: 'Voice Interview',
+        score: `${score}/100`,
+        details: 'Completed with Ava'
+      });
+    }
+  }
+  
+  // Collect data from all sections (for non-phase data like resume findings, skills, etc.)
+  const phaseResults: PhaseResult[] = notesPhaseResults.length > 0 ? notesPhaseResults : [];
   const resumeFindings: string[] = [];
   const skillsInfo: string[] = [];
   const personalityInfo: string[] = [];
@@ -622,7 +763,11 @@ function generateFullSummary(sections: ParsedSection[], recommendation: string |
 
 // ============= Parsing Logic =============
 
-function parseAIAnalysis(content: string): ParsedAnalysis {
+function parseAIAnalysis(
+  content: string, 
+  applicationNotes?: ApplicationNotes,
+  voiceInterviewResult?: any
+): ParsedAnalysis {
   const result: ParsedAnalysis = {
     score: null,
     recommendation: null,
@@ -713,8 +858,8 @@ function parseAIAnalysis(content: string): ParsedAnalysis {
     items: section.items,
   }));
 
-  // Generate full summary
-  result.fullSummary = generateFullSummary(result.sections, result.recommendation);
+  // Generate full summary with application notes for accurate phase detection
+  result.fullSummary = generateFullSummary(result.sections, result.recommendation, applicationNotes, voiceInterviewResult);
 
   return result;
 }
@@ -784,10 +929,17 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
 interface CondensedAIAnalysisProps {
   content: string;
   className?: string;
+  applicationNotes?: ApplicationNotes;
+  voiceInterviewResult?: any;
 }
 
-export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisProps) {
-  const parsed = useMemo(() => parseAIAnalysis(content), [content]);
+export function CondensedAIAnalysis({ 
+  content, 
+  className, 
+  applicationNotes,
+  voiceInterviewResult 
+}: CondensedAIAnalysisProps) {
+  const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult), [content, applicationNotes, voiceInterviewResult]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   
   // Determine verdict display
