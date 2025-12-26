@@ -192,6 +192,7 @@ export default function ApplicantDetails() {
   const [showInterviewQuestionsDialog, setShowInterviewQuestionsDialog] = useState(false);
   const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
   const [showReconsiderConfirmation, setShowReconsiderConfirmation] = useState(false);
+  const [computedRestorePhase, setComputedRestorePhase] = useState<{ id: string; name: string; index: number }>({ id: "review", name: "Review", index: -1 });
   const sliderRef = useRef<HTMLDivElement>(null);
   
   // Refs to store current values for the drag event handlers (fixes stale closure bug)
@@ -1301,21 +1302,58 @@ export default function ApplicantDetails() {
     }
   };
 
+  // Calculate the first incomplete phase for smart restoration
+  const calculateRestorePhase = () => {
+    // Skip "journey_start" (index 0) - it's just the start marker
+    for (let i = 1; i < phases.length; i++) {
+      const phase = phases[i];
+      
+      // Stop at employer-driven phases - these are valid restore points
+      if (phase.type === "review" || phase.type === "interview" || phase.type === "hired") {
+        return { phaseId: phase.id, phaseName: phase.title, phaseIndex: i };
+      }
+      
+      // Check if this candidate-facing phase has data using hasCompletedCurrentPhase
+      const isComplete = hasCompletedCurrentPhase(phase.id, phase.type);
+      
+      // If this phase is not complete, restore here
+      if (!isComplete) {
+        return { phaseId: phase.id, phaseName: phase.title, phaseIndex: i };
+      }
+    }
+    
+    // Fallback to review if everything is complete
+    const reviewPhase = phases.find(p => p.type === "review");
+    return { 
+      phaseId: reviewPhase?.id || "review", 
+      phaseName: reviewPhase?.title || "Review",
+      phaseIndex: phases.findIndex(p => p.type === "review")
+    };
+  };
+  
   const handleReconsider = async () => {
     if (!application) return;
     try {
-      // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
-      const reviewPhase = phases.find(p => p.type === "review") || phases[1];
-      const reviewPhaseId = reviewPhase?.id || "review";
-      
       // Clear skipped phases from notes
       const updatedNotes = { ...parsedNotes };
       delete updatedNotes.employerSkippedPhases;
       
+      // Use pre-computed restore phase
+      const { id: phaseId, name: phaseName, index: phaseIndex } = computedRestorePhase;
+      
+      // Cancel any scheduled physical interviews if we're going back before interview phase
+      const interviewPhaseIndex = phases.findIndex(p => p.type === "interview");
+      if (phaseIndex < interviewPhaseIndex && scheduledInterview) {
+        await supabase
+          .from("interviews")
+          .update({ status: "cancelled" })
+          .eq("id", scheduledInterview.id);
+      }
+      
       await updateApplication.mutateAsync({ 
         id: application.id, 
         status: "reviewing",
-        phase: reviewPhaseId,  // Reset phase to review
+        phase: phaseId,  // Use calculated restore phase
         phase_ai_analysis: null,  // Clear for fresh review
         rejected_by: null,  // Clear rejection attribution
         rejected_by_type: null,
@@ -1333,7 +1371,7 @@ export default function ApplicantDetails() {
       
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       setShowReconsiderConfirmation(false);
-      toast.success("Candidate moved back to review phase and notified");
+      toast.success(`Candidate restored to ${phaseName} phase and notified`);
     } catch (error) {
       console.error("Failed to reconsider candidate:", error);
       toast.error("Failed to reconsider candidate");
@@ -1890,7 +1928,12 @@ ${interviewType} Interview with AVA Results:
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => setShowReconsiderConfirmation(true)}
+                    onClick={() => {
+                      // Calculate restore phase before showing dialog
+                      const restorePhase = calculateRestorePhase();
+                      setComputedRestorePhase({ id: restorePhase.phaseId, name: restorePhase.phaseName, index: restorePhase.phaseIndex });
+                      setShowReconsiderConfirmation(true);
+                    }}
                     className="gap-2"
                   >
                     <RefreshCw className="h-4 w-4" />
@@ -3457,7 +3500,7 @@ ${interviewType} Interview with AVA Results:
                   This will:
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>Keep the candidate at their current phase (<strong>{phases[effectivePhaseIndex]?.title || "Review"}</strong>)</li>
+                  <li>Restore the candidate to the <strong>{computedRestorePhase.name}</strong> phase</li>
                   <li>Clear the previous rejection status</li>
                   <li>Clear any skipped phase indicators</li>
                   <li>Notify the candidate that they're being reconsidered</li>
