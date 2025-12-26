@@ -13,7 +13,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { buildAvaPhaseNarrative, type PhaseType } from "@/lib/avaPhaseNarratives";
+import { buildAvaPhaseNarrative, type PhaseType, type QuizPhaseData, type TypingPhaseData, type ChatSimulationPhaseData, type ChatInterviewPhaseData, type SalesSimulationPhaseData, type PortfolioPhaseData, type VoiceInterviewPhaseData } from "@/lib/avaPhaseNarratives";
 
 // ============= Types =============
 interface ParsedAnalysis {
@@ -1032,11 +1032,28 @@ function PhaseBasedAnalysis({
       });
     }
 
-    // Quiz results - detailed Ava narrative
+    // Quiz results - detailed Ava narrative with actual quiz data
     if (applicationNotes.quizResult && typeof applicationNotes.quizResult.score === "number") {
       const quiz = applicationNotes.quizResult;
       const baseFacts = `The candidate scored ${quiz.score}%${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ""}.`;
       const phaseType: PhaseType = "quiz";
+
+      // Extract actual quiz data from notes (stored under stepId like "quiz")
+      let quizData: QuizPhaseData | undefined;
+      const quizStepData = applicationNotes.quiz || applicationNotes['quiz'];
+      if (quizStepData && quizStepData.answers) {
+        quizData = {
+          answers: quizStepData.answers,
+          score: quizStepData.score ?? quiz.score,
+          correct: quizStepData.correct ?? quiz.correct ?? 0,
+          total: quizStepData.total ?? quiz.total ?? 0,
+          passed: quizStepData.passed ?? quiz.passed,
+          completedAt: quizStepData.completedAt,
+          antiCheatViolations: quizStepData.antiCheatViolations,
+          totalViolations: quizStepData.totalViolations,
+          violationSummary: quizStepData.violationSummary,
+        };
+      }
 
       phases.push({
         id: "quiz",
@@ -1056,17 +1073,25 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          quizData,
         }),
         passed: quiz.passed,
       });
     }
 
-    // Typing test - detailed Ava narrative
+    // Typing test - detailed Ava narrative with actual typing data
     if (applicationNotes.typingTestResult && typeof applicationNotes.typingTestResult.wpm === "number") {
       const typing = applicationNotes.typingTestResult;
       const passed = typing.passed !== false;
       const baseFacts = `The candidate achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`;
       const phaseType: PhaseType = "typing";
+
+      const typingData: TypingPhaseData = {
+        wpm: typing.wpm,
+        accuracy: typing.accuracy,
+        passed: typing.passed,
+        requiredWpm: typing.requiredWpm,
+      };
 
       phases.push({
         id: "typing_test",
@@ -1086,6 +1111,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
+          typingData,
         }),
         passed,
       });
