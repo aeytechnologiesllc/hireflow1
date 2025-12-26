@@ -906,11 +906,12 @@ export function CandidateStatusScreen({
                   transition={{ delay: 0.4 }}
                   className="text-muted-foreground leading-relaxed"
                 >
-                  The employer has decided to give your application another look. 
-                  Your application for <span className="text-foreground font-medium">{jobTitle || "this position"}</span> is now back under review.
+                  The employer has decided to give you another chance for{" "}
+                  <span className="text-foreground font-medium">{jobTitle || "this position"}</span>. 
+                  Your application has been reset so you can start fresh from the beginning.
                 </motion.p>
 
-                {/* Encouragement */}
+                {/* Instructions */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -918,7 +919,8 @@ export function CandidateStatusScreen({
                   className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
                 >
                   <p className="text-sm text-muted-foreground">
-                    This is your fresh start! The employer saw something special in your application and wants to explore it further.
+                    This is your fresh start! Click below to restart your application and complete all the steps again. 
+                    Good luck!
                   </p>
                 </motion.div>
 
@@ -933,7 +935,7 @@ export function CandidateStatusScreen({
                     onClick={onClose} 
                     className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
                   >
-                    View Application
+                    Restart Application
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>
