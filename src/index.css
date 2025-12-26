@@ -84,10 +84,10 @@
     --muted: 0 0% 12%;
     --muted-foreground: 0 0% 60%;
 
-    --accent: 160 84% 45%;
+    --accent: 150 60% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --success: 160 84% 39%;
+    --success: 150 50% 35%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
@@ -98,20 +98,20 @@
 
     --border: 0 0% 15%;
     --input: 0 0% 15%;
-    --ring: 160 84% 39%;
+    --ring: 150 50% 35%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(160 84% 50%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(0 0% 0%) 0%, hsl(160 84% 39% / 0.03) 50%, hsl(160 84% 45% / 0.05) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(150 50% 35%) 0%, hsl(150 60% 42%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(0 0% 0%) 0%, hsl(150 50% 35% / 0.02) 50%, hsl(150 60% 40% / 0.03) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 5%) 0%, hsl(0 0% 8%) 100%);
-    --gradient-bg: radial-gradient(ellipse 80% 50% at 90% 10%, hsl(160 84% 39% / 0.08) 0%, transparent 50%),
-                   radial-gradient(ellipse 60% 40% at 10% 90%, hsl(160 84% 45% / 0.06) 0%, transparent 50%),
+    --gradient-bg: radial-gradient(ellipse 80% 50% at 90% 10%, hsl(150 50% 35% / 0.05) 0%, transparent 50%),
+                   radial-gradient(ellipse 60% 40% at 10% 90%, hsl(150 60% 40% / 0.04) 0%, transparent 50%),
                    hsl(0 0% 0%);
 
     --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.5);
     --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.5), 0 2px 4px -2px hsl(0 0% 0% / 0.5);
     --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.5);
     --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.5), 0 8px 10px -6px hsl(0 0% 0% / 0.5);
-    --shadow-glow: 0 0 40px hsl(160 84% 39% / 0.25);
+    --shadow-glow: 0 0 20px hsl(150 50% 35% / 0.15);
 
     --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 0 0% 100%;
@@ -355,9 +355,9 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    hsl(160 84% 39% / 0.3) 20%,
-    hsl(160 84% 50% / 0.3) 50%,
-    hsl(160 84% 39% / 0.3) 80%,
+    hsl(150 50% 35% / 0.25) 20%,
+    hsl(150 60% 42% / 0.25) 50%,
+    hsl(150 50% 35% / 0.25) 80%,
     transparent 100%
   );
   animation: border-shimmer 3s linear infinite;
@@ -378,9 +378,9 @@
   transform: translateY(-50%);
   width: 3px;
   height: 60%;
-  background: linear-gradient(180deg, hsl(160 84% 39%) 0%, hsl(160 84% 50%) 100%);
+  background: linear-gradient(180deg, hsl(150 50% 35%) 0%, hsl(150 60% 42%) 100%);
   border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 12px hsl(160 84% 39% / 0.6);
+  box-shadow: 0 0 10px hsl(150 50% 35% / 0.4);
 }
 
 /* Mobile-first utility classes */
