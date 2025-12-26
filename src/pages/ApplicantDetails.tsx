@@ -2604,6 +2604,7 @@ ${interviewType} Interview with AVA Results:
                 applicationStatus={application.status}
                 rejectionReason={application.phase_ai_analysis}
                 passingScore={job?.passing_score}
+                rejectedByType={application.rejected_by_type}
               />
             </>
           )}
