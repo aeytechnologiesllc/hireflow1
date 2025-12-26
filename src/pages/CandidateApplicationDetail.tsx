@@ -81,6 +81,7 @@ const phaseStatusLabels: Record<string, { label: string; color: string; icon: an
   awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30", icon: Play },
   under_review: { label: "Under Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
   employer_reviewing: { label: "Employer Reviewing", color: "bg-amber-500/20 text-amber-500 border-amber-500/30", icon: Eye },
+  rejected: { label: "Not Passed", color: "bg-destructive/20 text-destructive border-destructive/30", icon: AlertCircle },
 };
 
 // Friendly action messages for each phase type
@@ -460,6 +461,10 @@ export default function CandidateApplicationDetail() {
     
     if (phaseIndex < effectivePhaseIndex) return "completed";
     if (phaseIndex === effectivePhaseIndex) {
+      // If application is rejected, show current phase as rejected
+      if (application?.status === "rejected") {
+        return "rejected";
+      }
       // Special handling for "review" phase - employer is reviewing, not candidate action
       if (phase.type === "review" || phase.id === "review") {
         return "under_review";
@@ -672,10 +677,17 @@ export default function CandidateApplicationDetail() {
             <CardContent className="p-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
               <div>
-                <h3 className="font-semibold text-destructive">Application Closed</h3>
+                <h3 className="font-semibold text-destructive">Application Rejected</h3>
                 <p className="text-sm text-muted-foreground">
-                  This application didn't advance to the next stage. Download your personalized improvement
-                  blueprint below to strengthen your next application.
+                  Unfortunately, your application did not meet the requirements for this position.
+                  {application.phase_ai_analysis && (
+                    <span className="block mt-2 text-foreground/80 italic">
+                      "{application.phase_ai_analysis}"
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Download your personalized improvement blueprint below to strengthen your next application.
                 </p>
               </div>
             </CardContent>
@@ -886,7 +898,7 @@ export default function CandidateApplicationDetail() {
                       </Button>
                     )}
 
-                  {isCurrent && status === "pending" && (
+                  {isCurrent && status === "pending" && !isRejected && (
                     <div className="flex items-center gap-2 text-yellow-500">
                       <Clock className="h-5 w-5" />
                       <span className="text-sm font-medium">Awaiting Review</span>
