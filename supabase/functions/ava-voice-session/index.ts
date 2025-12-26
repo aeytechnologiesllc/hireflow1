@@ -1745,6 +1745,15 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       ];
     }
 
+    const selectedVoice = "coral";
+
+    console.log("Creating voice session with voice:", {
+      voice: selectedVoice,
+      mode,
+      currentRoute,
+      userId: user.id,
+    });
+
     // Request ephemeral token from OpenAI Realtime API
     const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
       method: "POST",
@@ -1754,23 +1763,23 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-12-17",
-        voice: "coral",  // Warm, professional female voice
+        voice: selectedVoice,
         instructions,
         tools,
         tool_choice: "auto",
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         input_audio_transcription: {
-          model: "whisper-1"
+          model: "whisper-1",
         },
         turn_detection: {
           type: "server_vad",
-          threshold: 0.5,            // Default - detect normal speech (faster response)
-          prefix_padding_ms: 300,    // Faster detection (was 600)
-          silence_duration_ms: 700   // Quick response after pause - ChatGPT-like (was 2500!)
+          threshold: 0.5, // Default - detect normal speech (faster response)
+          prefix_padding_ms: 300, // Faster detection (was 600)
+          silence_duration_ms: 700, // Quick response after pause - ChatGPT-like (was 2500!)
         },
-        temperature: 0.7,  // Faster, more consistent responses
-        max_response_output_tokens: "inf"
+        temperature: 0.7, // Faster, more consistent responses
+        max_response_output_tokens: "inf",
       }),
     });
 
@@ -1781,18 +1790,22 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
     }
 
     const sessionData = await response.json();
-    console.log("Voice session created:", { sessionId: sessionData.id });
+    console.log("Voice session created:", { sessionId: sessionData.id, voice: selectedVoice });
 
     // Voice usage will be tracked when session ends via webhook or frontend tracking
     // The voice_credits table is used for minute tracking with FIFO consumption
 
-    return new Response(JSON.stringify({
-      ...sessionData,
-      mode,
-      tools: tools.map(t => t.name)
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        ...sessionData,
+        selectedVoice,
+        mode,
+        tools: tools.map((t) => t.name),
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
 
   } catch (error) {
     console.error("Voice session error:", error);

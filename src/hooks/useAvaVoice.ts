@@ -40,6 +40,7 @@ interface AvaVoiceState {
   error: string | null;
   audioLevels: number[]; // 5 values for audio bars visualization
   connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
+  voiceNameUsed: string | null; // Voice returned by backend session creation
 }
 
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -59,6 +60,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     error: null,
     audioLevels: [8, 8, 8, 8, 8],
     connectionQuality: 'unknown',
+    voiceNameUsed: null,
   });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -320,6 +322,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
 
     const EPHEMERAL_KEY = response.data.client_secret.value;
+    const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
+
+    setState(s => ({ ...s, voiceNameUsed }));
+    console.log('[AvaVoice] Session created with voice:', voiceNameUsed);
+
     console.log('Got ephemeral key, creating peer connection');
 
     // Create audio context for playback
@@ -769,6 +776,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       error: null,
       audioLevels: [8, 8, 8, 8, 8],
       connectionQuality: 'unknown',
+      voiceNameUsed: null,
     });
   }, [clearProcessingTimeout, cleanupConnection]);
 

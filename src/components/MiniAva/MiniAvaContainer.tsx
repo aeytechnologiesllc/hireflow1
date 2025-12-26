@@ -34,6 +34,7 @@ export default function MiniAvaContainer() {
     isConnecting,
     isSpeaking,
     isListening,
+    voiceNameUsed,
     connect,
     disconnect,
     error: voiceError,
@@ -142,6 +143,12 @@ export default function MiniAvaContainer() {
     }
   }, [isConnected, connect, disconnect, triggerExpression]);
 
+  // Hard reset - forces a fresh session (useful if an older session used a different voice)
+  const handleReset = useCallback(() => {
+    if (isConnected) disconnect();
+    toast.success('Voice session reset. Tap Start to reconnect.');
+  }, [isConnected, disconnect]);
+
   // Close expanded mode
   const handleClose = useCallback(() => {
     if (isConnected) {
@@ -198,8 +205,8 @@ export default function MiniAvaContainer() {
                       onClick={handleVoiceToggle}
                       disabled={isConnecting}
                       className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        isConnected 
-                          ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' 
+                        isConnected
+                          ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
                           : 'bg-primary/10 text-primary hover:bg-primary/20'
                       } ${isConnecting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -217,12 +224,25 @@ export default function MiniAvaContainer() {
                         </>
                       )}
                     </button>
-                    
-                    {isConnected && (
-                      <span className="text-xs text-muted-foreground text-center">
-                        {isSpeaking ? 'Ava is speaking...' : isListening ? 'Listening...' : 'Ready'}
-                      </span>
-                    )}
+
+                    <button
+                      onClick={handleReset}
+                      className="flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-all bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                      type="button"
+                    >
+                      Reset
+                    </button>
+
+                    <div className="text-xs text-muted-foreground text-center space-y-0.5">
+                      <div>
+                        Voice: <span className="font-medium text-foreground">{voiceNameUsed || 'unknown'}</span>
+                      </div>
+                      {isConnected && (
+                        <div>
+                          {isSpeaking ? 'Ava is speaking...' : isListening ? 'Listening...' : 'Ready'}
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <div className="text-xs text-muted-foreground">
