@@ -902,7 +902,11 @@ export function HiringPackageWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent 
+        className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         {/* Header with steps */}
         <div className="px-6 pt-6 pb-4 border-b border-border/50">
           <div className="flex items-center justify-between mb-4">
