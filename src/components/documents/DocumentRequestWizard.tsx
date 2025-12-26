@@ -289,7 +289,11 @@ export function DocumentRequestWizard({
                         ? "border-primary bg-primary/5 shadow-glow"
                         : "border-border hover:border-primary/50"
                     )}
-                    onClick={() => setSelectedApplication(app)}
+                    onClick={() => {
+                      setSelectedApplication(app);
+                      // Auto-progress to next step after selecting recipient
+                      setTimeout(() => setCurrentStep(1), 300);
+                    }}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3">
