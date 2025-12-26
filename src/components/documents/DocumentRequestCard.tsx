@@ -119,7 +119,7 @@ export function DocumentRequestCard({
                   <p className="font-medium text-foreground">
                     {request.custom_document_name || getDocumentTypeLabel(request.document_type)}
                   </p>
-                  {request.is_required && (
+                {request.is_required && !isEmployer && (
                     <Badge variant="outline" className="text-xs">Required</Badge>
                   )}
                   {request.status !== "pending" && (
