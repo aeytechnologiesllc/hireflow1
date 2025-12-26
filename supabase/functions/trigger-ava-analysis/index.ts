@@ -428,9 +428,51 @@ ${interviewType} Interview with AVA Results:
         );
       } else {
         // FAILED - reject the application
-        const rejectReason = `Overall Ava score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%.`;
+        // Extract key reasons from the AI analysis for a more informative rejection reason
+        const analysisText = analysisData?.analysis || '';
         
-        console.log("[trigger-ava-analysis] Autopilot FAILED: rejecting application, score=", finalScore);
+        // Try to find specific concerns from the AI response
+        const areasOfConcernMatch = analysisText.match(/Areas of Concern[:\s]*[\n-]*((?:[-•]\s*[^\n]+\n?)+)/i);
+        const penaltiesMatch = analysisText.match(/Penalties Applied[:\s]*[\n-]*((?:[-•]?\s*[^\n]+\n?)+)/i);
+        const summaryMatch = analysisText.match(/Summary[:\s]*([^\n*]+)/i);
+        const redFlagsMatch = analysisText.match(/Red Flags[:\s]*([^\n]+)/i);
+        const missingSkillsMatch = analysisText.match(/Missing Skills[:\s]*([^\n]+)/i);
+        
+        const concerns: string[] = [];
+        
+        // Extract areas of concern
+        if (areasOfConcernMatch) {
+          const concernItems = areasOfConcernMatch[1].split(/\n/).filter(Boolean);
+          concernItems.forEach((item: string) => {
+            const cleaned = item.replace(/^[-•]\s*/, '').trim();
+            if (cleaned && !cleaned.toLowerCase().includes('none')) {
+              concerns.push(cleaned);
+            }
+          });
+        }
+        
+        // Extract red flags
+        if (redFlagsMatch && !redFlagsMatch[1].toLowerCase().includes('none detected')) {
+          concerns.push(redFlagsMatch[1].trim());
+        }
+        
+        // Extract missing skills
+        if (missingSkillsMatch && !missingSkillsMatch[1].toLowerCase().includes('none')) {
+          concerns.push(`Missing skills: ${missingSkillsMatch[1].trim()}`);
+        }
+        
+        // Use summary if we don't have specific concerns
+        let rejectReason: string;
+        if (concerns.length > 0) {
+          const topConcerns = concerns.slice(0, 2).join('. ');
+          rejectReason = `Score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%. Key issues: ${topConcerns}`;
+        } else if (summaryMatch) {
+          rejectReason = `Score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%. ${summaryMatch[1].trim()}`;
+        } else {
+          rejectReason = `Overall Ava score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%.`;
+        }
+        
+        console.log("[trigger-ava-analysis] Autopilot FAILED: rejecting application, score=", finalScore, "reason=", rejectReason);
         
         const { error: rejectError } = await supabaseAdmin
           .from("applications")

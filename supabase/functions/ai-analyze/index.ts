@@ -246,6 +246,9 @@ Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points]
 Areas of Concern: [bullet points]
 Summary: [2-3 sentences including any verification concerns and scoring rationale]
+
+**SCORE EXPLANATION** (MANDATORY - 1-2 sentences)
+[Explain in plain language WHY this candidate received this score. Be specific about the primary factors that raised or lowered the score. Example: "Score is 45% because the resume contained no company names, only generic job duties without achievements, and skills did not match the job requirements." or "Score is 85% because the candidate has 5 years at named companies with quantifiable achievements that align well with the role."]
 ---
 
 Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%.`,
@@ -518,6 +521,9 @@ Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points - MUST include best phase performances]
 Areas of Concern: [bullet points - include any phase weaknesses]
 Summary: [2-3 sentences that MUST mention phase performance highlights (quiz scores, portfolio ratings, interview results) alongside resume assessment. If resume unavailable, focus on phase performance data.]
+
+**SCORE EXPLANATION** (MANDATORY - 1-2 sentences)
+[Explain in plain language WHY this candidate received this score. Be specific about the primary factors that raised or lowered the score. Example: "Score is 45% because the resume contained no company names, only generic job duties without achievements, and skills did not match the job requirements." or "Score is 85% because the candidate has 5 years at named companies with quantifiable achievements that align well with the role."]
 ---
 
 Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Focus on verifiable qualifications. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%. When resume is unavailable, provide the best possible analysis using all other data.`,
