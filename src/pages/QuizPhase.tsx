@@ -17,7 +17,8 @@ import {
   CheckCircle,
   Loader2,
   HelpCircle,
-  Clock
+  Clock,
+  ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
@@ -52,11 +53,27 @@ interface ApplicationDetails {
   } | null;
 }
 
+interface AntiCheatViolation {
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click';
+  timestamp: string;
+  details?: string;
+}
+
+interface QuizProgress {
+  currentQuestionIndex: number;
+  answers: Record<string, number>;
+  startedAt: string;
+  violations: AntiCheatViolation[];
+}
+
 export default function QuizPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Storage key for quiz persistence
+  const QUIZ_STORAGE_KEY = `quiz_progress_${id}_${stepId}`;
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -70,6 +87,13 @@ export default function QuizPhase() {
   } | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(30);
   
+  // Stable questions state - prevents crashes from query invalidation
+  const [stableQuestions, setStableQuestions] = useState<QuizQuestion[]>([]);
+  const [quizInitialized, setQuizInitialized] = useState(false);
+  
+  // Anti-cheating violation tracking
+  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
+  
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
@@ -79,6 +103,7 @@ export default function QuizPhase() {
   const isFinishingRef = useRef(false);
   const currentQuestionIndexRef = useRef(currentQuestionIndex);
   const questionsLengthRef = useRef(0);
+  const quizContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -109,17 +134,20 @@ export default function QuizPhase() {
         filter: `id=eq.${id}`,
       }, (payload) => {
         console.log('[QuizPhase] Application updated via realtime:', payload);
-        queryClient.invalidateQueries({ queryKey: ["quiz-application", id] });
+        // Only invalidate if quiz hasn't started yet
+        if (!quizInitialized) {
+          queryClient.invalidateQueries({ queryKey: ["quiz-application", id] });
+        }
       })
       .subscribe();
 
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [id, queryClient]);
+  }, [id, queryClient, quizInitialized]);
 
-  // Memoize questions to prevent recalculation on every render
-  const questions: QuizQuestion[] = useMemo(() => {
+  // Extract questions from application data
+  const fetchedQuestions: QuizQuestion[] = useMemo(() => {
     if (!application?.jobs) return [];
     
     // First check workflow_steps for quiz config
@@ -134,11 +162,122 @@ export default function QuizPhase() {
     return (application.jobs.quiz_questions as QuizQuestion[]) || [];
   }, [application?.jobs, stepId]);
 
+  // Initialize stable questions and restore progress from localStorage
+  useEffect(() => {
+    if (fetchedQuestions.length > 0 && !quizInitialized) {
+      // Check for saved progress
+      const savedProgress = localStorage.getItem(QUIZ_STORAGE_KEY);
+      
+      if (savedProgress) {
+        try {
+          const progress: QuizProgress = JSON.parse(savedProgress);
+          console.log('[QuizPhase] Restoring saved progress:', progress);
+          
+          setCurrentQuestionIndex(progress.currentQuestionIndex);
+          setAnswers(progress.answers);
+          setViolations(progress.violations || []);
+          
+          toast.info("Quiz progress restored", {
+            description: `Continuing from question ${progress.currentQuestionIndex + 1}`,
+          });
+        } catch (e) {
+          console.error('[QuizPhase] Failed to restore progress:', e);
+        }
+      }
+      
+      setStableQuestions(fetchedQuestions);
+      setQuizInitialized(true);
+    }
+  }, [fetchedQuestions, quizInitialized, QUIZ_STORAGE_KEY]);
+
+  // Save progress to localStorage whenever it changes
+  useEffect(() => {
+    if (quizInitialized && !showResults && stableQuestions.length > 0) {
+      const progress: QuizProgress = {
+        currentQuestionIndex,
+        answers,
+        startedAt: new Date().toISOString(),
+        violations,
+      };
+      localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(progress));
+    }
+  }, [currentQuestionIndex, answers, violations, quizInitialized, showResults, QUIZ_STORAGE_KEY, stableQuestions.length]);
+
+  // Clear localStorage when quiz is submitted
+  const clearSavedProgress = useCallback(() => {
+    localStorage.removeItem(QUIZ_STORAGE_KEY);
+  }, [QUIZ_STORAGE_KEY]);
+
+  // Anti-cheating: Record violation
+  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
+    const violation: AntiCheatViolation = {
+      type,
+      timestamp: new Date().toISOString(),
+      details,
+    };
+    setViolations(prev => [...prev, violation]);
+    console.log('[QuizPhase] Violation recorded:', violation);
+  }, []);
+
+  // Anti-cheating: Tab/Window visibility detection
+  useEffect(() => {
+    if (!quizInitialized || showResults) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        recordViolation('tab_switch', 'User switched to another tab or window');
+        toast.warning("Tab switch detected!", {
+          description: "This activity has been recorded and will be reported.",
+          icon: <ShieldAlert className="h-4 w-4" />,
+        });
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [quizInitialized, showResults, recordViolation]);
+
+  // Anti-cheating: Prevent copy/paste/cut and right-click
+  const handleCopy = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('copy_attempt');
+    toast.warning("Copying is disabled during the quiz", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('paste_attempt');
+    toast.warning("Pasting is disabled during the quiz", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  const handleCut = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('cut_attempt');
+  }, [recordViolation]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    recordViolation('right_click');
+    toast.warning("Right-click is disabled during the quiz", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Use stable questions for rendering
+  const questions = quizInitialized ? stableQuestions : fetchedQuestions;
+  
   // Keep refs in sync for stable timer callbacks
   currentQuestionIndexRef.current = currentQuestionIndex;
   questionsLengthRef.current = questions.length;
 
-  const currentQuestion = questions[currentQuestionIndex];
+  // Safe access to current question with null guard
+  const currentQuestion = questions.length > 0 && currentQuestionIndex < questions.length 
+    ? questions[currentQuestionIndex] 
+    : null;
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
   const handleAnswerSelect = (answerIndex: number) => {
@@ -155,7 +294,7 @@ export default function QuizPhase() {
     }
   };
 
-  const calculateResults = () => {
+  const calculateResults = useCallback(() => {
     let correct = 0;
     
     questions.forEach(q => {
@@ -175,7 +314,7 @@ export default function QuizPhase() {
           correctAnswerIndex = q.correct_answer;
         } else if (typeof q.correct_answer === 'string') {
           // Find the index of the correct answer text in options
-          correctAnswerIndex = q.options.findIndex(
+          correctAnswerIndex = q.options?.findIndex(
             opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
           );
           if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
@@ -192,7 +331,7 @@ export default function QuizPhase() {
     const passed = score >= passingScore;
     
     return { correct, total: questions.length, score, passed };
-  };
+  }, [questions, answers, application?.jobs?.passing_score]);
 
   const handleFinishQuiz = useCallback(() => {
     if (isFinishingRef.current) return;
@@ -207,7 +346,7 @@ export default function QuizPhase() {
     const calculatedResults = calculateResults();
     setResults(calculatedResults);
     setShowResults(true);
-  }, []);
+  }, [calculateResults]);
 
   // Timer effect - countdown for each question
   // Uses refs to avoid stale closure issues
@@ -255,7 +394,7 @@ export default function QuizPhase() {
         timerRef.current = null;
       }
     };
-  }, [currentQuestionIndex, showResults, questions.length, handleFinishQuiz]);
+  }, [currentQuestionIndex, showResults, questions.length, handleFinishQuiz, currentQuestion]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
@@ -294,7 +433,7 @@ export default function QuizPhase() {
           if (typeof q.correct_answer === 'number') {
             correctAnswerIndex = q.correct_answer;
           } else if (typeof q.correct_answer === 'string') {
-            correctAnswerIndex = q.options.findIndex(
+            correctAnswerIndex = q.options?.findIndex(
               opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
             );
             if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
@@ -305,13 +444,13 @@ export default function QuizPhase() {
           questionId: q.id,
           question: q.question,
           selectedAnswer: userAnswer,
-          selectedAnswerText: q.options[userAnswer] || "Not answered",
+          selectedAnswerText: q.options?.[userAnswer] || "Not answered",
           correctAnswer: correctAnswerIndex,
           isCorrect: userAnswer !== undefined && correctAnswerIndex !== undefined && userAnswer === correctAnswerIndex,
         };
       });
       
-      // Add quiz results
+      // Add quiz results with anti-cheat violations
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -322,6 +461,12 @@ export default function QuizPhase() {
           total: results.total,
           passed: results.passed,
           completedAt: new Date().toISOString(),
+          // Anti-cheat violation data for AVA and employer
+          antiCheatViolations: violations,
+          totalViolations: violations.length,
+          violationSummary: violations.length > 0 
+            ? `${violations.filter(v => v.type === 'tab_switch').length} tab switches, ${violations.filter(v => v.type === 'copy_attempt').length} copy attempts, ${violations.filter(v => v.type === 'paste_attempt').length} paste attempts, ${violations.filter(v => v.type === 'right_click').length} right-clicks`
+            : "No violations detected",
         },
         quizResult: {
           score: results.score,
@@ -414,17 +559,26 @@ export default function QuizPhase() {
         }
       }
 
+      // Build phase_ai_analysis with violation info
+      let phaseAnalysis = `Quiz: ${results.correct}/${results.total} correct (${results.score}%). ${results.passed ? "PASSED" : "FAILED"}`;
+      if (violations.length > 0) {
+        phaseAnalysis += ` ⚠️ ${violations.length} anti-cheat violation(s) detected during quiz.`;
+      }
+
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
           phase: newPhase,
           status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: `Quiz: ${results.correct}/${results.total} correct (${results.score}%). ${results.passed ? "PASSED" : "FAILED"}`,
+          phase_ai_analysis: phaseAnalysis,
         })
         .eq("id", id!);
 
       if (error) throw error;
+
+      // Clear saved progress after successful submission
+      clearSavedProgress();
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
@@ -537,6 +691,15 @@ export default function QuizPhase() {
     );
   }
 
+  if (questions.length === 0 && !quizInitialized) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -558,24 +721,6 @@ export default function QuizPhase() {
             </p>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  // Guard against undefined currentQuestion (prevents blank screen)
-  if (!currentQuestion && !showResults) {
-    console.error('[QuizPhase] currentQuestion undefined - resetting to first question', {
-      currentQuestionIndex,
-      questionsLength: questions.length,
-    });
-    // Auto-recover by resetting to first question
-    if (currentQuestionIndex !== 0) {
-      setCurrentQuestionIndex(0);
-    }
-    return (
-      <div className="space-y-6 max-w-3xl mx-auto p-6">
-        <Skeleton className="h-12 w-48" />
-        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
@@ -607,7 +752,22 @@ export default function QuizPhase() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div 
+      ref={quizContainerRef}
+      className="space-y-6 max-w-3xl mx-auto select-none"
+      onCopy={handleCopy}
+      onPaste={handlePaste}
+      onCut={handleCut}
+      onContextMenu={handleContextMenu}
+    >
+      {/* Anti-cheat indicator */}
+      {violations.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
+          <ShieldAlert className="h-4 w-4" />
+          <span>{violations.length} violation(s) recorded</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button 
@@ -637,9 +797,9 @@ export default function QuizPhase() {
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!showResults ? (
+          {!showResults && currentQuestion ? (
             <>
-{/* Progress and Timer */}
+              {/* Progress and Timer */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <div className="flex items-center gap-4">
@@ -664,19 +824,19 @@ export default function QuizPhase() {
               {/* Question */}
               <div className="bg-muted/30 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-foreground mb-4">
-                  {currentQuestion?.question}
+                  {currentQuestion.question}
                 </h3>
                 
                 <RadioGroup
-                  value={answers[currentQuestion?.id]?.toString()}
+                  value={answers[currentQuestion.id]?.toString() ?? ""}
                   onValueChange={(value) => handleAnswerSelect(parseInt(value))}
                   className="space-y-3"
                 >
-                  {currentQuestion?.options.map((option, index) => (
+                  {currentQuestion.options?.map((option, index) => (
                     <div
                       key={index}
                       className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
-                        answers[currentQuestion?.id] === index
+                        answers[currentQuestion.id] === index
                           ? "border-primary bg-primary/10"
                           : "border-border hover:bg-muted/50"
                       }`}
@@ -694,12 +854,12 @@ export default function QuizPhase() {
                 </RadioGroup>
               </div>
 
-{/* Navigation - Forward only */}
+              {/* Navigation - Forward only */}
               <div className="flex justify-end">
                 {currentQuestionIndex < questions.length - 1 ? (
                   <Button
                     onClick={goToNextQuestion}
-                    disabled={answers[currentQuestion?.id] === undefined}
+                    disabled={answers[currentQuestion.id] === undefined}
                     className="gap-2"
                   >
                     Next
@@ -736,7 +896,7 @@ export default function QuizPhase() {
                 ))}
               </div>
             </>
-          ) : (
+          ) : showResults ? (
             /* Results */
             <div className="space-y-6">
               <div className="text-center space-y-4">
@@ -755,6 +915,14 @@ export default function QuizPhase() {
                     Your answers have been recorded. Thank you for completing the assessment!
                   </p>
                 </div>
+                
+                {/* Show violation summary if any */}
+                {violations.length > 0 && (
+                  <div className="text-sm text-warning bg-warning/10 px-4 py-2 rounded-lg inline-flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4" />
+                    {violations.length} monitoring alert(s) will be included in your submission
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
@@ -768,6 +936,12 @@ export default function QuizPhase() {
                   Submit Results
                 </Button>
               </div>
+            </div>
+          ) : (
+            /* Loading state while questions initialize */
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-32 w-full" />
             </div>
           )}
         </CardContent>
