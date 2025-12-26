@@ -318,17 +318,12 @@ export function CandidateStatusScreen({
                     size="lg"
                     onClick={handleDownloadReport}
                     disabled={isGeneratingReport}
-                    className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
+                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0"
                   >
                     {isGeneratingReport ? (
                       <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                        >
-                          <Download className="h-5 w-5" />
-                        </motion.div>
-                        Generating Report...
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Creating Your Blueprint...
                       </>
                     ) : (
                       <>

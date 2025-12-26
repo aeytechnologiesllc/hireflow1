@@ -102,6 +102,26 @@ serve(async (req) => {
       console.log('Could not parse notes as JSON');
     }
 
+    // Track which phases have data for dynamic PDF generation
+    const completedPhases: string[] = ['application_form']; // Always have this
+    if (application.resume_url) completedPhases.push('resume');
+    if (parsedNotes?.typingTestResult) completedPhases.push('typing_test');
+    if (parsedNotes?.quizResult) completedPhases.push('quiz');
+    if (parsedNotes?.answers?.length > 0) completedPhases.push('screening_questions');
+    if (parsedNotes?.portfolioResult) completedPhases.push('portfolio');
+    if (parsedNotes?.chatInterviewResult) completedPhases.push('chat_interview');
+    if (parsedNotes?.salesSimulationResult) completedPhases.push('sales_simulation');
+    if (application.voice_interview_result) completedPhases.push('voice_interview');
+    if (application.voice_interview_transcript) completedPhases.push('voice_transcript');
+
+    // Determine data depth
+    let dataDepth: 'minimal' | 'moderate' | 'comprehensive' = 'minimal';
+    if (completedPhases.length >= 5 || completedPhases.includes('voice_interview')) {
+      dataDepth = 'comprehensive';
+    } else if (completedPhases.length >= 3) {
+      dataDepth = 'moderate';
+    }
+
     const applicationContext = buildApplicationContext(application, parsedNotes, profile);
     
     // Extract workflow phases for context
@@ -111,6 +131,26 @@ serve(async (req) => {
     const workflowContext = workflowPhaseTypes.length > 0 
       ? `\n\nIMPORTANT: This job's workflow only included these phases: ${workflowPhaseTypes.join(', ')}. Only reference these phases in your coaching - do not mention phases that were not part of this job's hiring process.`
       : '';
+    
+    // Create data depth context message for the AI
+    const phaseLabels: Record<string, string> = {
+      application_form: 'Application Form',
+      resume: 'Resume',
+      typing_test: 'Typing Test',
+      quiz: 'Quiz Assessment',
+      screening_questions: 'Screening Questions',
+      portfolio: 'Portfolio Review',
+      chat_interview: 'Chat Interview',
+      sales_simulation: 'Sales Simulation',
+      voice_interview: 'Voice Interview',
+      voice_transcript: 'Interview Transcript'
+    };
+    const completedPhaseLabels = completedPhases.map(p => phaseLabels[p] || p).join(', ');
+    const dataDepthInstruction = dataDepth === 'minimal' 
+      ? `\n\nDATA CONTEXT: This analysis is based on LIMITED DATA (only: ${completedPhaseLabels}). Since the candidate didn't progress to additional phases, focus coaching on strengthening their initial application materials. Acknowledge the limited data in your response and provide foundational advice.`
+      : dataDepth === 'moderate'
+      ? `\n\nDATA CONTEXT: This analysis is based on MODERATE DATA (${completedPhaseLabels}). You have some assessment data to work with. Provide specific coaching based on the available phases.`
+      : `\n\nDATA CONTEXT: This analysis is based on COMPREHENSIVE DATA (${completedPhaseLabels}). You have rich data from multiple phases. Provide detailed, specific coaching with direct references to their performance across different assessments.`;
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -202,7 +242,7 @@ IMPORTANT GUIDELINES:
 
     const userPrompt = `Create a Personal Improvement Blueprint for this rejected candidate. Be their mentor, not their judge.
 
-${applicationContext}${workflowContext}
+${applicationContext}${workflowContext}${dataDepthInstruction}
 
 REMEMBER:
 1. They were rejected—acknowledge this with empathy but be clear about why
@@ -211,6 +251,7 @@ REMEMBER:
 4. Every piece of advice should be concrete enough to implement TODAY
 5. Leave them feeling informed and empowered, not discouraged
 6. ONLY reference phases that were actually part of this job's workflow - do not mention phases that didn't exist for this job
+7. If data is limited, acknowledge it honestly and focus on what you CAN assess
 
 Return ONLY the JSON object, no markdown or extra text.`;
 
@@ -276,9 +317,16 @@ Return ONLY the JSON object, no markdown or extra text.`;
       overallScore: application.ai_score || parsedNotes?.overallScore || 0,
       generatedAt: new Date().toISOString(),
       applicationId: applicationId,
+      completedPhases: completedPhases,
+      dataDepth: dataDepth,
+      dataDepthMessage: dataDepth === 'minimal' 
+        ? `This analysis is based primarily on your application form${completedPhases.includes('resume') ? ' and resume' : ''}. Since you didn't progress to additional assessment phases, our coaching focuses on strengthening your initial application materials.`
+        : dataDepth === 'moderate'
+        ? `We analyzed your performance across ${completedPhases.length} assessment phases: ${completedPhaseLabels}. This provides a solid foundation for targeted coaching.`
+        : `We have comprehensive data from your complete application journey including ${completedPhaseLabels}. This allows us to provide detailed, specific coaching based on your actual performance.`,
     };
 
-    console.log('Successfully generated improvement blueprint');
+    console.log('Successfully generated improvement blueprint with data depth:', dataDepth, 'phases:', completedPhases);
 
     return new Response(
       JSON.stringify(reportData),
