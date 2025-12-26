@@ -395,7 +395,7 @@ export default function TypingTestPhase() {
             results.wpm < requiredWpm * 0.6 ? "low typing speed" : 
             results.accuracy < 80 ? "low accuracy" : 
             "combined speed and accuracy below threshold"
-          }.\n\nBreakdown:\n• Speed: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target)\n• Accuracy: ${results.accuracy}%\n• Combined Score: ${results.score}% (Speed % × Accuracy %)\n• Required: ${passingScore}%`;
+          }.\n\nBreakdown:\n• Accuracy: ${results.accuracy}%\n• Combined Score: ${results.score}%\n• Required: ${passingScore}%`;
 
       const { error } = await supabase
         .from("applications")
