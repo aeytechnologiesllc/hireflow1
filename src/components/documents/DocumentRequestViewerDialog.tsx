@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
@@ -50,6 +50,25 @@ export function DocumentRequestViewerDialog({
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(true);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Measure container width for responsive PDF rendering
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth - 32); // minus padding
+      }
+    };
+    
+    if (open) {
+      // Small delay to ensure dialog is rendered
+      setTimeout(updateWidth, 100);
+      window.addEventListener('resize', updateWidth);
+    }
+    
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [open]);
 
   useEffect(() => {
     if (open && request?.file_url) {
@@ -145,138 +164,149 @@ export function DocumentRequestViewerDialog({
   const isImage = request.file_name?.match(/\.(jpg|jpeg|png|webp|gif)$/i);
   const isPdf = request.file_name?.match(/\.pdf$/i);
 
+  // Calculate PDF width based on container and zoom
+  const pdfWidth = containerWidth > 0 ? Math.min(containerWidth * zoom, 800 * zoom) : undefined;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            {documentLabel}
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            <span className="truncate">{documentLabel}</span>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Document info bar */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-          <div className="flex items-center gap-4">
+        {/* Document info bar - responsive */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 gap-3 rounded-lg bg-secondary/50 border border-border">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
+              <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
                 <AvatarImage src={request.candidate_profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium">{candidateName}</span>
+              <span className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">{candidateName}</span>
             </div>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
               <Calendar className="h-3 w-3" />
-              <span>Uploaded {request.submitted_at && format(new Date(request.submitted_at), "MMM d, yyyy 'at' h:mm a")}</span>
+              <span className="hidden sm:inline">Uploaded {request.submitted_at && format(new Date(request.submitted_at), "MMM d, yyyy 'at' h:mm a")}</span>
+              <span className="sm:hidden">{request.submitted_at && format(new Date(request.submitted_at), "MMM d")}</span>
             </div>
             <SecurityBadge variant="encrypted" size="sm" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
             {(isImage || isPdf) && (
               <>
-                <Button size="icon" variant="ghost" onClick={handleZoomOut} title="Zoom out">
+                <Button size="icon" variant="ghost" onClick={handleZoomOut} title="Zoom out" className="h-8 w-8">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={handleZoomIn} title="Zoom in">
+                <Button size="icon" variant="ghost" onClick={handleZoomIn} title="Zoom in" className="h-8 w-8">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={handleRotate} title="Rotate">
+                <Button size="icon" variant="ghost" onClick={handleRotate} title="Rotate" className="h-8 w-8">
                   <RotateCw className="h-4 w-4" />
                 </Button>
               </>
             )}
             {isPdf && numPages > 1 && (
-              <div className="flex items-center gap-1 border-l pl-2 ml-1">
-                <Button size="icon" variant="ghost" onClick={goToPreviousPage} disabled={currentPage <= 1}>
+              <div className="flex items-center gap-1 border-l border-border pl-2 ml-1">
+                <Button size="icon" variant="ghost" onClick={goToPreviousPage} disabled={currentPage <= 1} className="h-8 w-8">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm text-muted-foreground min-w-[60px] text-center">
-                  {currentPage} / {numPages}
+                <span className="text-xs sm:text-sm text-muted-foreground min-w-[50px] text-center">
+                  {currentPage}/{numPages}
                 </span>
-                <Button size="icon" variant="ghost" onClick={goToNextPage} disabled={currentPage >= numPages}>
+                <Button size="icon" variant="ghost" onClick={goToNextPage} disabled={currentPage >= numPages} className="h-8 w-8">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             )}
-            <Button size="sm" variant="outline" onClick={handleDownload} disabled={!signedUrl}>
-              <Download className="h-4 w-4 mr-1" />
-              Download
+            <Button size="sm" variant="outline" onClick={handleDownload} disabled={!signedUrl} className="h-8 text-xs sm:text-sm">
+              <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden sm:inline">Download</span>
             </Button>
           </div>
         </div>
 
-        {/* Document viewer */}
-        <div className="flex-1 min-h-[400px] rounded-lg bg-secondary/30 border border-border overflow-auto flex items-center justify-center">
-          {isLoading ? (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <p>Loading document...</p>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center gap-3 text-destructive">
-              <AlertCircle className="h-8 w-8" />
-              <p>{error}</p>
-              <Button variant="outline" size="sm" onClick={fetchSignedUrl}>
-                Try Again
-              </Button>
-            </div>
-          ) : signedUrl ? (
-            isImage ? (
-              <motion.img
-                src={signedUrl}
-                alt={documentLabel}
-                className="max-w-full max-h-full object-contain transition-transform duration-200"
-                style={{
-                  transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              />
-            ) : isPdf ? (
-              <div className="flex flex-col items-center w-full overflow-auto p-4">
-                <Document
-                  file={signedUrl}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  onLoadError={onDocumentLoadError}
-                  loading={
-                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-8 w-8 animate-spin" />
-                      <p>Loading PDF...</p>
-                    </div>
-                  }
-                  error={
-                    <div className="flex flex-col items-center gap-3 text-destructive">
-                      <AlertCircle className="h-8 w-8" />
-                      <p>Failed to load PDF</p>
-                    </div>
-                  }
-                >
-                  <Page
-                    pageNumber={currentPage}
-                    scale={zoom}
-                    rotate={rotation}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                    className="shadow-lg"
-                  />
-                </Document>
+        {/* Document viewer - fixed scrolling */}
+        <div 
+          ref={containerRef}
+          className="flex-1 min-h-[300px] sm:min-h-[400px] rounded-lg bg-secondary/30 border border-border overflow-auto"
+        >
+          <div className="min-h-full p-4">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full min-h-[250px] gap-3 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p>Loading document...</p>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                <FileText className="h-16 w-16" />
-                <p className="font-medium">{request.file_name}</p>
-                <Button onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download to View
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full min-h-[250px] gap-3 text-destructive">
+                <AlertCircle className="h-8 w-8" />
+                <p>{error}</p>
+                <Button variant="outline" size="sm" onClick={fetchSignedUrl}>
+                  Try Again
                 </Button>
               </div>
-            )
-          ) : (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <FileText className="h-16 w-16" />
-              <p>No document available</p>
-            </div>
-          )}
+            ) : signedUrl ? (
+              isImage ? (
+                <div className="flex items-center justify-center min-h-[250px]">
+                  <motion.img
+                    src={signedUrl}
+                    alt={documentLabel}
+                    className="max-w-full max-h-full object-contain transition-transform duration-200"
+                    style={{
+                      transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                    }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  />
+                </div>
+              ) : isPdf ? (
+                <div className="flex justify-center">
+                  <Document
+                    file={signedUrl}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={onDocumentLoadError}
+                    loading={
+                      <div className="flex flex-col items-center gap-3 text-muted-foreground py-12">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <p>Loading PDF...</p>
+                      </div>
+                    }
+                    error={
+                      <div className="flex flex-col items-center gap-3 text-destructive py-12">
+                        <AlertCircle className="h-8 w-8" />
+                        <p>Failed to load PDF</p>
+                      </div>
+                    }
+                  >
+                    <Page
+                      pageNumber={currentPage}
+                      width={pdfWidth}
+                      rotate={rotation}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="shadow-lg"
+                    />
+                  </Document>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[250px] gap-3 text-muted-foreground">
+                  <FileText className="h-16 w-16" />
+                  <p className="font-medium">{request.file_name}</p>
+                  <Button onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download to View
+                  </Button>
+                </div>
+              )
+            ) : (
+              <div className="flex flex-col items-center justify-center min-h-[250px] gap-3 text-muted-foreground">
+                <FileText className="h-16 w-16" />
+                <p>No document available</p>
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
