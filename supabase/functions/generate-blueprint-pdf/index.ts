@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 
 const corsHeaders = {
@@ -104,7 +104,7 @@ function drawFooter(doc: jsPDF, page: number, total: number, docId: string) {
   doc.text('HireFlow Improvement Blueprint', w / 2, fy, { align: 'center' });
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
     const data = await req.json();
@@ -276,8 +276,9 @@ Deno.serve(async (req) => {
     for (let p = 1; p <= total; p++) { doc.setPage(p); drawFooter(doc, p, total, docId); }
 
     return new Response(JSON.stringify({ pdf: doc.output('datauristring').split(',')[1], pages: total }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (e) {
-    console.error('Error:', e);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.error('Error:', errorMessage);
+    return new Response(JSON.stringify({ error: errorMessage }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
