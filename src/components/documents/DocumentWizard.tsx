@@ -1608,7 +1608,7 @@ export function DocumentWizard({
   };
 
   const wizardContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[85vh] max-h-[85vh] min-h-0">
       {/* Progress Header - Fixed */}
       <div className="flex-shrink-0 border-b border-border p-4 md:p-6 bg-gradient-to-r from-primary/5 to-primary/10">
         <div className="flex items-center justify-between mb-3 md:mb-4">
@@ -1722,7 +1722,7 @@ export function DocumentWizard({
   // When embedded, just return the content without Dialog wrapper
   if (embedded) {
     return (
-      <div className="max-w-4xl h-[85vh] sm:h-auto sm:max-h-[85vh] overflow-hidden bg-background rounded-lg border border-border flex flex-col">
+      <div className="max-w-4xl max-h-[85vh] overflow-hidden bg-background rounded-lg border border-border flex flex-col">
         {wizardContent}
       </div>
     );
@@ -1730,7 +1730,7 @@ export function DocumentWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl h-[85vh] sm:h-auto sm:max-h-[85vh] overflow-hidden p-0 flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden p-0 flex flex-col">
         {wizardContent}
       </DialogContent>
     </Dialog>
