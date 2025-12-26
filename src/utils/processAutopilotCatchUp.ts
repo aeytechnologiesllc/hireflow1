@@ -244,21 +244,10 @@ export async function processAutopilotCatchUp(
         
         console.log(`[processAutopilotCatchUp] Application ${application.id} at phase=${currentPhaseId}, type=${currentPhaseType}`);
 
-        // Check if candidate has completed their part of the current phase
-        const isPhaseComplete = hasCompletedPhase(
-          currentPhaseId,
-          currentPhaseType,
-          application.notes,
-          application.voice_interview_result
-        );
-
-        if (!isPhaseComplete) {
-          console.log(`[processAutopilotCatchUp] Application ${application.id} phase not complete, skipping`);
-          continue;
-        }
-
-        // Run AI analysis if no score exists
+        // FIRST: Check AI score - reject immediately if below threshold (regardless of phase completion)
         let aiScore = application.ai_score;
+        
+        // Run AI analysis if no score exists
         if (aiScore === null || aiScore === undefined) {
           console.log(`[processAutopilotCatchUp] Running AI analysis for application ${application.id}`);
           await triggerAvaAnalysis(application.id);
@@ -275,7 +264,47 @@ export async function processAutopilotCatchUp(
 
         console.log(`[processAutopilotCatchUp] Application ${application.id} score: ${aiScore}, passing: ${passingScore}`);
 
-        // Check if candidate passed
+        // Check if score is below threshold - REJECT regardless of phase completion
+        if (aiScore !== null && aiScore < passingScore) {
+          const rejectionReason = `Overall AI score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
+          
+          console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - score ${aiScore} below passing ${passingScore}`);
+          
+          const { error: rejectError } = await supabase
+            .from("applications")
+            .update({
+              status: "rejected",
+              rejected_by: "ava",
+              rejected_by_type: "ava",
+              phase_ai_analysis: rejectionReason,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", application.id);
+
+          if (rejectError) {
+            console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
+            result.failed++;
+          } else {
+            result.rejected++;
+            console.log(`[processAutopilotCatchUp] Rejected application ${application.id}`);
+          }
+          continue; // Move to next application after rejection
+        }
+
+        // THEN: Check if candidate has completed their part of the current phase
+        const isPhaseComplete = hasCompletedPhase(
+          currentPhaseId,
+          currentPhaseType,
+          application.notes,
+          application.voice_interview_result
+        );
+
+        if (!isPhaseComplete) {
+          console.log(`[processAutopilotCatchUp] Application ${application.id} phase not complete, skipping advancement`);
+          continue;
+        }
+
+        // Check if candidate passed - advance to next phase
         if (aiScore !== null && aiScore >= passingScore) {
           // Find next phase
           const nextPhase = getNextPhase(currentPhaseId, workflowSteps, hasQuizQuestions);
@@ -315,32 +344,8 @@ export async function processAutopilotCatchUp(
           } else {
             console.log(`[processAutopilotCatchUp] Application ${application.id} at final phase`);
           }
-        } else if (aiScore !== null && aiScore < passingScore) {
-          // Reject the application - score is below passing threshold
-          const rejectionReason = `Overall AI score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
-          
-          console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - score ${aiScore} below passing ${passingScore}`);
-          
-          const { error: rejectError } = await supabase
-            .from("applications")
-            .update({
-              status: "rejected",
-              rejected_by: "ava",
-              rejected_by_type: "ava",
-              phase_ai_analysis: rejectionReason,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", application.id);
-
-          if (rejectError) {
-            console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
-            result.failed++;
-          } else {
-            result.rejected++;
-            console.log(`[processAutopilotCatchUp] Rejected application ${application.id}`);
-          }
-        } else {
-          console.log(`[processAutopilotCatchUp] Application ${application.id} has no score yet, skipping rejection`);
+        } else if (aiScore === null) {
+          console.log(`[processAutopilotCatchUp] Application ${application.id} has no score yet, skipping`);
         }
       } catch (appProcessError) {
         console.error(`[processAutopilotCatchUp] Error processing application ${application.id}:`, appProcessError);
