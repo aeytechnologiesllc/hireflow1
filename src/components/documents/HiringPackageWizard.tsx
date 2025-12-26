@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,17 +33,17 @@ import {
   User,
   X,
   PartyPopper,
+  Eye,
+  Trash2,
+  FileUp,
 } from "lucide-react";
-import { PackageItemCard, getDocumentTypeLabel } from "./PackageItemCard";
+import { getDocumentTypeLabel } from "./PackageItemCard";
 import {
   useCreateDocumentPackage,
   useSendDocumentPackage,
-  type PackageItem,
 } from "@/hooks/useDocumentPackages";
 import { useProfile } from "@/hooks/useProfile";
 import { useQueryClient } from "@tanstack/react-query";
-import { DocumentWizard } from "./DocumentWizard";
-import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 
 interface HiringPackageWizardProps {
   open: boolean;
@@ -77,13 +77,6 @@ interface TempRequest {
 
 type TempItem = TempDocument | TempRequest;
 
-const WIZARD_STEPS = [
-  { id: "setup", title: "Package Setup", subtitle: "Name your hiring package" },
-  { id: "documents", title: "Add Documents", subtitle: "Documents for the candidate to sign" },
-  { id: "requests", title: "Request Documents", subtitle: "Documents for the candidate to upload" },
-  { id: "review", title: "Review & Send", subtitle: "Review and send the package" },
-];
-
 // Document types that can be created/uploaded
 const DOCUMENT_TYPES = [
   { value: "offer_letter", label: "Offer Letter", icon: FileText, description: "Formal job offer" },
@@ -116,110 +109,59 @@ export function HiringPackageWizard({
   jobId,
   jobTitle,
 }: HiringPackageWizardProps) {
-  const [currentStep, setCurrentStep] = useState(0);
   const [packageName, setPackageName] = useState(`Hiring Package - ${candidateName}`);
   const [items, setItems] = useState<TempItem[]>([]);
   const [dueDate, setDueDate] = useState<Date | undefined>(addDays(new Date(), 7));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showDocumentCreator, setShowDocumentCreator] = useState(false);
-  const [selectedDocType, setSelectedDocType] = useState<string | null>(null);
-  const [selectedRequestTypes, setSelectedRequestTypes] = useState<string[]>([]);
   
   // Document creation state
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState<string | null>(null);
   const [documentMode, setDocumentMode] = useState<"generate" | "upload">("generate");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   
-  // State for DocumentWizard integration
-  const [showDocumentWizard, setShowDocumentWizard] = useState(false);
+  // Request selection state
+  const [selectedRequestTypes, setSelectedRequestTypes] = useState<string[]>([]);
+  
+  // Preview state
+  const [previewItem, setPreviewItem] = useState<TempDocument | null>(null);
+  
+  // Active tab: "documents" or "requests"
+  const [activeTab, setActiveTab] = useState<"documents" | "requests">("documents");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const createPackage = useCreateDocumentPackage();
   const sendPackage = useSendDocumentPackage();
-  
-  // Fetch applications for DocumentWizard
-  const { data: applications = [] } = useApplicationsForDocuments();
 
   // Reset when dialog opens
   useEffect(() => {
     if (open) {
       setPackageName(`Hiring Package - ${candidateName}`);
       setItems([]);
-      setCurrentStep(0);
       setDueDate(addDays(new Date(), 7));
       setSelectedRequestTypes([]);
+      setSelectedDocType(null);
+      setActiveTab("documents");
+      setPreviewItem(null);
     }
   }, [open, candidateName]);
 
   const documents = items.filter((i): i is TempDocument => i.type === "document");
   const requests = items.filter((i): i is TempRequest => i.type === "request");
 
-  const canProceed = () => {
-    switch (WIZARD_STEPS[currentStep].id) {
-      case "setup":
-        return packageName.trim().length > 0;
-      case "documents":
-        return true; // Can skip documents
-      case "requests":
-        return true; // Can skip requests
-      case "review":
-        return items.length > 0; // Must have at least one item
-      default:
-        return true;
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep < WIZARD_STEPS.length - 1) {
-      setCurrentStep((prev) => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1);
-    }
-  };
-
   const handleClose = () => {
-    setCurrentStep(0);
     setPackageName("");
     setItems([]);
-    setShowDocumentCreator(false);
-    setShowDocumentWizard(false);
     setSelectedDocType(null);
     setSelectedRequestTypes([]);
+    setPreviewItem(null);
     onOpenChange(false);
   };
 
-  // Handle when DocumentWizard creates a document - add it to the package
-  const handleDocumentCreated = (document: { id: string; name: string; document_type: string; file_url: string }) => {
-    const newDoc: TempDocument = {
-      id: document.id, // Use the actual document ID from the database
-      type: "document",
-      name: document.name,
-      document_type: document.document_type,
-      file_url: document.file_url,
-      mode: "generate",
-    };
-    
-    setItems((prev) => [...prev, newDoc]);
-    setShowDocumentWizard(false);
-    setShowDocumentCreator(false);
-    setSelectedDocType(null);
-    
-    toast({
-      title: "Document Created",
-      description: `${document.name} has been added to the package.`,
-    });
-  };
-
-  // Generate document with AI
+  // Generate document with AI (stores locally, does NOT save to DB)
   const handleGenerateDocument = async (docType: string) => {
     setIsGenerating(true);
     try {
@@ -236,7 +178,7 @@ export function HiringPackageWizard({
 
       if (error) throw error;
 
-      // Convert to PDF and upload
+      // Convert to HTML and upload to storage for preview
       const htmlContent = data.content;
       const blob = new Blob([htmlContent], { type: "text/html" });
       const file = new File([blob], `${docType}_${Date.now()}.html`, { type: "text/html" });
@@ -266,12 +208,11 @@ export function HiringPackageWizard({
       };
 
       setItems((prev) => [...prev, newDoc]);
-      setShowDocumentCreator(false);
       setSelectedDocType(null);
       
       toast({
-        title: "Document Created",
-        description: `${getDocumentTypeLabel(docType)} has been added to the package.`,
+        title: "Document Generated",
+        description: `${getDocumentTypeLabel(docType)} added to your package.`,
       });
     } catch (error: any) {
       console.error("Error generating document:", error);
@@ -285,7 +226,7 @@ export function HiringPackageWizard({
     }
   };
 
-  // Upload document
+  // Upload document (stores locally, does NOT save to DB)
   const handleUploadDocument = async (file: File, docType: string) => {
     setIsUploading(true);
     try {
@@ -313,13 +254,12 @@ export function HiringPackageWizard({
       };
 
       setItems((prev) => [...prev, newDoc]);
-      setShowDocumentCreator(false);
       setSelectedDocType(null);
       setUploadedFile(null);
 
       toast({
         title: "Document Uploaded",
-        description: `${file.name} has been added to the package.`,
+        description: `${file.name} added to your package.`,
       });
     } catch (error: any) {
       console.error("Error uploading document:", error);
@@ -347,7 +287,7 @@ export function HiringPackageWizard({
     
     toast({
       title: "Requests Added",
-      description: `${newRequests.length} document request${newRequests.length !== 1 ? "s" : ""} added.`,
+      description: `${newRequests.length} document request${newRequests.length !== 1 ? "s" : ""} added to your package.`,
     });
   };
 
@@ -361,7 +301,7 @@ export function HiringPackageWizard({
     );
   };
 
-  // Send the package
+  // Send the package - saves everything to DB at once
   const handleSendPackage = async () => {
     if (items.length === 0) {
       toast({
@@ -387,7 +327,6 @@ export function HiringPackageWizard({
 
       // Create documents with package_id
       for (const doc of documents) {
-        // Generate document code
         const docCode = `DOC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
         
         const { error } = await supabase.from("documents").insert({
@@ -423,13 +362,18 @@ export function HiringPackageWizard({
         if (error) throw error;
       }
 
-      // Send the package (updates status and sends notification)
+      // Send the package
       await sendPackage.mutateAsync(pkg.id);
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
       queryClient.invalidateQueries({ queryKey: ["document-packages"] });
+
+      toast({
+        title: "Package Sent!",
+        description: `Hiring package sent to ${candidateName}.`,
+      });
 
       handleClose();
     } catch (error: any) {
@@ -444,569 +388,523 @@ export function HiringPackageWizard({
     }
   };
 
-  const renderStepContent = () => {
-    const stepId = WIZARD_STEPS[currentStep].id;
-
-    switch (stepId) {
-      case "setup":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-center mb-6">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-success/20 flex items-center justify-center"
-              >
-                <PartyPopper className="h-8 w-8 text-primary" />
-              </motion.div>
-            </div>
-            
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-semibold">Congratulations on the hire!</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Create a hiring package for <span className="font-medium text-foreground">{candidateName}</span>
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="packageName">Package Name</Label>
-              <Input
-                id="packageName"
-                value={packageName}
-                onChange={(e) => setPackageName(e.target.value)}
-                placeholder="Enter package name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Due Date (optional)</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dueDate && "text-muted-foreground"
-                    )}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "PPP") : "Select due date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={setDueDate}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        );
-
-      case "documents":
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Documents to Sign</h3>
-              <p className="text-sm text-muted-foreground">
-                Add documents the candidate needs to sign (e.g., offer letter, NDA)
-              </p>
-            </div>
-
-            {/* Added documents */}
-            {documents.length > 0 && (
-              <div className="space-y-2 mb-4">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Added Documents ({documents.length})
-                </Label>
-                <div className="space-y-2">
-                  {documents.map((doc) => (
-                    <PackageItemCard
-                      key={doc.id}
-                      item={{
-                        type: "document",
-                        id: doc.id,
-                        name: doc.name,
-                        document_type: doc.document_type,
-                        status: "pending",
-                        created_at: new Date().toISOString(),
-                      }}
-                      onRemove={() => handleRemoveItem(doc.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Document type selection */}
-            {!showDocumentCreator ? (
-              <div className="grid grid-cols-2 gap-3">
-                {DOCUMENT_TYPES.map((type) => {
-                  const Icon = type.icon;
-                  const alreadyAdded = documents.some((d) => d.document_type === type.value);
-                  return (
-                    <button
-                      key={type.value}
-                      onClick={() => {
-                        setSelectedDocType(type.value);
-                        setShowDocumentCreator(true);
-                      }}
-                      disabled={alreadyAdded}
-                      className={cn(
-                        "p-4 rounded-lg border text-left transition-all",
-                        alreadyAdded
-                          ? "bg-muted/50 border-border/50 opacity-50 cursor-not-allowed"
-                          : "bg-card hover:bg-accent hover:border-primary/50 cursor-pointer"
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium flex items-center gap-2">
-                            {type.label}
-                            {alreadyAdded && (
-                              <Check className="w-3 h-3 text-success" />
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {type.description}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              // Document creation mode
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setShowDocumentCreator(false);
-                        setSelectedDocType(null);
-                        setDocumentMode("generate");
-                        setUploadedFile(null);
-                      }}
-                    >
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Back
-                    </Button>
-                    <span className="text-sm font-medium">
-                      {getDocumentTypeLabel(selectedDocType || "")}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Mode selection */}
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setDocumentMode("generate")}
-                    className={cn(
-                      "p-4 rounded-lg border text-center transition-all",
-                      documentMode === "generate"
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    )}
-                  >
-                    <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" />
-                    <p className="text-sm font-medium">Generate with AI</p>
-                  </button>
-                  <button
-                    onClick={() => setDocumentMode("upload")}
-                    className={cn(
-                      "p-4 rounded-lg border text-center transition-all",
-                      documentMode === "upload"
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    )}
-                  >
-                    <Upload className="w-6 h-6 mx-auto mb-2 text-primary" />
-                    <p className="text-sm font-medium">Upload File</p>
-                  </button>
-                </div>
-
-                {documentMode === "generate" ? (
-                  <Button
-                    className="w-full"
-                    onClick={() => setShowDocumentWizard(true)}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Document
-                  </Button>
-                ) : (
-                  <div className="space-y-3">
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) setUploadedFile(file);
-                      }}
-                      className="hidden"
-                      id="doc-upload"
-                    />
-                    <label
-                      htmlFor="doc-upload"
-                      className={cn(
-                        "flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-all",
-                        uploadedFile
-                          ? "border-success bg-success/5"
-                          : "border-border hover:border-primary/50"
-                      )}
-                    >
-                      {uploadedFile ? (
-                        <>
-                          <FileCheck className="w-8 h-8 text-success mb-2" />
-                          <p className="text-sm font-medium">{uploadedFile.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Click to change
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                          <p className="text-sm font-medium">Click to upload</p>
-                          <p className="text-xs text-muted-foreground">
-                            PDF, DOC, DOCX
-                          </p>
-                        </>
-                      )}
-                    </label>
-                    {uploadedFile && (
-                      <Button
-                        className="w-full"
-                        onClick={() => handleUploadDocument(uploadedFile, selectedDocType!)}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add to Package
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {documents.length === 0 && !showDocumentCreator && (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                No documents added yet. Click a document type above to add one.
-              </p>
-            )}
-          </div>
-        );
-
-      case "requests":
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Request Documents</h3>
-              <p className="text-sm text-muted-foreground">
-                Select documents the candidate needs to upload
-              </p>
-            </div>
-
-            {/* Added requests */}
-            {requests.length > 0 && (
-              <div className="space-y-2 mb-4">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Requested Documents ({requests.length})
-                </Label>
-                <div className="space-y-2">
-                  {requests.map((req) => (
-                    <PackageItemCard
-                      key={req.id}
-                      item={{
-                        type: "request",
-                        id: req.id,
-                        name: req.custom_document_name || getDocumentTypeLabel(req.document_type),
-                        document_type: req.document_type,
-                        status: "pending",
-                        created_at: new Date().toISOString(),
-                      }}
-                      onRemove={() => handleRemoveItem(req.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Request type selection */}
-            <div className="grid grid-cols-2 gap-3">
-              {REQUEST_TYPES.map((type) => {
-                const Icon = type.icon;
-                const isSelected = selectedRequestTypes.includes(type.value);
-                const alreadyAdded = requests.some((r) => r.document_type === type.value);
-                return (
-                  <button
-                    key={type.value}
-                    onClick={() => !alreadyAdded && toggleRequestType(type.value)}
-                    disabled={alreadyAdded}
-                    className={cn(
-                      "p-3 rounded-lg border text-left transition-all",
-                      alreadyAdded
-                        ? "bg-muted/50 border-border/50 opacity-50 cursor-not-allowed"
-                        : isSelected
-                        ? "border-primary bg-primary/5"
-                        : "bg-card hover:bg-accent hover:border-primary/50 cursor-pointer"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={isSelected || alreadyAdded}
-                        disabled={alreadyAdded}
-                        className="pointer-events-none"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium flex items-center gap-2">
-                          {type.label}
-                          {alreadyAdded && (
-                            <Check className="w-3 h-3 text-success" />
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {selectedRequestTypes.length > 0 && (
-              <Button className="w-full" onClick={handleAddRequests}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add {selectedRequestTypes.length} Request{selectedRequestTypes.length !== 1 ? "s" : ""}
-              </Button>
-            )}
-
-            {requests.length === 0 && selectedRequestTypes.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                No document requests added yet. Select types above to request.
-              </p>
-            )}
-          </div>
-        );
-
-      case "review":
-        return (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Review Package</h3>
-              <p className="text-sm text-muted-foreground">
-                {items.length} item{items.length !== 1 ? "s" : ""} ready to send
-              </p>
-            </div>
-
-            {/* Package summary */}
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-              <div className="flex items-center gap-3 mb-3">
-                <Package className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="font-medium">{packageName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    For {candidateName} • {jobTitle}
-                  </p>
-                </div>
-              </div>
-              {dueDate && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  Due: {format(dueDate, "PPP")}
-                </div>
-              )}
-            </div>
-
-            {/* Documents */}
-            {documents.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Documents to Sign ({documents.length})
-                </Label>
-                <div className="space-y-2">
-                  {documents.map((doc) => (
-                    <PackageItemCard
-                      key={doc.id}
-                      item={{
-                        type: "document",
-                        id: doc.id,
-                        name: doc.name,
-                        document_type: doc.document_type,
-                        status: "pending",
-                        created_at: new Date().toISOString(),
-                      }}
-                      canRemove={false}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Requests */}
-            {requests.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Documents to Upload ({requests.length})
-                </Label>
-                <div className="space-y-2">
-                  {requests.map((req) => (
-                    <PackageItemCard
-                      key={req.id}
-                      item={{
-                        type: "request",
-                        id: req.id,
-                        name: req.custom_document_name || getDocumentTypeLabel(req.document_type),
-                        document_type: req.document_type,
-                        status: "pending",
-                        created_at: new Date().toISOString(),
-                      }}
-                      canRemove={false}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {items.length === 0 && (
-              <div className="text-center py-8">
-                <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-                <p className="text-muted-foreground">Package is empty</p>
-                <p className="text-sm text-muted-foreground">
-                  Go back to add documents or requests
-                </p>
-              </div>
-            )}
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent 
-        className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
-        {/* Header with steps */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/50">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">
-                {WIZARD_STEPS[currentStep].title}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {WIZARD_STEPS[currentStep].subtitle}
-              </p>
-            </div>
-            <Badge variant="secondary" className="text-xs">
-              Step {currentStep + 1} of {WIZARD_STEPS.length}
-            </Badge>
-          </div>
-
-          {/* Step indicators */}
-          <div className="flex gap-1">
-            {WIZARD_STEPS.map((step, index) => (
-              <div
-                key={step.id}
-                className={cn(
-                  "h-1 flex-1 rounded-full transition-colors",
-                  index <= currentStep ? "bg-primary" : "bg-muted"
-                )}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Content */}
-        <ScrollArea className="flex-1 px-6 py-4">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderStepContent()}
-            </motion.div>
-          </AnimatePresence>
-        </ScrollArea>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            onClick={currentStep === 0 ? handleClose : handleBack}
-          >
-            {currentStep === 0 ? "Cancel" : (
-              <>
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Back
-              </>
-            )}
-          </Button>
-
-          {currentStep === WIZARD_STEPS.length - 1 ? (
+  // Render document type selection or creation mode
+  const renderDocumentsTab = () => {
+    if (selectedDocType) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleSendPackage}
-              disabled={!canProceed() || isSubmitting}
-              className="bg-gradient-to-r from-primary to-success hover:from-primary/90 hover:to-success/90"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedDocType(null);
+                setDocumentMode("generate");
+                setUploadedFile(null);
+              }}
             >
-              {isSubmitting ? (
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+            <span className="text-sm font-medium">
+              {getDocumentTypeLabel(selectedDocType)}
+            </span>
+          </div>
+
+          {/* Mode selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setDocumentMode("generate")}
+              className={cn(
+                "p-4 rounded-lg border text-center transition-all",
+                documentMode === "generate"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50"
+              )}
+            >
+              <Sparkles className="w-6 h-6 mx-auto mb-2 text-primary" />
+              <p className="text-sm font-medium">Generate with AI</p>
+            </button>
+            <button
+              onClick={() => setDocumentMode("upload")}
+              className={cn(
+                "p-4 rounded-lg border text-center transition-all",
+                documentMode === "upload"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50"
+              )}
+            >
+              <Upload className="w-6 h-6 mx-auto mb-2 text-primary" />
+              <p className="text-sm font-medium">Upload File</p>
+            </button>
+          </div>
+
+          {documentMode === "generate" ? (
+            <Button
+              className="w-full"
+              onClick={() => handleGenerateDocument(selectedDocType)}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
+                  Generating...
                 </>
               ) : (
                 <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Package
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate & Add to Package
                 </>
               )}
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={!canProceed()}>
-              {WIZARD_STEPS[currentStep].id === "documents" || WIZARD_STEPS[currentStep].id === "requests" ? (
-                items.filter((i) => 
-                  WIZARD_STEPS[currentStep].id === "documents" ? i.type === "document" : i.type === "request"
-                ).length === 0 ? "Skip" : "Next"
-              ) : "Next"}
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
+            <div className="space-y-3">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setUploadedFile(file);
+                }}
+                className="hidden"
+                id="doc-upload"
+              />
+              <label
+                htmlFor="doc-upload"
+                className={cn(
+                  "flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                  uploadedFile
+                    ? "border-success bg-success/5"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                {uploadedFile ? (
+                  <>
+                    <FileCheck className="w-8 h-8 text-success mb-2" />
+                    <p className="text-sm font-medium">{uploadedFile.name}</p>
+                    <p className="text-xs text-muted-foreground">Click to change</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                    <p className="text-sm font-medium">Click to upload</p>
+                    <p className="text-xs text-muted-foreground">PDF, DOC, DOCX</p>
+                  </>
+                )}
+              </label>
+              {uploadedFile && (
+                <Button
+                  className="w-full"
+                  onClick={() => handleUploadDocument(uploadedFile, selectedDocType)}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add to Package
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           )}
         </div>
-      </DialogContent>
-      
-      {/* DocumentWizard for detailed document generation flow */}
-      <DocumentWizard
-        open={showDocumentWizard}
-        onOpenChange={setShowDocumentWizard}
-        applications={applications}
-        preSelectedApplicationId={applicationId}
-        initialMode="generate"
-        preSelectedDocumentType={selectedDocType || undefined}
-        onDocumentCreated={handleDocumentCreated}
-      />
-    </Dialog>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Select a document type to add to the package
+        </p>
+        <div className="grid grid-cols-1 gap-2">
+          {DOCUMENT_TYPES.map((type) => {
+            const Icon = type.icon;
+            const alreadyAdded = documents.some((d) => d.document_type === type.value);
+            return (
+              <button
+                key={type.value}
+                onClick={() => setSelectedDocType(type.value)}
+                disabled={alreadyAdded}
+                className={cn(
+                  "p-3 rounded-lg border text-left transition-all flex items-center gap-3",
+                  alreadyAdded
+                    ? "bg-muted/50 border-border/50 opacity-50 cursor-not-allowed"
+                    : "bg-card hover:bg-accent hover:border-primary/50 cursor-pointer"
+                )}
+              >
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <Icon className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    {type.label}
+                    {alreadyAdded && <Check className="w-3 h-3 text-success" />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{type.description}</p>
+                </div>
+                {!alreadyAdded && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Render request type selection
+  const renderRequestsTab = () => {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Select documents the candidate needs to upload
+        </p>
+        <div className="grid grid-cols-1 gap-2">
+          {REQUEST_TYPES.map((type) => {
+            const isSelected = selectedRequestTypes.includes(type.value);
+            const alreadyAdded = requests.some((r) => r.document_type === type.value);
+            return (
+              <button
+                key={type.value}
+                onClick={() => !alreadyAdded && toggleRequestType(type.value)}
+                disabled={alreadyAdded}
+                className={cn(
+                  "p-3 rounded-lg border text-left transition-all flex items-center gap-3",
+                  alreadyAdded
+                    ? "bg-muted/50 border-border/50 opacity-50 cursor-not-allowed"
+                    : isSelected
+                    ? "border-primary bg-primary/5"
+                    : "bg-card hover:bg-accent hover:border-primary/50 cursor-pointer"
+                )}
+              >
+                <Checkbox
+                  checked={isSelected || alreadyAdded}
+                  disabled={alreadyAdded}
+                  className="pointer-events-none"
+                />
+                <p className="text-sm font-medium flex items-center gap-2 flex-1">
+                  {type.label}
+                  {alreadyAdded && <Check className="w-3 h-3 text-success" />}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedRequestTypes.length > 0 && (
+          <Button className="w-full" onClick={handleAddRequests}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add {selectedRequestTypes.length} Request{selectedRequestTypes.length !== 1 ? "s" : ""} to Package
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  // Render the staging panel (right side)
+  const renderStagingPanel = () => {
+    return (
+      <div className="flex flex-col h-full border-l border-border/50 bg-muted/20">
+        {/* Panel header */}
+        <div className="p-4 border-b border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold">Your Package</h3>
+            {items.length > 0 && (
+              <Badge className="ml-auto">{items.length}</Badge>
+            )}
+          </div>
+          
+          <Input
+            value={packageName}
+            onChange={(e) => setPackageName(e.target.value)}
+            placeholder="Package name..."
+            className="text-sm h-8"
+          />
+          
+          <div className="mt-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start text-left text-xs h-8",
+                    !dueDate && "text-muted-foreground"
+                  )}
+                >
+                  <Calendar className="mr-2 h-3 w-3" />
+                  {dueDate ? `Due: ${format(dueDate, "MMM d, yyyy")}` : "Set due date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={setDueDate}
+                  disabled={(date) => date < new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        {/* Items list */}
+        <ScrollArea className="flex-1 p-3">
+          {items.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No items yet</p>
+              <p className="text-xs text-muted-foreground">
+                Add documents or requests
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Documents */}
+              {documents.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
+                    Documents ({documents.length})
+                  </p>
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-2 rounded-lg bg-card border border-border/50 group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                          <FileText className="w-3 h-3 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.mode === "generate" ? "AI Generated" : "Uploaded"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setPreviewItem(doc)}
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveItem(doc.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Requests */}
+              {requests.length > 0 && (
+                <div className="space-y-1.5 mt-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
+                    Requests ({requests.length})
+                  </p>
+                  {requests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-2 rounded-lg bg-card border border-border/50 group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center shrink-0">
+                          <FileUp className="w-3 h-3 text-amber-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {req.custom_document_name || getDocumentTypeLabel(req.document_type)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Candidate will upload
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveItem(req.id)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </ScrollArea>
+
+        {/* Send button */}
+        <div className="p-3 border-t border-border/50">
+          <Button
+            className="w-full bg-gradient-to-r from-primary to-success hover:from-primary/90 hover:to-success/90"
+            onClick={handleSendPackage}
+            disabled={items.length === 0 || isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Send Package ({items.length})
+              </>
+            )}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            To: {candidateName}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent 
+          className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left side - Main content */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 border-b border-border/50">
+                <div className="flex items-center gap-3 mb-4">
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-success/20 flex items-center justify-center"
+                  >
+                    <PartyPopper className="h-5 w-5 text-primary" />
+                  </motion.div>
+                  <div>
+                    <h2 className="text-lg font-semibold">Create Hiring Package</h2>
+                    <p className="text-sm text-muted-foreground">
+                      For {candidateName} • {jobTitle}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={activeTab === "documents" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setActiveTab("documents")}
+                    className="flex-1"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Documents to Sign
+                    {documents.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {documents.length}
+                      </Badge>
+                    )}
+                  </Button>
+                  <Button
+                    variant={activeTab === "requests" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setActiveTab("requests")}
+                    className="flex-1"
+                  >
+                    <FileUp className="w-4 h-4 mr-2" />
+                    Documents to Request
+                    {requests.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {requests.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <ScrollArea className="flex-1 px-6 py-4">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab + (selectedDocType || "")}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {activeTab === "documents" ? renderDocumentsTab() : renderRequestsTab()}
+                  </motion.div>
+                </AnimatePresence>
+              </ScrollArea>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border/50">
+                <Button variant="ghost" onClick={handleClose}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+
+            {/* Right side - Staging panel */}
+            <div className="w-72 shrink-0 hidden sm:flex flex-col">
+              {renderStagingPanel()}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview dialog for documents */}
+      <Dialog open={!!previewItem} onOpenChange={() => setPreviewItem(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold">{previewItem?.name}</h3>
+              <p className="text-sm text-muted-foreground">
+                {previewItem?.mode === "generate" ? "AI Generated Document" : "Uploaded Document"}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-auto border rounded-lg bg-white">
+            {previewItem?.content ? (
+              <iframe
+                srcDoc={previewItem.content}
+                className="w-full h-full min-h-[400px]"
+                title="Document Preview"
+              />
+            ) : previewItem?.file_url ? (
+              <iframe
+                src={previewItem.file_url}
+                className="w-full h-full min-h-[400px]"
+                title="Document Preview"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Preview not available
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
