@@ -21,12 +21,11 @@ const colors = {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    padding: 32,
     fontFamily: 'Helvetica',
-    fontSize: 10,
+    fontSize: 9,
     color: colors.body,
   },
-  // Page wrapper for flex-based footer positioning
   pageWrapper: {
     flex: 1,
     display: 'flex',
@@ -35,15 +34,15 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
-  // Header styles - fixed to use proper flex row layout
+  // Header styles - compact
   header: {
     backgroundColor: colors.primary,
-    marginLeft: -40,
-    marginRight: -40,
-    marginTop: -40,
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    marginBottom: 24,
+    marginLeft: -32,
+    marginRight: -32,
+    marginTop: -32,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginBottom: 14,
   },
   headerRow: {
     flexDirection: 'row',
@@ -51,335 +50,341 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 4,
-    lineHeight: 1.3,
+    marginBottom: 2,
+    lineHeight: 1.2,
   },
   headerSubtitle: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.white,
     opacity: 0.9,
-    lineHeight: 1.4,
+    lineHeight: 1.3,
   },
   headerDate: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.white,
     opacity: 0.9,
     textAlign: 'right',
-    lineHeight: 1.4,
+    lineHeight: 1.3,
   },
   // Page header bar
   pageHeaderBar: {
-    marginLeft: -40,
-    marginRight: -40,
-    marginTop: -40,
-    height: 8,
-    marginBottom: 20,
+    marginLeft: -32,
+    marginRight: -32,
+    marginTop: -32,
+    height: 6,
+    marginBottom: 12,
   },
   pageNumber: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.muted,
     textAlign: 'right',
-    marginBottom: 8,
-    lineHeight: 1.4,
-  },
-  // Section styles
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
     marginBottom: 6,
     lineHeight: 1.3,
   },
-  sectionSubtitle: {
-    fontSize: 9,
-    color: colors.muted,
-    marginBottom: 12,
-    lineHeight: 1.5,
+  // Section styles - tighter spacing
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    lineHeight: 1.2,
   },
-  // Card styles
+  sectionSubtitle: {
+    fontSize: 8,
+    color: colors.muted,
+    marginBottom: 8,
+    lineHeight: 1.4,
+  },
+  // Card styles - reduced padding and margins
   card: {
     backgroundColor: colors.light,
     borderRadius: 4,
-    padding: 12,
-    marginBottom: 10,
+    padding: 8,
+    marginBottom: 6,
   },
   cardWithBorder: {
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 4,
-    padding: 12,
-    marginBottom: 10,
+    padding: 8,
+    marginBottom: 6,
   },
   successCard: {
     backgroundColor: colors.successBg,
     borderRadius: 4,
-    padding: 12,
-    marginBottom: 8,
+    padding: 8,
+    marginBottom: 6,
   },
   coachingCard: {
     backgroundColor: colors.coachingBg,
     borderRadius: 4,
-    padding: 12,
-    marginBottom: 8,
+    padding: 8,
+    marginBottom: 6,
   },
   primaryCard: {
     backgroundColor: colors.primary,
     borderRadius: 4,
-    padding: 14,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 8,
   },
-  // Score section - replaced gap with explicit margin
+  // Score section - compact
   scoreContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   scoreCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   scoreNumber: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: colors.white,
     lineHeight: 1.2,
   },
   scoreLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
     color: colors.dark,
-    marginBottom: 4,
-    lineHeight: 1.3,
+    marginBottom: 2,
+    lineHeight: 1.2,
   },
   scoreContext: {
-    fontSize: 9,
+    fontSize: 8,
     color: colors.muted,
     maxWidth: 400,
-    lineHeight: 1.5,
-  },
-  // Insight box
-  insightLabel: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-    opacity: 0.9,
     lineHeight: 1.4,
   },
-  insightText: {
-    fontSize: 10,
-    color: colors.white,
-    lineHeight: 1.5,
-  },
-  // Strength card
-  strengthName: {
-    fontSize: 11,
+  // Insight box - compact
+  insightLabel: {
+    fontSize: 8,
     fontWeight: 'bold',
-    color: colors.success,
-    marginBottom: 6,
+    color: colors.white,
+    marginBottom: 3,
+    opacity: 0.9,
     lineHeight: 1.3,
   },
-  evidenceText: {
+  insightText: {
     fontSize: 9,
+    color: colors.white,
+    lineHeight: 1.4,
+  },
+  // Strength card - compact
+  strengthName: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.success,
+    marginBottom: 4,
+    lineHeight: 1.2,
+  },
+  evidenceText: {
+    fontSize: 8,
     fontStyle: 'italic',
     color: colors.body,
-    marginBottom: 8,
-    lineHeight: 1.5,
+    marginBottom: 4,
+    lineHeight: 1.4,
   },
   strategyLabel: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.dark,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
   strategyText: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.body,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
-  // Improvement card - replaced gap with explicit margin
+  // Improvement card - compact
   improvementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   numberBadge: {
     backgroundColor: colors.coaching,
     borderRadius: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginRight: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 6,
   },
   numberText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
     color: colors.white,
     lineHeight: 1.2,
   },
   areaName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 'bold',
     color: colors.dark,
     flex: 1,
-    lineHeight: 1.3,
+    lineHeight: 1.2,
   },
   observedText: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.body,
-    marginBottom: 6,
-    lineHeight: 1.5,
+    marginBottom: 4,
+    lineHeight: 1.4,
   },
   whyText: {
-    fontSize: 8,
+    fontSize: 7,
     fontStyle: 'italic',
     color: colors.muted,
-    marginBottom: 8,
-    lineHeight: 1.5,
+    marginBottom: 5,
+    lineHeight: 1.4,
   },
   strategySection: {
-    marginTop: 4,
+    marginTop: 2,
   },
   strategyHeading: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 'bold',
     color: colors.success,
     marginBottom: 2,
-    lineHeight: 1.4,
+    lineHeight: 1.3,
   },
   habitText: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.body,
-    marginBottom: 4,
-    lineHeight: 1.5,
+    marginBottom: 3,
+    lineHeight: 1.4,
   },
   resourceText: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.primary,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
-  // Week grid - converted to single column layout
+  // Week grid - compact single column
   weekGrid: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   weekCard: {
     backgroundColor: colors.light,
     borderRadius: 4,
-    padding: 10,
-    marginBottom: 8,
+    padding: 8,
+    marginBottom: 5,
   },
   weekHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   weekBadge: {
     backgroundColor: colors.primary,
     borderRadius: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginRight: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 6,
   },
   weekLabel: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 'bold',
     color: colors.white,
     lineHeight: 1.2,
   },
   weekFocus: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
     color: colors.dark,
     flex: 1,
-    lineHeight: 1.3,
+    lineHeight: 1.2,
   },
   actionItem: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.body,
-    marginBottom: 3,
-    lineHeight: 1.5,
-  },
-  successMetric: {
-    fontSize: 7,
-    color: colors.success,
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginBottom: 2,
     lineHeight: 1.4,
   },
-  // Closing section
-  closingCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    padding: 16,
-    marginBottom: 16,
-  },
-  closingTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 10,
+  successMetric: {
+    fontSize: 6,
+    color: colors.success,
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
     lineHeight: 1.3,
   },
-  closingNote: {
-    fontSize: 9,
+  // Closing section - compact
+  closingCard: {
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 10,
+  },
+  closingTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
     color: colors.white,
-    lineHeight: 1.6,
-    marginBottom: 12,
+    marginBottom: 6,
+    lineHeight: 1.2,
+  },
+  closingNote: {
+    fontSize: 8,
+    color: colors.white,
+    lineHeight: 1.5,
+    marginBottom: 8,
   },
   finalThought: {
-    fontSize: 10,
+    fontSize: 8,
     fontStyle: 'italic',
     color: colors.white,
     opacity: 0.95,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
-  // Immediate actions - replaced gap with explicit margin
+  // Immediate actions - compact
   actionsTitle: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 'bold',
     color: colors.dark,
-    marginBottom: 8,
-    lineHeight: 1.3,
+    marginBottom: 6,
+    lineHeight: 1.2,
   },
   actionCheckItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   checkbox: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: 2,
     marginTop: 1,
-    marginRight: 8,
+    marginRight: 6,
   },
   actionText: {
-    fontSize: 9,
+    fontSize: 8,
     color: colors.body,
     flex: 1,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
-  // Footer - using flex layout instead of absolute positioning
+  // Footer - compact
   footer: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 10,
+    paddingTop: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 'auto',
   },
   footerText: {
-    fontSize: 7,
+    fontSize: 6,
     color: colors.muted,
-    lineHeight: 1.4,
+    lineHeight: 1.3,
+  },
+  // Divider
+  sectionDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginVertical: 10,
   },
 });
 
@@ -405,13 +410,13 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
 
   return (
     <Document>
-      {/* PAGE 1: Summary & Honest Reflection */}
+      {/* PAGE 1: Summary, Honest Reflection & Strengths (merged) */}
       <Page size="A4" style={styles.page}>
         <View style={styles.pageWrapper}>
           <View style={styles.contentContainer}>
             <View style={styles.header}>
               <View style={styles.headerRow}>
-                <View style={{ flex: 1, marginRight: 16 }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
                   <Text style={styles.headerTitle}>Personal Improvement Blueprint</Text>
                   <Text style={styles.headerSubtitle}>Prepared for {metadata.candidateName}</Text>
                 </View>
@@ -419,13 +424,15 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
               </View>
             </View>
 
+            {/* What Happened */}
             <Text style={[styles.sectionTitle, { color: colors.dark }]}>What Happened</Text>
             <View style={styles.card}>
-              <Text style={{ lineHeight: 1.6, fontSize: 10 }}>
+              <Text style={{ lineHeight: 1.5, fontSize: 9 }}>
                 {honestReflection?.whatHappened || "Application was not advanced to the next stage."}
               </Text>
             </View>
 
+            {/* Score */}
             <View style={styles.cardWithBorder}>
               <View style={styles.scoreContainer}>
                 <View style={[styles.scoreCircle, { backgroundColor: getScoreColor(metadata.overallScore) }]}>
@@ -440,34 +447,24 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
               </View>
             </View>
 
+            {/* Key Insight */}
             <View style={styles.primaryCard}>
               <Text style={styles.insightLabel}>KEY INSIGHT</Text>
               <Text style={styles.insightText}>
                 {honestReflection?.keyInsight || "Focus on continuous improvement and learning from this experience."}
               </Text>
             </View>
-          </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Personal Improvement Blueprint</Text>
-            <Text style={styles.footerText}>Page 1 of 4</Text>
-          </View>
-        </View>
-      </Page>
+            {/* Divider */}
+            <View style={styles.sectionDivider} />
 
-      {/* PAGE 2: Strengths to Leverage */}
-      <Page size="A4" style={styles.page}>
-        <View style={styles.pageWrapper}>
-          <View style={styles.contentContainer}>
-            <View style={[styles.pageHeaderBar, { backgroundColor: colors.success }]} />
-            <Text style={styles.pageNumber}>Page 2 of 4</Text>
-
+            {/* Strengths Section */}
             <Text style={[styles.sectionTitle, { color: colors.success }]}>Your Strengths to Leverage</Text>
             <Text style={styles.sectionSubtitle}>
               These are real advantages you demonstrated. Here's how to present them even better.
             </Text>
 
-            {(strengthsToLeverage?.identified || []).slice(0, 4).map((item, idx) => (
+            {(strengthsToLeverage?.identified || []).slice(0, 3).map((item, idx) => (
               <View key={idx} style={styles.successCard} wrap={false}>
                 <Text style={styles.strengthName}>{item.strength || "Strength"}</Text>
                 <Text style={styles.evidenceText}>"{item.evidence || ''}"</Text>
@@ -477,6 +474,7 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
               </View>
             ))}
 
+            {/* Hidden Edge */}
             <View style={styles.primaryCard}>
               <Text style={styles.insightLabel}>YOUR HIDDEN EDGE</Text>
               <Text style={styles.insightText}>
@@ -487,17 +485,17 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Personal Improvement Blueprint</Text>
-            <Text style={styles.footerText}>Page 2 of 4</Text>
+            <Text style={styles.footerText}>Page 1 of 3</Text>
           </View>
         </View>
       </Page>
 
-      {/* PAGE 3: What to Improve */}
+      {/* PAGE 2: What to Improve */}
       <Page size="A4" style={styles.page}>
         <View style={styles.pageWrapper}>
           <View style={styles.contentContainer}>
             <View style={[styles.pageHeaderBar, { backgroundColor: colors.coaching }]} />
-            <Text style={styles.pageNumber}>Page 3 of 4</Text>
+            <Text style={styles.pageNumber}>Page 2 of 3</Text>
 
             <Text style={[styles.sectionTitle, { color: colors.coaching }]}>What to Improve</Text>
             <Text style={styles.sectionSubtitle}>
@@ -544,17 +542,17 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Personal Improvement Blueprint</Text>
-            <Text style={styles.footerText}>Page 3 of 4</Text>
+            <Text style={styles.footerText}>Page 2 of 3</Text>
           </View>
         </View>
       </Page>
 
-      {/* PAGE 4: 30-Day Plan & Closing */}
+      {/* PAGE 3: 30-Day Plan & Closing */}
       <Page size="A4" style={styles.page}>
         <View style={styles.pageWrapper}>
           <View style={styles.contentContainer}>
             <View style={[styles.pageHeaderBar, { backgroundColor: colors.primary }]} />
-            <Text style={styles.pageNumber}>Page 4 of 4</Text>
+            <Text style={styles.pageNumber}>Page 3 of 3</Text>
 
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>Your 30-Day Improvement Plan</Text>
 
@@ -603,7 +601,7 @@ export function ImprovementBlueprintPDF({ data }: { data: ImprovementBlueprintDa
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Personal Improvement Blueprint</Text>
-            <Text style={styles.footerText}>Page 4 of 4</Text>
+            <Text style={styles.footerText}>Page 3 of 3</Text>
           </View>
         </View>
       </Page>
