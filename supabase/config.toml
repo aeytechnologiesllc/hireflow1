@@ -1,7 +1,7 @@
 project_id = "yvczrgulhswbxsfnyqan"
 
 [functions.ai-analyze]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-analyze-document-fields]
 verify_jwt = true
