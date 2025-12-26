@@ -134,9 +134,8 @@ export function useImprovementBlueprint() {
         throw new Error("No PDF data received");
       }
 
-      // Convert base64 data URI to blob and download
-      const pdfDataUri = pdfResult.pdf;
-      const base64Data = pdfDataUri.split(',')[1];
+      // Convert base64 to blob and download (server already extracted base64)
+      const base64Data = pdfResult.pdf;
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
