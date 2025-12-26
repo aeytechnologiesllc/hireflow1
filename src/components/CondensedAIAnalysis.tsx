@@ -29,7 +29,52 @@ interface ParsedSection {
 
 // ============= Human-Readable Helpers =============
 
+// Detect placeholder values that shouldn't be displayed to users
+const PLACEHOLDER_PATTERNS = [
+  'CANNOT_VERIFY', 'CANNOT VERIFY', 'CANNOTVERIFY',
+  'NOT_AVAILABLE', 'NOT AVAILABLE', 'NOTAVAILABLE',
+  'NOT_PROVIDED', 'NOT PROVIDED', 'NOTPROVIDED',
+  'UNVERIFIED', 'UNKNOWN', 'N/A', 'NA', 'TBD',
+  '[MATCH/MISMATCH/CANNOT_VERIFY]', '[CANNOT_VERIFY]',
+  'PLACEHOLDER', 'UNDEFINED', 'NULL'
+];
+
+function isPlaceholderValue(value: string): boolean {
+  if (!value || typeof value !== 'string') return true;
+  const upperValue = value.toUpperCase().trim();
+  
+  // Check for exact matches or contains
+  for (const placeholder of PLACEHOLDER_PATTERNS) {
+    if (upperValue === placeholder || upperValue.includes(placeholder)) {
+      return true;
+    }
+  }
+  
+  // Check for bracket patterns like [SOMETHING]
+  if (/^\[.*\]$/.test(value.trim())) {
+    return true;
+  }
+  
+  return false;
+}
+
+function cleanPlaceholderFromText(text: string): string {
+  if (!text) return '';
+  
+  let cleaned = text;
+  for (const placeholder of PLACEHOLDER_PATTERNS) {
+    // Remove the placeholder and any surrounding punctuation/whitespace
+    const regex = new RegExp(`[,;:\\s]*${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,;:\\s]*`, 'gi');
+    cleaned = cleaned.replace(regex, ' ');
+  }
+  
+  // Clean up any double spaces and trim
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
 function humanizeStatus(status: string): string {
+  if (isPlaceholderValue(status)) return '';
+  
   return status
     .replace(/_/g, ' ')
     .toLowerCase()
@@ -49,54 +94,74 @@ function generateParagraphSummary(items: string[]): string {
   const sentences: string[] = [];
   
   for (const item of items) {
+    // Skip items that are just placeholder values
+    if (isPlaceholderValue(item)) continue;
+    
     const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
     if (match) {
       const label = match[1].trim();
       const value = match[2].trim();
-      const humanValue = humanizeStatus(value);
+      
+      // Skip if the value is a placeholder
+      if (isPlaceholderValue(value)) continue;
+      
+      const cleanedValue = cleanPlaceholderFromText(value);
+      if (!cleanedValue) continue;
+      
+      const humanValue = humanizeStatus(cleanedValue);
+      if (!humanValue) continue;
+      
       const labelLower = label.toLowerCase();
       
       if (labelLower.includes('status') || labelLower.includes('result')) {
         sentences.push(`The ${labelLower} is ${humanValue.toLowerCase()}.`);
       } else if (labelLower.includes('match') && labelLower.includes('name')) {
-        if (value.toUpperCase().includes('MISMATCH')) {
-          const details = value.replace(/^MISMATCH\s*[-–—]\s*/i, '');
-          sentences.push(`There's a name discrepancy. ${details}`);
+        if (cleanedValue.toUpperCase().includes('MISMATCH')) {
+          const details = cleanPlaceholderFromText(cleanedValue.replace(/^MISMATCH\s*[-–—]\s*/i, ''));
+          if (details) {
+            sentences.push(`There's a name discrepancy. ${details}`);
+          }
         } else {
           sentences.push(`The name matches the application.`);
         }
       } else if (labelLower.includes('matching skills')) {
-        if (value.toLowerCase().includes('none') || value === '0') {
+        if (cleanedValue.toLowerCase().includes('none') || cleanedValue === '0') {
           sentences.push(`No matching skills were found on this resume.`);
         } else {
           sentences.push(`The candidate has matching skills: ${humanValue}.`);
         }
       } else if (labelLower.includes('missing skills')) {
-        if (value.toLowerCase() !== 'none' && value !== 'N/A') {
-          sentences.push(`Key skills missing: ${value}.`);
+        if (cleanedValue.toLowerCase() !== 'none') {
+          sentences.push(`Key skills missing: ${cleanedValue}.`);
         }
       } else if (labelLower.includes('match rate') || labelLower.includes('score')) {
-        sentences.push(`The overall match rate is ${value}.`);
+        sentences.push(`The overall match rate is ${cleanedValue}.`);
       } else if (labelLower.includes('experience')) {
-        if (value.toUpperCase().includes('INCONSISTENT') || value.toUpperCase().includes('UNRELATED')) {
-          const details = value.replace(/^(INCONSISTENT|UNRELATED)\s*[-–—]\s*/i, '');
-          sentences.push(`The experience appears unrelated. ${details}`);
+        if (cleanedValue.toUpperCase().includes('INCONSISTENT') || cleanedValue.toUpperCase().includes('UNRELATED')) {
+          const details = cleanPlaceholderFromText(cleanedValue.replace(/^(INCONSISTENT|UNRELATED)\s*[-–—]\s*/i, ''));
+          if (details) {
+            sentences.push(`The experience appears unrelated. ${details}`);
+          }
         } else {
           sentences.push(`Experience: ${humanValue}.`);
         }
       } else if (labelLower.includes('confidence') || labelLower.includes('authenticity')) {
         sentences.push(`${label}: ${humanValue}.`);
       } else if (labelLower.includes('red flag') || labelLower.includes('concern')) {
-        if (value.toLowerCase() !== 'none' && value !== 'N/A' && value !== '0') {
-          sentences.push(`Concern: ${value}.`);
+        if (cleanedValue.toLowerCase() !== 'none' && cleanedValue !== '0') {
+          sentences.push(`Concern: ${cleanedValue}.`);
         }
       } else if (labelLower.includes('notes') || labelLower.includes('summary')) {
-        sentences.push(value);
+        sentences.push(cleanedValue);
       } else {
         sentences.push(`${label}: ${humanValue}.`);
       }
     } else {
-      sentences.push(item);
+      // For non key:value items, clean and add if valid
+      const cleaned = cleanPlaceholderFromText(item);
+      if (cleaned && !isPlaceholderValue(cleaned)) {
+        sentences.push(cleaned);
+      }
     }
   }
   
@@ -238,28 +303,37 @@ function generateFullSummary(sections: ParsedSection[], recommendation: string |
     // Extract Skills Analysis
     if (titleLower.includes('skill')) {
       for (const item of section.items) {
+        // Skip placeholder items
+        if (isPlaceholderValue(item)) continue;
+        
         const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
         if (match) {
           const label = match[1].trim().toLowerCase();
           const value = match[2].trim();
           
+          // Skip placeholder values
+          if (isPlaceholderValue(value)) continue;
+          
+          const cleanedValue = cleanPlaceholderFromText(value);
+          if (!cleanedValue) continue;
+          
           if (label.includes('matching') || label.includes('relevant')) {
-            if (value.toLowerCase().includes('none') || value === '0') {
+            if (cleanedValue.toLowerCase().includes('none') || cleanedValue === '0') {
               skillsInfo.push('No matching skills were found for this position');
               concerns.push('No relevant skills match');
             } else {
-              skillsInfo.push(`Matching skills: ${value}`);
+              skillsInfo.push(`Matching skills: ${cleanedValue}`);
             }
           }
           
           if (label.includes('missing') || label.includes('gap')) {
-            if (!value.toLowerCase().includes('none')) {
-              skillsInfo.push(`Skills gaps identified: ${value}`);
+            if (!cleanedValue.toLowerCase().includes('none')) {
+              skillsInfo.push(`Skills gaps identified: ${cleanedValue}`);
             }
           }
           
           if (label.includes('strength')) {
-            strengths.push(value);
+            strengths.push(cleanedValue);
           }
         }
       }
@@ -432,15 +506,27 @@ function generateFullSummary(sections: ParsedSection[], recommendation: string |
   // Skills assessment
   if (skillsInfo.length > 0) {
     for (const skill of skillsInfo) {
-      if (skill.toLowerCase().includes('no matching skills')) {
+      // Skip placeholder values entirely
+      if (isPlaceholderValue(skill)) continue;
+      
+      const cleanedSkill = cleanPlaceholderFromText(skill);
+      if (!cleanedSkill) continue;
+      
+      if (cleanedSkill.toLowerCase().includes('no matching skills')) {
         resumeSentences.push(`I couldn't find any of the skills we need for this position on their resume.`);
-      } else if (skill.toLowerCase().includes('skills gap')) {
-        const gapMatch = skill.match(/Skills gaps identified:\s*(.+)/i);
+      } else if (cleanedSkill.toLowerCase().includes('skills gap')) {
+        const gapMatch = cleanedSkill.match(/Skills gaps identified:\s*(.+)/i);
         if (gapMatch) {
-          resumeSentences.push(`We're looking for things like ${gapMatch[1]} - and those weren't showing up.`);
+          const gapValue = cleanPlaceholderFromText(gapMatch[1]);
+          if (gapValue && !isPlaceholderValue(gapValue)) {
+            resumeSentences.push(`We're looking for things like ${gapValue} - and those weren't showing up.`);
+          }
         }
-      } else if (skill.toLowerCase().includes('matching skills')) {
-        resumeSentences.push(`On the positive side, I did find some relevant skills: ${skill.replace(/Matching skills:\s*/i, '')}.`);
+      } else if (cleanedSkill.toLowerCase().includes('matching skills')) {
+        const skillValue = cleanPlaceholderFromText(cleanedSkill.replace(/Matching skills:\s*/i, ''));
+        if (skillValue && !isPlaceholderValue(skillValue)) {
+          resumeSentences.push(`On the positive side, I did find some relevant skills: ${skillValue}.`);
+        }
       }
     }
   }
