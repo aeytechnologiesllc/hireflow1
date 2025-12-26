@@ -50,8 +50,6 @@ import { SalesAnalysisDialog } from "@/components/SalesAnalysisDialog";
 import { AvaInterviewConfigDialog } from "@/components/AvaInterviewConfigDialog";
 import { VoiceInterviewResultsDialog } from "@/components/VoiceInterviewResultsDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
-import { DocumentWizard } from "@/components/documents/DocumentWizard";
-import { HiringPackageWizard } from "@/components/documents/HiringPackageWizard";
 import { MediaPlayer } from "@/components/MediaPlayer";
 import { useApplicantDossier } from "@/hooks/useApplicantDossier";
 import { RescheduleInterviewDialog } from "@/components/RescheduleInterviewDialog";
@@ -182,9 +180,6 @@ export default function ApplicantDetails() {
     newPhase: { id: string; title: string; type: string };
   } | null>(null);
   const [showHiringDocumentPrompt, setShowHiringDocumentPrompt] = useState(false);
-  const [showDocumentWizard, setShowDocumentWizard] = useState(false);
-  const [showHiringPackageWizard, setShowHiringPackageWizard] = useState(false);
-  const [documentWizardMode, setDocumentWizardMode] = useState<"generate" | "upload" | undefined>();
   const [showCancelInterviewConfirm, setShowCancelInterviewConfirm] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
@@ -3689,57 +3684,9 @@ ${interviewType} Interview with AVA Results:
         onOpenChange={setShowHiringDocumentPrompt}
         candidateName={profile?.full_name || "this candidate"}
         jobTitle={job?.title || "this position"}
-        onCreateDocument={() => {
-          setDocumentWizardMode("generate");
-          setShowHiringDocumentPrompt(false);
-          setShowDocumentWizard(true);
-        }}
-        onUploadDocument={() => {
-          setDocumentWizardMode("upload");
-          setShowHiringDocumentPrompt(false);
-          setShowDocumentWizard(true);
-        }}
-        onCreatePackage={() => {
-          setShowHiringDocumentPrompt(false);
-          setShowHiringPackageWizard(true);
-        }}
+        applicationId={application?.id || ""}
         onSkip={() => setShowHiringDocumentPrompt(false)}
       />
-
-      {/* Document Wizard (pre-populated) */}
-      <DocumentWizard
-        open={showDocumentWizard}
-        onOpenChange={setShowDocumentWizard}
-        applications={application ? [{
-          id: application.id,
-          candidate_id: application.candidate_id,
-          profiles: {
-            full_name: profile?.full_name || null,
-            email: profile?.email || "",
-            avatar_url: profile?.avatar_url || null,
-          },
-          jobs: {
-            id: job?.id || "",
-            title: job?.title || "",
-          },
-        }] : []}
-        preSelectedApplicationId={application?.id}
-        initialMode={documentWizardMode}
-      />
-
-      {/* Hiring Package Wizard */}
-      {application && (
-        <HiringPackageWizard
-          open={showHiringPackageWizard}
-          onOpenChange={setShowHiringPackageWizard}
-          applicationId={application.id}
-          candidateId={application.candidate_id}
-          candidateName={profile?.full_name || "Candidate"}
-          candidateEmail={profile?.email || ""}
-          jobId={job?.id || ""}
-          jobTitle={job?.title || "Position"}
-        />
-      )}
 
       {/* Cancel Interview Confirmation */}
       <AlertDialog open={showCancelInterviewConfirm} onOpenChange={setShowCancelInterviewConfirm}>
