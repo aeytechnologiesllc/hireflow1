@@ -55,8 +55,8 @@ export interface ImprovementBlueprintData {
   };
 }
 
-// v3 cache key to force regeneration after blueprint content-quality updates
-const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v3";
+// v4 cache key to force regeneration with tone refinement, executive summary, and professional language
+const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v4";
 
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
