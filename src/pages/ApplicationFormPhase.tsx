@@ -355,8 +355,8 @@ export default function ApplicationFormPhase() {
         { id: "hired", type: "hired", title: "Hired" }
       );
       
-      // Find current step index
-      let currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);
+      // Find current step index (application phase)
+      const currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);
       
       // Determine next phase
       let nextPhase: { id: string; type: string; title?: string } | null = null;
@@ -367,24 +367,11 @@ export default function ApplicationFormPhase() {
       if (nextPhase && nextPhase.type !== "review") {
         setNextPhaseInfo({ id: nextPhase.id, title: nextPhase.title || nextPhase.type });
       }
-      
-      // Determine new phase - advance to next if auto mode OR if next phase is review
-      let newPhase = application.phase || "application";
-      if (isAutoPilot || nextPhase?.type === "review") {
-        if (nextPhase) {
-          newPhase = nextPhase.id;
-        }
-      }
-      
-      // Update the phase in the database
-      await supabase
-        .from("applications")
-        .update({ phase: newPhase })
-        .eq("id", id!);
 
-      // Always trigger AVA analysis via backend edge function (bypasses RLS issues)
+      // Handle autopilot mode: Run AI analysis FIRST, then decide whether to advance or reject
       if (isAutoPilot) {
-        // Trigger analysis and evaluate - wait for it in auto mode
+        // Trigger AI analysis and wait for it
+        console.log("[ApplicationFormPhase] Autopilot mode: Running AI analysis BEFORE phase advancement...");
         await supabase.functions.invoke("trigger-ava-analysis", {
           body: { applicationId: id! },
         });
@@ -399,17 +386,57 @@ export default function ApplicationFormPhase() {
         const score = updatedApp?.ai_score || 0;
         const passingScore = application.jobs?.passing_score || 60;
         setAiScore(score);
+        
+        console.log(`[ApplicationFormPhase] Autopilot: Score=${score}, PassingScore=${passingScore}, Passed=${score >= passingScore}`);
 
         if (score >= passingScore) {
+          // PASSED - advance to next phase (quiz if exists, otherwise first workflow step)
+          const newPhase = nextPhase?.id || "application";
+          console.log(`[ApplicationFormPhase] Autopilot: PASSED - advancing to phase: ${newPhase}`);
+          
+          await supabase
+            .from("applications")
+            .update({ 
+              phase: newPhase,
+              status: "reviewing"
+            })
+            .eq("id", id!);
+          
           setEvaluationState("passed");
         } else {
+          // FAILED - reject and do NOT advance phase
+          console.log(`[ApplicationFormPhase] Autopilot: FAILED - rejecting application, keeping at application phase`);
+          
+          await supabase
+            .from("applications")
+            .update({ 
+              status: "rejected",
+              rejected_by_type: "ava",
+              phase_ai_analysis: `Overall Ava score of ${score}% is below the passing threshold of ${passingScore}%.`
+            })
+            .eq("id", id!);
+          
           setEvaluationState("failed");
         }
       } else {
-        // Manual mode - trigger analysis in background and navigate
+        // Manual mode - advance phase normally, trigger analysis in background
+        let newPhase = application.phase || "application";
+        if (nextPhase?.type === "review") {
+          newPhase = nextPhase.id;
+        } else if (nextPhase) {
+          newPhase = nextPhase.id;
+        }
+        
+        await supabase
+          .from("applications")
+          .update({ phase: newPhase })
+          .eq("id", id!);
+        
+        // Trigger analysis in background
         supabase.functions.invoke("trigger-ava-analysis", {
           body: { applicationId: id! },
         }).catch(err => console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err));
+        
         toast.success("Application submitted successfully!");
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         navigate(`/applications/${id}`);
