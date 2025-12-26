@@ -2536,7 +2536,7 @@ ${interviewType} Interview with AVA Results:
                       variant="outline" 
                       size="sm" 
                       onClick={handleReanalyze}
-                      disabled={isAnalyzing || !hasValidApplicationData}
+                      disabled={isAnalyzing || !hasValidApplicationData || isRejected}
                       className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
                     >
                       {isAnalyzing ? (
@@ -2548,9 +2548,11 @@ ${interviewType} Interview with AVA Results:
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {!hasValidApplicationData && (
+                {(isRejected || !hasValidApplicationData) && (
                   <TooltipContent>
-                    <p>No application data available. The candidate must resubmit the application first.</p>
+                    <p>{isRejected 
+                      ? "Analysis is locked. This applicant has already been rejected." 
+                      : "No application data available. The candidate must resubmit the application first."}</p>
                   </TooltipContent>
                 )}
               </Tooltip>
