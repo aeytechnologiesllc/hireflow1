@@ -509,11 +509,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           break;
 
         case 'response.audio.done':
-          // Give a longer buffer for WebRTC audio playback to finish
+          // Short buffer for WebRTC audio playback to finish (snappier transitions)
           console.log('Audio done event received, setting isSpeaking false after buffer');
           setTimeout(() => {
             setState(s => ({ ...s, isSpeaking: false }));
-          }, 800);
+          }, 300);
           break;
 
         case 'response.audio_transcript.delta':
