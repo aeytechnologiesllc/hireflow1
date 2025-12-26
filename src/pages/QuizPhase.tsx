@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   ArrowLeft, 
   ArrowRight,
@@ -61,10 +62,23 @@ interface AntiCheatViolation {
 
 interface QuizProgress {
   currentQuestionIndex: number;
-  answers: Record<string, number>;
+  answers: Record<string, number | string>;
   startedAt: string;
   violations: AntiCheatViolation[];
 }
+
+// Helper to detect question type
+const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'text' => {
+  // If type is explicitly set to a text-based type, use text
+  if (question.type === 'text' || question.type === 'open_ended' || question.type === 'short_answer' || question.type === 'long_answer') {
+    return 'text';
+  }
+  // If no options or empty options array, treat as text
+  if (!question.options || question.options.length === 0) {
+    return 'text';
+  }
+  return 'multiple_choice';
+};
 
 export default function QuizPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
@@ -76,7 +90,7 @@ export default function QuizPhase() {
   const QUIZ_STORAGE_KEY = `quiz_progress_${id}_${stepId}`;
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, number | string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<{
@@ -288,6 +302,23 @@ export default function QuizPhase() {
     }));
   };
 
+  const handleTextAnswerChange = (text: string) => {
+    if (!currentQuestion) return;
+    setAnswers(prev => ({
+      ...prev,
+      [currentQuestion.id]: text,
+    }));
+  };
+
+  // Check if a question has been answered (works for both types)
+  const isQuestionAnswered = (questionId: string, question: QuizQuestion): boolean => {
+    const answer = answers[questionId];
+    if (getQuestionType(question) === 'text') {
+      return typeof answer === 'string' && answer.trim().length > 0;
+    }
+    return answer !== undefined;
+  };
+
   const goToNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
@@ -296,9 +327,18 @@ export default function QuizPhase() {
 
   const calculateResults = useCallback(() => {
     let correct = 0;
+    let multipleChoiceCount = 0;
     
     questions.forEach(q => {
       const userAnswer = answers[q.id];
+      
+      // Text questions are counted as "completed" - they get reviewed by AI/employer
+      if (getQuestionType(q) === 'text') {
+        // Text answers don't count toward the multiple choice score
+        return;
+      }
+      
+      multipleChoiceCount++;
       if (userAnswer === undefined) return;
       
       // Get correct answer - handle both field names and formats
@@ -326,11 +366,12 @@ export default function QuizPhase() {
       }
     });
     
-    const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+    // Score is based only on multiple-choice questions
+    const score = multipleChoiceCount > 0 ? Math.round((correct / multipleChoiceCount) * 100) : 100;
     const passingScore = application?.jobs?.passing_score || 60;
     const passed = score >= passingScore;
     
-    return { correct, total: questions.length, score, passed };
+    return { correct, total: multipleChoiceCount, score, passed };
   }, [questions, answers, application?.jobs?.passing_score]);
 
   const handleFinishQuiz = useCallback(() => {
@@ -423,6 +464,21 @@ export default function QuizPhase() {
       // Create answers summary
       const answersSummary = questions.map(q => {
         const userAnswer = answers[q.id];
+        const questionType = getQuestionType(q);
+        
+        // For text questions, store the text answer directly
+        if (questionType === 'text') {
+          return {
+            questionId: q.id,
+            question: q.question,
+            questionType: 'text',
+            textAnswer: typeof userAnswer === 'string' ? userAnswer : '',
+            selectedAnswer: null,
+            selectedAnswerText: typeof userAnswer === 'string' ? userAnswer : 'Not answered',
+            correctAnswer: null,
+            isCorrect: null, // Text answers are reviewed by AI/employer
+          };
+        }
         
         // Get correct answer - handle both field names and formats (same logic as calculateResults)
         let correctAnswerIndex: number | undefined;
@@ -440,13 +496,16 @@ export default function QuizPhase() {
           }
         }
         
+        const answerIndex = typeof userAnswer === 'number' ? userAnswer : undefined;
+        
         return {
           questionId: q.id,
           question: q.question,
-          selectedAnswer: userAnswer,
-          selectedAnswerText: q.options?.[userAnswer] || "Not answered",
+          questionType: 'multiple_choice',
+          selectedAnswer: answerIndex,
+          selectedAnswerText: answerIndex !== undefined ? (q.options?.[answerIndex] || "Not answered") : "Not answered",
           correctAnswer: correctAnswerIndex,
-          isCorrect: userAnswer !== undefined && correctAnswerIndex !== undefined && userAnswer === correctAnswerIndex,
+          isCorrect: answerIndex !== undefined && correctAnswerIndex !== undefined && answerIndex === correctAnswerIndex,
         };
       });
       
@@ -827,39 +886,49 @@ export default function QuizPhase() {
                   {currentQuestion.question}
                 </h3>
                 
-                <RadioGroup
-                  value={answers[currentQuestion.id]?.toString() ?? ""}
-                  onValueChange={(value) => handleAnswerSelect(parseInt(value))}
-                  className="space-y-3"
-                >
-                  {currentQuestion.options?.map((option, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
-                        answers[currentQuestion.id] === index
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:bg-muted/50"
-                      }`}
-                      onClick={() => handleAnswerSelect(index)}
-                    >
-                      <RadioGroupItem value={index.toString()} id={`option-${index}`} />
-                      <Label 
-                        htmlFor={`option-${index}`} 
-                        className="flex-1 cursor-pointer text-foreground"
+                {getQuestionType(currentQuestion) === 'multiple_choice' ? (
+                  <RadioGroup
+                    value={answers[currentQuestion.id]?.toString() ?? ""}
+                    onValueChange={(value) => handleAnswerSelect(parseInt(value))}
+                    className="space-y-3"
+                  >
+                    {currentQuestion.options?.map((option, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
+                          answers[currentQuestion.id] === index
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:bg-muted/50"
+                        }`}
+                        onClick={() => handleAnswerSelect(index)}
                       >
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+                        <RadioGroupItem value={index.toString()} id={`option-${index}`} />
+                        <Label 
+                          htmlFor={`option-${index}`} 
+                          className="flex-1 cursor-pointer text-foreground"
+                        >
+                          {option}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                ) : (
+                  <Textarea
+                    placeholder="Type your answer here..."
+                    value={(answers[currentQuestion.id] as string) ?? ""}
+                    onChange={(e) => handleTextAnswerChange(e.target.value)}
+                    className="min-h-[150px] bg-background resize-none"
+                    maxLength={2000}
+                  />
+                )}
               </div>
 
               {/* Navigation - Forward only */}
               <div className="flex justify-end">
-                {currentQuestionIndex < questions.length - 1 ? (
+              {currentQuestionIndex < questions.length - 1 ? (
                   <Button
                     onClick={goToNextQuestion}
-                    disabled={answers[currentQuestion.id] === undefined}
+                    disabled={!isQuestionAnswered(currentQuestion.id, currentQuestion)}
                     className="gap-2"
                   >
                     Next
@@ -868,7 +937,7 @@ export default function QuizPhase() {
                 ) : (
                   <Button
                     onClick={handleFinishQuiz}
-                    disabled={Object.keys(answers).length < questions.length}
+                    disabled={!questions.every(q => isQuestionAnswered(q.id, q))}
                     className="gap-2"
                   >
                     Finish Quiz
