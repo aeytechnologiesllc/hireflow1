@@ -17,11 +17,18 @@ import {
   Crown,
   XCircle,
   RefreshCw,
-  Info
+  Info,
+  CheckCircle,
+  Clock,
+  Loader2
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
 import { usePerformanceReport } from "@/hooks/usePerformanceReport";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type ApplicationData = Tables<"applications"> & {
@@ -45,6 +52,12 @@ interface CandidateStatusScreenProps {
   // New prop for direct application data (used in phase components)
   applicationData?: ApplicationData;
   candidateId?: string;
+  // New props for interview actions
+  interviewId?: string;
+  applicationId?: string;
+  candidateResponse?: string | null;
+  onInterviewConfirmed?: () => void;
+  onRescheduleRequested?: () => void;
 }
 
 export function CandidateStatusScreen({
@@ -57,11 +70,69 @@ export function CandidateStatusScreen({
   isGeneratingReport: externalIsGenerating = false,
   applicationData,
   candidateId,
+  interviewId,
+  applicationId,
+  candidateResponse: initialCandidateResponse,
+  onInterviewConfirmed,
+  onRescheduleRequested,
 }: CandidateStatusScreenProps) {
+  const queryClient = useQueryClient();
   const { downloadReport, isGenerating: hookIsGenerating } = usePerformanceReport();
   
   // Use hook's loading state if we're using applicationData, otherwise use external
   const isGeneratingReport = applicationData ? hookIsGenerating : externalIsGenerating;
+  
+  // Interview action states
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [localCandidateResponse, setLocalCandidateResponse] = useState<string | null>(initialCandidateResponse || null);
+  
+  // Sync with prop changes
+  useEffect(() => {
+    setLocalCandidateResponse(initialCandidateResponse || null);
+  }, [initialCandidateResponse]);
+  
+  // Handle interview confirmation
+  const handleConfirmInterview = async () => {
+    if (!interviewId || !applicationId) return;
+    
+    setIsConfirming(true);
+    try {
+      const { error } = await supabase.functions.invoke("candidate-interview-response", {
+        body: {
+          type: "confirm",
+          interviewId,
+        },
+      });
+      
+      if (error) throw error;
+      
+      setLocalCandidateResponse("confirmed");
+      toast.success("Interview confirmed!", {
+        description: "You're all set. We'll see you at the scheduled time.",
+      });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
+      
+      onInterviewConfirmed?.();
+    } catch (error: any) {
+      console.error("Error confirming interview:", error);
+      toast.error("Failed to confirm interview", {
+        description: error.message || "Please try again.",
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+  
+  // Handle reschedule success
+  const handleRescheduleSuccess = () => {
+    setLocalCandidateResponse("reschedule_requested");
+    setShowRescheduleDialog(false);
+    queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
+    onRescheduleRequested?.();
+  };
   
   // Handle report download - use hook if applicationData provided, otherwise use callback
   const handleDownloadReport = () => {
@@ -358,40 +429,126 @@ export function CandidateStatusScreen({
                   </motion.div>
                 )}
 
-                {/* What's Next Section */}
+                {/* Action Buttons or Status Display */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
-                  className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left"
+                  className="space-y-4"
                 >
-                  <div className="flex items-start gap-2 mb-2">
-                    <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
-                    <p className="text-sm font-medium text-foreground">What's Next?</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Your interview details are on your application page. From there you can:
-                  </p>
-                  <ul className="text-sm text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
-                    <li>Confirm your attendance</li>
-                    <li>Request a reschedule if needed</li>
-                    <li>Join the meeting when it's time</li>
-                  </ul>
+                  {/* Show different UI based on candidate response */}
+                  {localCandidateResponse === "confirmed" ? (
+                    // Already confirmed
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">Interview Confirmed!</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        You're all set. We'll see you at the scheduled time.
+                      </p>
+                      {interviewDetails?.meetingLink && (
+                        <Button
+                          variant="outline"
+                          className="w-full mt-3 gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+                          onClick={() => window.open(interviewDetails.meetingLink, "_blank")}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Join Meeting
+                        </Button>
+                      )}
+                    </div>
+                  ) : localCandidateResponse === "reschedule_requested" ? (
+                    // Reschedule requested - waiting for employer
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-amber-400 mb-2">
+                        <Clock className="h-5 w-5" />
+                        <span className="font-medium">Reschedule Requested</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        The employer is reviewing your proposed times. You'll be notified once they respond.
+                      </p>
+                    </div>
+                  ) : interviewId && applicationId ? (
+                    // Show action buttons
+                    <div className="space-y-3">
+                      <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left">
+                        <div className="flex items-start gap-2 mb-2">
+                          <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
+                          <p className="text-sm font-medium text-foreground">Confirm Your Attendance</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          Please confirm this time works for you, or request a different time if needed.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button
+                          onClick={handleConfirmInterview}
+                          disabled={isConfirming}
+                          className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          {isConfirming ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4" />
+                          )}
+                          Confirm Interview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowRescheduleDialog(true)}
+                          className="flex-1 gap-2"
+                        >
+                          <Calendar className="h-4 w-4" />
+                          Request Reschedule
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Fallback: show old info section
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left">
+                      <div className="flex items-start gap-2 mb-2">
+                        <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
+                        <p className="text-sm font-medium text-foreground">What's Next?</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Your interview details are on your application page. From there you can:
+                      </p>
+                      <ul className="text-sm text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                        <li>Confirm your attendance</li>
+                        <li>Request a reschedule if needed</li>
+                        <li>Join the meeting when it's time</li>
+                      </ul>
+                    </div>
+                  )}
                 </motion.div>
 
-                {/* Action button */}
+                {/* Close/Continue button */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
                 >
-                  <Button onClick={onClose} className="gap-2">
-                    Go to Interview Details
+                  <Button onClick={onClose} variant="outline" className="gap-2">
+                    {localCandidateResponse ? "Close" : "View Application"}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>
               </CardContent>
             </Card>
+          )}
+          
+          {/* Reschedule Dialog */}
+          {interviewId && applicationId && interviewDetails?.scheduledAt && (
+            <CandidateRescheduleRequestDialog
+              open={showRescheduleDialog}
+              onOpenChange={setShowRescheduleDialog}
+              interviewId={interviewId}
+              applicationId={applicationId}
+              currentScheduledAt={interviewDetails.scheduledAt}
+              onSuccess={handleRescheduleSuccess}
+            />
           )}
 
           {/* Ava Interview Unlocked State */}
