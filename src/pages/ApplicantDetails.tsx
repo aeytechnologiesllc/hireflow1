@@ -190,6 +190,7 @@ export default function ApplicantDetails() {
   const [showRescheduleReviewDialog, setShowRescheduleReviewDialog] = useState(false);
   const [showRejectAnimation, setShowRejectAnimation] = useState(false);
   const [showInterviewQuestionsDialog, setShowInterviewQuestionsDialog] = useState(false);
+  const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   
   // Refs to store current values for the drag event handlers (fixes stale closure bug)
@@ -329,6 +330,21 @@ export default function ApplicantDetails() {
       },
     } as InterviewWithDetails;
   }, [scheduledInterview, application]);
+
+  // Query for ALL scheduled interviews for this application (for rejection cleanup)
+  const { data: allScheduledInterviews } = useQuery({
+    queryKey: ["interviews", "all-scheduled", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("id, scheduled_at, status, interview_type")
+        .eq("application_id", id!)
+        .eq("status", "scheduled");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
 
   // Real-time subscription for this application - syncs when AVA or external sources update it
   useEffect(() => {
@@ -1234,8 +1250,21 @@ export default function ApplicantDetails() {
       // Trigger animation FIRST
       setShowRejectAnimation(true);
       
+      // Close the confirmation dialog
+      setShowRejectConfirmation(false);
+      
       // Determine rejection type: team member vs regular employer
       const rejectedByType = permissions?.isTeamMember ? 'team_member' : 'user';
+      
+      // DELETE all interviews for this application first
+      const { error: interviewError } = await supabase
+        .from("interviews")
+        .delete()
+        .eq("application_id", application.id);
+      
+      if (interviewError) {
+        console.error("Failed to delete interviews:", interviewError);
+      }
       
       // Update database in background with rejection attribution
       await updateApplication.mutateAsync({ 
@@ -1244,7 +1273,12 @@ export default function ApplicantDetails() {
         rejected_by: user.id,
         rejected_by_type: rejectedByType,
       });
+      
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["interviews", "all-scheduled", id] });
+      queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
       
       // Create notification for candidate so they get a real-time pop-up
       await supabase.from("notifications").insert({
@@ -2056,7 +2090,7 @@ ${interviewType} Interview with AVA Results:
                       How to use slider
                     </DropdownMenuItem>
                     <DropdownMenuItem 
-                      onClick={handleReject}
+                      onClick={() => setShowRejectConfirmation(true)}
                       className="gap-2 text-destructive focus:text-destructive"
                     >
                       <XCircle className="h-4 w-4" />
@@ -3340,6 +3374,51 @@ ${interviewType} Interview with AVA Results:
               className="bg-warning text-warning-foreground hover:bg-warning/90"
             >
               Allow Redo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Candidate Confirmation Dialog */}
+      <AlertDialog open={showRejectConfirmation} onOpenChange={setShowRejectConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reject Candidate?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Are you sure you want to reject <strong>{applicantDisplayName}</strong> for the position of <strong>{job?.title}</strong>?
+              </p>
+              {allScheduledInterviews && allScheduledInterviews.length > 0 && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 space-y-2">
+                  <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                    <CalendarX className="h-4 w-4" />
+                    {allScheduledInterviews.length} scheduled interview{allScheduledInterviews.length !== 1 ? 's' : ''} will be canceled
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    {allScheduledInterviews.map((interview) => (
+                      <li key={interview.id}>
+                        • {format(new Date(interview.scheduled_at), "PPP 'at' p")}
+                        {interview.interview_type && ` (${interview.interview_type})`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                The candidate will be notified of this decision. You can reconsider this candidate later if needed.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleReject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Reject Candidate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
