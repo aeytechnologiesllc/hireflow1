@@ -931,6 +931,243 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
   );
 }
 
+// ============= Phase-Based Analysis Component =============
+
+interface CompletedPhase {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  score?: string;
+  summary: string;
+  passed?: boolean;
+}
+
+interface PhaseBasedAnalysisProps {
+  applicationNotes?: ApplicationNotes;
+  voiceInterviewResult?: any;
+  rawSections: ParsedSection[];
+  isDetailOpen: boolean;
+  setIsDetailOpen: (open: boolean) => void;
+}
+
+function PhaseBasedAnalysis({ 
+  applicationNotes, 
+  voiceInterviewResult, 
+  rawSections,
+  isDetailOpen,
+  setIsDetailOpen
+}: PhaseBasedAnalysisProps) {
+  
+  // Build completed phases from applicationNotes
+  const completedPhases = useMemo(() => {
+    const phases: CompletedPhase[] = [];
+    
+    if (!applicationNotes) {
+      // If no notes, check if we have raw sections to show basic analysis
+      if (rawSections.length > 0) {
+        phases.push({
+          id: 'application',
+          name: 'Application Review',
+          icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+          summary: rawSections.map(s => generateParagraphSummary(s.items)).filter(Boolean).join(' ')
+        });
+      }
+      return phases;
+    }
+    
+    // Application form answers
+    if (applicationNotes.applicationAnswers && applicationNotes.applicationAnswers.length > 0) {
+      phases.push({
+        id: 'application_form',
+        name: 'Application Form',
+        icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+        summary: `Submitted ${applicationNotes.applicationAnswers.length} application answer(s).`
+      });
+    }
+    
+    // Quiz results
+    if (applicationNotes.quizResult && typeof applicationNotes.quizResult.score === 'number') {
+      const quiz = applicationNotes.quizResult;
+      phases.push({
+        id: 'quiz',
+        name: 'Quiz Assessment',
+        icon: quiz.passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
+        score: `${quiz.score}%`,
+        summary: `Scored ${quiz.score}% on the knowledge assessment${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ''}.`,
+        passed: quiz.passed
+      });
+    }
+    
+    // Typing test
+    if (applicationNotes.typingTestResult && typeof applicationNotes.typingTestResult.wpm === 'number') {
+      const typing = applicationNotes.typingTestResult;
+      const passed = typing.passed !== false;
+      phases.push({
+        id: 'typing_test',
+        name: 'Typing Test',
+        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
+        score: `${typing.wpm} WPM`,
+        summary: `Achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`,
+        passed
+      });
+    }
+    
+    // Portfolio
+    if (applicationNotes.portfolioResult) {
+      const portfolio = applicationNotes.portfolioResult;
+      const score = portfolio.score;
+      phases.push({
+        id: 'portfolio',
+        name: 'Portfolio Review',
+        icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+        score: score ? `${score}/100` : undefined,
+        summary: portfolio.feedback || `Portfolio submitted${score ? ` with a score of ${score}/100` : ''}.`
+      });
+    }
+    
+    // Video intro
+    if (applicationNotes.videoIntroUrl) {
+      phases.push({
+        id: 'video_intro',
+        name: 'Video Introduction',
+        icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+        summary: 'Video introduction recorded and submitted.'
+      });
+    }
+    
+    // Chat simulation
+    if (applicationNotes.chatSimulationResult) {
+      const chat = applicationNotes.chatSimulationResult;
+      const passed = chat.passed !== false;
+      phases.push({
+        id: 'chat_simulation',
+        name: 'Chat Simulation',
+        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        score: chat.score ? `${chat.score}/100` : undefined,
+        summary: `Completed chat simulation${chat.score ? ` with a score of ${chat.score}/100` : ''}.`,
+        passed
+      });
+    }
+    
+    // Chat interview
+    if (applicationNotes.chatInterviewResult) {
+      const interview = applicationNotes.chatInterviewResult;
+      phases.push({
+        id: 'chat_interview',
+        name: 'Chat Interview',
+        icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+        score: interview.score ? `${interview.score}/100` : undefined,
+        summary: `Completed chat interview${interview.score ? ` with a score of ${interview.score}/100` : ''}.`
+      });
+    }
+    
+    // Sales simulation
+    if (applicationNotes.salesSimulationResult) {
+      const sales = applicationNotes.salesSimulationResult;
+      const passed = sales.passed !== false;
+      phases.push({
+        id: 'sales_simulation',
+        name: 'Sales Simulation',
+        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        score: sales.score ? `${sales.score}/100` : undefined,
+        summary: `Completed sales simulation${sales.score ? ` with a score of ${sales.score}/100` : ''}.`,
+        passed
+      });
+    }
+    
+    // Voice interview
+    if (voiceInterviewResult) {
+      const score = voiceInterviewResult.overall_score || voiceInterviewResult.overallScore;
+      const recommendation = voiceInterviewResult.recommendation;
+      const summary = voiceInterviewResult.summary;
+      phases.push({
+        id: 'voice_interview',
+        name: 'Voice Interview',
+        icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+        score: score ? `${score}/100` : undefined,
+        summary: summary || `Completed voice interview${score ? ` with a score of ${score}/100` : ''}${recommendation ? `. Recommendation: ${recommendation}` : ''}.`
+      });
+    }
+    
+    // Check for step-based submissions
+    Object.keys(applicationNotes).forEach(key => {
+      const stepData = applicationNotes[key];
+      if (stepData && typeof stepData === 'object' && !Array.isArray(stepData)) {
+        // Video intro via step
+        if ((stepData.type === 'video_intro' || stepData.type === 'video_message') && stepData.videoUrl) {
+          if (!phases.some(p => p.id === 'video_intro')) {
+            phases.push({
+              id: 'video_intro',
+              name: 'Video Introduction',
+              icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+              summary: 'Video introduction recorded and submitted.'
+            });
+          }
+        }
+        // Portfolio via step
+        if (stepData.type === 'portfolio_upload' && stepData.completed) {
+          if (!phases.some(p => p.id === 'portfolio')) {
+            phases.push({
+              id: 'portfolio',
+              name: 'Portfolio Upload',
+              icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
+              summary: `${stepData.portfolioUrls?.length || 'Files'} portfolio item(s) uploaded.`
+            });
+          }
+        }
+      }
+    });
+    
+    return phases;
+  }, [applicationNotes, voiceInterviewResult, rawSections]);
+  
+  // If no completed phases, don't show anything
+  if (completedPhases.length === 0) {
+    return null;
+  }
+  
+  return (
+    <Collapsible open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+        <ChevronDown className={cn(
+          "h-4 w-4 transition-transform",
+          isDetailOpen && "rotate-180"
+        )} />
+        <span>View phase-by-phase analysis ({completedPhases.length} phase{completedPhases.length !== 1 ? 's' : ''} completed)</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pt-2 space-y-3">
+          {completedPhases.map((phase) => (
+            <div key={phase.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+              <div className="mt-0.5">{phase.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="text-sm font-medium text-foreground">{phase.name}</h4>
+                  {phase.score && (
+                    <span className={cn(
+                      "text-xs font-medium px-2 py-0.5 rounded-full",
+                      phase.passed === false 
+                        ? "bg-red-500/10 text-red-500" 
+                        : phase.passed === true 
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-primary/10 text-primary"
+                    )}>
+                      {phase.score}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {phase.summary}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 // ============= Main Component =============
 
 interface CondensedAIAnalysisProps {
@@ -1048,32 +1285,14 @@ export function CondensedAIAnalysis({
         </CardContent>
       </Card>
       
-      {/* Single Collapsible Details Section */}
-      {parsed.sections.length > 0 && (
-        <Collapsible open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full py-2">
-            <ChevronDown className={cn(
-              "h-4 w-4 transition-transform",
-              isDetailOpen && "rotate-180"
-            )} />
-            <span>View detailed analysis</span>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="pt-2 space-y-4">
-              {parsed.sections.map((section, idx) => (
-                <div key={idx}>
-                  <h4 className="text-sm font-medium text-foreground mb-1">
-                    {section.title}
-                  </h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {generateParagraphSummary(section.items)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {/* Phase-Based Details Section - Only show completed phases */}
+      <PhaseBasedAnalysis 
+        applicationNotes={applicationNotes} 
+        voiceInterviewResult={voiceInterviewResult}
+        rawSections={parsed.sections}
+        isDetailOpen={isDetailOpen}
+        setIsDetailOpen={setIsDetailOpen}
+      />
     </div>
   );
 }
