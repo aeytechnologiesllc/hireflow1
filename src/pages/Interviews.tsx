@@ -253,8 +253,8 @@ function InterviewCard({
                 </>
               )}
               
-              {/* Show Join Meeting for confirmed candidates or employers */}
-              {interview.meeting_link && isUpcoming && (isEmployer || candidateConfirmed) && (
+              {/* Show Join Meeting only when interview is confirmed */}
+              {interview.meeting_link && isUpcoming && interview.candidate_response === "confirmed" && (
                 <Button size="sm" className="gap-1" asChild>
                   <a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
                     <Video className="h-4 w-4" />
