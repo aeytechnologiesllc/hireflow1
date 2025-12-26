@@ -294,7 +294,8 @@ function generateFullSummary(
   sections: ParsedSection[], 
   recommendation: string | null,
   applicationNotes?: ApplicationNotes,
-  voiceInterviewResult?: any
+  voiceInterviewResult?: any,
+  authoritativeScore?: number | null
 ): string {
   // Get phase results from actual notes data (authoritative source)
   const notesPhaseResults = getPhaseResultsFromNotes(applicationNotes);
@@ -719,8 +720,13 @@ function generateFullSummary(
   // ============= PARAGRAPH 4: Final Recommendation =============
   const closingSentences: string[] = [];
   
-  if (overallScore) {
-    closingSentences.push(`After reviewing everything, I'm giving this candidate a ${overallScore}/100.`);
+  // Use authoritative score if provided, otherwise use parsed overallScore
+  const finalScore = authoritativeScore !== undefined && authoritativeScore !== null 
+    ? authoritativeScore.toString() 
+    : overallScore;
+  
+  if (finalScore) {
+    closingSentences.push(`After reviewing everything, I'm giving this candidate ${finalScore}/100.`);
   }
   
   if (recommendationText) {
@@ -738,8 +744,8 @@ function generateFullSummary(
     } else {
       closingSentences.push(`Recommendation: ${recommendationText}.`);
     }
-  } else if (overallScore) {
-    const score = parseInt(overallScore);
+  } else if (finalScore) {
+    const score = parseInt(finalScore);
     if (score >= 70) {
       closingSentences.push(`Overall, I think this candidate shows real promise.`);
     } else if (score >= 50) {
@@ -766,7 +772,8 @@ function generateFullSummary(
 function parseAIAnalysis(
   content: string, 
   applicationNotes?: ApplicationNotes,
-  voiceInterviewResult?: any
+  voiceInterviewResult?: any,
+  authoritativeScore?: number | null
 ): ParsedAnalysis {
   const result: ParsedAnalysis = {
     score: null,
@@ -859,7 +866,7 @@ function parseAIAnalysis(
   }));
 
   // Generate full summary with application notes for accurate phase detection
-  result.fullSummary = generateFullSummary(result.sections, result.recommendation, applicationNotes, voiceInterviewResult);
+  result.fullSummary = generateFullSummary(result.sections, result.recommendation, applicationNotes, voiceInterviewResult, authoritativeScore);
 
   return result;
 }
@@ -931,25 +938,32 @@ interface CondensedAIAnalysisProps {
   className?: string;
   applicationNotes?: ApplicationNotes;
   voiceInterviewResult?: any;
+  aiScore?: number | null; // Authoritative score from database
 }
 
 export function CondensedAIAnalysis({ 
   content, 
   className, 
   applicationNotes,
-  voiceInterviewResult 
+  voiceInterviewResult,
+  aiScore 
 }: CondensedAIAnalysisProps) {
-  const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult), [content, applicationNotes, voiceInterviewResult]);
+  const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult, aiScore), [content, applicationNotes, voiceInterviewResult, aiScore]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   
-  // Determine verdict display
+  // Use authoritative score from database if provided, otherwise use parsed score
+  const displayScore = aiScore ?? parsed.score;
+  
+  // Determine verdict display - use actual recommendation from AI
   const recLower = parsed.recommendation?.toLowerCase() || '';
   const isPositiveRec = recLower.includes('proceed') ||
                         recLower.includes('strong') ||
-                        recLower.includes('recommend');
+                        recLower.includes('hire') ||
+                        (recLower.includes('recommend') && !recLower.includes('not recommend'));
   const isNegativeRec = recLower.includes('not recommend') ||
                         recLower.includes('reject') ||
-                        recLower.includes('do not');
+                        recLower.includes('do not') ||
+                        recLower.includes('pass on');
 
   const verdictIcon = isPositiveRec
     ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
@@ -957,12 +971,10 @@ export function CondensedAIAnalysis({
       ? <XCircle className="h-5 w-5 text-red-400" />
       : <AlertTriangle className="h-5 w-5 text-amber-400" />;
 
-  // Match the legacy wording users expect
-  const verdictText = isPositiveRec
-    ? "Consider"
-    : isNegativeRec
-      ? "Don't consider"
-      : "Review";
+  // Show actual recommendation from AI, not translated text
+  const verdictText = parsed.recommendation 
+    ? parsed.recommendation.replace(/^\*\*|\*\*$/g, '').trim()
+    : "Pending";
 
   const verdictColor = isPositiveRec
     ? "text-emerald-400"
@@ -990,8 +1002,8 @@ export function CondensedAIAnalysis({
                 {parsed.fullSummary}
               </p>
             </div>
-            {parsed.score !== null && (
-              <ScoreRing score={parsed.score} />
+            {displayScore !== null && (
+              <ScoreRing score={displayScore} />
             )}
           </div>
         </CardContent>

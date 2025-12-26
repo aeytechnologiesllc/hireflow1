@@ -2553,6 +2553,7 @@ ${interviewType} Interview with AVA Results:
                 content={application.ai_analysis} 
                 applicationNotes={parsedNotes}
                 voiceInterviewResult={application.voice_interview_result}
+                aiScore={application.ai_score}
               />
             </>
           )}
