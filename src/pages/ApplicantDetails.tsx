@@ -1386,47 +1386,61 @@ export default function ApplicantDetails() {
   const handleReconsider = async () => {
     if (!application) return;
     try {
-      // Clear skipped phases from notes
-      const updatedNotes = { ...parsedNotes };
-      delete updatedNotes.employerSkippedPhases;
-      
-      // Use pre-computed restore phase
-      const { id: phaseId, name: phaseName, index: phaseIndex } = computedRestorePhase;
-      
-      // Cancel any scheduled physical interviews if we're going back before interview phase
-      const interviewPhaseIndex = phases.findIndex(p => p.type === "interview");
-      if (phaseIndex < interviewPhaseIndex && scheduledInterview) {
+      // Cancel any scheduled interviews
+      if (scheduledInterview) {
         await supabase
           .from("interviews")
           .update({ status: "cancelled" })
           .eq("id", scheduledInterview.id);
       }
       
+      // Also cancel any other scheduled interviews for this application
+      if (allScheduledInterviews && allScheduledInterviews.length > 0) {
+        await supabase
+          .from("interviews")
+          .update({ status: "cancelled" })
+          .eq("application_id", application.id)
+          .eq("status", "scheduled");
+      }
+      
+      // Complete reset - start from scratch
+      // Find the first candidate-facing phase (after journey_start)
+      const firstPhase = phases.find((p, i) => i > 0 && p.type !== "journey_start") || phases[1];
+      
       await updateApplication.mutateAsync({ 
         id: application.id, 
-        status: "reviewing",
-        phase: phaseId,  // Use calculated restore phase
-        phase_ai_analysis: null,  // Clear for fresh review
-        rejected_by: null,  // Clear rejection attribution
+        status: "pending",
+        phase: firstPhase?.id || "application",
+        ai_score: null,
+        ai_analysis: null,
+        phase_ai_analysis: null,
+        notes: JSON.stringify({}),  // Clear ALL phase data (quiz, typing test, application answers, etc.)
+        voice_interview_result: null,
+        voice_interview_transcript: null,
+        voice_interview_recording_url: null,
+        voice_interview_duration: null,
+        voice_interview_language: null,
+        voice_interview_language_rule: null,
+        voice_interview_video_enabled: null,
+        rejected_by: null,
         rejected_by_type: null,
-        notes: updatedNotes,  // Clear skipped phases
       });
       
-      // Create notification for candidate about reconsideration
+      // Create notification for candidate about fresh start
       await supabase.from("notifications").insert({
         user_id: application.candidate_id,
         type: "status_update",
-        title: "Great News! You're Being Reconsidered",
-        message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
+        title: "You've Been Given a Second Chance!",
+        message: `Great news! The employer has decided to give you another opportunity for ${job?.title || "this position"}. You can now restart your application from the beginning.`,
         link: `/applications/${application.id}`,
       });
       
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       setShowReconsiderConfirmation(false);
-      toast.success(`Candidate restored to ${phaseName} phase and notified`);
+      toast.success("Candidate reset to beginning - they can now reapply");
     } catch (error) {
-      console.error("Failed to reconsider candidate:", error);
-      toast.error("Failed to reconsider candidate");
+      console.error("Failed to reset candidate:", error);
+      toast.error("Failed to reset candidate application");
     }
   };
 
@@ -3598,29 +3612,32 @@ ${interviewType} Interview with AVA Results:
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary" />
-              Reconsider Candidate?
+              Give Candidate a Fresh Start?
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                Are you sure you want to reconsider <strong>{applicantDisplayName}</strong> for the position of <strong>{job?.title}</strong>?
+                This will completely reset the application for <strong>{applicantDisplayName}</strong>.
               </p>
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 space-y-2">
-                <p className="text-sm text-foreground">
-                  This will:
+              <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-foreground font-medium">
+                  The candidate will need to restart from the beginning:
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>Restore the candidate to the <strong>{computedRestorePhase.name}</strong> phase</li>
-                  <li>Clear the previous rejection status</li>
-                  <li>Clear any skipped phase indicators</li>
-                  <li>Notify the candidate that they're being reconsidered</li>
+                  <li>Reset to the beginning of the application process</li>
+                  <li>Clear all previous scores and AI analysis</li>
+                  <li>Clear all phase data (quiz answers, typing test, interview, etc.)</li>
+                  <li>Notify the candidate they can start fresh</li>
                 </ul>
               </div>
+              <p className="text-xs text-muted-foreground">
+                This action cannot be undone. The candidate will receive a notification to restart their application.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReconsider}>
-              Reconsider Candidate
+              Reset & Give Fresh Start
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
