@@ -12,13 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, CalendarX } from "lucide-react";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { getApplicantDisplayName, getInitialsFromName } from "@/utils/getApplicantDisplayName";
+import { format } from "date-fns";
 
 interface BulkRejectDialogProps {
   open: boolean;
@@ -38,6 +41,24 @@ export default function BulkRejectDialog({
   const updateApplication = useUpdateApplication();
   const { user } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
+  const queryClient = useQueryClient();
+
+  // Query for scheduled interviews across all selected applications
+  const applicationIds = selectedApplications.map(app => app.id);
+  const { data: scheduledInterviews } = useQuery({
+    queryKey: ["interviews", "bulk-scheduled", applicationIds],
+    queryFn: async () => {
+      if (applicationIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("id, scheduled_at, application_id, interview_type")
+        .in("application_id", applicationIds)
+        .eq("status", "scheduled");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && applicationIds.length > 0,
+  });
 
   const handleReject = async () => {
     if (!user) return;
@@ -47,6 +68,19 @@ export default function BulkRejectDialog({
     const rejectedByType = permissions?.isTeamMember ? 'team_member' : 'user';
     
     try {
+      // First, delete all scheduled interviews for these applications
+      if (applicationIds.length > 0) {
+        const { error: interviewError } = await supabase
+          .from("interviews")
+          .delete()
+          .in("application_id", applicationIds);
+        
+        if (interviewError) {
+          console.error("Failed to delete interviews:", interviewError);
+        }
+      }
+
+      // Then reject all applications
       await Promise.all(
         selectedApplications.map((app) =>
           updateApplication.mutateAsync({
@@ -58,6 +92,10 @@ export default function BulkRejectDialog({
           })
         )
       );
+      
+      // Invalidate interview queries
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      
       toast.success(`${selectedApplications.length} applicant${selectedApplications.length !== 1 ? "s" : ""} rejected`);
       onSuccess();
       onOpenChange(false);
@@ -110,6 +148,24 @@ export default function BulkRejectDialog({
               </div>
             </ScrollArea>
           </div>
+
+          {/* Scheduled Interviews Warning */}
+          {scheduledInterviews && scheduledInterviews.length > 0 && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 space-y-2">
+              <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                <CalendarX className="h-4 w-4" />
+                {scheduledInterviews.length} scheduled interview{scheduledInterviews.length !== 1 ? 's' : ''} will be canceled
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 max-h-20 overflow-y-auto">
+                {scheduledInterviews.map((interview) => (
+                  <li key={interview.id}>
+                    • {format(new Date(interview.scheduled_at), "PPP 'at' p")}
+                    {interview.interview_type && ` (${interview.interview_type})`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="reason">Rejection Reason (Optional)</Label>
