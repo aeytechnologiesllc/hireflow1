@@ -130,14 +130,14 @@
     box-sizing: border-box;
   }
 
-  html {
+  html, body, #root {
     overflow-x: hidden;
+    max-width: 100vw;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    overflow-x: hidden;
     min-width: 0;
   }
 
@@ -161,6 +161,29 @@
     white-space: pre-wrap;
     word-break: break-word;
     max-width: 100%;
+  }
+
+  /* Global mobile text scaling */
+  @media (max-width: 640px) {
+    .text-2xl {
+      font-size: 1.25rem !important;
+    }
+    
+    .text-xl {
+      font-size: 1rem !important;
+    }
+    
+    .text-lg {
+      font-size: 0.875rem !important;
+    }
+    
+    h1, h2 {
+      font-size: 1.25rem !important;
+    }
+    
+    h3 {
+      font-size: 1rem !important;
+    }
   }
 }
 
@@ -467,6 +490,33 @@
   /* Prevent overscroll bounce on iOS */
   html, body {
     overscroll-behavior: none;
+  }
+}
+
+/* Global mobile button sizing - smaller text and padding on small screens */
+@media (max-width: 640px) {
+  /* Flex containers wrap by default on mobile */
+  .flex {
+    flex-wrap: wrap;
+  }
+  
+  /* Smaller buttons on mobile */
+  button:not([data-size="icon"]), 
+  [role="button"]:not([data-size="icon"]) {
+    font-size: 0.75rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+    height: auto;
+    min-height: 2rem;
+    white-space: normal;
+  }
+  
+  /* Smaller icons in buttons on mobile */
+  button svg, 
+  [role="button"] svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
   }
 }
 

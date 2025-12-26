@@ -398,27 +398,29 @@ export default function Documents() {
       animate="visible"
       variants={staggerContainer}
     >
-      <motion.div variants={staggerItem} className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Documents</h2>
-          <p className="text-muted-foreground mt-1">
-            {isEmployer ? "Create AI-powered contracts, offer letters, and NDAs" : "Review and sign documents"}
+      <motion.div variants={staggerItem} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">Documents</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            {isEmployer ? "Create contracts, offer letters, and NDAs" : "Review and sign documents"}
           </p>
         </div>
         {isEmployer && canSendDocuments && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => setRequestWizardOpen(true)}>
-              <ClipboardList className="h-4 w-4" />
-              Request Document
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setRequestWizardOpen(true)}>
+              <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden xs:inline">Request</span>
+              <span className="xs:hidden">Request</span>
             </Button>
-            <Button className="gap-2" onClick={() => setWizardOpen(true)}>
-              <Wand2 className="h-4 w-4" />
-              Create Document
+            <Button size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setWizardOpen(true)}>
+              <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden xs:inline">Create</span>
+              <span className="xs:hidden">Create</span>
             </Button>
           </div>
         )}
         {isTeamMember && !canSendDocuments && (
-          <Badge variant="outline" className="gap-1 text-muted-foreground">
+          <Badge variant="outline" className="gap-1 text-muted-foreground text-xs">
             <EyeOff className="h-3 w-3" />
             View Only
           </Badge>
