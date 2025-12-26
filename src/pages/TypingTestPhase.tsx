@@ -224,13 +224,17 @@ export default function TypingTestPhase() {
 
     // Calculate overall score: Gross WPM weighted by accuracy
     // Score formula: (grossWpm / requiredWpm * 100) * (accuracy / 100)
-    // The employer sets the required WPM (default 40)
-    const requiredWpm = application?.jobs?.required_wpm || 40;
+    // The employer sets the required WPM (default 35)
+    const requiredWpm = application?.jobs?.required_wpm || 35;
     const speedScore = Math.min(100, (grossWpm / requiredWpm) * 100);
     const score = Math.round(speedScore * (accuracy / 100));
 
     const passingScore = application?.jobs?.passing_score || 60;
-    const passed = score >= passingScore;
+    
+    // Candidate must meet BOTH the WPM threshold AND the combined score threshold
+    const meetsWpmRequirement = grossWpm >= requiredWpm;
+    const meetsScoreRequirement = score >= passingScore;
+    const passed = meetsWpmRequirement && meetsScoreRequirement;
 
     console.log("Typing test results:", { 
       typedLength: currentTypedText.length,
@@ -702,9 +706,9 @@ export default function TypingTestPhase() {
                       ? isAutoMode
                         ? "You passed! After you submit, the next phase will unlock automatically."
                         : "You passed! The employer will review your overall application next."
-                      : isAutoMode
-                        ? "Your results have been recorded. After you submit, your application will be processed."
-                        : "Your results have been recorded for the employer to review."
+                      : results.wpm < (application.jobs?.required_wpm || 35)
+                        ? `Your typing speed of ${results.wpm} WPM did not meet the required ${application.jobs?.required_wpm || 35} WPM threshold.`
+                        : `Your combined score of ${results.score}% did not meet the required threshold.`
                     }
                   </p>
                 </div>
