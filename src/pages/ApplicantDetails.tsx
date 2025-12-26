@@ -256,26 +256,52 @@ export default function ApplicantDetails() {
     enabled: !!id && !!user,
   });
 
-  // Fetch scheduled interview for this application - prioritize active interviews
+  // Fetch scheduled interview for this application - prioritize by response status
   const { data: scheduledInterview } = useQuery({
     queryKey: ["interview", "application", id],
     queryFn: async () => {
-      // First try to find an active (scheduled) interview
-      const { data: activeInterview, error: activeError } = await supabase
+      // Step 1: Check for reschedule_requested interviews first (needs immediate action)
+      const { data: rescheduleInterview, error: rescheduleError } = await supabase
         .from("interviews")
         .select("*")
         .eq("application_id", id!)
         .eq("status", "scheduled")
-        .order("scheduled_at", { ascending: true })
+        .eq("candidate_response", "reschedule_requested")
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (activeError) throw activeError;
+      if (rescheduleError) throw rescheduleError;
+      if (rescheduleInterview) return rescheduleInterview;
+
+      // Step 2: Check for pending/awaiting response interviews
+      const { data: pendingInterview, error: pendingError } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("application_id", id!)
+        .eq("status", "scheduled")
+        .or("candidate_response.is.null,candidate_response.eq.pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingError) throw pendingError;
+      if (pendingInterview) return pendingInterview;
+
+      // Step 3: Get confirmed interview or most recent scheduled
+      const { data: confirmedInterview, error: confirmedError } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("application_id", id!)
+        .eq("status", "scheduled")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (confirmedError) throw confirmedError;
+      if (confirmedInterview) return confirmedInterview;
       
-      // If there's an active interview, return it
-      if (activeInterview) return activeInterview;
-      
-      // Otherwise, return the most recently created interview (for history)
+      // Step 4: Fall back to most recently created interview (for history)
       const { data: latestInterview, error: latestError } = await supabase
         .from("interviews")
         .select("*")
