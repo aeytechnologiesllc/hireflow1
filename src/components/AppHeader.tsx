@@ -94,14 +94,13 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
-              <div className="hidden md:flex flex-col items-start">
-                <span className="text-sm font-medium text-foreground">{userName}</span>
-                <span className="text-xs text-muted-foreground truncate max-w-[150px]">{user?.email || ""}</span>
-              </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-popover border-border">
+          <DropdownMenuContent align="end" className="w-56 bg-popover border-border">
+            <div className="px-2 py-2 border-b border-border">
+              <p className="text-sm text-muted-foreground truncate">{user?.email || ""}</p>
+            </div>
             <DropdownMenuItem onClick={() => navigate("/profile")}>
               <User className="h-4 w-4 mr-2" />
               Profile
