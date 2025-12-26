@@ -55,8 +55,8 @@ export interface ImprovementBlueprintData {
   };
 }
 
-// v2 cache key to force regeneration with new compact format
-const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v2";
+// v3 cache key to force regeneration after blueprint content-quality updates
+const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v3";
 
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
