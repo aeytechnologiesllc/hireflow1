@@ -1045,7 +1045,7 @@ function PhaseBasedAnalysis({
         quizData = {
           answers: quizStepData.answers,
           score: quizStepData.score ?? quiz.score,
-          correct: quizStepData.correct ?? quiz.correct ?? 0,
+          correct: quizStepData.correct ?? 0,
           total: quizStepData.total ?? quiz.total ?? 0,
           passed: quizStepData.passed ?? quiz.passed,
           completedAt: quizStepData.completedAt,
@@ -1090,7 +1090,6 @@ function PhaseBasedAnalysis({
         wpm: typing.wpm,
         accuracy: typing.accuracy,
         passed: typing.passed,
-        requiredWpm: typing.requiredWpm,
       };
 
       phases.push({
