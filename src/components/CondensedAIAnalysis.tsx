@@ -706,29 +706,30 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
   
   // Determine verdict display
   const recLower = parsed.recommendation?.toLowerCase() || '';
-  const isPositiveRec = recLower.includes('proceed') || 
+  const isPositiveRec = recLower.includes('proceed') ||
                         recLower.includes('strong') ||
                         recLower.includes('recommend');
   const isNegativeRec = recLower.includes('not recommend') ||
                         recLower.includes('reject') ||
                         recLower.includes('do not');
-  
-  const verdictIcon = isPositiveRec 
+
+  const verdictIcon = isPositiveRec
     ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-    : isNegativeRec 
+    : isNegativeRec
       ? <XCircle className="h-5 w-5 text-red-400" />
       : <AlertTriangle className="h-5 w-5 text-amber-400" />;
-  
-  const verdictText = isPositiveRec 
-    ? "Proceed with Interview" 
-    : isNegativeRec 
-      ? "Not Recommended" 
-      : "Review Carefully";
-  
-  const verdictColor = isPositiveRec 
-    ? "text-emerald-400" 
-    : isNegativeRec 
-      ? "text-red-400" 
+
+  // Match the legacy wording users expect
+  const verdictText = isPositiveRec
+    ? "Consider"
+    : isNegativeRec
+      ? "Don't consider"
+      : "Review";
+
+  const verdictColor = isPositiveRec
+    ? "text-emerald-400"
+    : isNegativeRec
+      ? "text-red-400"
       : "text-amber-400";
   
   return (
@@ -740,9 +741,12 @@ export function CondensedAIAnalysis({ content, className }: CondensedAIAnalysisP
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 {verdictIcon}
-                <span className={cn("text-base font-semibold", verdictColor)}>
-                  {verdictText}
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Verdict</span>
+                  <span className={cn("text-base font-semibold", verdictColor)}>
+                    {verdictText}
+                  </span>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                 {parsed.fullSummary}
