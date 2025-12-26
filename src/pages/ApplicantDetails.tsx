@@ -993,12 +993,14 @@ export default function ApplicantDetails() {
         const originPhase = phases[currentIndex];
         const originHasData = hasCompletedCurrentPhase(originPhase.id, originPhase.type);
         
-        // Phases between origin and destination (excludes both endpoints)
-        let skippedPhaseIds = phases.slice(currentIndex + 1, newIndex).map((p) => p.id);
+        // Phases between origin and destination (excludes both endpoints and review phases)
+        let skippedPhaseIds = phases.slice(currentIndex + 1, newIndex)
+          .filter(p => p.type !== "review")
+          .map((p) => p.id);
         
         // If origin phase has no data (was reset/not completed), also mark it as skipped
-        // Exception: Don't mark 'journey_start' as skipped since it's just the starting point marker
-        if (!originHasData && originPhase.type !== "journey_start") {
+        // Exception: Don't mark 'journey_start' or 'review' as skipped
+        if (!originHasData && originPhase.type !== "journey_start" && originPhase.type !== "review") {
           skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
         }
         
@@ -1083,12 +1085,14 @@ export default function ApplicantDetails() {
       const originPhase = phases[effectivePhaseIndex];
       const originHasData = hasCompletedCurrentPhase(originPhase.id, originPhase.type);
       
-      // Phases between origin and destination
-      let skippedPhaseIds = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex).map(p => p.id);
+      // Phases between origin and destination (excludes review phases)
+      let skippedPhaseIds = phases.slice(effectivePhaseIndex + 1, interviewPhaseIndex)
+        .filter(p => p.type !== "review")
+        .map(p => p.id);
       
       // If origin phase has no data, also mark it as skipped
-      // Exception: Don't mark 'journey_start' as skipped since it's just the starting point marker
-      if (!originHasData && originPhase.type !== "journey_start") {
+      // Exception: Don't mark 'journey_start' or 'review' as skipped
+      if (!originHasData && originPhase.type !== "journey_start" && originPhase.type !== "review") {
         skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
       }
       
