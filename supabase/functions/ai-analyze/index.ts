@@ -684,64 +684,16 @@ serve(async (req) => {
         { role: "user", content: userContent }
       ];
     } else if (resumeUrl && (type === "resume" || type === "application")) {
-      // Server-side PDF to image conversion attempt
-      console.log(`Attempting server-side PDF fetch for: ${resumeUrl}`);
+      // PDF files cannot be sent to OpenAI vision API - only images are supported
+      console.log(`Resume URL provided: ${resumeUrl}`);
+      console.log(`Note: OpenAI vision API only supports images, not PDFs. Analyzing based on other application data.`);
       
-      try {
-        const pdfResponse = await fetch(resumeUrl);
-        if (pdfResponse.ok) {
-          const pdfBuffer = await pdfResponse.arrayBuffer();
-          const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
-          
-          // Check file size (GPT-4o has limits)
-          if (base64Pdf.length < 20_000_000) { // ~15MB limit for base64
-            console.log(`PDF fetched successfully, size: ${base64Pdf.length} chars, sending as data URL`);
-            
-            // Send PDF directly as data URL - GPT-4o can process PDFs
-            messages = [
-              { role: "system", content: systemPrompt },
-              {
-                role: "user",
-                content: [
-                  { 
-                    type: "text", 
-                    text: userContent + "\n\n--- RESUME PDF ---\nThe candidate's resume PDF is attached below. Please analyze the resume thoroughly and cross-reference with all other data provided above."
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:application/pdf;base64,${base64Pdf}`,
-                      detail: "high"
-                    }
-                  }
-                ]
-              }
-            ];
-            resumeExtracted = true;
-          } else {
-            console.log(`PDF too large for vision API: ${base64Pdf.length} chars`);
-            userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but it was too large to process. Please analyze based on the other application data provided above.`;
-            messages = [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userContent }
-            ];
-          }
-        } else {
-          console.log(`Failed to fetch PDF: ${pdfResponse.status}`);
-          userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but could not be fetched (status: ${pdfResponse.status}). Please analyze based on the other application data provided above.`;
-          messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent }
-          ];
-        }
-      } catch (fetchErr) {
-        console.error(`Error fetching PDF:`, fetchErr);
-        userContent += `\n\nNote: A resume file was provided (${resumeUrl}) but could not be fetched. Please analyze based on the other application data provided above.`;
-        messages = [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent }
-        ];
-      }
+      userContent += `\n\n--- RESUME FILE ---\nA resume file was provided at: ${resumeUrl}\nThe resume is in PDF format which cannot be directly analyzed by the AI vision system. Please provide your analysis based on the other application data provided above. Mark the resume as RESUME_UNAVAILABLE in your Document Validation section.`;
+      
+      messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ];
     } else {
       // No resume content available - analyze based on other data
       
