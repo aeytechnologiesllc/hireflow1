@@ -493,7 +493,7 @@ export default function Documents() {
         <motion.div variants={staggerItem}>
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="all">All ({filteredDocuments.length})</TabsTrigger>
+              <TabsTrigger value="all">All ({filteredDocuments.length + (isEmployer ? documentRequests.length : 0)})</TabsTrigger>
               <TabsTrigger value="pending">Pending ({pendingDocs.length})</TabsTrigger>
               <TabsTrigger value="signed">Signed ({signedDocs.length})</TabsTrigger>
               <TabsTrigger value="declined">Declined ({declinedDocs.length})</TabsTrigger>
@@ -506,7 +506,22 @@ export default function Documents() {
             </TabsList>
 
             <TabsContent value="all" className="space-y-4">
-              {filteredDocuments.length > 0 ? filteredDocuments.map(renderDocumentCard) : <EmptyState message="No documents match your filters" />}
+              {/* Show documents */}
+              {filteredDocuments.map(renderDocumentCard)}
+              {/* For employers, also show document requests in "All" */}
+              {isEmployer && documentRequests.map((request) => (
+                <DocumentRequestCard
+                  key={request.id}
+                  request={request}
+                  isEmployer={true}
+                  onView={request.file_url ? handleViewRequest : undefined}
+                  onDownload={request.file_url ? handleDownloadRequest : undefined}
+                  onDelete={handleDeleteRequest}
+                />
+              ))}
+              {filteredDocuments.length === 0 && (!isEmployer || documentRequests.length === 0) && (
+                <EmptyState message="No documents found" />
+              )}
             </TabsContent>
             <TabsContent value="pending" className="space-y-4">
               {pendingDocs.length > 0 ? pendingDocs.map(renderDocumentCard) : <EmptyState message="No pending documents" />}
