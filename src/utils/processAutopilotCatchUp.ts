@@ -274,8 +274,8 @@ export async function processAutopilotCatchUp(
             .from("applications")
             .update({
               status: "rejected",
-              rejected_by: "ava",
-              rejected_by_type: "ava",
+              rejected_by: null, // Use null since this is a UUID column - Ava doesn't have a user ID
+              rejected_by_type: "ava", // This field identifies Ava as the rejector
               phase_ai_analysis: rejectionReason,
               updated_at: new Date().toISOString(),
             })

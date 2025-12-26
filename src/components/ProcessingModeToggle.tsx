@@ -308,6 +308,12 @@ export function ProcessingModeToggle({
       // If switching to autopilot, process pending applications in background
       if (pendingMode === "auto") {
         processAutopilotCatchUp(jobId).then((result) => {
+          if (result.failed > 0) {
+            toast.error(`Autopilot had trouble updating ${result.failed} applicant${result.failed > 1 ? 's' : ''}`, {
+              description: "Some updates failed. Please try again or check the applicant details.",
+              duration: 6000,
+            });
+          }
           if (result.rejected > 0) {
             toast.warning(`Ava rejected ${result.rejected} applicant${result.rejected > 1 ? 's' : ''} below passing score`, {
               description: "View their profiles for detailed rejection reasons",
@@ -317,11 +323,14 @@ export function ProcessingModeToggle({
           if (result.advanced > 0) {
             toast.success(`Ava advanced ${result.advanced} applicant${result.advanced > 1 ? 's' : ''} to the next phase`);
           }
-          if (result.processed > 0 && result.advanced === 0 && result.rejected === 0) {
-            toast.info(`Ava reviewed ${result.processed} applicants - none ready to advance yet`);
+          if (result.processed > 0 && result.advanced === 0 && result.rejected === 0 && result.failed === 0) {
+            toast.info(`Ava reviewed ${result.processed} applicants — none ready to advance yet`);
           }
         }).catch((error) => {
           console.error("Autopilot catch-up error:", error);
+          toast.error("Autopilot catch-up failed", {
+            description: "Please try toggling autopilot again.",
+          });
         });
       }
     } catch (error) {
