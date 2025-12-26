@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
-import { 
-  ChevronDown, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle
+import {
+  ChevronDown,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,6 +13,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { buildAvaPhaseNarrative, type PhaseType } from "@/lib/avaPhaseNarratives";
 
 // ============= Types =============
 interface ParsedAnalysis {
@@ -934,172 +935,33 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
 // ============= Phase-Based Analysis Component =============
 
 // Extract insights for a specific phase from the AI analysis sections
-type PhaseType = 'application_form' | 'quiz' | 'portfolio' | 'video' | 'typing' | 'chat_simulation' | 'chat_interview' | 'sales_simulation' | 'voice_interview' | 'resume';
+// NOTE: We use a dedicated narrative builder to produce a 10–15 sentence, first-person Ava explanation.
 
-// Convert raw key:value items into human-readable narrative sentences
-function convertToNarrative(items: string[], context: string = ''): string {
-  const sentences: string[] = [];
-  
-  for (const item of items) {
-    if (isPlaceholderValue(item) || item.length < 10) continue;
-    
-    const match = item.match(/^([^:]{2,50}):\s*(.+)$/);
-    if (match) {
-      const label = match[1].trim().toLowerCase();
-      const value = match[2].trim();
-      
-      if (isPlaceholderValue(value)) continue;
-      const cleanedValue = cleanPlaceholderFromText(value);
-      if (!cleanedValue) continue;
-      
-      // AI Content Detection
-      if (label.includes('application answer') || label.includes('ai-generated')) {
-        if (cleanedValue.toUpperCase().includes('AUTHENTIC')) {
-          sentences.push('The application answers appear to be authentically written.');
-        } else if (cleanedValue.toUpperCase().includes('LIKELY AI') || cleanedValue.toUpperCase().includes('AI-GENERATED')) {
-          sentences.push('Some answers may have been AI-generated.');
-        } else if (cleanedValue.length > 5) {
-          sentences.push(`Application content assessment: ${cleanedValue.toLowerCase()}.`);
-        }
-      }
-      // Cross-reference findings
-      else if (label.includes('cross-reference') || label.includes('score')) {
-        const scoreMatch = cleanedValue.match(/(\d+)%?/);
-        if (scoreMatch) {
-          const score = parseInt(scoreMatch[1]);
-          if (score >= 80) {
-            sentences.push(`Cross-reference verification shows strong consistency (${score}%).`);
-          } else if (score >= 50) {
-            sentences.push(`Cross-reference verification shows moderate consistency (${score}%).`);
-          } else {
-            sentences.push(`Cross-reference verification found inconsistencies (${score}%).`);
-          }
-        }
-      }
-      // Experience consistency
-      else if (label.includes('experience') && label.includes('consistency')) {
-        if (cleanedValue.toUpperCase().includes('CONSISTENT')) {
-          sentences.push('Work experience appears consistent with stated background.');
-        } else if (cleanedValue.toUpperCase().includes('INCONSISTENT')) {
-          sentences.push('There are inconsistencies between stated experience and application responses.');
-        }
-      }
-      // Name match
-      else if (label.includes('name') && (label.includes('match') || label.includes('verification'))) {
-        if (cleanedValue.toUpperCase().includes('MATCH')) {
-          sentences.push('Name verification passed successfully.');
-        } else if (cleanedValue.toUpperCase().includes('MISMATCH')) {
-          sentences.push('Name discrepancy detected between documents.');
-        }
-      }
-      // Skills analysis
-      else if (label.includes('skill') && label.includes('match')) {
-        const skillMatch = cleanedValue.match(/(\d+)/);
-        if (skillMatch) {
-          sentences.push(`${skillMatch[1]} of the required skills were found in the application.`);
-        } else if (!cleanedValue.toLowerCase().includes('none')) {
-          sentences.push(`Matching skills identified: ${cleanedValue}.`);
-        }
-      }
-      // Authenticity
-      else if (label.includes('authenticity') || label.includes('confidence')) {
-        if (cleanedValue.toUpperCase().includes('HIGH') || cleanedValue.toUpperCase().includes('AUTHENTIC')) {
-          sentences.push('The responses appear genuine and well-considered.');
-        } else if (cleanedValue.toUpperCase().includes('LOW') || cleanedValue.toUpperCase().includes('SUSPICIOUS')) {
-          sentences.push('Some responses raised authenticity concerns.');
-        }
-      }
-      // Overall assessment
-      else if (label.includes('overall') || label.includes('summary') || label.includes('assessment')) {
-        if (cleanedValue.length > 10 && cleanedValue.length < 200) {
-          sentences.push(cleanedValue.charAt(0).toUpperCase() + cleanedValue.slice(1).toLowerCase() + '.');
-        }
-      }
-      // Quiz/Test specific
-      else if (label.includes('quiz') || label.includes('test') || label.includes('assessment')) {
-        if (cleanedValue.length > 10) {
-          sentences.push(cleanedValue.charAt(0).toUpperCase() + cleanedValue.slice(1) + '.');
-        }
-      }
-      // Concerns or red flags
-      else if (label.includes('concern') || label.includes('flag') || label.includes('issue')) {
-        if (!cleanedValue.toLowerCase().includes('none') && cleanedValue.length > 5) {
-          sentences.push(`Note: ${cleanedValue}.`);
-        }
-      }
-    }
+function getPhaseLabel(phaseType: PhaseType): string {
+  switch (phaseType) {
+    case "application_form":
+      return "Application Form";
+    case "quiz":
+      return "Quiz Assessment";
+    case "portfolio":
+      return "Portfolio";
+    case "video":
+      return "Video Introduction";
+    case "typing":
+      return "Typing Test";
+    case "chat_simulation":
+      return "Chat Simulation";
+    case "chat_interview":
+      return "Chat Interview";
+    case "sales_simulation":
+      return "Sales Simulation";
+    case "voice_interview":
+      return "Voice Interview";
+    case "resume":
+      return "Resume";
+    default:
+      return "Phase";
   }
-  
-  return sentences.slice(0, 3).join(' ').trim();
-}
-
-function extractPhaseInsights(
-  rawSections: ParsedSection[], 
-  phaseType: PhaseType,
-  wasRejected: boolean = false
-): string | null {
-  const relevantItems: string[] = [];
-  
-  for (const section of rawSections) {
-    const titleLower = section.title.toLowerCase();
-    
-    // Collect relevant items based on phase type
-    const isRelevant = (() => {
-      switch (phaseType) {
-        case 'application_form':
-          return titleLower.includes('ai-generated') || 
-                 titleLower.includes('ai content') || 
-                 titleLower.includes('content detection') ||
-                 titleLower.includes('cross-reference') || 
-                 titleLower.includes('verification') ||
-                 titleLower.includes('authenticity') ||
-                 (titleLower.includes('application') && (titleLower.includes('answer') || titleLower.includes('analysis')));
-        case 'quiz':
-          return titleLower.includes('quiz') || titleLower.includes('assessment') || titleLower.includes('knowledge');
-        case 'portfolio':
-          return titleLower.includes('portfolio') || titleLower.includes('work sample');
-        case 'video':
-          return titleLower.includes('video') || titleLower.includes('presentation');
-        case 'typing':
-          return titleLower.includes('typing') || titleLower.includes('speed') || titleLower.includes('wpm');
-        case 'chat_simulation':
-          return titleLower.includes('chat') && titleLower.includes('simulation');
-        case 'chat_interview':
-          return titleLower.includes('chat') && titleLower.includes('interview');
-        case 'sales_simulation':
-          return titleLower.includes('sales') || titleLower.includes('objection') || titleLower.includes('negotiation');
-        case 'voice_interview':
-          return titleLower.includes('voice') || titleLower.includes('interview') || titleLower.includes('communication');
-        case 'resume':
-          return titleLower.includes('resume') || titleLower.includes('document') || titleLower.includes('cv');
-        default:
-          return false;
-      }
-    })();
-    
-    if (isRelevant) {
-      relevantItems.push(...section.items);
-    }
-  }
-  
-  if (relevantItems.length === 0) return null;
-  
-  // Convert to narrative
-  let summary = convertToNarrative(relevantItems, phaseType);
-  
-  if (!summary) return null;
-  
-  // If rejected, tone down overly positive language
-  if (wasRejected) {
-    summary = summary
-      .replace(/excellent|outstanding|exceptional|perfect|impressive|superb|remarkable/gi, 'adequate')
-      .replace(/highly recommend|strong candidate|great fit|top candidate|ideal/gi, 'reviewed')
-      .replace(/exceeded expectations|above average|exemplary/gi, 'met requirements')
-      .replace(/strong consistency/gi, 'some consistency')
-      .replace(/passed successfully/gi, 'was completed');
-  }
-  
-  return summary;
 }
 
 interface CompletedPhase {
@@ -1147,191 +1009,301 @@ function PhaseBasedAnalysis({
       return phases;
     }
     
-    // Application form answers - WITH detailed analysis
+    // Application form answers - detailed Ava narrative
     if (applicationNotes.applicationAnswers && applicationNotes.applicationAnswers.length > 0) {
-      const insights = extractPhaseInsights(rawSections, 'application_form', wasRejected);
       const count = applicationNotes.applicationAnswers.length;
+      const baseFacts = `The candidate submitted ${count} answer(s).`;
+      const phaseType: PhaseType = "application_form";
+
       phases.push({
-        id: 'application_form',
-        name: 'Application Form',
+        id: "application_form",
+        name: getPhaseLabel(phaseType),
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-        summary: insights 
-          ? `Submitted ${count} answer(s). ${insights}` 
-          : (hasAIAnalysis 
-              ? `Submitted ${count} answer(s). Analysis complete.`
-              : `Submitted ${count} answer(s). Awaiting analysis.`)
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
       });
     }
-    
-    // Quiz results - WITH detailed analysis
-    if (applicationNotes.quizResult && typeof applicationNotes.quizResult.score === 'number') {
+
+    // Quiz results - detailed Ava narrative
+    if (applicationNotes.quizResult && typeof applicationNotes.quizResult.score === "number") {
       const quiz = applicationNotes.quizResult;
-      const insights = extractPhaseInsights(rawSections, 'quiz', wasRejected);
-      const baseInfo = `Scored ${quiz.score}%${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ''}.`;
+      const baseFacts = `The candidate scored ${quiz.score}%${quiz.total ? ` (${Math.round((quiz.score / 100) * quiz.total)}/${quiz.total} correct)` : ""}.`;
+      const phaseType: PhaseType = "quiz";
+
       phases.push({
-        id: 'quiz',
-        name: 'Quiz Assessment',
-        icon: quiz.passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
+        id: "quiz",
+        name: getPhaseLabel(phaseType),
+        icon: quiz.passed ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <XCircle className="h-4 w-4 text-red-500" />
+        ),
         score: `${quiz.score}%`,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
-        passed: quiz.passed
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
+        passed: quiz.passed,
       });
     }
-    
-    // Typing test - WITH detailed analysis
-    if (applicationNotes.typingTestResult && typeof applicationNotes.typingTestResult.wpm === 'number') {
+
+    // Typing test - detailed Ava narrative
+    if (applicationNotes.typingTestResult && typeof applicationNotes.typingTestResult.wpm === "number") {
       const typing = applicationNotes.typingTestResult;
       const passed = typing.passed !== false;
-      const insights = extractPhaseInsights(rawSections, 'typing', wasRejected);
-      const baseInfo = `Achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`;
+      const baseFacts = `The candidate achieved ${typing.wpm} WPM with ${typing.accuracy}% accuracy.`;
+      const phaseType: PhaseType = "typing";
+
       phases.push({
-        id: 'typing_test',
-        name: 'Typing Test',
-        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />,
+        id: "typing_test",
+        name: getPhaseLabel(phaseType),
+        icon: passed ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <XCircle className="h-4 w-4 text-red-500" />
+        ),
         score: `${typing.wpm} WPM`,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
-        passed
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
+        passed,
       });
     }
-    
-    // Portfolio - WITH detailed analysis
+
+    // Portfolio - detailed Ava narrative
     if (applicationNotes.portfolioResult) {
       const portfolio = applicationNotes.portfolioResult;
       const score = portfolio.score;
-      const insights = extractPhaseInsights(rawSections, 'portfolio', wasRejected);
-      const baseInfo = portfolio.feedback || `Portfolio submitted${score ? ` with a score of ${score}/100` : ''}.`;
+      const baseFacts = score
+        ? `The candidate submitted a portfolio scored at ${score}/100.`
+        : "The candidate submitted a portfolio.";
+      const phaseType: PhaseType = "portfolio";
+
       phases.push({
-        id: 'portfolio',
-        name: 'Portfolio Review',
+        id: "portfolio",
+        name: getPhaseLabel(phaseType),
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: score ? `${score}/100` : undefined,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
       });
     }
-    
-    // Video intro - WITH detailed analysis
+
+    // Video intro - detailed Ava narrative
     if (applicationNotes.videoIntroUrl) {
-      const insights = extractPhaseInsights(rawSections, 'video', wasRejected);
+      const phaseType: PhaseType = "video";
+      const baseFacts = "The candidate recorded and submitted a video introduction.";
+
       phases.push({
-        id: 'video_intro',
-        name: 'Video Introduction',
+        id: "video_intro",
+        name: getPhaseLabel(phaseType),
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-        summary: insights 
-          ? `Video introduction recorded. ${insights}` 
-          : 'Video introduction recorded and submitted.'
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
       });
     }
-    
-    // Chat simulation - WITH detailed analysis
+
+    // Chat simulation - detailed Ava narrative
     if (applicationNotes.chatSimulationResult) {
       const chat = applicationNotes.chatSimulationResult;
       const passed = chat.passed !== false;
-      const insights = extractPhaseInsights(rawSections, 'chat_simulation', wasRejected);
-      const baseInfo = `Completed chat simulation${chat.score ? ` with a score of ${chat.score}/100` : ''}.`;
+      const phaseType: PhaseType = "chat_simulation";
+      const baseFacts = `The candidate completed the chat simulation${chat.score ? ` and scored ${chat.score}/100` : ""}.`;
+
       phases.push({
-        id: 'chat_simulation',
-        name: 'Chat Simulation',
-        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        id: "chat_simulation",
+        name: getPhaseLabel(phaseType),
+        icon: passed ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+        ),
         score: chat.score ? `${chat.score}/100` : undefined,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
-        passed
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
+        passed,
       });
     }
-    
-    // Chat interview - WITH detailed analysis
+
+    // Chat interview - detailed Ava narrative
     if (applicationNotes.chatInterviewResult) {
       const interview = applicationNotes.chatInterviewResult;
-      const insights = extractPhaseInsights(rawSections, 'chat_interview', wasRejected);
-      const baseInfo = `Completed chat interview${interview.score ? ` with a score of ${interview.score}/100` : ''}.`;
+      const phaseType: PhaseType = "chat_interview";
+      const baseFacts = `The candidate completed the chat interview${interview.score ? ` and scored ${interview.score}/100` : ""}.`;
+
       phases.push({
-        id: 'chat_interview',
-        name: 'Chat Interview',
+        id: "chat_interview",
+        name: getPhaseLabel(phaseType),
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: interview.score ? `${interview.score}/100` : undefined,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
       });
     }
-    
-    // Sales simulation - WITH detailed analysis
+
+    // Sales simulation - detailed Ava narrative
     if (applicationNotes.salesSimulationResult) {
       const sales = applicationNotes.salesSimulationResult;
       const passed = sales.passed !== false;
-      const insights = extractPhaseInsights(rawSections, 'sales_simulation', wasRejected);
-      const baseInfo = `Completed sales simulation${sales.score ? ` with a score of ${sales.score}/100` : ''}.`;
+      const phaseType: PhaseType = "sales_simulation";
+      const baseFacts = `The candidate completed the sales simulation${sales.score ? ` and scored ${sales.score}/100` : ""}.`;
+
       phases.push({
-        id: 'sales_simulation',
-        name: 'Sales Simulation',
-        icon: passed ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        id: "sales_simulation",
+        name: getPhaseLabel(phaseType),
+        icon: passed ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+        ),
         score: sales.score ? `${sales.score}/100` : undefined,
-        summary: insights ? `${baseInfo} ${insights}` : baseInfo,
-        passed
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
+        passed,
       });
     }
-    
-    // Voice interview - WITH detailed analysis
+
+    // Voice interview - detailed Ava narrative
     if (voiceInterviewResult) {
       const score = voiceInterviewResult.overall_score || voiceInterviewResult.overallScore;
-      const recommendation = voiceInterviewResult.recommendation;
-      const summary = voiceInterviewResult.summary;
-      const insights = extractPhaseInsights(rawSections, 'voice_interview', wasRejected);
-      
-      // Use the voice interview's own summary if available
-      let phaseSummary = summary || `Completed voice interview${score ? ` with a score of ${score}/100` : ''}`;
-      if (recommendation && !wasRejected) {
-        phaseSummary += `. Recommendation: ${recommendation}`;
-      }
-      if (insights) {
-        phaseSummary += ` ${insights}`;
-      }
-      
+      const phaseType: PhaseType = "voice_interview";
+      const baseFacts = score
+        ? `The candidate completed a voice interview and scored ${score}/100.`
+        : "The candidate completed a voice interview.";
+
       phases.push({
-        id: 'voice_interview',
-        name: 'Voice Interview',
+        id: "voice_interview",
+        name: getPhaseLabel(phaseType),
         icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
         score: score ? `${score}/100` : undefined,
-        summary: phaseSummary
+        summary: buildAvaPhaseNarrative({
+          phaseType,
+          phaseLabel: getPhaseLabel(phaseType),
+          baseFacts,
+          applicationAnswers: applicationNotes.applicationAnswers,
+          voiceInterviewResult,
+          rawSections,
+          analysisAvailable: hasAIAnalysis,
+          wasRejected,
+        }),
       });
     }
-    
-    // Check for step-based submissions
-    Object.keys(applicationNotes).forEach(key => {
+
+    // Check for step-based submissions (video/portfolio) - detailed Ava narrative
+    Object.keys(applicationNotes).forEach((key) => {
       const stepData = applicationNotes[key];
-      if (stepData && typeof stepData === 'object' && !Array.isArray(stepData)) {
-        // Video intro via step
-        if ((stepData.type === 'video_intro' || stepData.type === 'video_message') && stepData.videoUrl) {
-          if (!phases.some(p => p.id === 'video_intro')) {
-            const insights = extractPhaseInsights(rawSections, 'video', wasRejected);
+      if (stepData && typeof stepData === "object" && !Array.isArray(stepData)) {
+        if ((stepData.type === "video_intro" || stepData.type === "video_message") && stepData.videoUrl) {
+          if (!phases.some((p) => p.id === "video_intro")) {
+            const phaseType: PhaseType = "video";
+            const baseFacts = "The candidate recorded and submitted a video introduction.";
             phases.push({
-              id: 'video_intro',
-              name: 'Video Introduction',
+              id: "video_intro",
+              name: getPhaseLabel(phaseType),
               icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-              summary: insights 
-                ? `Video introduction recorded. ${insights}` 
-                : 'Video introduction recorded and submitted.'
+              summary: buildAvaPhaseNarrative({
+                phaseType,
+                phaseLabel: getPhaseLabel(phaseType),
+                baseFacts,
+                applicationAnswers: applicationNotes.applicationAnswers,
+                voiceInterviewResult,
+                rawSections,
+                analysisAvailable: hasAIAnalysis,
+                wasRejected,
+              }),
             });
           }
         }
-        // Portfolio via step
-        if (stepData.type === 'portfolio_upload' && stepData.completed) {
-          if (!phases.some(p => p.id === 'portfolio')) {
-            const insights = extractPhaseInsights(rawSections, 'portfolio', wasRejected);
+
+        if (stepData.type === "portfolio_upload" && stepData.completed) {
+          if (!phases.some((p) => p.id === "portfolio")) {
+            const phaseType: PhaseType = "portfolio";
             const count = stepData.portfolioUrls?.length || 0;
+            const baseFacts = `The candidate uploaded ${count} portfolio item(s).`;
             phases.push({
-              id: 'portfolio',
-              name: 'Portfolio Upload',
+              id: "portfolio",
+              name: "Portfolio Upload",
               icon: <CheckCircle2 className="h-4 w-4 text-primary" />,
-              summary: insights 
-                ? `${count} portfolio item(s) uploaded. ${insights}` 
-                : `${count} portfolio item(s) uploaded.`
+              summary: buildAvaPhaseNarrative({
+                phaseType,
+                phaseLabel: "Portfolio Upload",
+                baseFacts,
+                applicationAnswers: applicationNotes.applicationAnswers,
+                voiceInterviewResult,
+                rawSections,
+                analysisAvailable: hasAIAnalysis,
+                wasRejected,
+              }),
             });
           }
         }
       }
     });
-    
+
     return phases;
   }, [applicationNotes, voiceInterviewResult, rawSections, wasRejected]);
-  
+
   // If no completed phases, don't show anything
   if (completedPhases.length === 0) {
     return null;
