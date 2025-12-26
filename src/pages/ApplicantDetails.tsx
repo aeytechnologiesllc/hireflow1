@@ -428,7 +428,7 @@ export default function ApplicantDetails() {
           const analysisCard = document.querySelector('[data-section="ai-analysis"]');
           if (analysisCard) {
             analysisCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            toast.success('Showing AI Analysis');
+            toast.success('Showing Ava Analysis');
           }
           break;
         case 'resume':
@@ -1610,10 +1610,10 @@ ${interviewType} Interview with AVA Results:
       });
 
       queryClient.invalidateQueries({ queryKey: ["application", id] });
-      toast.success("AI analysis completed!");
+      toast.success("Ava analysis completed!");
     } catch (error) {
-      console.error("AI analysis error:", error);
-      toast.error("Failed to run AI analysis");
+      console.error("Ava analysis error:", error);
+      toast.error("Failed to run Ava analysis");
     } finally {
       setIsAnalyzing(false);
     }
@@ -2103,10 +2103,10 @@ ${interviewType} Interview with AVA Results:
                     <Sparkles className="h-4 w-4" />
                     <span className="hidden sm:inline">
                       {scheduledInterview.ai_questions?.length 
-                        ? `${scheduledInterview.ai_questions.length} AI Questions` 
-                        : "AI Questions"}
+                        ? `${scheduledInterview.ai_questions.length} Ava Questions` 
+                        : "Ava Questions"}
                     </span>
-                    <span className="sm:hidden">AI</span>
+                    <span className="sm:hidden">Ava</span>
                   </Button>
                 )}
                 
@@ -2563,12 +2563,12 @@ ${interviewType} Interview with AVA Results:
               <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold text-foreground mb-2">No Analysis Yet</h3>
               <p className="text-muted-foreground text-sm mb-4">
-                Run AI analysis to get AVA's recommendation on this candidate.
+                Run Ava analysis to get Ava's recommendation on this candidate.
               </p>
               <Button onClick={handleReanalyze} disabled={isAnalyzing}>
                 {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Sparkles className="mr-2 h-4 w-4" />
-                Run AI Analysis
+                Run Ava Analysis
               </Button>
             </div>
           )}
@@ -2668,7 +2668,7 @@ ${interviewType} Interview with AVA Results:
               Resume
               {application.ai_score && (
                 <Badge className="bg-success/20 text-success ml-2">
-                  AI Score: {application.ai_score}/100
+                  Ava Score: {application.ai_score}/100
                 </Badge>
               )}
             </DialogTitle>

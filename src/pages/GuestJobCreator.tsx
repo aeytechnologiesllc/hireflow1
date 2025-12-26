@@ -465,7 +465,7 @@ export default function GuestJobCreator() {
               </Link>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Create New Job</h2>
-                <p className="text-muted-foreground mt-1">AI-powered job posting wizard</p>
+                <p className="text-muted-foreground mt-1">Ava-powered job posting wizard</p>
               </div>
             </div>
             

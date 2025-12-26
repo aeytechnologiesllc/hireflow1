@@ -129,10 +129,10 @@ Resume URL: ${application.resume_url || "Not provided"}
         onAnalyze(data.analysis, score && score >= 0 && score <= 100 ? score : null);
       }
 
-      toast.success("AI analysis completed!");
+      toast.success("Ava analysis completed!");
     } catch (error) {
-      console.error("AI analysis error:", error);
-      toast.error("Failed to run AI analysis");
+      console.error("Ava analysis error:", error);
+      toast.error("Failed to run Ava analysis");
     } finally {
       setIsAnalyzing(false);
     }
@@ -170,7 +170,7 @@ Resume URL: ${application.resume_url || "Not provided"}
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium text-primary">
-                    AI Score: {application.ai_score}%
+                    Ava Score: {application.ai_score}%
                   </span>
                 </div>
               )}
@@ -279,7 +279,7 @@ Resume URL: ${application.resume_url || "Not provided"}
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  AI Analysis
+                  Ava's Analysis
                 </h3>
                 <Card className="bg-primary/5 border-primary/20">
                   <CardContent className="p-4">
@@ -301,7 +301,7 @@ Resume URL: ${application.resume_url || "Not provided"}
             <Button onClick={handleAnalyze} disabled={isAnalyzing}>
               {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Sparkles className="mr-2 h-4 w-4" />
-              Run AI Analysis
+              Run Ava Analysis
             </Button>
           )}
         </DialogFooter>

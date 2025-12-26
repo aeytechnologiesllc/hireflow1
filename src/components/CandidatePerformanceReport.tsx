@@ -26,11 +26,11 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-              AI Performance Report
+              Ava Performance Report
               <Sparkles className="h-4 w-4 text-primary" />
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Get comprehensive AI-powered insights from your application
+              Get comprehensive Ava-powered insights from your application
             </p>
           </div>
         </div>
@@ -59,7 +59,7 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
         </div>
 
         <p className="text-sm text-muted-foreground">
-          A 7-page comprehensive PDF with personalized AI analysis, interview feedback with direct quotes, 
+          A 7-page comprehensive PDF with personalized Ava analysis, interview feedback with direct quotes, 
           personality insights, and a curated growth roadmap with real resource links to help you improve.
         </p>
 
@@ -72,7 +72,7 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
           {isGenerating ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              Generating AI Analysis...
+              Generating Ava Analysis...
             </>
           ) : (
             <>
@@ -83,7 +83,7 @@ export function CandidatePerformanceReport({ applicationId }: CandidatePerforman
         </Button>
 
         <p className="text-xs text-center text-muted-foreground">
-          7-page PDF • AI-powered analysis • Real improvement resources
+          7-page PDF • Ava-powered analysis • Real improvement resources
         </p>
       </CardContent>
     </Card>

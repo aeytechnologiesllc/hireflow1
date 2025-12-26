@@ -663,7 +663,7 @@ export default function Auth() {
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Create an employer account</h2>
                   <p className="text-muted-foreground text-sm mt-1">
-                    Start hiring with AI-powered tools
+                    Start hiring with Ava-powered tools
                   </p>
                 </div>
 
