@@ -87,7 +87,11 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
     margin: 20px 0;
   `;
 
+  // ============ EMPLOYER-FACING TEMPLATES (show candidate details) ============
+  // ============ CANDIDATE-FACING TEMPLATES (hide employer details) ============
+
   const templates: Record<NotificationType, { subject: string; html: string }> = {
+    // EMPLOYER-FACING: Show candidate name
     new_application: {
       subject: `New Application: ${data.candidate_name} applied for ${data.job_title}`,
       html: `
@@ -110,6 +114,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     application_received: {
       subject: `Application Submitted: ${data.job_title}`,
       html: `
@@ -119,13 +125,11 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              Your application for <strong style="color: #10b981;">${data.job_title}</strong>
-              ${data.company_name ? ` at <strong style="color: #10b981;">${data.company_name}</strong>` : ''} 
-              has been successfully submitted.
+              Your application for <strong style="color: #10b981;">${data.job_title}</strong> has been successfully submitted.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">What's Next?</p>
-              <p style="color: #e5e5e5; margin: 0; font-size: 14px;">The employer will review your application and get back to you. You can track your application status in your HireFlow dashboard.</p>
+              <p style="color: #e5e5e5; margin: 0; font-size: 14px;">The hiring team will review your application and get back to you. You can track your application status in your HireFlow dashboard.</p>
             </div>
             <a href="https://hireflow.lovable.app/applications" style="${buttonStyles}">
               Track Application
@@ -134,6 +138,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     phase_advanced: {
       subject: `Update: You've been moved to ${data.phase_name} for ${data.job_title}`,
       html: `
@@ -144,7 +150,6 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
               Great news! Your application for <strong style="color: #10b981;">${data.job_title}</strong> 
-              ${data.company_name ? `at <strong style="color: #10b981;">${data.company_name}</strong>` : ''} 
               has been moved to the next phase.
             </p>
             <div style="${cardStyles}">
@@ -161,8 +166,10 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide sender name, use generic "hiring team"
     new_message: {
-      subject: `New message from ${data.sender_name}`,
+      subject: `New message regarding your application${data.job_title ? `: ${data.job_title}` : ''}`,
       html: `
         <div style="${baseStyles}">
           <div style="${headerStyles('linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)')}">
@@ -170,8 +177,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              You have a new message from <strong style="color: #6366f1;">${data.sender_name}</strong>
-              ${data.job_title ? ` regarding <strong style="color: #6366f1;">${data.job_title}</strong>` : ''}.
+              You have a new message from <strong style="color: #6366f1;">the hiring team</strong>${data.job_title ? ` regarding <strong style="color: #6366f1;">${data.job_title}</strong>` : ''}.
             </p>
             ${data.message_preview ? `
               <div style="${cardStyles} border-left: 3px solid #6366f1;">
@@ -185,6 +191,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     interview_scheduled: {
       subject: `🎉 Interview Scheduled: ${data.job_title}`,
       html: `
@@ -194,9 +202,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              Your interview for <strong style="color: #10b981;">${data.job_title}</strong>
-              ${data.company_name ? ` at <strong style="color: #10b981;">${data.company_name}</strong>` : ''} 
-              has been scheduled.
+              Your interview for <strong style="color: #10b981;">${data.job_title}</strong> has been scheduled.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">📅 Date & Time</p>
@@ -214,6 +220,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     interview_cancelled: {
       subject: `Interview Cancelled: ${data.job_title}`,
       html: `
@@ -223,9 +231,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              Unfortunately, your interview for <strong style="color: #ef4444;">${data.job_title}</strong>
-              ${data.company_name ? ` at <strong style="color: #ef4444;">${data.company_name}</strong>` : ''} 
-              has been cancelled.
+              Unfortunately, your interview for <strong style="color: #ef4444;">${data.job_title}</strong> has been cancelled.
             </p>
             ${data.original_date ? `
               <div style="${cardStyles}">
@@ -235,7 +241,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
             ` : ''}
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">What's Next?</p>
-              <p style="color: #e5e5e5; margin: 0; font-size: 14px;">Check your messages for updates from the employer. They may reach out to reschedule.</p>
+              <p style="color: #e5e5e5; margin: 0; font-size: 14px;">Check your messages for updates from the hiring team. They may reach out to reschedule.</p>
             </div>
             <a href="https://hireflow.lovable.app/messages" style="${buttonStyles.replace('#10b981', '#6366f1')}">
               Check Messages
@@ -244,6 +250,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     interview_rescheduled: {
       subject: `Interview Rescheduled: ${data.job_title}`,
       html: `
@@ -253,9 +261,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              Your interview for <strong style="color: #f59e0b;">${data.job_title}</strong>
-              ${data.company_name ? ` at <strong style="color: #f59e0b;">${data.company_name}</strong>` : ''} 
-              has been rescheduled.
+              Your interview for <strong style="color: #f59e0b;">${data.job_title}</strong> has been rescheduled.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">📅 New Date & Time</p>
@@ -273,6 +279,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     interview_reminder: {
       subject: `Reminder: Interview Tomorrow - ${data.job_title}`,
       html: `
@@ -283,8 +291,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
               This is a friendly reminder about your upcoming interview for 
-              <strong style="color: #8b5cf6;">${data.job_title}</strong>
-              ${data.company_name ? ` at <strong style="color: #8b5cf6;">${data.company_name}</strong>` : ''}.
+              <strong style="color: #8b5cf6;">${data.job_title}</strong>.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">📅 Scheduled For</p>
@@ -302,6 +309,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     document_sent: {
       subject: `Document to Sign: ${data.document_name}`,
       html: `
@@ -311,8 +320,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              ${data.company_name ? `<strong style="color: #10b981;">${data.company_name}</strong> has` : 'You have'} 
-              sent you a document to review and sign.
+              The hiring team has sent you a document to review and sign.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">Document</p>
@@ -325,6 +333,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // EMPLOYER-FACING: Show candidate name
     document_signed: {
       subject: `✅ Document Signed: ${data.document_name}`,
       html: `
@@ -347,6 +357,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     document_requested: {
       subject: `Document Requested: ${data.document_name || 'New Document'}`,
       html: `
@@ -356,8 +368,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              ${data.company_name ? `<strong style="color: #f59e0b;">${data.company_name}</strong>` : 'The employer'} 
-              has requested you to upload a document.
+              The hiring team has requested you to upload a document.
             </p>
             ${data.document_name ? `
               <div style="${cardStyles}">
@@ -375,6 +386,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // EMPLOYER-FACING: Show candidate name
     phase_completed: {
       subject: `Phase Completed: ${data.candidate_name} finished ${data.phase_name}`,
       html: `
@@ -398,6 +411,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     status_rejected: {
       subject: `Application Update: ${data.job_title}`,
       html: `
@@ -407,11 +422,10 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 16px; line-height: 1.6;">
-              Thank you for your interest in the <strong style="color: #e5e5e5;">${data.job_title}</strong> position
-              ${data.company_name ? ` at <strong style="color: #e5e5e5;">${data.company_name}</strong>` : ''}.
+              Thank you for your interest in the <strong style="color: #e5e5e5;">${data.job_title}</strong> position.
             </p>
             <p style="font-size: 14px; line-height: 1.6; color: #a3a3a3;">
-              After careful consideration, we've decided to move forward with other candidates whose experience more closely matches our current needs.
+              After careful consideration, the hiring team has decided to move forward with other candidates whose experience more closely matches their current needs.
             </p>
             <div style="${cardStyles}">
               <p style="color: #a3a3a3; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase;">What's Next?</p>
@@ -424,6 +438,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // CANDIDATE-FACING: Hide employer/company details
     status_hired: {
       subject: `🎉 Congratulations! You're Hired - ${data.job_title}`,
       html: `
@@ -433,11 +449,10 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
           </div>
           <div style="${bodyStyles}">
             <p style="font-size: 18px; line-height: 1.6; font-weight: 600;">
-              You've been selected for the <strong style="color: #10b981;">${data.job_title}</strong> position
-              ${data.company_name ? ` at <strong style="color: #10b981;">${data.company_name}</strong>` : ''}!
+              You've been selected for the <strong style="color: #10b981;">${data.job_title}</strong> position!
             </p>
             <p style="font-size: 14px; line-height: 1.6; color: #a3a3a3;">
-              We're excited to have you join the team. Please check your messages and documents for next steps.
+              We're excited to welcome you aboard. Please check your messages and documents for next steps.
             </p>
             <div style="${cardStyles}">
               <p style="color: #10b981; margin: 0; font-size: 16px; font-weight: 600;">Welcome aboard! 🚀</p>
@@ -449,6 +464,8 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </div>
       `,
     },
+    
+    // EMPLOYER-FACING: Show candidate name
     reschedule_requested: {
       subject: `Reschedule Request: ${data.candidate_name} for ${data.job_title}`,
       html: `
@@ -521,7 +538,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { type, recipient_user_id, data }: NotificationRequest = await req.json();
 
-    console.log(`Processing ${type} notification for user ${recipient_user_id}`);
+    console.log(`[send-notification-email] Processing ${type} notification for user ${recipient_user_id}`);
+    console.log(`[send-notification-email] Data:`, JSON.stringify(data));
 
     // Get user's email and preferences
     const { data: profile, error: profileError } = await supabase
@@ -531,35 +549,40 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (profileError || !profile) {
-      console.error("Failed to fetch profile:", profileError);
+      console.error(`[send-notification-email] Failed to fetch profile for user ${recipient_user_id}:`, profileError);
       return new Response(
-        JSON.stringify({ error: "User profile not found" }),
+        JSON.stringify({ error: "User profile not found", details: profileError }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
+    console.log(`[send-notification-email] Found profile for ${profile.email}, notifications_enabled: ${profile.email_notifications_enabled}`);
+
     // Check if notifications are enabled
     if (!profile.email_notifications_enabled) {
-      console.log("Email notifications disabled for user");
+      console.log(`[send-notification-email] Email notifications globally disabled for ${profile.email}`);
       return new Response(
-        JSON.stringify({ message: "Email notifications disabled" }),
+        JSON.stringify({ message: "Email notifications disabled", email: profile.email }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     // Check specific preference
     const preferenceField = getPreferenceField(type) as keyof typeof profile;
-    if (profile[preferenceField] === false) {
-      console.log(`${type} notifications disabled for user`);
+    const preferenceValue = profile[preferenceField];
+    console.log(`[send-notification-email] Checking preference ${preferenceField} = ${preferenceValue}`);
+    
+    if (preferenceValue === false) {
+      console.log(`[send-notification-email] ${type} notifications disabled for ${profile.email} (${preferenceField} = false)`);
       return new Response(
-        JSON.stringify({ message: `${type} notifications disabled` }),
+        JSON.stringify({ message: `${type} notifications disabled`, preference: preferenceField }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     const emailContent = getEmailContent(type, data);
 
-    console.log(`Sending email to ${profile.email}`);
+    console.log(`[send-notification-email] Sending email to ${profile.email} with subject: ${emailContent.subject}`);
 
     const emailResponse = await resend.emails.send({
       from: "HireFlow <notifications@hireflownow.com>",
@@ -568,16 +591,17 @@ const handler = async (req: Request): Promise<Response> => {
       html: emailContent.html,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log(`[send-notification-email] Email sent successfully to ${profile.email}:`, JSON.stringify(emailResponse));
 
     return new Response(
-      JSON.stringify({ success: true, emailResponse }),
+      JSON.stringify({ success: true, emailResponse, recipient: profile.email }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
-    console.error("Error sending notification email:", error);
+    console.error("[send-notification-email] Error sending notification email:", error);
+    console.error("[send-notification-email] Error stack:", error.stack);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, stack: error.stack }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
