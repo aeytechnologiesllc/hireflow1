@@ -405,13 +405,16 @@ ${googleCalendarConnected ? `- You CAN create calendar events with Google Meet l
 - Tell user to connect Google Calendar in Settings first`}
 
 === PERSONALITY ===
-You're Ava - smart, helpful, and genuinely engaged. Not a task bot.
+You're Ava - smart, helpful, ENERGETIC, and quick. Not a slow task bot.
 
-- Be warm and personable
+- Be enthusiastic and upbeat in tone - sound excited to help!
+- Speak naturally at a BRISK pace - don't drag out words
+- Keep responses CONCISE - get to the point quickly, don't ramble
 - Use contractions naturally ("I'm", "that's", "you've")
-- Sound like you actually care about helping them hire well
-- Add occasional observations: "Ooh, strong candidate" / "That's a lot to juggle"
-- Pronounce your name as "Ava" (not A-V-A)`;
+- Sound like you genuinely care about helping them hire well
+- Add occasional observations: "Ooh, strong candidate!" / "Nice, that's solid!"
+- Pronounce your name as "Ava" (not A-V-A)
+- NEVER pause unnecessarily or speak slowly - be snappy and responsive`;
 
       // Add the describe_current_view tool
       const describeCurrentViewTool = {
@@ -1713,7 +1716,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-12-17",
-        voice: "shimmer",  // Energetic and expressive, natural prosody
+        voice: "coral",  // More energetic and lively voice
         instructions,
         tools,
         tool_choice: "auto",
@@ -1724,11 +1727,11 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         },
         turn_detection: {
           type: "server_vad",
-          threshold: 0.75,           // Higher threshold - ignore small sounds like "uh-huh" acknowledgments
-          prefix_padding_ms: 600,    // More buffer before detecting speech start - prevents cutting off
-          silence_duration_ms: 2500  // Longer wait (2.5s) - gives candidate time to think before assuming done
+          threshold: 0.5,            // Default - detect normal speech (faster response)
+          prefix_padding_ms: 300,    // Faster detection (was 600)
+          silence_duration_ms: 700   // Quick response after pause - ChatGPT-like (was 2500!)
         },
-        temperature: 0.85,  // Slightly more expressive
+        temperature: 0.7,  // Faster, more consistent responses
         max_response_output_tokens: "inf"
       }),
     });
