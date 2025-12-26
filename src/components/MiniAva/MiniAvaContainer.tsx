@@ -245,37 +245,46 @@ export default function MiniAvaContainer() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="relative cursor-pointer"
-            onClick={handleClick}
-            onMouseEnter={() => {
-              setIsHovered(true);
-              wake();
-            }}
-            onMouseLeave={() => {
-              setIsHovered(false);
-            }}
+            className="relative"
           >
+            {/* Clickable overlay - ensures clicks always work regardless of animations */}
+            <button
+              onClick={handleClick}
+              onMouseEnter={() => {
+                setIsHovered(true);
+                wake();
+              }}
+              onMouseLeave={() => {
+                setIsHovered(false);
+              }}
+              className="absolute inset-0 z-10 rounded-full cursor-pointer bg-transparent border-none outline-none focus:outline-none"
+              style={{ width: 56, height: 56 }}
+              aria-label="Talk to Ava"
+            />
+            
             {/* Soft shadow beneath orb */}
             <div 
-              className="absolute inset-0 rounded-full blur-xl opacity-30"
+              className="absolute inset-0 rounded-full blur-xl opacity-30 pointer-events-none"
               style={{
                 background: 'hsl(160, 84%, 39%)',
                 transform: 'translateY(4px) scale(0.8)',
               }}
             />
             
-            <MiniAva
-              personalityState={personalityState}
-              expression={expression}
-              isHovered={isHovered}
-              size={56}
-              isListening={isListening}
-              isSpeaking={isSpeaking}
-            />
+            <div className="pointer-events-none">
+              <MiniAva
+                personalityState={personalityState}
+                expression={expression}
+                isHovered={isHovered}
+                size={56}
+                isListening={isListening}
+                isSpeaking={isSpeaking}
+              />
+            </div>
             
             {/* Status indicator - minimal dot */}
             <motion.div
-              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-background"
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-background pointer-events-none"
               animate={{
                 backgroundColor: personalityState === 'sleeping' 
                   ? 'hsl(160, 20%, 25%)' 
