@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Plus, Briefcase, Trash2, EyeOff, Users } from "lucide-react";
+import { MessageSquare, Search, Plus, Briefcase, Trash2, EyeOff, Users, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ function formatMessageDate(date: Date) {
 export default function Messages() {
   const { user, role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
+  const isMobile = useIsMobile();
   const isCandidate = role === "candidate";
   const isEmployer = role === "employer";
   const canMessageCandidates = !isTeamMember || permissions?.canMessageCandidates;
@@ -351,29 +353,40 @@ export default function Messages() {
         {selectedContactId ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b border-border flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary/10 text-primary font-medium">
+            <div className="p-3 sm:p-4 border-b border-border flex items-center gap-2 sm:gap-3">
+              {/* Back button - mobile only */}
+              {isMobile && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 shrink-0 -ml-1"
+                  onClick={() => setSelectedContactId(null)}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              )}
+              <Avatar className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
                   {getInitials(selectedConversation?.contact_profile || selectedEmployer?.employer_profile)}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate text-sm sm:text-base">
                   {getContactName()}
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {getContactEmail()}
                 </p>
               </div>
-              {selectedEmployer && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              {selectedEmployer && !isMobile && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
                   <Briefcase className="h-4 w-4" />
-                  <span>{selectedEmployer.job_title}</span>
+                  <span className="max-w-[120px] truncate">{selectedEmployer.job_title}</span>
                 </div>
               )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -478,7 +491,7 @@ export default function Messages() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="p-4 border-t border-border">
+            <div className="p-3 sm:p-4 border-t border-border pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-4">
               {isTeamMember && !canMessageCandidates ? (
                 <div className="text-center py-2 text-muted-foreground text-sm">
                   You don't have permission to send messages
