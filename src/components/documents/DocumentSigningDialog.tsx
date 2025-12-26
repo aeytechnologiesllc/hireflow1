@@ -74,12 +74,6 @@ interface DocumentSigningDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const statusConfig = {
-  pending: { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending Signature" },
-  signed: { color: "bg-success/20 text-success", icon: CheckCircle, label: "Fully Signed" },
-  declined: { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" },
-};
-
 export function DocumentSigningDialog({ document, open, onOpenChange }: DocumentSigningDialogProps) {
   const [isSigning, setIsSigning] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
@@ -290,12 +284,18 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     if (isDocumentLoading || !documentData?.signatureFields) return [];
     
     if (role === "candidate") {
+      // If candidate has already signed, no more fields to sign
+      if (candidateSigned) return [];
+      
       // Candidate signs: legacy "recipient" field OR new positioned fields with type="candidate"
       return documentData.signatureFields.filter(f => 
         f.id === "recipient" || 
         (isPositionedField(f) && f.type === "candidate")
       );
     } else if (role === "employer") {
+      // If employer has already signed, no more fields to sign
+      if (employerSigned) return [];
+      
       // Employer signs employer field, but only after candidate has signed
       if (!candidateSigned) return [];
       return documentData.signatureFields.filter(f => 
@@ -304,6 +304,30 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
       );
     }
     return [];
+  };
+
+  // Get dynamic status for badge display
+  const getDialogStatus = () => {
+    if (document?.status === "signed" || isFullySigned) {
+      return { color: "bg-success/20 text-success", icon: CheckCircle, label: "Fully Signed" };
+    }
+    if (document?.status === "declined") {
+      return { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" };
+    }
+    // Pending status - check signing state
+    if (candidateSigned && !employerSigned) {
+      if (role === "employer") {
+        return { color: "bg-blue-500/20 text-blue-500", icon: PenTool, label: "Awaiting Your Signature" };
+      }
+      return { color: "bg-blue-500/20 text-blue-500", icon: Clock, label: "Awaiting Countersignature" };
+    }
+    if (!candidateSigned && role === "candidate") {
+      return { color: "bg-yellow-500/20 text-yellow-500", icon: PenTool, label: "Awaiting Your Signature" };
+    }
+    if (!candidateSigned && role === "employer") {
+      return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Awaiting Candidate Signature" };
+    }
+    return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending Signature" };
   };
 
   const signableFields = getSignableFields();
@@ -692,17 +716,7 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
 
   if (!document) return null;
 
-  const status = statusConfig[document.status as keyof typeof statusConfig];
-  const StatusIcon = status?.icon || Clock;
   const canEdit = role === "employer" && document.status === "pending" && !candidateSigned;
-
-  // Determine signing status display
-  const getSigningStatus = () => {
-    if (isFullySigned) return "Fully Signed";
-    if (candidateSigned && !employerSigned) return "Awaiting Employer Countersignature";
-    if (!candidateSigned) return "Awaiting Candidate Signature";
-    return "Pending";
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -722,10 +736,16 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className={status?.color}>
-                <StatusIcon className="h-3 w-3 mr-1" />
-                {status?.label}
-              </Badge>
+              {(() => {
+                const dialogStatus = getDialogStatus();
+                const DialogStatusIcon = dialogStatus.icon;
+                return (
+                  <Badge className={dialogStatus.color}>
+                    <DialogStatusIcon className="h-3 w-3 mr-1" />
+                    {dialogStatus.label}
+                  </Badge>
+                );
+              })()}
             </div>
           </div>
           
