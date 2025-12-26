@@ -681,6 +681,8 @@ export default function ChatInterviewPhase() {
           phase: newPhase,
           status: newStatus as any,
           phase_ai_analysis: `Interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
+          // Track Ava as the rejector for autopilot rejections
+          ...(newStatus === "rejected" && isAutoMode ? { rejected_by_type: 'ava' } : {}),
         })
         .eq("id", id!);
 

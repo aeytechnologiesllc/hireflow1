@@ -1229,13 +1229,21 @@ export default function ApplicantDetails() {
   };
 
   const handleReject = async () => {
-    if (!application) return;
+    if (!application || !user) return;
     try {
       // Trigger animation FIRST
       setShowRejectAnimation(true);
       
-      // Update database in background
-      await updateApplication.mutateAsync({ id: application.id, status: "rejected" });
+      // Determine rejection type: team member vs regular employer
+      const rejectedByType = permissions?.isTeamMember ? 'team_member' : 'user';
+      
+      // Update database in background with rejection attribution
+      await updateApplication.mutateAsync({ 
+        id: application.id, 
+        status: "rejected",
+        rejected_by: user.id,
+        rejected_by_type: rejectedByType,
+      });
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       
       // Create notification for candidate so they get a real-time pop-up
@@ -1785,10 +1793,14 @@ ${interviewType} Interview with AVA Results:
                   </div>
                   <div>
                     <h3 className="font-semibold text-destructive text-lg">
-                      {isAutopilot ? "Candidate Rejected by Ava" : "Candidate Rejected"}
+                      {application.rejected_by_type === 'ava' 
+                        ? "Candidate Rejected by Ava" 
+                        : application.rejected_by_type === 'team_member'
+                        ? "Candidate Rejected by Team Member"
+                        : "Candidate Rejected"}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {isAutopilot && rejectionPhase ? (
+                      {application.rejected_by_type === 'ava' && rejectionPhase ? (
                         <>Automatically rejected at the <span className="font-medium text-foreground">{getPhaseDisplayName(rejectionPhase)}</span> phase</>
                       ) : (
                         <>This candidate is no longer being considered for {job?.title || "this position"}.</>
@@ -1838,7 +1850,7 @@ ${interviewType} Interview with AVA Results:
               </div>
               
               {/* Autopilot Rejection Reason */}
-              {isAutopilot && phaseAnalysis && (
+              {application.rejected_by_type === 'ava' && phaseAnalysis && (
                 <div className="bg-background/50 rounded-lg p-3 border border-destructive/20">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />

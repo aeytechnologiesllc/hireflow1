@@ -701,6 +701,8 @@ export default function SalesSimulationPhase() {
           phase: newPhase,
           status: newStatus as any,
           phase_ai_analysis: `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}. ${passed ? "PASSED" : "FAILED"}`,
+          // Track Ava as the rejector for autopilot rejections
+          ...(newStatus === "rejected" && isAutoMode ? { rejected_by_type: 'ava' } : {}),
         })
         .eq("id", id!);
 
