@@ -175,10 +175,10 @@ export async function processAutopilotCatchUp(
   try {
     console.log("[processAutopilotCatchUp] Starting catch-up for job:", jobId);
 
-    // Fetch job details to get workflow steps, passing score, and quiz questions
+    // Fetch job details to get workflow steps, passing score, required WPM, and quiz questions
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("workflow_steps, passing_score, title, employer_id, quiz_questions")
+      .select("workflow_steps, passing_score, required_wpm, title, employer_id, quiz_questions")
       .eq("id", jobId)
       .single();
 
@@ -189,10 +189,12 @@ export async function processAutopilotCatchUp(
 
     const workflowSteps = (job.workflow_steps as unknown as WorkflowStep[]) || [];
     const passingScore = job.passing_score || 60;
+    const requiredWpm = job.required_wpm || 35;
     const quizQuestions = job.quiz_questions as unknown as any[] | null;
     const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const hasTypingTest = workflowSteps.some(step => step.type === 'typing_test');
     
-    console.log(`[processAutopilotCatchUp] Job config: passingScore=${passingScore}, hasQuiz=${hasQuizQuestions}, workflowStepsCount=${workflowSteps.length}`);
+    console.log(`[processAutopilotCatchUp] Job config: passingScore=${passingScore}, requiredWpm=${requiredWpm}, hasQuiz=${hasQuizQuestions}, hasTypingTest=${hasTypingTest}, workflowStepsCount=${workflowSteps.length}`);
 
     // Fetch employer profile for company name
     const { data: employerProfile } = await supabase
@@ -289,6 +291,49 @@ export async function processAutopilotCatchUp(
             console.log(`[processAutopilotCatchUp] Rejected application ${application.id}`);
           }
           continue; // Move to next application after rejection
+        }
+
+        // SECOND: Check typing test failure - reject if WPM is below required threshold
+        if (hasTypingTest && application.notes) {
+          try {
+            const parsedNotes = typeof application.notes === 'string' 
+              ? JSON.parse(application.notes) 
+              : application.notes;
+            
+            const typingTestResult = parsedNotes?.typingTestResult;
+            if (typingTestResult && typingTestResult.wpm !== undefined) {
+              const candidateWpm = typingTestResult.wpm;
+              
+              // Check if candidate's WPM is below the required threshold
+              if (candidateWpm < requiredWpm) {
+                const rejectionReason = `Typing test failed. Speed: ${candidateWpm} WPM (required: ${requiredWpm} WPM). This application was automatically rejected by Ava because the candidate did not meet the minimum typing speed requirement.`;
+                
+                console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - typing test WPM ${candidateWpm} below required ${requiredWpm}`);
+                
+                const { error: rejectError } = await supabase
+                  .from("applications")
+                  .update({
+                    status: "rejected",
+                    rejected_by: null,
+                    rejected_by_type: "ava",
+                    phase_ai_analysis: rejectionReason,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", application.id);
+
+                if (rejectError) {
+                  console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
+                  result.failed++;
+                } else {
+                  result.rejected++;
+                  console.log(`[processAutopilotCatchUp] Rejected application ${application.id} for failing typing test`);
+                }
+                continue; // Move to next application after rejection
+              }
+            }
+          } catch (parseError) {
+            console.log(`[processAutopilotCatchUp] Could not parse notes for typing test check:`, parseError);
+          }
         }
 
         // THEN: Check if candidate has completed their part of the current phase

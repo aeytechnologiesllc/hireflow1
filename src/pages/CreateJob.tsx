@@ -298,7 +298,7 @@ export default function CreateJob() {
   const [workflowDifficulty, setWorkflowDifficulty] = useState<string>("medium");
   const [processingMode, setProcessingMode] = useState<"auto" | "manual">("auto");
   const [passingScore, setPassingScore] = useState<number>(60);
-  const [requiredWpm, setRequiredWpm] = useState<number>(40);
+  const [requiredWpm, setRequiredWpm] = useState<number>(35);
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
@@ -1593,47 +1593,7 @@ export default function CreateJob() {
                         </div>
                       </div>
 
-                      {/* Required WPM for Typing Test - Only show when typing test is in workflow */}
-                      {workflowSteps.some(step => step.type === 'typing_test') && (
-                        <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/20 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Keyboard className="h-4 w-4 text-amber-500" />
-                              <div>
-                                <Label>Typing Speed Requirement</Label>
-                                <p className="text-xs text-muted-foreground">
-                                  Words per minute for typing test
-                                </p>
-                              </div>
-                            </div>
-                            <motion.div 
-                              key={requiredWpm}
-                              initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
-                              animate={{ scale: 1 }}
-                              className="text-2xl font-bold text-amber-500"
-                            >
-                              {requiredWpm} WPM
-                            </motion.div>
-                          </div>
-                          <Slider
-                            value={[requiredWpm]}
-                            onValueChange={([value]) => setRequiredWpm(value)}
-                            min={20}
-                            max={80}
-                            step={5}
-                            className="w-full"
-                          />
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Basic (20)</span>
-                            <span>Standard (40)</span>
-                            <span>Fast (60)</span>
-                            <span>Pro (80)</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground/80 text-center">
-                            💡 Average office worker types ~40 WPM. Data entry roles may require 50-60 WPM.
-                          </p>
-                        </div>
-                      )}
+                      {/* WPM slider moved to typing test phase card below */}
 
                       <p className="text-xs text-muted-foreground/80 text-center">
                         💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
@@ -1976,7 +1936,9 @@ export default function CreateJob() {
                                   "p-4 rounded-lg border",
                                   isVoiceInterview 
                                     ? "border-violet-500/50 bg-gradient-to-r from-violet-500/10 via-fuchsia-500/5 to-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" 
-                                    : "border-border bg-secondary/30"
+                                    : step.type === 'typing_test'
+                                      ? "border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent"
+                                      : "border-border bg-secondary/30"
                                 )}
                               >
                                 <div className="flex items-center justify-between">
@@ -1985,9 +1947,11 @@ export default function CreateJob() {
                                       "h-10 w-10 rounded-lg flex items-center justify-center",
                                       isVoiceInterview 
                                         ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30" 
-                                        : "bg-primary/10"
+                                        : step.type === 'typing_test'
+                                          ? "bg-amber-500/10"
+                                          : "bg-primary/10"
                                     )}>
-                                      <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-white" : "text-primary")} />
+                                      <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-white" : step.type === 'typing_test' ? "text-amber-500" : "text-primary")} />
                                     </div>
                                     <div>
                                       <div className="font-medium flex items-center gap-2">
@@ -2011,6 +1975,43 @@ export default function CreateJob() {
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
+                                
+                                {/* Embedded WPM slider for typing test phase */}
+                                {step.type === 'typing_test' && (
+                                  <div className="mt-4 pt-4 border-t border-amber-500/20 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <Gauge className="h-4 w-4 text-amber-500" />
+                                        <Label className="text-sm">Passing Speed</Label>
+                                      </div>
+                                      <motion.span 
+                                        key={requiredWpm}
+                                        initial={{ scale: 1.2 }}
+                                        animate={{ scale: 1 }}
+                                        className="text-lg font-bold text-amber-500"
+                                      >
+                                        {requiredWpm} WPM
+                                      </motion.span>
+                                    </div>
+                                    <Slider
+                                      value={[requiredWpm]}
+                                      onValueChange={([value]) => setRequiredWpm(value)}
+                                      min={20}
+                                      max={80}
+                                      step={5}
+                                      className="w-full"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                                      <span>20</span>
+                                      <span>35 (default)</span>
+                                      <span>50</span>
+                                      <span>80</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground/80">
+                                      💡 Average office worker: ~40 WPM. Data entry: 50-60 WPM.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
