@@ -487,6 +487,35 @@ ${interviewType} Interview with AVA Results:
           console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
         }
         
+        // Send rejection notification email to candidate
+        try {
+          const jobTitle = job?.title || "this position";
+          
+          // Fetch employer profile for company name
+          const { data: employerProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("company_name")
+            .eq("user_id", job?.employer_id)
+            .single();
+          
+          const companyName = employerProfile?.company_name || undefined;
+          
+          await supabaseAdmin.functions.invoke("send-notification-email", {
+            body: {
+              type: "status_rejected",
+              recipientUserId: application.candidate_id,
+              data: {
+                job_title: jobTitle,
+                company_name: companyName,
+              },
+            },
+          });
+          console.log("[trigger-ava-analysis] Rejection notification email sent to candidate");
+        } catch (emailError) {
+          console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
+          // Don't fail the whole operation if email fails
+        }
+        
         return new Response(
           JSON.stringify({ 
             success: true, 

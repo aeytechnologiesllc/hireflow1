@@ -1981,15 +1981,15 @@ ${interviewType} Interview with AVA Results:
         };
         
         return (
-          <Card className="bg-destructive/10 border-destructive/30 border-l-4 border-l-destructive">
+          <Card className="bg-muted/30 border-muted-foreground/20 border-l-4 border-l-muted-foreground/50">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
-                    <XCircle className="h-6 w-6 text-destructive" />
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <XCircle className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-destructive text-lg">
+                    <h3 className="font-semibold text-foreground text-lg">
                       {application.rejected_by_type === 'ava' 
                         ? "Candidate Rejected by Ava" 
                         : application.rejected_by_type === 'team_member'
@@ -2015,21 +2015,21 @@ ${interviewType} Interview with AVA Results:
                       setComputedRestorePhase({ id: restorePhase.phaseId, name: restorePhase.phaseName, index: restorePhase.phaseIndex });
                       setShowReconsiderConfirmation(true);
                     }}
-                    className="gap-2"
+                    className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
                   >
                     <RefreshCw className="h-4 w-4" />
-                    Reconsider Candidate
+                    Reconsider
                   </Button>
                 )}
               </div>
               
               {/* Autopilot Rejection Reason */}
               {application.rejected_by_type === 'ava' && (
-                <div className="bg-background/50 rounded-lg p-3 border border-destructive/20">
+                <div className="bg-background/50 rounded-lg p-3 border border-muted">
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                    <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">Ava's Rejection Reason</p>
+                      <p className="text-sm font-medium text-foreground">Ava's Assessment</p>
                       <p className="text-sm text-muted-foreground whitespace-pre-line">
                         {phaseAnalysis || (
                           application.ai_score !== null && job?.passing_score
