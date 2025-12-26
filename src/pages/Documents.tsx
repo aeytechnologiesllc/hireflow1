@@ -191,6 +191,41 @@ export default function Documents() {
     })();
   }, [isEmployer, user, submittedRequestIds, queryClient]);
 
+  // Mark pending document requests as viewed for candidates when they open this page
+  const unseenCandidateRequestIds = useMemo(
+    () => candidatePendingRequests.filter(r => !r.candidate_viewed_at).map(r => r.id),
+    [candidatePendingRequests]
+  );
+  const viewedCandidateIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (isEmployer || !user) return;
+    if (unseenCandidateRequestIds.length === 0) return;
+
+    const idsToMark = unseenCandidateRequestIds.filter((id) => !viewedCandidateIdsRef.current.has(id));
+    if (idsToMark.length === 0) return;
+
+    idsToMark.forEach((id) => viewedCandidateIdsRef.current.add(id));
+
+    void (async () => {
+      const { error } = await supabase
+        .from("document_requests")
+        .update({
+          candidate_viewed_at: new Date().toISOString(),
+        })
+        .in("id", idsToMark);
+
+      if (error) {
+        idsToMark.forEach((id) => viewedCandidateIdsRef.current.delete(id));
+        console.error("Failed to mark document requests as viewed:", error);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-documents-count"] });
+    })();
+  }, [isEmployer, user, unseenCandidateRequestIds, queryClient]);
+
   // Document request handlers
   const handleUploadRequest = (request: DocumentRequestWithDetails) => {
     setSelectedRequest(request);

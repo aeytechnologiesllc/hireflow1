@@ -20,12 +20,13 @@ export function usePendingDocumentsCount() {
 
       if (appError) throw appError;
       if (!applications || applications.length === 0) {
-        // Still check for document requests even without applications
+        // Still check for unseen document requests even without applications
         const { count: requestCount, error: reqError } = await supabase
           .from("document_requests")
           .select("id", { count: "exact", head: true })
           .eq("candidate_id", user!.id)
-          .eq("status", "pending");
+          .eq("status", "pending")
+          .is("candidate_viewed_at", null);
 
         if (reqError) throw reqError;
         return requestCount || 0;
@@ -42,12 +43,13 @@ export function usePendingDocumentsCount() {
           .in("application_id", applicationIds)
           .eq("status", "pending")
           .is("candidate_signed_at", null),
-        // Count pending document requests for this candidate
+        // Count pending document requests for this candidate that haven't been viewed yet
         supabase
           .from("document_requests")
           .select("id", { count: "exact", head: true })
           .eq("candidate_id", user!.id)
-          .eq("status", "pending"),
+          .eq("status", "pending")
+          .is("candidate_viewed_at", null),
       ]);
 
       if (docResult.error) throw docResult.error;

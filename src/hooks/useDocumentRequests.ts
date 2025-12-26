@@ -22,6 +22,7 @@ export interface DocumentRequest {
   reviewed_at: string | null;
   reviewed_by: string | null;
   rejection_reason: string | null;
+  candidate_viewed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -210,7 +211,7 @@ export function useCreateDocumentRequest() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (requests: Omit<DocumentRequest, "id" | "created_at" | "updated_at" | "status" | "file_url" | "file_name" | "submitted_at" | "reviewed_at" | "reviewed_by" | "rejection_reason">[]) => {
+    mutationFn: async (requests: Omit<DocumentRequest, "id" | "created_at" | "updated_at" | "status" | "file_url" | "file_name" | "submitted_at" | "reviewed_at" | "reviewed_by" | "rejection_reason" | "candidate_viewed_at">[]) => {
       const { data, error } = await supabase
         .from("document_requests")
         .insert(requests)

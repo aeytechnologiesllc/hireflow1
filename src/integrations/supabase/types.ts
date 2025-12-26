@@ -240,6 +240,7 @@ export type Database = {
         Row: {
           application_id: string
           candidate_id: string
+          candidate_viewed_at: string | null
           created_at: string
           custom_document_name: string | null
           description: string | null
@@ -261,6 +262,7 @@ export type Database = {
         Insert: {
           application_id: string
           candidate_id: string
+          candidate_viewed_at?: string | null
           created_at?: string
           custom_document_name?: string | null
           description?: string | null
@@ -282,6 +284,7 @@ export type Database = {
         Update: {
           application_id?: string
           candidate_id?: string
+          candidate_viewed_at?: string | null
           created_at?: string
           custom_document_name?: string | null
           description?: string | null
