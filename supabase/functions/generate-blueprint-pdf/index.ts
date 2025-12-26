@@ -101,6 +101,128 @@ function drawFooter(doc: jsPDF, page: number, total: number) {
   doc.text(`HireFlow Improvement Blueprint - Page ${page} of ${total}`, 105, h - 8, { align: 'center' });
 }
 
+// Draw executive summary as the first page
+function drawExecutiveSummary(doc: jsPDF, bp: any, name: string, job: string, pageW: number, margin: number, contentW: number): void {
+  const execSummary = bp.executiveSummary || {};
+  const score = execSummary.overallScore ?? bp.metadata?.overallScore ?? 0;
+  const scoreContext = execSummary.scoreContext || '';
+  const topDrivers = execSummary.topRejectionDrivers || bp.topRejectionReasons?.slice(0, 3) || [];
+  const topFixes = execSummary.topPriorityFixes || bp.quickWins?.slice(0, 5) || [];
+  
+  let y = margin;
+  
+  // Header banner
+  doc.setFillColor(COLORS.primary.r, COLORS.primary.g, COLORS.primary.b);
+  doc.rect(0, 0, pageW, 32, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('Key Findings & Top Improvement Priorities', margin, 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(sanitizeText(`${name} - ${job}`), margin, 25);
+  doc.setFontSize(8);
+  doc.text(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), pageW - margin, 25, { align: 'right' });
+  y = 42;
+  
+  // Overall Score - large prominent display
+  const scoreColor = score >= 70 ? COLORS.strength : score >= 50 ? COLORS.resource : score >= 30 ? COLORS.coaching : COLORS.improvement;
+  
+  doc.setFillColor(COLORS.light.r, COLORS.light.g, COLORS.light.b);
+  doc.roundedRect(margin, y, contentW, 35, 3, 3, 'F');
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(COLORS.dark.r, COLORS.dark.g, COLORS.dark.b);
+  doc.text('Overall Score', margin + 8, y + 12);
+  
+  // Large score number
+  doc.setFontSize(32);
+  doc.setTextColor(scoreColor.r, scoreColor.g, scoreColor.b);
+  doc.text(`${score}`, margin + 8, y + 28);
+  doc.setFontSize(14);
+  doc.text('/100', margin + 32, y + 28);
+  
+  // Score context
+  if (scoreContext) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.body.r, COLORS.body.g, COLORS.body.b);
+    const contextLines = wrapText(doc, scoreContext, contentW - 60);
+    contextLines.slice(0, 2).forEach((line, i) => {
+      doc.text(line, margin + 55, y + 14 + i * 5);
+    });
+  }
+  
+  y += 42;
+  
+  // Top 3 Rejection Drivers
+  if (topDrivers.length > 0) {
+    doc.setFillColor(COLORS.errorBg.r, COLORS.errorBg.g, COLORS.errorBg.b);
+    doc.setDrawColor(COLORS.error.r, COLORS.error.g, COLORS.error.b);
+    doc.setLineWidth(0.5);
+    const driversHeight = 14 + topDrivers.slice(0, 3).length * 12;
+    doc.roundedRect(margin, y, contentW, driversHeight, 2, 2, 'FD');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.error.r, COLORS.error.g, COLORS.error.b);
+    doc.text('Top 3 Rejection Drivers', margin + 6, y + 9);
+    
+    let dy = y + 18;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.dark.r, COLORS.dark.g, COLORS.dark.b);
+    
+    topDrivers.slice(0, 3).forEach((driver: string, i: number) => {
+      const driverLines = wrapText(doc, `${i + 1}. ${driver}`, contentW - 14);
+      driverLines.slice(0, 2).forEach((line, li) => {
+        doc.text(line, margin + 6, dy);
+        dy += 5;
+      });
+      dy += 1;
+    });
+    
+    y += driversHeight + 8;
+  }
+  
+  // Top 5 Priority Fixes
+  if (topFixes.length > 0) {
+    doc.setFillColor(COLORS.strengthBg.r, COLORS.strengthBg.g, COLORS.strengthBg.b);
+    doc.setDrawColor(COLORS.strength.r, COLORS.strength.g, COLORS.strength.b);
+    doc.setLineWidth(0.5);
+    const fixesHeight = 14 + topFixes.slice(0, 5).length * 12;
+    doc.roundedRect(margin, y, contentW, fixesHeight, 2, 2, 'FD');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.strength.r, COLORS.strength.g, COLORS.strength.b);
+    doc.text('Top 5 Priority Fixes', margin + 6, y + 9);
+    
+    let fy = y + 18;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.dark.r, COLORS.dark.g, COLORS.dark.b);
+    
+    topFixes.slice(0, 5).forEach((fix: string, i: number) => {
+      const fixLines = wrapText(doc, `${i + 1}. ${fix}`, contentW - 14);
+      fixLines.slice(0, 2).forEach((line, li) => {
+        doc.text(line, margin + 6, fy);
+        fy += 5;
+      });
+      fy += 1;
+    });
+    
+    y += fixesHeight + 8;
+  }
+  
+  // Footer note
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(COLORS.muted.r, COLORS.muted.g, COLORS.muted.b);
+  doc.text('See the following pages for detailed phase-by-phase analysis and your personalized 30-day improvement plan.', margin, y + 5);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   
@@ -108,7 +230,7 @@ serve(async (req) => {
     const rawData = await req.json();
     const bp = rawData.blueprintData || rawData;
     
-    console.log('[PDF] Generating comprehensive blueprint...');
+    console.log('[PDF] Generating comprehensive blueprint with executive summary...');
     
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = 210, pageH = 297, margin = 15, contentW = pageW - margin * 2;
@@ -118,7 +240,7 @@ serve(async (req) => {
     const meta = bp.metadata || {};
     const name = meta.candidateName || 'Candidate';
     const job = meta.jobTitle || 'Position';
-    const score = meta.overallScore ?? 0;
+    const score = bp.executiveSummary?.overallScore ?? meta.overallScore ?? 0;
     const phases = bp.phaseBreakdown || [];
     const topReasons = bp.topRejectionReasons || [];
     const quickWins = bp.quickWins || [];
@@ -128,13 +250,20 @@ serve(async (req) => {
     const plan = bp.thirtyDayPlan || {};
     const closing = bp.closingMessage || {};
 
+    // === PAGE 1: EXECUTIVE SUMMARY ===
+    drawExecutiveSummary(doc, bp, name, job, pageW, margin, contentW);
+    
+    // === PAGE 2+: DETAILED BREAKDOWN ===
+    doc.addPage();
+    y = margin;
+
     // === HEADER ===
     doc.setFillColor(COLORS.primary.r, COLORS.primary.g, COLORS.primary.b);
     doc.rect(0, 0, pageW, 28, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text('Your Improvement Blueprint', margin, 13);
+    doc.text('Detailed Improvement Blueprint', margin, 13);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(sanitizeText(`${name} - ${job}`), margin, 21);
@@ -154,7 +283,7 @@ serve(async (req) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(COLORS.error.r, COLORS.error.g, COLORS.error.b);
-    doc.text("WHY YOU WEREN'T SELECTED", margin + 5, y + 7);
+    doc.text("Application Outcome Summary", margin + 5, y + 7);
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -206,6 +335,23 @@ serve(async (req) => {
         const phaseScore = phase.score ?? phase.result ?? '';
         doc.text(sanitizeText(`${phase.phase}${phaseScore ? ` (${phaseScore})` : ''}`), margin, y);
         y += 5;
+        
+        // Employer expectation callout for low scores
+        if (phase.employerExpectation) {
+          y = checkPageBreak(doc, y, 12, pageH, margin);
+          doc.setFillColor(COLORS.resourceBg.r, COLORS.resourceBg.g, COLORS.resourceBg.b);
+          const expLines = wrapText(doc, phase.employerExpectation, contentW - 14);
+          const expHeight = expLines.length * 4 + 6;
+          doc.roundedRect(margin + 2, y - 2, contentW - 4, expHeight, 1, 1, 'F');
+          
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(7);
+          doc.setTextColor(COLORS.resource.r, COLORS.resource.g, COLORS.resource.b);
+          expLines.forEach((line, i) => {
+            doc.text(line, margin + 5, y + 2 + i * 4);
+          });
+          y += expHeight + 2;
+        }
         
         // Issues - show ALL, not just 2
         if (phase.issues?.length) {
