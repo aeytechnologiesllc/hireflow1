@@ -1287,6 +1287,7 @@ interface CondensedAIAnalysisProps {
   applicationStatus?: string; // Current application status (for rejection override)
   rejectionReason?: string | null; // Phase AI analysis explaining rejection
   passingScore?: number | null; // Job's passing score for fallback rejection reason
+  rejectedByType?: string | null; // 'ava' for autopilot, 'employer' for manual
 }
 
 export function CondensedAIAnalysis({ 
@@ -1297,7 +1298,8 @@ export function CondensedAIAnalysis({
   aiScore,
   applicationStatus,
   rejectionReason,
-  passingScore
+  passingScore,
+  rejectedByType
 }: CondensedAIAnalysisProps) {
   const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult, aiScore), [content, applicationNotes, voiceInterviewResult, aiScore]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -1350,7 +1352,29 @@ export function CondensedAIAnalysis({
   // Generate a full summary that includes rejection context when rejected
   const displaySummary = useMemo(() => {
     if (isRejected) {
-      // If there's a rejection reason, use it
+      // For Ava autopilot rejections, PRESERVE the original AI analysis
+      if (rejectedByType === 'ava') {
+        // Keep the original narrative, just add a brief context prefix if score is below threshold
+        const scoreValue = displayScore ?? 0;
+        const threshold = passingScore ?? 60;
+        if (scoreValue < threshold && parsed.fullSummary) {
+          return `Automatically rejected (score ${scoreValue}% below ${threshold}% threshold). ${parsed.fullSummary}`;
+        }
+        // If we have the original summary, use it as-is
+        if (parsed.fullSummary) {
+          return parsed.fullSummary;
+        }
+      }
+      
+      // For employer manual rejections, show rejection reason if provided
+      if (rejectedByType === 'employer') {
+        if (rejectionReason) {
+          return `Rejected by employer. ${rejectionReason}`;
+        }
+        return `This application was manually rejected by the employer. ${parsed.fullSummary || ''}`.trim();
+      }
+      
+      // Fallback for rejections without type info (legacy data)
       if (rejectionReason) {
         return rejectionReason;
       }
@@ -1364,7 +1388,7 @@ export function CondensedAIAnalysis({
       return `This application has been rejected. ${parsed.fullSummary}`;
     }
     return parsed.fullSummary;
-  }, [isRejected, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
+  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
   
   return (
     <div className={cn("space-y-4", className)}>
