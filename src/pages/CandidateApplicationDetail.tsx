@@ -485,7 +485,9 @@ export default function CandidateApplicationDetail() {
       } else if (phase.type === "sales_simulation") {
         hasPhaseData = !!notes.salesSimulationResult;
       } else if (phase.type === "quiz") {
-        hasPhaseData = !!(notes.quizAnswers?.[phase.id] || notes.quizAnswers);
+        // Check step-specific storage (notes[phase.id].completedAt) OR quizResult
+        const stepData = notes[phase.id];
+        hasPhaseData = !!(stepData?.completedAt || notes.quizResult);
       } else if (phase.type === "video_intro" || phase.type === "video_message") {
         // Check both legacy videoIntroUrl and stepId-based storage
         const stepData = notes[phase.id];
