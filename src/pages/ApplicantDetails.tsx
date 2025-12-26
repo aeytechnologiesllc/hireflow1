@@ -79,7 +79,6 @@ interface ApplicationDetails extends Tables<"applications"> {
 // Default phases if job has no workflow
 const defaultPhases = [
   { id: "application", title: "Application", fullTitle: "Application", icon: FileCheck, type: "application" },
-  { id: "review", title: "Review", fullTitle: "Review", icon: Eye, type: "review" },
   { id: "interview", title: "Interview", fullTitle: "Interview", icon: Users, type: "interview" },
   { id: "hired", title: "Hired", fullTitle: "Hired", icon: CheckCircle, type: "hired" },
 ];
@@ -613,10 +612,7 @@ export default function ApplicantDetails() {
         });
       });
       
-      // Add Review phase - in both Manual and Autopilot modes
-      allPhases.push(
-        { id: "review", title: "Review", fullTitle: "Review", icon: Eye, type: "review" }
-      );
+      // No explicit Review phase - employer approves/rejects right before Ava Interview or Interview
       
       // Add Ava Interview AFTER review if it exists in workflow
       if (voiceInterviewStep) {
@@ -776,22 +772,22 @@ export default function ApplicantDetails() {
         currentPhase?.type === "voice_interview" && 
         !!application?.voice_interview_result;
       
-      // In Manual mode: when the next phase is Review, go directly to Review (no halfway)
-      // Otherwise, show halfway for completed phases
-      const nextIsReview = nextPhase?.type === "review";
+      // In Manual mode: show halfway when current phase is complete (awaiting employer action)
+      // In Autopilot: only show halfway after Ava Interview completes
+      const nextIsEmployerPhase = nextPhase?.type === "voice_interview" || nextPhase?.type === "interview" || nextPhase?.type === "hired";
       
       // Await review (halfway) logic:
-      // - In Manual mode: show halfway UNLESS the next phase is Review
+      // - In Manual mode: show halfway when current phase is complete AND next phase is an employer-driven phase
       // - In Autopilot: only show halfway after Ava Interview completes
       const awaitingReview = isComplete && !isLastPhase && 
-        (isManualMode ? !nextIsReview : isVoiceInterviewCompleted);
+        (isManualMode ? nextIsEmployerPhase : isVoiceInterviewCompleted);
       
       // Debug logging for slider position issues
       console.log('[Slider Position Debug]', {
         currentPhase: currentPhase?.id,
         phaseType: currentPhase?.type,
         nextPhase: nextPhase?.id,
-        nextIsReview,
+        nextIsEmployerPhase,
         isComplete,
         isLastPhase,
         isManualMode,
@@ -1361,7 +1357,7 @@ export default function ApplicantDetails() {
       const phase = phases[i];
       
       // Stop at employer-driven phases - these are valid restore points
-      if (phase.type === "review" || phase.type === "interview" || phase.type === "hired") {
+      if (phase.type === "voice_interview" || phase.type === "interview" || phase.type === "hired") {
         return { phaseId: phase.id, phaseName: phase.title, phaseIndex: i };
       }
       
@@ -1374,12 +1370,14 @@ export default function ApplicantDetails() {
       }
     }
     
-    // Fallback to review if everything is complete
-    const reviewPhase = phases.find(p => p.type === "review");
+    // Fallback to voice_interview or interview if everything is complete
+    const voiceInterviewPhase = phases.find(p => p.type === "voice_interview");
+    const interviewPhase = phases.find(p => p.type === "interview");
+    const fallbackPhase = voiceInterviewPhase || interviewPhase;
     return { 
-      phaseId: reviewPhase?.id || "review", 
-      phaseName: reviewPhase?.title || "Review",
-      phaseIndex: phases.findIndex(p => p.type === "review")
+      phaseId: fallbackPhase?.id || "interview", 
+      phaseName: fallbackPhase?.title || "Interview",
+      phaseIndex: phases.findIndex(p => p.id === fallbackPhase?.id) || phases.findIndex(p => p.type === "interview")
     };
   };
   
