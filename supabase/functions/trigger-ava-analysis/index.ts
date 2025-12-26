@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { applicationId, force = false } = await req.json();
+    const { applicationId, force = false, autopilotDecision = false, currentPhaseId = null } = await req.json();
     
     if (!applicationId) {
       return new Response(
@@ -83,19 +83,19 @@ serve(async (req) => {
       );
     }
 
-    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force);
+    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force, "autopilotDecision:", autopilotDecision, "currentPhaseId:", currentPhaseId);
 
     // Create admin client to bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch application data (without profile join - fetch separately to avoid FK issues)
+    // Fetch application data with all job fields needed for autopilot decision
     const { data: application, error: fetchError } = await supabaseAdmin
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps)
+        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions)
       `)
       .eq("id", applicationId)
       .single();
@@ -372,6 +372,91 @@ ${interviewType} Interview with AVA Results:
     }
 
     console.log("[trigger-ava-analysis] Analysis completed successfully for application:", applicationId, "score:", finalScore);
+
+    // Handle autopilot decision if requested
+    if (autopilotDecision) {
+      const passingScore = (job?.passing_score as number) || 60;
+      const quizQuestions = job?.quiz_questions as any[] | undefined;
+      const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+      const workflowSteps = (job?.workflow_steps as any[]) || [];
+      
+      console.log("[trigger-ava-analysis] Autopilot decision: score=", finalScore, "passingScore=", passingScore, "hasQuizQuestions=", hasQuizQuestions);
+      
+      if (finalScore !== null && finalScore >= passingScore) {
+        // PASSED - determine next phase and advance
+        let nextPhaseId = "application";
+        let nextPhaseTitle = "Application";
+        
+        if (currentPhaseId === "application") {
+          if (hasQuizQuestions) {
+            nextPhaseId = "quiz";
+            nextPhaseTitle = "Quiz";
+          } else if (workflowSteps.length > 0) {
+            // Skip voice_interview step, it goes after review
+            const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
+            if (nonVoiceSteps.length > 0) {
+              nextPhaseId = nonVoiceSteps[0].id;
+              nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
+            }
+          }
+        }
+        
+        console.log("[trigger-ava-analysis] Autopilot PASSED: advancing to phase:", nextPhaseId);
+        
+        const { error: advanceError } = await supabaseAdmin
+          .from("applications")
+          .update({
+            phase: nextPhaseId,
+            status: "reviewing",
+          })
+          .eq("id", applicationId);
+        
+        if (advanceError) {
+          console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "Analysis completed, candidate advanced",
+            score: finalScore,
+            decision: "advanced",
+            nextPhaseId,
+            nextPhaseTitle,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } else {
+        // FAILED - reject the application
+        const rejectReason = `Overall Ava score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%.`;
+        
+        console.log("[trigger-ava-analysis] Autopilot FAILED: rejecting application, score=", finalScore);
+        
+        const { error: rejectError } = await supabaseAdmin
+          .from("applications")
+          .update({
+            status: "rejected",
+            rejected_by_type: "ava",
+            phase_ai_analysis: rejectReason,
+          })
+          .eq("id", applicationId);
+        
+        if (rejectError) {
+          console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: "Analysis completed, candidate rejected",
+            score: finalScore,
+            decision: "rejected",
+            reason: rejectReason,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

@@ -55,14 +55,13 @@ function hasCompletedPhase(
   // Check completion based on phase type
   switch (phaseType) {
     case "application":
-      // Application form completed if we have ANY answers (applicationAnswers array or individual question fields)
-      const hasApplicationAnswers = !!parsedNotes.applicationAnswers?.length;
-      const hasAnyAnswers = Object.keys(parsedNotes).some(key => 
-        key !== "resumeUrl" && key !== "coverLetter" && parsedNotes[key]
-      );
-      const isComplete = hasApplicationAnswers || hasAnyAnswers || Object.keys(parsedNotes).length > 0;
-      console.log(`[hasCompletedPhase] application phase: hasApplicationAnswers=${hasApplicationAnswers}, hasAnyAnswers=${hasAnyAnswers}, isComplete=${isComplete}`);
-      return isComplete;
+      // Application form completed ONLY if we have actual applicationAnswers with real content
+      // Just having metadata (like resumeUrl, coverLetter, timestamps) doesn't count
+      const hasApplicationAnswers = Array.isArray(parsedNotes.applicationAnswers) && 
+        parsedNotes.applicationAnswers.length > 0 &&
+        parsedNotes.applicationAnswers.some((a: any) => a.answer && a.answer.trim() !== "");
+      console.log(`[hasCompletedPhase] application phase: hasApplicationAnswers=${hasApplicationAnswers}, answersCount=${parsedNotes.applicationAnswers?.length || 0}`);
+      return hasApplicationAnswers;
     
     case "typing_test":
       return !!parsedNotes.typingTestResult;

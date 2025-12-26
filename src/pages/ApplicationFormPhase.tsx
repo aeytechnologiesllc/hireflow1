@@ -55,6 +55,7 @@ interface ApplicationDetails {
     application_questions: ApplicationQuestion[] | null;
     workflow_steps: any[] | null;
     require_resume: boolean | null;
+    quiz_questions: any[] | null;
   } | null;
 }
 
@@ -105,7 +106,7 @@ export default function ApplicationFormPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume)")
+        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume, quiz_questions)")
         .eq("id", id!)
         .single();
 
@@ -318,7 +319,10 @@ export default function ApplicationFormPhase() {
 
       // Get workflow steps to find next phase - build full phases list
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
+      const quizQuestions = application.jobs?.quiz_questions;
+      const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+      
+      console.log("[ApplicationFormPhase] Building phases: hasQuizQuestions=", hasQuizQuestions, "quizQuestions=", quizQuestions);
       
       // Extract voice_interview step (goes AFTER review)
       const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
@@ -328,8 +332,9 @@ export default function ApplicationFormPhase() {
       ];
       
       // Add quiz phase if quiz_questions exist
-      if (quizQuestions && quizQuestions.length > 0) {
+      if (hasQuizQuestions) {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
+        console.log("[ApplicationFormPhase] Added quiz phase to allPhases");
       }
       
       // Add workflow steps EXCEPT voice_interview (which goes after Review)
@@ -368,55 +373,49 @@ export default function ApplicationFormPhase() {
         setNextPhaseInfo({ id: nextPhase.id, title: nextPhase.title || nextPhase.type });
       }
 
-      // Handle autopilot mode: Run AI analysis FIRST, then decide whether to advance or reject
+      // Handle autopilot mode: Call backend to run AI analysis AND make decision (bypasses RLS)
       if (isAutoPilot) {
-        // Trigger AI analysis and wait for it
-        console.log("[ApplicationFormPhase] Autopilot mode: Running AI analysis BEFORE phase advancement...");
-        await supabase.functions.invoke("trigger-ava-analysis", {
-          body: { applicationId: id! },
+        console.log("[ApplicationFormPhase] Autopilot mode: Calling backend for AI analysis + decision...");
+        console.log("[ApplicationFormPhase] Next phase would be:", nextPhase?.id, "hasQuizQuestions=", hasQuizQuestions);
+        
+        const { data: autopilotResult, error: autopilotError } = await supabase.functions.invoke("trigger-ava-analysis", {
+          body: { 
+            applicationId: id!,
+            autopilotDecision: true,
+            currentPhaseId: "application",
+          },
         });
         
-        // Fetch updated score
-        const { data: updatedApp } = await supabase
-          .from("applications")
-          .select("ai_score")
-          .eq("id", id!)
-          .single();
-
-        const score = updatedApp?.ai_score || 0;
-        const passingScore = application.jobs?.passing_score || 60;
+        if (autopilotError) {
+          console.error("[ApplicationFormPhase] Autopilot backend error:", autopilotError);
+          toast.error("Failed to process application");
+          setEvaluationState(null);
+          return;
+        }
+        
+        console.log("[ApplicationFormPhase] Autopilot backend result:", autopilotResult);
+        
+        const score = autopilotResult?.score || 0;
         setAiScore(score);
         
-        console.log(`[ApplicationFormPhase] Autopilot: Score=${score}, PassingScore=${passingScore}, Passed=${score >= passingScore}`);
-
-        if (score >= passingScore) {
-          // PASSED - advance to next phase (quiz if exists, otherwise first workflow step)
-          const newPhase = nextPhase?.id || "application";
-          console.log(`[ApplicationFormPhase] Autopilot: PASSED - advancing to phase: ${newPhase}`);
-          
-          await supabase
-            .from("applications")
-            .update({ 
-              phase: newPhase,
-              status: "reviewing"
-            })
-            .eq("id", id!);
-          
+        if (autopilotResult?.decision === "advanced") {
+          console.log(`[ApplicationFormPhase] Autopilot: PASSED - backend advanced to: ${autopilotResult.nextPhaseId}`);
           setEvaluationState("passed");
-        } else {
-          // FAILED - reject and do NOT advance phase
-          console.log(`[ApplicationFormPhase] Autopilot: FAILED - rejecting application, keeping at application phase`);
-          
-          await supabase
-            .from("applications")
-            .update({ 
-              status: "rejected",
-              rejected_by_type: "ava",
-              phase_ai_analysis: `Overall Ava score of ${score}% is below the passing threshold of ${passingScore}%.`
-            })
-            .eq("id", id!);
-          
+          setNextPhaseInfo({ 
+            id: autopilotResult.nextPhaseId, 
+            title: autopilotResult.nextPhaseTitle || autopilotResult.nextPhaseId 
+          });
+        } else if (autopilotResult?.decision === "rejected") {
+          console.log(`[ApplicationFormPhase] Autopilot: FAILED - backend rejected the application`);
           setEvaluationState("failed");
+        } else {
+          // Fallback: just show passed if score is high enough
+          const passingScore = application.jobs?.passing_score || 60;
+          if (score >= passingScore) {
+            setEvaluationState("passed");
+          } else {
+            setEvaluationState("failed");
+          }
         }
       } else {
         // Manual mode - advance phase normally, trigger analysis in background
