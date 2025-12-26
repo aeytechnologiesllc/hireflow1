@@ -33,6 +33,9 @@ verify_jwt = true
 [functions.ai-generate-performance-report]
 verify_jwt = true
 
+[functions.generate-blueprint-pdf]
+verify_jwt = true
+
 [functions.google-calendar]
 verify_jwt = true
 

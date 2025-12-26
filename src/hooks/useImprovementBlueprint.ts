@@ -49,6 +49,9 @@ export interface ImprovementBlueprintData {
     overallScore: number;
     generatedAt: string;
     applicationId: string;
+    completedPhases?: string[];
+    dataDepth?: 'minimal' | 'moderate' | 'comprehensive';
+    dataDepthMessage?: string;
   };
 }
 
@@ -115,20 +118,37 @@ export function useImprovementBlueprint() {
           .eq("id", applicationId);
       }
 
-      // Generate PDF using @react-pdf/renderer
-      const { pdf } = await import("@react-pdf/renderer");
-      const { ImprovementBlueprintPDF } = await import("@/components/documents/ImprovementBlueprintPDF");
-      const React = await import("react");
+      // Generate PDF using server-side edge function
+      toast.info("Generating your PDF...", { duration: 2000 });
       
-      const pdfDocument = React.createElement(ImprovementBlueprintPDF, { data: blueprintData });
-      const blob = await pdf(pdfDocument as any).toBlob();
+      const { data: pdfResult, error: pdfError } = await supabase.functions.invoke('generate-blueprint-pdf', {
+        body: { blueprintData }
+      });
+
+      if (pdfError) {
+        console.error("Error generating PDF:", pdfError);
+        throw new Error(pdfError.message || "Failed to generate PDF");
+      }
+
+      if (!pdfResult?.pdf) {
+        throw new Error("No PDF data received");
+      }
+
+      // Convert base64 data URI to blob and download
+      const pdfDataUri = pdfResult.pdf;
+      const base64Data = pdfDataUri.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
       
       // Create download link
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const safeName = blueprintData.metadata?.candidateName?.replace(/[^a-zA-Z0-9]/g, '_') || 'candidate';
-      link.download = `Improvement_Blueprint_${safeName}.pdf`;
+      link.download = pdfResult.fileName || `Improvement_Blueprint.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
