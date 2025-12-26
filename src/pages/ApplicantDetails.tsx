@@ -3457,8 +3457,9 @@ ${interviewType} Interview with AVA Results:
                   This will:
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>Move the candidate back to the <strong>Review</strong> phase</li>
+                  <li>Keep the candidate at their current phase (<strong>{phases[effectivePhaseIndex]?.title || "Review"}</strong>)</li>
                   <li>Clear the previous rejection status</li>
+                  <li>Clear any skipped phase indicators</li>
                   <li>Notify the candidate that they're being reconsidered</li>
                 </ul>
               </div>
