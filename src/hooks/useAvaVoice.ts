@@ -289,14 +289,30 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     });
 
     // Handle edge function errors - extract the message from the response
-    // When edge function returns non-2xx, error contains FunctionsHttpError and data contains parsed JSON
-    const errorMessage = response.data?.error || response.error?.message;
+    // When edge function returns non-2xx, error contains FunctionsHttpError
+    // The actual error message could be in data.error (parsed JSON body) or error.message
+    let errorMessage = response.data?.error || response.error?.message || '';
+    
+    // Try to extract from FunctionsHttpError context if present
+    if (response.error && !errorMessage) {
+      try {
+        // FunctionsHttpError may contain the response body
+        const errorContext = (response.error as any).context;
+        if (errorContext?.body) {
+          const parsed = JSON.parse(errorContext.body);
+          errorMessage = parsed.error || '';
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
     
     console.log('Voice session response:', { 
       hasError: !!response.error, 
       hasData: !!response.data,
       dataError: response.data?.error,
-      errorMessage: response.error?.message
+      errorMessage: errorMessage,
+      rawError: response.error?.message
     });
     
     if (response.error || !response.data?.client_secret?.value) {
