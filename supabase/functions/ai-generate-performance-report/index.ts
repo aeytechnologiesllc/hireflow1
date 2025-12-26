@@ -7,29 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ApplicationData {
-  id: string;
-  notes: string | null;
-  ai_score: number | null;
-  ai_analysis: string | null;
-  voice_interview_result: any;
-  voice_interview_transcript: any;
-  cover_letter: string | null;
-  resume_url: string | null;
-  phase: string | null;
-  status: string;
-  job: {
-    title: string;
-    description: string;
-    requirements: string | null;
-    skills_required: string[] | null;
-  } | null;
-  candidate: {
-    full_name: string | null;
-    email: string;
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -67,7 +44,8 @@ serve(async (req) => {
           description,
           requirements,
           skills_required,
-          workflow_steps
+          workflow_steps,
+          passing_score
         )
       `)
       .eq('id', applicationId)
@@ -102,160 +80,109 @@ serve(async (req) => {
       console.log('Could not parse notes as JSON');
     }
 
-    // Track which phases have data for dynamic PDF generation
-    const completedPhases: string[] = ['application_form']; // Always have this
-    if (application.resume_url) completedPhases.push('resume');
-    if (parsedNotes?.typingTestResult) completedPhases.push('typing_test');
-    if (parsedNotes?.quizResult) completedPhases.push('quiz');
-    if (parsedNotes?.answers?.length > 0) completedPhases.push('screening_questions');
-    if (parsedNotes?.portfolioResult) completedPhases.push('portfolio');
-    if (parsedNotes?.chatInterviewResult) completedPhases.push('chat_interview');
-    if (parsedNotes?.salesSimulationResult) completedPhases.push('sales_simulation');
-    if (application.voice_interview_result) completedPhases.push('voice_interview');
-    if (application.voice_interview_transcript) completedPhases.push('voice_transcript');
-
-    // Determine data depth
-    let dataDepth: 'minimal' | 'moderate' | 'comprehensive' = 'minimal';
-    if (completedPhases.length >= 5 || completedPhases.includes('voice_interview')) {
-      dataDepth = 'comprehensive';
-    } else if (completedPhases.length >= 3) {
-      dataDepth = 'moderate';
-    }
-
-    const applicationContext = buildApplicationContext(application, parsedNotes, profile);
+    // Build phase-specific data for rich context
+    const phaseData = buildPhaseData(application, parsedNotes);
+    const applicationContext = buildApplicationContext(application, parsedNotes, profile, phaseData);
     
-    // Extract workflow phases for context
     const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
-    const workflowSteps = (jobData?.workflow_steps as any[]) || [];
-    const workflowPhaseTypes = workflowSteps.map((step: any) => step.type).filter(Boolean);
-    const workflowContext = workflowPhaseTypes.length > 0 
-      ? `\n\nIMPORTANT: This job's workflow only included these phases: ${workflowPhaseTypes.join(', ')}. Only reference these phases in your coaching - do not mention phases that were not part of this job's hiring process.`
-      : '';
-    
-    // Create data depth context message for the AI
-    const phaseLabels: Record<string, string> = {
-      application_form: 'Application Form',
-      resume: 'Resume',
-      typing_test: 'Typing Test',
-      quiz: 'Quiz Assessment',
-      screening_questions: 'Screening Questions',
-      portfolio: 'Portfolio Review',
-      chat_interview: 'Chat Interview',
-      sales_simulation: 'Sales Simulation',
-      voice_interview: 'Voice Interview',
-      voice_transcript: 'Interview Transcript'
-    };
-    const completedPhaseLabels = completedPhases.map(p => phaseLabels[p] || p).join(', ');
-    const dataDepthInstruction = dataDepth === 'minimal' 
-      ? `\n\nDATA CONTEXT: This analysis is based on LIMITED DATA (only: ${completedPhaseLabels}). Since the candidate didn't progress to additional phases, focus coaching on strengthening their initial application materials. Acknowledge the limited data in your response and provide foundational advice.`
-      : dataDepth === 'moderate'
-      ? `\n\nDATA CONTEXT: This analysis is based on MODERATE DATA (${completedPhaseLabels}). You have some assessment data to work with. Provide specific coaching based on the available phases.`
-      : `\n\nDATA CONTEXT: This analysis is based on COMPREHENSIVE DATA (${completedPhaseLabels}). You have rich data from multiple phases. Provide detailed, specific coaching with direct references to their performance across different assessments.`;
+    const passingScore = jobData?.passing_score || 70;
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // NEW: Coaching-focused prompt for Personal Improvement Blueprint
-    const systemPrompt = `You are a supportive career mentor helping a candidate understand why their application wasn't successful and providing actionable guidance for improvement. You are NOT a recruiter making judgments—you are a coach providing genuine support.
+    const systemPrompt = `You are a direct, specific career coach creating an improvement blueprint for a rejected candidate.
 
-Your tone must be:
-- Warm, empathetic, and encouraging (like a trusted mentor)
-- Direct and honest about what didn't work (no sugar-coating)
-- Specific and actionable (not generic platitudes)
-- Focused on growth, not evaluation
+YOUR OUTPUT MUST BE SPECIFIC AND EVIDENCE-BASED:
+- Reference EXACT scores, quotes, and behaviors from the data
+- For each phase, cite specific mistakes with evidence
+- No generic advice like "practice more" - give exact strategies
+- Every improvement must reference what they actually did wrong
 
-CRITICAL: This is for candidates who were rejected. Acknowledge this respectfully, explain clearly why, and pivot to growth.
+CRITICAL: Generate a JSON with this EXACT structure:
 
-Return a valid JSON object with this exact structure:
 {
+  "topRejectionReasons": [
+    "Specific reason 1 with exact evidence (e.g., 'Quiz score 43% below 70% threshold')",
+    "Specific reason 2 with exact evidence",
+    "Specific reason 3 with exact evidence"
+  ],
+  "phaseBreakdown": [
+    {
+      "phase": "Phase Name",
+      "score": "43%" or "28 WPM" or "Failed",
+      "issues": [
+        "Specific issue with evidence (e.g., 'Called customer Charles instead of Alex')",
+        "Another specific issue"
+      ],
+      "evidence": ["Direct quote or exact answer they gave"],
+      "fix": "Specific actionable fix for this phase"
+    }
+  ],
+  "quickWins": [
+    "Specific action they can do TODAY (e.g., 'Take 3 free typing tests on typingtest.com')",
+    "Another specific action with tool/resource"
+  ],
   "honestReflection": {
-    "whatHappened": "2-3 sentences honestly explaining why this application didn't move forward. Be specific about the key factor(s). Use 'we' language sparingly—focus on what was observed in their performance.",
-    "scoreContext": "1-2 sentences explaining what their score means in practical terms (not just a number)",
-    "keyInsight": "One powerful, specific takeaway that anchors the entire report—something they can immediately understand and act on"
+    "whatHappened": "2-3 sentences explaining exactly why they were rejected with specific evidence",
+    "keyInsight": "One specific takeaway they must understand"
   },
   "strengthsToLeverage": {
     "identified": [
       {
-        "strength": "Specific strength name",
-        "evidence": "Direct quote or specific observation from their application",
-        "futureStrategy": "How to better present this strength in future applications—be specific with examples"
+        "strength": "Specific strength observed",
+        "evidence": "Exact quote or behavior that showed this"
       }
-    ],
-    "hiddenEdge": "Something unique they demonstrated that many candidates don't have—frame it as their competitive advantage"
+    ]
   },
   "improvementCoaching": [
     {
-      "area": "What needs improvement (clear, non-judgmental label)",
-      "whatWasObserved": "Specific, factual observation of what happened—use their actual behavior/responses",
-      "whyThisMatters": "1-2 sentences explaining how this commonly affects hiring decisions—help them understand employer perspective",
+      "area": "Specific skill gap",
+      "whatWasObserved": "Exact behavior/quote that showed this gap",
       "improvementStrategy": {
-        "framework": "A named method or framework they can follow (e.g., STAR method, 2-minute rule)",
-        "practiceScript": "An example script or response structure they can literally practice",
-        "dailyHabit": "One small daily action (5-10 min) that builds this skill"
+        "framework": "Named method (e.g., 'STAR method for responses')"
       },
       "resource": {
-        "name": "Specific resource name",
-        "url": "Real URL (use typingtest.com, pramp.com, interviewing.io, toastmasters.org, coursera.org, etc.)",
-        "whyHelpful": "One sentence on why this specific resource addresses their gap"
+        "name": "Specific resource",
+        "url": "Real URL"
       }
     }
   ],
   "thirtyDayPlan": {
-    "week1": {
-      "focus": "Primary skill to work on",
-      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
-      "successMetric": "How they'll know they've made progress"
-    },
-    "week2": {
-      "focus": "Secondary skill to work on",
-      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
-      "successMetric": "How they'll know they've made progress"
-    },
-    "week3": {
-      "focus": "Integration and practice",
-      "dailyActions": ["Day 1-2 action", "Day 3-4 action", "Day 5-7 action"],
-      "successMetric": "How they'll know they've made progress"
-    },
-    "week4": {
-      "focus": "Application preparation",
-      "dailyActions": ["Update resume with new skills", "Practice mock interview", "Identify 3 new opportunities to apply"],
-      "successMetric": "Ready to submit a stronger application"
-    }
+    "week1": { "focus": "Main skill to fix", "dailyActions": ["Action 1", "Action 2"] },
+    "week2": { "focus": "Secondary skill", "dailyActions": ["Action 1", "Action 2"] },
+    "week3": { "focus": "Practice integration", "dailyActions": ["Action 1", "Action 2"] },
+    "week4": { "focus": "Apply to new jobs", "dailyActions": ["Update resume", "Submit 3 applications"] }
   },
   "closingMessage": {
-    "personalNote": "3-4 sentences of genuine encouragement. Reference something SPECIFIC from their application that shows potential. Avoid generic 'you've got this!' language. Be real.",
-    "immediateActions": ["5 specific, actionable items they can do TODAY or this week—not vague advice"],
-    "finalThought": "One sentence that leaves them feeling capable and motivated—not a generic quote"
+    "personalNote": "2-3 encouraging sentences referencing something SPECIFIC they did well",
+    "immediateActions": ["Do this today", "And this", "And this"]
   }
 }
 
-IMPORTANT GUIDELINES:
-- Reference their ACTUAL scores, quotes, and specific behaviors from the application data
-- Include REAL resource URLs that directly address their specific gaps
-- Be honest about what didn't work—candidates respect directness over vague feedback
-- Make the 30-day plan SPECIFIC to their weaknesses—not generic career advice
-- Each improvement area must have a concrete strategy they can implement immediately
-- Avoid: "stay positive", "believe in yourself", "great things ahead"—be more substantive
-- If data is limited, acknowledge it: "Based on the available data..."`;
+RULES:
+1. phaseBreakdown MUST include EVERY phase from the provided data with specific issues
+2. topRejectionReasons must cite exact scores/quotes, not vague statements
+3. quickWins must be actionable TODAY with specific resources
+4. Never say "improve your X" without explaining exactly how and referencing what went wrong`;
 
-    const userPrompt = `Create a Personal Improvement Blueprint for this rejected candidate. Be their mentor, not their judge.
+    const userPrompt = `Create an Improvement Blueprint for this rejected candidate. Be SPECIFIC with evidence.
 
-${applicationContext}${workflowContext}${dataDepthInstruction}
+${applicationContext}
 
-REMEMBER:
-1. They were rejected—acknowledge this with empathy but be clear about why
-2. Give them actionable strategies, not just identification of problems
-3. The 30-day plan should target their specific weaknesses
-4. Every piece of advice should be concrete enough to implement TODAY
-5. Leave them feeling informed and empowered, not discouraged
-6. ONLY reference phases that were actually part of this job's workflow - do not mention phases that didn't exist for this job
-7. If data is limited, acknowledge it honestly and focus on what you CAN assess
+PASSING SCORE FOR THIS JOB: ${passingScore}%
+CANDIDATE'S SCORE: ${application.ai_score || 0}%
 
-Return ONLY the JSON object, no markdown or extra text.`;
+CRITICAL REQUIREMENTS:
+1. For EACH phase in the data, identify exactly what went wrong with quotes/scores
+2. The topRejectionReasons must cite specific evidence (scores, quotes, behaviors)
+3. phaseBreakdown must cover ALL phases listed above with specific issues
+4. quickWins must reference specific tools they can use TODAY
 
-    console.log('Calling Lovable AI for improvement blueprint analysis...');
+Return ONLY valid JSON, no markdown.`;
+
+    console.log('Calling Lovable AI for improvement blueprint...');
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -269,27 +196,14 @@ Return ONLY the JSON object, no markdown or extra text.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.7,
-        max_tokens: 6000,
+        temperature: 0.5, // Lower for more consistent output
+        max_tokens: 5000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI API error:', response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI service requires payment. Please add credits.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       throw new Error(`AI API error: ${response.status}`);
     }
 
@@ -309,6 +223,10 @@ Return ONLY the JSON object, no markdown or extra text.`;
       throw new Error('Failed to parse AI analysis');
     }
 
+    // Validate and enhance phaseBreakdown with actual data if AI missed phases
+    reportData.phaseBreakdown = validatePhaseBreakdown(reportData.phaseBreakdown || [], phaseData);
+
+    // Add metadata
     const jobDataForMetadata = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
@@ -317,16 +235,10 @@ Return ONLY the JSON object, no markdown or extra text.`;
       overallScore: application.ai_score || parsedNotes?.overallScore || 0,
       generatedAt: new Date().toISOString(),
       applicationId: applicationId,
-      completedPhases: completedPhases,
-      dataDepth: dataDepth,
-      dataDepthMessage: dataDepth === 'minimal' 
-        ? `This analysis is based primarily on your application form${completedPhases.includes('resume') ? ' and resume' : ''}. Since you didn't progress to additional assessment phases, our coaching focuses on strengthening your initial application materials.`
-        : dataDepth === 'moderate'
-        ? `We analyzed your performance across ${completedPhases.length} assessment phases: ${completedPhaseLabels}. This provides a solid foundation for targeted coaching.`
-        : `We have comprehensive data from your complete application journey including ${completedPhaseLabels}. This allows us to provide detailed, specific coaching based on your actual performance.`,
+      completedPhases: Object.keys(phaseData),
     };
 
-    console.log('Successfully generated improvement blueprint with data depth:', dataDepth, 'phases:', completedPhases);
+    console.log('Generated blueprint with phases:', Object.keys(phaseData));
 
     return new Response(
       JSON.stringify(reportData),
@@ -342,133 +254,179 @@ Return ONLY the JSON object, no markdown or extra text.`;
   }
 });
 
-function buildApplicationContext(application: any, parsedNotes: any, profile: any): string {
-  const sections: string[] = [];
+interface PhaseData {
+  [phase: string]: {
+    score?: string;
+    result?: string;
+    details: string[];
+    evidence: string[];
+  };
+}
 
-  sections.push(`## Candidate Information
-- Name: ${profile?.full_name || 'Unknown'}
-- Email: ${profile?.email || 'Unknown'}
-- Position Applied: ${application.jobs?.title || 'Unknown'}
-- Application Status: ${application.status}
-- Overall AI Score: ${application.ai_score || 'Not scored'}/100
-`);
+function buildPhaseData(application: any, parsedNotes: any): PhaseData {
+  const phases: PhaseData = {};
 
-  if (application.jobs) {
-    sections.push(`## Job Details
-- Title: ${application.jobs.title}
-- Description: ${application.jobs.description || 'Not provided'}
-- Requirements: ${application.jobs.requirements || 'Not specified'}
-- Required Skills: ${application.jobs.skills_required?.join(', ') || 'Not specified'}
-`);
-  }
-
-  if (application.cover_letter) {
-    sections.push(`## Cover Letter
-${application.cover_letter}
-`);
-  }
-
-  if (application.ai_analysis) {
-    sections.push(`## Previous AI Analysis
-${application.ai_analysis}
-`);
-  }
-
+  // Typing Test
   if (parsedNotes?.typingTestResult) {
-    const typing = parsedNotes.typingTestResult;
-    sections.push(`## Typing Test Results
-- Words Per Minute (WPM): ${typing.wpm || 'N/A'}
-- Accuracy: ${typing.accuracy || 'N/A'}%
-- Errors: ${typing.errors || 0}
-`);
+    const t = parsedNotes.typingTestResult;
+    phases['Typing Test'] = {
+      score: `${t.wpm || 0} WPM, ${t.accuracy || 0}% accuracy`,
+      details: [
+        `Speed: ${t.wpm || 0} WPM (${t.wpm < 40 ? 'below average' : 'adequate'})`,
+        `Accuracy: ${t.accuracy || 0}%`,
+        `Errors: ${t.errors || 0}`,
+      ],
+      evidence: [],
+    };
   }
 
+  // Quiz
   if (parsedNotes?.quizResult) {
-    const quiz = parsedNotes.quizResult;
-    sections.push(`## Quiz Results
-- Score: ${quiz.score || 'N/A'}%
-- Correct Answers: ${quiz.correctAnswers || 'N/A'}
-- Total Questions: ${quiz.totalQuestions || 'N/A'}
-`);
-  }
-
-  if (parsedNotes?.answers && Array.isArray(parsedNotes.answers)) {
-    sections.push(`## Application Questions & Answers`);
-    parsedNotes.answers.forEach((qa: any, i: number) => {
-      sections.push(`
-Question ${i + 1}: ${qa.question || 'Unknown question'}
-Answer: ${qa.answer || 'No answer provided'}
-`);
-    });
-  }
-
-  if (parsedNotes?.portfolioResult) {
-    const portfolio = parsedNotes.portfolioResult;
-    sections.push(`## Portfolio Assessment
-- Overall Score: ${portfolio.overallScore || 'N/A'}
-- AI Feedback: ${portfolio.feedback || 'No feedback available'}
-`);
-  }
-
-  if (parsedNotes?.chatInterviewResult) {
-    const chat = parsedNotes.chatInterviewResult;
-    sections.push(`## Chat Interview Results
-- Score: ${chat.score || 'N/A'}
-- Summary: ${chat.summary || 'No summary available'}
-`);
-  }
-
-  if (parsedNotes?.salesSimulationResult) {
-    const sales = parsedNotes.salesSimulationResult;
-    sections.push(`## Sales Simulation Results
-- Overall Score: ${sales.overallScore || 'N/A'}
-- Rapport Building: ${sales.rapportScore || 'N/A'}
-- Objection Handling: ${sales.objectionHandlingScore || 'N/A'}
-- Closing Ability: ${sales.closingScore || 'N/A'}
-`);
-  }
-
-  if (application.voice_interview_result) {
-    const voice = application.voice_interview_result;
-    sections.push(`## Voice Interview Results (PRIMARY DATA SOURCE)
-
-### Overall Assessment
-- Overall Score: ${voice.overall_score || 'N/A'}/100
-- Recommendation: ${voice.recommendation || 'N/A'}
-- Executive Summary: ${voice.executive_summary || 'No summary'}
-
-### Soft Skills Assessment
-${voice.soft_skills ? Object.entries(voice.soft_skills).map(([skill, score]) => `- ${skill}: ${score}/100`).join('\n') : 'Not available'}
-
-### Communication Metrics
-${voice.communication_metrics ? Object.entries(voice.communication_metrics).map(([metric, value]) => `- ${metric}: ${value}`).join('\n') : 'Not available'}
-
-### Key Strengths Identified
-${voice.strengths ? voice.strengths.map((s: string) => `- ${s}`).join('\n') : 'None identified'}
-
-### Concerns Raised
-${voice.concerns ? voice.concerns.map((c: string) => `- ${c}`).join('\n') : 'None identified'}
-
-### Question-by-Question Breakdown
-${voice.question_breakdown ? voice.question_breakdown.map((q: any, i: number) => `
-Question ${i + 1}: ${q.question || 'Unknown'}
-- Score: ${q.score || 'N/A'}/100
-- Notable Quote: "${q.notable_quote || 'No quote captured'}"
-- Assessment: ${q.assessment || 'No assessment'}
-- Missed Opportunities: ${q.missed_opportunities?.join(', ') || 'None noted'}
-`).join('\n') : 'No question breakdown available'}
-`);
-  }
-
-  if (application.voice_interview_transcript) {
-    const transcript = application.voice_interview_transcript;
-    if (Array.isArray(transcript) && transcript.length > 0) {
-      sections.push(`## Voice Interview Transcript Excerpts`);
-      transcript.slice(0, 8).forEach((entry: any) => {
-        sections.push(`${entry.role || 'Unknown'}: "${entry.content || entry.text || 'No content'}"`);
+    const q = parsedNotes.quizResult;
+    phases['Quiz'] = {
+      score: `${q.score || 0}%`,
+      details: [
+        `Score: ${q.score || 0}% (${q.correctAnswers || 0}/${q.totalQuestions || 0} correct)`,
+      ],
+      evidence: [],
+    };
+    // Add wrong answers if available
+    if (q.answers) {
+      q.answers.forEach((ans: any, i: number) => {
+        if (!ans.isCorrect && ans.userAnswer) {
+          phases['Quiz'].details.push(`Q${i + 1}: Answered "${ans.userAnswer}" (wrong)`);
+          phases['Quiz'].evidence.push(`"${ans.userAnswer}"`);
+        }
       });
     }
   }
 
-  return sections.join('\n\n');
+  // Screening Questions
+  if (parsedNotes?.answers?.length) {
+    phases['Screening Questions'] = {
+      details: [],
+      evidence: [],
+    };
+    parsedNotes.answers.forEach((qa: any, i: number) => {
+      if (qa.answer) {
+        const short = qa.answer.length < 20 ? '(very short response)' : '';
+        phases['Screening Questions'].details.push(`Q${i + 1}: ${qa.question?.slice(0, 50)}...`);
+        phases['Screening Questions'].evidence.push(`"${qa.answer.slice(0, 100)}${qa.answer.length > 100 ? '...' : ''}" ${short}`);
+      }
+    });
+  }
+
+  // Chat Interview
+  if (parsedNotes?.chatInterviewResult) {
+    const c = parsedNotes.chatInterviewResult;
+    phases['Chat Interview'] = {
+      score: c.score ? `${c.score}%` : undefined,
+      result: c.summary || undefined,
+      details: [c.summary || 'Completed'],
+      evidence: [],
+    };
+    if (c.issues) phases['Chat Interview'].details.push(...c.issues);
+    if (c.transcript) {
+      c.transcript.slice(0, 3).forEach((t: any) => {
+        if (t.role === 'candidate' || t.role === 'user') {
+          phases['Chat Interview'].evidence.push(`"${t.content?.slice(0, 80)}..."`);
+        }
+      });
+    }
+  }
+
+  // Sales Simulation
+  if (parsedNotes?.salesSimulationResult) {
+    const s = parsedNotes.salesSimulationResult;
+    phases['Sales Simulation'] = {
+      score: s.overallScore ? `${s.overallScore}%` : undefined,
+      details: [
+        `Overall: ${s.overallScore || 0}%`,
+        `Rapport: ${s.rapportScore || 0}%`,
+        `Objection Handling: ${s.objectionHandlingScore || 0}%`,
+        `Closing: ${s.closingScore || 0}%`,
+      ],
+      evidence: [],
+    };
+    if (s.criticalErrors) {
+      phases['Sales Simulation'].details.push(...s.criticalErrors);
+    }
+    if (s.transcript) {
+      s.transcript.slice(0, 2).forEach((t: any) => {
+        if (t.role === 'candidate' || t.role === 'user') {
+          phases['Sales Simulation'].evidence.push(`"${t.content?.slice(0, 80)}..."`);
+        }
+      });
+    }
+  }
+
+  // Voice Interview
+  if (application.voice_interview_result) {
+    const v = application.voice_interview_result;
+    phases['Voice Interview'] = {
+      score: v.overall_score ? `${v.overall_score}%` : undefined,
+      result: v.recommendation,
+      details: [
+        `Overall: ${v.overall_score || 0}%`,
+        v.executive_summary || '',
+      ],
+      evidence: [],
+    };
+    if (v.concerns?.length) phases['Voice Interview'].details.push(...v.concerns);
+    if (v.question_breakdown) {
+      v.question_breakdown.slice(0, 2).forEach((q: any) => {
+        if (q.notable_quote) {
+          phases['Voice Interview'].evidence.push(`"${q.notable_quote}"`);
+        }
+      });
+    }
+  }
+
+  return phases;
+}
+
+function buildApplicationContext(application: any, parsedNotes: any, profile: any, phaseData: PhaseData): string {
+  const sections: string[] = [];
+
+  sections.push(`## Candidate: ${profile?.full_name || 'Unknown'}
+- Position: ${application.jobs?.title || 'Unknown'}
+- Status: REJECTED
+- AI Score: ${application.ai_score || 0}/100`);
+
+  // Include phase-specific data
+  Object.entries(phaseData).forEach(([phase, data]) => {
+    sections.push(`\n## ${phase}${data.score ? ` - ${data.score}` : ''}`);
+    data.details.forEach(d => sections.push(`- ${d}`));
+    if (data.evidence.length) {
+      sections.push(`Evidence/Quotes:`);
+      data.evidence.forEach(e => sections.push(`  ${e}`));
+    }
+  });
+
+  // Previous AI analysis
+  if (application.ai_analysis) {
+    sections.push(`\n## Previous AI Analysis\n${application.ai_analysis}`);
+  }
+
+  return sections.join('\n');
+}
+
+function validatePhaseBreakdown(aiPhases: any[], phaseData: PhaseData): any[] {
+  const result = [...aiPhases];
+  const existingPhases = new Set(aiPhases.map((p: any) => p.phase?.toLowerCase()));
+
+  // Add any phases the AI missed
+  Object.entries(phaseData).forEach(([phase, data]) => {
+    if (!existingPhases.has(phase.toLowerCase())) {
+      result.push({
+        phase,
+        score: data.score || data.result || 'Completed',
+        issues: data.details.filter(d => d.includes('wrong') || d.includes('error') || d.includes('below')),
+        evidence: data.evidence,
+        fix: 'Review performance and practice this skill area',
+      });
+    }
+  });
+
+  return result;
 }
