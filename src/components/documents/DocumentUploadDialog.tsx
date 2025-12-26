@@ -244,7 +244,7 @@ export function DocumentUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -329,31 +329,31 @@ export function DocumentUploadDialog({
               className="space-y-4"
             >
               {/* File preview */}
-              <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                <div className="flex items-start gap-3">
+              <div className="p-4 rounded-lg bg-secondary/50 border border-border overflow-hidden">
+                <div className="flex items-start gap-3 min-w-0">
                   {previewUrl ? (
                     <img
                       src={previewUrl}
                       alt="Preview"
-                      className="w-16 h-16 object-cover rounded-lg"
+                      className="w-14 h-14 shrink-0 object-cover rounded-lg"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-lg bg-secondary flex items-center justify-center">
-                      <File className="h-8 w-8 text-muted-foreground" />
+                    <div className="w-14 h-14 shrink-0 rounded-lg bg-secondary flex items-center justify-center">
+                      <File className="h-7 w-7 text-muted-foreground" />
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="font-medium text-foreground text-sm break-words line-clamp-2">
                       {selectedFile.name}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                       {formatFileSize(selectedFile.size)}
                     </p>
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="shrink-0"
+                    className="shrink-0 h-8 w-8"
                     onClick={handleRemoveFile}
                   >
                     <X className="h-4 w-4" />
