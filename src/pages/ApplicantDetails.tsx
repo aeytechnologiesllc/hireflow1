@@ -191,6 +191,7 @@ export default function ApplicantDetails() {
   const [showRejectAnimation, setShowRejectAnimation] = useState(false);
   const [showInterviewQuestionsDialog, setShowInterviewQuestionsDialog] = useState(false);
   const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
+  const [showReconsiderConfirmation, setShowReconsiderConfirmation] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   
   // Refs to store current values for the drag event handlers (fixes stale closure bug)
@@ -1296,6 +1297,40 @@ export default function ApplicantDetails() {
     }
   };
 
+  const handleReconsider = async () => {
+    if (!application) return;
+    try {
+      // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
+      const reviewPhase = phases.find(p => p.type === "review") || phases[1];
+      const reviewPhaseId = reviewPhase?.id || "review";
+      
+      await updateApplication.mutateAsync({ 
+        id: application.id, 
+        status: "reviewing",
+        phase: reviewPhaseId,  // Reset phase to review
+        phase_ai_analysis: null,  // Clear for fresh review
+        rejected_by: null,  // Clear rejection attribution
+        rejected_by_type: null,
+      });
+      
+      // Create notification for candidate about reconsideration
+      await supabase.from("notifications").insert({
+        user_id: application.candidate_id,
+        type: "status_update",
+        title: "Great News! You're Being Reconsidered",
+        message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
+        link: `/applications/${application.id}`,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      setShowReconsiderConfirmation(false);
+      toast.success("Candidate moved back to review phase and notified");
+    } catch (error) {
+      console.error("Failed to reconsider candidate:", error);
+      toast.error("Failed to reconsider candidate");
+    }
+  };
+
   const handleReanalyze = async () => {
     if (!application) return;
     setIsAnalyzing(true);
@@ -1846,35 +1881,7 @@ ${interviewType} Interview with AVA Results:
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={async () => {
-                      try {
-                        // Find the review phase in workflow (first "review" type step, or fallback to first phase after application)
-                        const reviewPhase = phases.find(p => p.type === "review") || phases[1];
-                        const reviewPhaseId = reviewPhase?.id || "review";
-                        
-                        await updateApplication.mutateAsync({ 
-                          id: application.id, 
-                          status: "reviewing",
-                          phase: reviewPhaseId,  // Reset phase to review
-                          phase_ai_analysis: null,  // Clear for fresh review
-                        });
-                        
-                        // Create notification for candidate about reconsideration
-                        await supabase.from("notifications").insert({
-                          user_id: application.candidate_id,
-                          type: "status_update",
-                          title: "Great News! You're Being Reconsidered",
-                          message: `The employer has decided to reconsider your application for ${job?.title || "this position"}. Your application is now under review again.`,
-                          link: `/applications/${application.id}`,
-                        });
-                        
-                        queryClient.invalidateQueries({ queryKey: ["application", id] });
-                        toast.success("Candidate moved back to review phase and notified");
-                      } catch (error) {
-                        console.error("Failed to reconsider candidate:", error);
-                        toast.error("Failed to reconsider candidate");
-                      }
-                    }}
+                    onClick={() => setShowReconsiderConfirmation(true)}
                     className="gap-2"
                   >
                     <RefreshCw className="h-4 w-4" />
@@ -3419,6 +3426,39 @@ ${interviewType} Interview with AVA Results:
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Reject Candidate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reconsider Candidate Confirmation Dialog */}
+      <AlertDialog open={showReconsiderConfirmation} onOpenChange={setShowReconsiderConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Reconsider Candidate?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Are you sure you want to reconsider <strong>{applicantDisplayName}</strong> for the position of <strong>{job?.title}</strong>?
+              </p>
+              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-foreground">
+                  This will:
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Move the candidate back to the <strong>Review</strong> phase</li>
+                  <li>Clear the previous rejection status</li>
+                  <li>Notify the candidate that they're being reconsidered</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReconsider}>
+              Reconsider Candidate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
