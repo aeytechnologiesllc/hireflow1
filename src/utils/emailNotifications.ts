@@ -41,7 +41,9 @@ async function sendNotificationEmail(
   data: NotificationData
 ): Promise<void> {
   try {
-    const { error } = await supabase.functions.invoke("send-notification-email", {
+    console.log(`[emailNotifications] Sending ${type} email to user ${recipientUserId}`, data);
+    
+    const { data: responseData, error } = await supabase.functions.invoke("send-notification-email", {
       body: {
         type,
         recipient_user_id: recipientUserId,
@@ -50,10 +52,13 @@ async function sendNotificationEmail(
     });
 
     if (error) {
-      console.error("Failed to send notification email:", error);
+      console.error(`[emailNotifications] Failed to send ${type} email to user ${recipientUserId}:`, error);
+      console.error(`[emailNotifications] Error details:`, JSON.stringify(error));
+    } else {
+      console.log(`[emailNotifications] Successfully sent ${type} email to user ${recipientUserId}:`, responseData);
     }
   } catch (err) {
-    console.error("Error invoking send-notification-email:", err);
+    console.error(`[emailNotifications] Exception invoking send-notification-email for ${type}:`, err);
   }
 }
 
