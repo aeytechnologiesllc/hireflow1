@@ -679,6 +679,8 @@ export default function ChatSimulationPhase() {
           phase: newPhase,
           status: newStatus as any,
           phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%. ${passed ? "PASSED" : "FAILED"}`,
+          // Track Ava as the rejector for autopilot rejections
+          ...(newStatus === "rejected" && isAutoMode ? { rejected_by_type: 'ava' } : {}),
         })
         .eq("id", id!);
 

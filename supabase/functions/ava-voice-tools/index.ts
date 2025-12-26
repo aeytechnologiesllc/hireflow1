@@ -207,7 +207,9 @@ serve(async (req) => {
 
         const updates: any = { 
           status: 'rejected', 
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString(),
+          rejected_by: user.id,
+          rejected_by_type: 'user', // Voice assistant acts on behalf of employer
         };
         if (reason) {
           updates.employer_notes = reason;
@@ -1233,7 +1235,9 @@ serve(async (req) => {
           .update({ 
             status: 'rejected',
             employer_notes: reason || 'Bulk rejected by voice assistant',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            rejected_by: user.id,
+            rejected_by_type: 'user', // Voice assistant acts on behalf of employer
           })
           .in("id", ids);
 

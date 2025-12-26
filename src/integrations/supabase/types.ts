@@ -27,6 +27,8 @@ export type Database = {
           notes: string | null
           phase: string | null
           phase_ai_analysis: string | null
+          rejected_by: string | null
+          rejected_by_type: string | null
           resume_url: string | null
           status: Database["public"]["Enums"]["application_status"]
           updated_at: string
@@ -50,6 +52,8 @@ export type Database = {
           notes?: string | null
           phase?: string | null
           phase_ai_analysis?: string | null
+          rejected_by?: string | null
+          rejected_by_type?: string | null
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
@@ -73,6 +77,8 @@ export type Database = {
           notes?: string | null
           phase?: string | null
           phase_ai_analysis?: string | null
+          rejected_by?: string | null
+          rejected_by_type?: string | null
           resume_url?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string

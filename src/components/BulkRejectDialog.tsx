@@ -14,6 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useUpdateApplication } from "@/hooks/useApplications";
+import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { getApplicantDisplayName, getInitialsFromName } from "@/utils/getApplicantDisplayName";
@@ -34,9 +36,16 @@ export default function BulkRejectDialog({
   const [reason, setReason] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const updateApplication = useUpdateApplication();
+  const { user } = useAuth();
+  const { data: permissions } = useTeamMemberPermissions();
 
   const handleReject = async () => {
+    if (!user) return;
     setIsLoading(true);
+    
+    // Determine rejection type: team member vs regular employer
+    const rejectedByType = permissions?.isTeamMember ? 'team_member' : 'user';
+    
     try {
       await Promise.all(
         selectedApplications.map((app) =>
@@ -44,6 +53,8 @@ export default function BulkRejectDialog({
             id: app.id,
             status: "rejected",
             employer_notes: reason || undefined,
+            rejected_by: user.id,
+            rejected_by_type: rejectedByType,
           })
         )
       );
