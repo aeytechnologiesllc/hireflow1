@@ -936,180 +936,170 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
 // Extract insights for a specific phase from the AI analysis sections
 type PhaseType = 'application_form' | 'quiz' | 'portfolio' | 'video' | 'typing' | 'chat_simulation' | 'chat_interview' | 'sales_simulation' | 'voice_interview' | 'resume';
 
+// Convert raw key:value items into human-readable narrative sentences
+function convertToNarrative(items: string[], context: string = ''): string {
+  const sentences: string[] = [];
+  
+  for (const item of items) {
+    if (isPlaceholderValue(item) || item.length < 10) continue;
+    
+    const match = item.match(/^([^:]{2,50}):\s*(.+)$/);
+    if (match) {
+      const label = match[1].trim().toLowerCase();
+      const value = match[2].trim();
+      
+      if (isPlaceholderValue(value)) continue;
+      const cleanedValue = cleanPlaceholderFromText(value);
+      if (!cleanedValue) continue;
+      
+      // AI Content Detection
+      if (label.includes('application answer') || label.includes('ai-generated')) {
+        if (cleanedValue.toUpperCase().includes('AUTHENTIC')) {
+          sentences.push('The application answers appear to be authentically written.');
+        } else if (cleanedValue.toUpperCase().includes('LIKELY AI') || cleanedValue.toUpperCase().includes('AI-GENERATED')) {
+          sentences.push('Some answers may have been AI-generated.');
+        } else if (cleanedValue.length > 5) {
+          sentences.push(`Application content assessment: ${cleanedValue.toLowerCase()}.`);
+        }
+      }
+      // Cross-reference findings
+      else if (label.includes('cross-reference') || label.includes('score')) {
+        const scoreMatch = cleanedValue.match(/(\d+)%?/);
+        if (scoreMatch) {
+          const score = parseInt(scoreMatch[1]);
+          if (score >= 80) {
+            sentences.push(`Cross-reference verification shows strong consistency (${score}%).`);
+          } else if (score >= 50) {
+            sentences.push(`Cross-reference verification shows moderate consistency (${score}%).`);
+          } else {
+            sentences.push(`Cross-reference verification found inconsistencies (${score}%).`);
+          }
+        }
+      }
+      // Experience consistency
+      else if (label.includes('experience') && label.includes('consistency')) {
+        if (cleanedValue.toUpperCase().includes('CONSISTENT')) {
+          sentences.push('Work experience appears consistent with stated background.');
+        } else if (cleanedValue.toUpperCase().includes('INCONSISTENT')) {
+          sentences.push('There are inconsistencies between stated experience and application responses.');
+        }
+      }
+      // Name match
+      else if (label.includes('name') && (label.includes('match') || label.includes('verification'))) {
+        if (cleanedValue.toUpperCase().includes('MATCH')) {
+          sentences.push('Name verification passed successfully.');
+        } else if (cleanedValue.toUpperCase().includes('MISMATCH')) {
+          sentences.push('Name discrepancy detected between documents.');
+        }
+      }
+      // Skills analysis
+      else if (label.includes('skill') && label.includes('match')) {
+        const skillMatch = cleanedValue.match(/(\d+)/);
+        if (skillMatch) {
+          sentences.push(`${skillMatch[1]} of the required skills were found in the application.`);
+        } else if (!cleanedValue.toLowerCase().includes('none')) {
+          sentences.push(`Matching skills identified: ${cleanedValue}.`);
+        }
+      }
+      // Authenticity
+      else if (label.includes('authenticity') || label.includes('confidence')) {
+        if (cleanedValue.toUpperCase().includes('HIGH') || cleanedValue.toUpperCase().includes('AUTHENTIC')) {
+          sentences.push('The responses appear genuine and well-considered.');
+        } else if (cleanedValue.toUpperCase().includes('LOW') || cleanedValue.toUpperCase().includes('SUSPICIOUS')) {
+          sentences.push('Some responses raised authenticity concerns.');
+        }
+      }
+      // Overall assessment
+      else if (label.includes('overall') || label.includes('summary') || label.includes('assessment')) {
+        if (cleanedValue.length > 10 && cleanedValue.length < 200) {
+          sentences.push(cleanedValue.charAt(0).toUpperCase() + cleanedValue.slice(1).toLowerCase() + '.');
+        }
+      }
+      // Quiz/Test specific
+      else if (label.includes('quiz') || label.includes('test') || label.includes('assessment')) {
+        if (cleanedValue.length > 10) {
+          sentences.push(cleanedValue.charAt(0).toUpperCase() + cleanedValue.slice(1) + '.');
+        }
+      }
+      // Concerns or red flags
+      else if (label.includes('concern') || label.includes('flag') || label.includes('issue')) {
+        if (!cleanedValue.toLowerCase().includes('none') && cleanedValue.length > 5) {
+          sentences.push(`Note: ${cleanedValue}.`);
+        }
+      }
+    }
+  }
+  
+  return sentences.slice(0, 3).join(' ').trim();
+}
+
 function extractPhaseInsights(
   rawSections: ParsedSection[], 
   phaseType: PhaseType,
   wasRejected: boolean = false
 ): string | null {
-  const insights: string[] = [];
+  const relevantItems: string[] = [];
   
   for (const section of rawSections) {
     const titleLower = section.title.toLowerCase();
     
-    switch (phaseType) {
-      case 'application_form':
-        // Look for AI-generated content detection
-        if (titleLower.includes('ai-generated') || titleLower.includes('ai content') || titleLower.includes('content detection')) {
-          for (const item of section.items) {
-            if (item.toLowerCase().includes('application') && !isPlaceholderValue(item)) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned && cleaned.length > 10) insights.push(cleaned);
-            }
-          }
-        }
-        // Look for cross-reference findings
-        if (titleLower.includes('cross-reference') || titleLower.includes('verification')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 15) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        // Look for authenticity assessment
-        if (titleLower.includes('authenticity')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item)) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        // Look for application answer analysis
-        if (titleLower.includes('application') && (titleLower.includes('answer') || titleLower.includes('analysis'))) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'quiz':
-        // Extract quiz-specific analysis
-        if (titleLower.includes('quiz') || titleLower.includes('assessment') || titleLower.includes('knowledge')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'portfolio':
-        // Extract portfolio-specific analysis
-        if (titleLower.includes('portfolio') || titleLower.includes('work sample')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'video':
-        // Extract video intro analysis
-        if (titleLower.includes('video') || titleLower.includes('presentation')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'typing':
-        // Extract typing test analysis
-        if (titleLower.includes('typing') || titleLower.includes('speed') || titleLower.includes('wpm')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'chat_simulation':
-        // Extract chat simulation analysis
-        if (titleLower.includes('chat') && titleLower.includes('simulation')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'chat_interview':
-        // Extract chat interview analysis
-        if (titleLower.includes('chat') && titleLower.includes('interview')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'sales_simulation':
-        // Extract sales simulation analysis
-        if (titleLower.includes('sales') || titleLower.includes('objection') || titleLower.includes('negotiation')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'voice_interview':
-        // Extract voice interview analysis
-        if (titleLower.includes('voice') || titleLower.includes('interview') || titleLower.includes('communication')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
-        
-      case 'resume':
-        // Extract resume analysis
-        if (titleLower.includes('resume') || titleLower.includes('document') || titleLower.includes('cv')) {
-          for (const item of section.items) {
-            if (!isPlaceholderValue(item) && item.length > 10) {
-              const cleaned = cleanPlaceholderFromText(item);
-              if (cleaned) insights.push(cleaned);
-            }
-          }
-        }
-        break;
+    // Collect relevant items based on phase type
+    const isRelevant = (() => {
+      switch (phaseType) {
+        case 'application_form':
+          return titleLower.includes('ai-generated') || 
+                 titleLower.includes('ai content') || 
+                 titleLower.includes('content detection') ||
+                 titleLower.includes('cross-reference') || 
+                 titleLower.includes('verification') ||
+                 titleLower.includes('authenticity') ||
+                 (titleLower.includes('application') && (titleLower.includes('answer') || titleLower.includes('analysis')));
+        case 'quiz':
+          return titleLower.includes('quiz') || titleLower.includes('assessment') || titleLower.includes('knowledge');
+        case 'portfolio':
+          return titleLower.includes('portfolio') || titleLower.includes('work sample');
+        case 'video':
+          return titleLower.includes('video') || titleLower.includes('presentation');
+        case 'typing':
+          return titleLower.includes('typing') || titleLower.includes('speed') || titleLower.includes('wpm');
+        case 'chat_simulation':
+          return titleLower.includes('chat') && titleLower.includes('simulation');
+        case 'chat_interview':
+          return titleLower.includes('chat') && titleLower.includes('interview');
+        case 'sales_simulation':
+          return titleLower.includes('sales') || titleLower.includes('objection') || titleLower.includes('negotiation');
+        case 'voice_interview':
+          return titleLower.includes('voice') || titleLower.includes('interview') || titleLower.includes('communication');
+        case 'resume':
+          return titleLower.includes('resume') || titleLower.includes('document') || titleLower.includes('cv');
+        default:
+          return false;
+      }
+    })();
+    
+    if (isRelevant) {
+      relevantItems.push(...section.items);
     }
   }
   
-  if (insights.length === 0) return null;
+  if (relevantItems.length === 0) return null;
   
-  // Combine insights (take first 2-3 most relevant)
-  let summary = insights.slice(0, 2).join(' ').trim();
+  // Convert to narrative
+  let summary = convertToNarrative(relevantItems, phaseType);
+  
+  if (!summary) return null;
   
   // If rejected, tone down overly positive language
-  if (wasRejected && summary) {
+  if (wasRejected) {
     summary = summary
       .replace(/excellent|outstanding|exceptional|perfect|impressive|superb|remarkable/gi, 'adequate')
       .replace(/highly recommend|strong candidate|great fit|top candidate|ideal/gi, 'reviewed')
-      .replace(/exceeded expectations|above average|exemplary/gi, 'met requirements');
+      .replace(/exceeded expectations|above average|exemplary/gi, 'met requirements')
+      .replace(/strong consistency/gi, 'some consistency')
+      .replace(/passed successfully/gi, 'was completed');
   }
   
-  return summary || null;
+  return summary;
 }
 
 interface CompletedPhase {
