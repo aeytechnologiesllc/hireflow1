@@ -355,7 +355,7 @@ function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseRes
   return results;
 }
 
-// Generate a comprehensive full summary - dynamic, job-aware, no hardcoded phrases
+// Generate a natural, conversational summary in Ava's voice
 function generateFullSummary(
   sections: ParsedSection[], 
   recommendation: string | null,
@@ -379,399 +379,217 @@ function generateFullSummary(
     }
   }
   
-  // Collect data from all sections
+  // Collect key data points
   const phaseResults: PhaseResult[] = notesPhaseResults.length > 0 ? notesPhaseResults : [];
-  const resumeFindings: string[] = [];
-  const skillsInfo: string[] = [];
-  const personalityInfo: string[] = [];
-  const experienceInfo: string[] = [];
-  const concerns: string[] = [];
-  const strengths: string[] = [];
-  const crossRefFindings: string[] = [];
-  let overallScore: string | null = null;
+  let hasNameMismatch = false;
+  let hasResumeIssue = false;
+  let noMatchingSkills = false;
+  let requiredSkillsFromJob: string[] = [];
   let recommendationText: string | null = recommendation;
-  let jobFitDetails: string[] = [];
-  let cultureIndicators: string[] = [];
   
+  // Extract key findings from sections
   for (const section of sections) {
     const titleLower = section.title.toLowerCase();
     
-    // Extract Phase Performance Summary
-    if (titleLower.includes('phase') && titleLower.includes('performance')) {
-      for (const item of section.items) {
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim();
-          const labelLower = label.toLowerCase();
-          const value = match[2].trim();
-          const valueLower = value.toLowerCase();
-          
-          if (labelLower.includes('quiz') && !valueLower.includes('not completed') && !valueLower.includes('n/a')) {
-            const scoreMatch = value.match(/(\d+)%/);
-            if (scoreMatch) {
-              phaseResults.push({ phase: 'Quiz', score: `${scoreMatch[1]}%`, details: value });
-            }
-          }
-          
-          if (labelLower.includes('portfolio') && !valueLower.includes('not submitted') && !valueLower.includes('n/a')) {
-            const scoreMatch = value.match(/(\d+)(?:\/100)?/);
-            if (scoreMatch) {
-              phaseResults.push({ phase: 'Portfolio', score: `${scoreMatch[1]}/100`, details: value });
-            }
-          }
-          
-          if (labelLower.includes('voice') && labelLower.includes('interview') && !valueLower.includes('not completed') && !valueLower.includes('n/a')) {
-            const scoreMatch = value.match(/(\d+)(?:\/100)?/);
-            if (scoreMatch) {
-              phaseResults.push({ phase: 'Voice Interview', score: `${scoreMatch[1]}/100`, details: value });
-            }
-          }
-          
-          if (labelLower.includes('typing') && !valueLower.includes('not completed') && !valueLower.includes('n/a')) {
-            const wpmMatch = value.match(/(\d+)\s*wpm/i);
-            if (wpmMatch) {
-              phaseResults.push({ phase: 'Typing Test', score: `${wpmMatch[1]} WPM`, details: value });
-            }
-          }
-          
-          if (labelLower.includes('video') && !valueLower.includes('not submitted') && !valueLower.includes('n/a')) {
-            phaseResults.push({ phase: 'Video Introduction', score: 'Submitted', details: value });
-          }
-          
-          if (labelLower.includes('chat') && labelLower.includes('simulation') && !valueLower.includes('not completed') && !valueLower.includes('n/a')) {
-            phaseResults.push({ phase: 'Chat Simulation', score: 'Completed', details: value });
-          }
-          
-          if (labelLower.includes('overall') && labelLower.includes('strength')) {
-            strengths.push(value);
-          }
-          
-          if (labelLower.includes('highlight')) {
-            const highlights = value.split(/[,;]/).filter(h => h.trim() && !h.toLowerCase().includes('none'));
-            strengths.push(...highlights.map(h => h.trim()));
-          }
-          
-          if (labelLower.includes('concern') && !valueLower.includes('none')) {
-            concerns.push(value);
-          }
-        }
-      }
-    }
-    
-    // Extract Resume/Document Analysis
-    if (titleLower.includes('resume') || titleLower.includes('document')) {
-      for (const item of section.items) {
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim().toLowerCase();
-          const value = match[2].trim();
-          const valueUpper = value.toUpperCase();
-          
-          if (label.includes('status') || label.includes('ownership')) {
-            if (valueUpper.includes('WRONG') || valueUpper.includes('MISMATCH') || valueUpper.includes('DIFFERENT')) {
-              resumeFindings.push('The resume appears to belong to a different person');
-              concerns.push('Resume ownership discrepancy detected');
-            } else if (valueUpper.includes('CONFIRMED') || valueUpper.includes('MATCH')) {
-              resumeFindings.push('The resume appears to belong to the applicant');
-            }
-          }
-          
-          if (label.includes('authenticity') || label.includes('confidence')) {
-            resumeFindings.push(`Document authenticity: ${value}`);
-          }
-          
-          if (label.includes('ai') && label.includes('detect')) {
-            resumeFindings.push(`AI detection: ${value}`);
-          }
-        }
-      }
-    }
-    
-    // Extract Cross-Reference Analysis
+    // Check for cross-reference issues
     if (titleLower.includes('cross') && titleLower.includes('reference')) {
       for (const item of section.items) {
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim().toLowerCase();
-          const value = match[2].trim();
-          
-          if (label.includes('name')) {
-            if (value.toUpperCase().includes('MISMATCH') || value.toUpperCase().includes('DIFFERENT')) {
-              crossRefFindings.push('Name on resume does not match applicant name');
-              concerns.push('Name mismatch between resume and application');
-            } else if (value.toUpperCase().includes('MATCH')) {
-              crossRefFindings.push('Name verification passed');
-            }
-          }
-          
-          if (label.includes('consistency') || label.includes('alignment')) {
-            crossRefFindings.push(`Application consistency: ${value}`);
-          }
+        if (item.toLowerCase().includes('mismatch') || item.toLowerCase().includes('not match') || item.toLowerCase().includes('different')) {
+          hasNameMismatch = true;
         }
       }
     }
     
-    // Extract Skills Analysis
+    // Check for resume issues
+    if (titleLower.includes('resume') || titleLower.includes('document')) {
+      for (const item of section.items) {
+        if (item.toLowerCase().includes('different person') || item.toLowerCase().includes('wrong')) {
+          hasResumeIssue = true;
+        }
+      }
+    }
+    
+    // Check for skills gaps
     if (titleLower.includes('skill')) {
       for (const item of section.items) {
-        // Skip placeholder items
-        if (isPlaceholderValue(item)) continue;
-        
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim().toLowerCase();
-          const value = match[2].trim();
-          
-          // Skip placeholder values
-          if (isPlaceholderValue(value)) continue;
-          
-          const cleanedValue = cleanPlaceholderFromText(value);
-          if (!cleanedValue) continue;
-          
-          if (label.includes('matching') || label.includes('relevant')) {
-            if (cleanedValue.toLowerCase().includes('none') || cleanedValue === '0') {
-              skillsInfo.push('No matching skills were found for this position');
-              concerns.push('No relevant skills match');
-            } else {
-              skillsInfo.push(`Matching skills: ${cleanedValue}`);
-            }
-          }
-          
-          if (label.includes('missing') || label.includes('gap')) {
-            if (!cleanedValue.toLowerCase().includes('none')) {
-              skillsInfo.push(`Skills gaps identified: ${cleanedValue}`);
-            }
-          }
-          
-          if (label.includes('strength')) {
-            strengths.push(cleanedValue);
-          }
+        if (item.toLowerCase().includes('no matching') || item.toLowerCase().includes('none found') || 
+            (item.toLowerCase().includes('matching') && item.toLowerCase().includes(': none'))) {
+          noMatchingSkills = true;
         }
       }
     }
     
-    // Extract Personality/Soft Skills
-    if (titleLower.includes('personality') || titleLower.includes('soft')) {
-      for (const item of section.items) {
-        if (!item.includes(':')) continue;
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const value = match[2].trim();
-          if (value && !value.toLowerCase().includes('none') && value !== 'N/A') {
-            personalityInfo.push(value);
-          }
-        }
-      }
-    }
-    
-    // Extract Experience Analysis
-    if (titleLower.includes('experience')) {
+    // Get recommendation if not already set
+    if (!recommendationText && (titleLower.includes('assessment') || titleLower.includes('recommendation'))) {
       for (const item of section.items) {
         const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim().toLowerCase();
-          const value = match[2].trim();
-          
-          if (label.includes('year') || label.includes('level')) {
-            experienceInfo.push(`Experience level: ${value}`);
-          }
-          
-          if (label.includes('relevance') || label.includes('alignment')) {
-            experienceInfo.push(`Experience relevance: ${value}`);
-          }
-        }
-      }
-    }
-    
-    // Extract Final Assessment
-    if (titleLower.includes('assessment') || titleLower.includes('recommendation') || titleLower.includes('scoring')) {
-      for (const item of section.items) {
-        const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
-        if (match) {
-          const label = match[1].trim().toLowerCase();
-          const value = match[2].trim();
-          
-          if (label.includes('score') || label.includes('rating')) {
-            const scoreMatch = value.match(/(\d+)/);
-            if (scoreMatch) {
-              overallScore = scoreMatch[1];
-            }
-          }
-          
-          if (label.includes('recommendation') || label.includes('verdict')) {
-            recommendationText = value;
-          }
-          
-          if (label.includes('red flag') || label.includes('concern')) {
-            if (!value.toLowerCase().includes('none') && value !== 'N/A') {
-              concerns.push(value);
-            }
-          }
+        if (match && (match[1].toLowerCase().includes('recommendation') || match[1].toLowerCase().includes('verdict'))) {
+          recommendationText = match[2].trim();
         }
       }
     }
   }
   
-  // Build comprehensive narrative - DYNAMIC, job-aware, no hardcoded phrases
+  // Build natural narrative
   const paragraphs: string[] = [];
-  const jobTitle = jobContext?.title || 'this position';
-  const companyName = jobContext?.companyName;
+  const jobTitle = jobContext?.title || 'this role';
   const requiredSkills = jobContext?.requiredSkills || [];
+  const finalScoreNum = authoritativeScore ?? null;
   
-  // Use authoritative score
-  const finalScoreNum = authoritativeScore ?? (overallScore ? parseInt(overallScore) : null);
-  
-  // ============= PARAGRAPH 1: Dynamic Opening Based on Assessment =============
-  const openingSentences: string[] = [];
-  
-  // Dynamic opening based on what we found - NOT hardcoded
-  if (finalScoreNum !== null) {
-    if (finalScoreNum >= 80) {
-      openingSentences.push(`This is a strong candidate for ${jobTitle}.`);
-    } else if (finalScoreNum >= 60) {
-      openingSentences.push(`This candidate shows potential for ${jobTitle}, with some areas to consider.`);
-    } else if (finalScoreNum >= 40) {
-      openingSentences.push(`I have reservations about this candidate for ${jobTitle}.`);
-    } else {
-      openingSentences.push(`This candidate doesn't appear to be a good fit for ${jobTitle}.`);
-    }
-  } else if (phaseResults.length > 0) {
-    openingSentences.push(`Here's my assessment based on ${phaseResults.length} completed evaluation${phaseResults.length !== 1 ? 's' : ''}.`);
-  } else {
-    openingSentences.push(`Initial application received - awaiting assessment phases.`);
-  }
-  
-  // Key performance highlights (not listing phases, but highlighting standouts)
-  const standoutPhases: string[] = [];
-  const concernPhases: string[] = [];
+  // Extract specific phase scores for narrative
+  let quizScore: number | null = null;
+  let typingWpm: number | null = null;
+  let chatSimScore: number | null = null;
+  let voiceScore: number | null = null;
+  let portfolioScore: number | null = null;
   
   for (const phase of phaseResults) {
     const scoreNum = parseInt(phase.score);
-    if (!isNaN(scoreNum)) {
-      if (phase.phase === 'Quiz') {
-        if (scoreNum >= 80) standoutPhases.push(`strong knowledge assessment (${phase.score})`);
-        else if (scoreNum < 50) concernPhases.push(`knowledge gaps in assessment (${phase.score})`);
-      }
-      if (phase.phase === 'Portfolio') {
-        if (scoreNum >= 80) standoutPhases.push(`impressive portfolio work (${phase.score})`);
-        else if (scoreNum < 50) concernPhases.push(`portfolio below expectations (${phase.score})`);
-      }
-      if (phase.phase === 'Voice Interview') {
-        if (scoreNum >= 80) standoutPhases.push(`excellent communication in interview (${phase.score})`);
-        else if (scoreNum < 50) concernPhases.push(`communication challenges in interview (${phase.score})`);
-      }
-      if (phase.phase === 'Chat Simulation') {
-        if (scoreNum >= 80) standoutPhases.push(`handled customer scenarios well (${phase.score})`);
-        else if (scoreNum < 50) concernPhases.push(`struggled with customer simulation (${phase.score})`);
-      }
+    if (phase.phase.toLowerCase().includes('quiz') && !isNaN(scoreNum)) {
+      quizScore = scoreNum;
     }
-    if (phase.phase === 'Typing Test') {
-      const wpm = parseInt(phase.score);
-      if (wpm >= 60) standoutPhases.push(`good typing speed (${phase.score})`);
-      else if (wpm < 30) concernPhases.push(`slow typing speed (${phase.score})`);
+    if (phase.phase.toLowerCase().includes('typing')) {
+      const wpmMatch = phase.score.match(/(\d+)/);
+      if (wpmMatch) typingWpm = parseInt(wpmMatch[1]);
+    }
+    if (phase.phase.toLowerCase().includes('chat') && phase.phase.toLowerCase().includes('simulation')) {
+      if (!isNaN(scoreNum)) chatSimScore = scoreNum;
+    }
+    if (phase.phase.toLowerCase().includes('voice') && !isNaN(scoreNum)) {
+      voiceScore = scoreNum;
+    }
+    if (phase.phase.toLowerCase().includes('portfolio') && !isNaN(scoreNum)) {
+      portfolioScore = scoreNum;
     }
   }
   
-  if (standoutPhases.length > 0) {
-    openingSentences.push(`Strengths: ${standoutPhases.join(', ')}.`);
-  }
-  if (concernPhases.length > 0) {
-    openingSentences.push(`Concerns: ${concernPhases.join(', ')}.`);
-  }
-  
-  if (openingSentences.length > 0) {
-    paragraphs.push(openingSentences.join(' '));
-  }
-  
-  // ============= PARAGRAPH 2: Job Fit & Skills Analysis =============
-  const fitSentences: string[] = [];
-  
-  // Skills match vs job requirements
-  const matchingSkillsList = skillsInfo.filter(s => s.toLowerCase().includes('matching')).map(s => cleanPlaceholderFromText(s.replace(/matching skills:\s*/i, ''))).filter(Boolean);
-  const missingSkillsList = skillsInfo.filter(s => s.toLowerCase().includes('missing') || s.toLowerCase().includes('gap')).map(s => cleanPlaceholderFromText(s.replace(/missing skills:\s*|skills gap[s]? identified:\s*/gi, ''))).filter(Boolean);
-  
-  if (matchingSkillsList.length > 0 && matchingSkillsList[0] && !isPlaceholderValue(matchingSkillsList[0])) {
-    fitSentences.push(`Relevant skills found: ${matchingSkillsList[0]}.`);
-  }
-  
-  if (missingSkillsList.length > 0 && missingSkillsList[0] && !isPlaceholderValue(missingSkillsList[0]) && !missingSkillsList[0].toLowerCase().includes('none')) {
-    fitSentences.push(`Skills to develop: ${missingSkillsList[0]}.`);
-  }
-  
-  // Experience context
-  const expSummary = experienceInfo.find(e => !e.toLowerCase().includes('unknown') && !isPlaceholderValue(e));
-  if (expSummary) {
-    fitSentences.push(expSummary + '.');
-  }
-  
-  // Resume verification issues (only if significant)
-  const hasNameMismatch = crossRefFindings.some(f => f.toLowerCase().includes('mismatch') || f.toLowerCase().includes('not match'));
-  const hasResumeIssue = resumeFindings.some(f => f.toLowerCase().includes('different person') || f.toLowerCase().includes('wrong'));
-  
-  if (hasNameMismatch || hasResumeIssue) {
-    fitSentences.push(`⚠️ Document verification flagged: ${hasNameMismatch ? 'name discrepancy detected' : 'resume authenticity concerns'}.`);
-  }
-  
-  if (fitSentences.length > 0) {
-    paragraphs.push(fitSentences.join(' '));
-  }
-  
-  // ============= PARAGRAPH 3: Personality & Culture Fit =============
-  const cultureSentences: string[] = [];
-  
-  // Only include meaningful personality insights
-  const meaningfulPersonality = personalityInfo.filter(p => p && p.length > 10 && !isPlaceholderValue(p));
-  if (meaningfulPersonality.length > 0) {
-    cultureSentences.push(`Personality profile: ${meaningfulPersonality.slice(0, 2).join('. ')}.`);
-  }
-  
-  // Culture indicators from analysis
-  const uniqueCultureIndicators = [...new Set(cultureIndicators)].filter(c => c && !isPlaceholderValue(c));
-  if (uniqueCultureIndicators.length > 0) {
-    cultureSentences.push(`Work style indicators: ${uniqueCultureIndicators.join(', ')}.`);
-  }
-  
-  if (cultureSentences.length > 0) {
-    paragraphs.push(cultureSentences.join(' '));
-  }
-  
-  // ============= PARAGRAPH 4: Concerns (only if significant) =============
-  const uniqueConcerns = [...new Set(concerns)].filter(c => c && c.length > 5 && !isPlaceholderValue(c));
-  if (uniqueConcerns.length > 0) {
-    const concernList = uniqueConcerns.slice(0, 3).join('; ');
-    paragraphs.push(`Key concerns: ${concernList}.`);
-  }
-  
-  // ============= PARAGRAPH 5: Final Verdict =============
-  const verdictSentences: string[] = [];
-  
+  // ============= Opening - Set the tone naturally =============
   if (finalScoreNum !== null) {
-    verdictSentences.push(`Overall score: ${finalScoreNum}/100.`);
+    if (finalScoreNum >= 80) {
+      paragraphs.push(`This is a strong candidate for ${jobTitle}. They've performed well across the assessment phases and show real promise.`);
+    } else if (finalScoreNum >= 60) {
+      paragraphs.push(`This candidate shows some potential for ${jobTitle}, though there are a few areas worth considering before moving forward.`);
+    } else if (finalScoreNum >= 40) {
+      paragraphs.push(`I have some reservations about this candidate for ${jobTitle}. Let me walk you through what I found.`);
+    } else {
+      paragraphs.push(`I have significant concerns about this candidate for ${jobTitle}. Here's what stood out.`);
+    }
+  } else if (phaseResults.length > 0) {
+    paragraphs.push(`I've reviewed this candidate's performance across ${phaseResults.length} assessment${phaseResults.length !== 1 ? 's' : ''} for ${jobTitle}.`);
+  } else {
+    paragraphs.push(`This application is still in the early stages—I'll have more insights once they complete the assessment phases.`);
   }
   
-  if (recommendationText) {
-    const cleanRec = recommendationText.replace(/^\*\*|\*\*$/g, '').trim();
-    verdictSentences.push(`Recommendation: ${cleanRec}.`);
-  } else if (finalScoreNum !== null) {
-    if (finalScoreNum >= 75) {
-      verdictSentences.push(`This candidate is worth advancing to the next stage.`);
-    } else if (finalScoreNum >= 50) {
-      verdictSentences.push(`Consider based on your specific priorities for this role.`);
+  // ============= Performance Narrative - Tell the story =============
+  const performanceNotes: string[] = [];
+  
+  // Chat simulation story
+  if (chatSimScore !== null) {
+    if (chatSimScore >= 80) {
+      performanceNotes.push(`In the customer simulation, they handled scenarios really well, scoring ${chatSimScore} out of 100—showing solid empathy and problem-solving instincts.`);
+    } else if (chatSimScore >= 50) {
+      performanceNotes.push(`The customer simulation was okay at ${chatSimScore}/100, but there's room for improvement in how they handle tricky situations.`);
     } else {
-      verdictSentences.push(`I recommend passing on this candidate.`);
+      performanceNotes.push(`In the customer simulation, they scored just ${chatSimScore} out of 100—struggling with empathy and problem-solving basics that would be essential for this role.`);
     }
   }
   
-  if (verdictSentences.length > 0) {
-    paragraphs.push(verdictSentences.join(' '));
+  // Typing speed context
+  if (typingWpm !== null) {
+    if (typingWpm >= 60) {
+      performanceNotes.push(`Their typing came in at ${typingWpm} WPM, which is solid for efficient responses.`);
+    } else if (typingWpm >= 40) {
+      performanceNotes.push(`Typing speed is ${typingWpm} WPM—acceptable, though faster would be better for high-volume work.`);
+    } else {
+      performanceNotes.push(`Their typing came in at ${typingWpm} WPM, which is below what we'd typically need for efficient work.`);
+    }
   }
   
-  // Return dynamic summary or minimal fallback
+  // Quiz knowledge
+  if (quizScore !== null) {
+    if (quizScore >= 80) {
+      performanceNotes.push(`They demonstrated strong knowledge on the quiz with a ${quizScore}% score.`);
+    } else if (quizScore >= 50) {
+      performanceNotes.push(`The quiz showed some knowledge gaps at ${quizScore}%, suggesting they might need additional training.`);
+    } else {
+      performanceNotes.push(`The quiz revealed significant knowledge gaps with a ${quizScore}% score.`);
+    }
+  }
+  
+  // Voice interview
+  if (voiceScore !== null) {
+    if (voiceScore >= 80) {
+      performanceNotes.push(`During our voice interview, they communicated clearly and confidently, scoring ${voiceScore}/100.`);
+    } else if (voiceScore >= 50) {
+      performanceNotes.push(`The voice interview went okay at ${voiceScore}/100—communication skills are there but could be stronger.`);
+    } else {
+      performanceNotes.push(`The voice interview revealed some communication challenges, with a score of ${voiceScore}/100.`);
+    }
+  }
+  
+  // Portfolio
+  if (portfolioScore !== null) {
+    if (portfolioScore >= 80) {
+      performanceNotes.push(`Their portfolio work is impressive, scoring ${portfolioScore}/100.`);
+    } else if (portfolioScore >= 50) {
+      performanceNotes.push(`Portfolio quality was moderate at ${portfolioScore}/100.`);
+    } else {
+      performanceNotes.push(`The portfolio was underwhelming at ${portfolioScore}/100.`);
+    }
+  }
+  
+  if (performanceNotes.length > 0) {
+    paragraphs.push(performanceNotes.join(' '));
+  }
+  
+  // ============= Skills & Fit =============
+  const fitNotes: string[] = [];
+  
+  if (noMatchingSkills && requiredSkills.length > 0) {
+    const skillsToShow = requiredSkills.slice(0, 3).join(', ');
+    fitNotes.push(`I wasn't able to find any of the key skills we're looking for—${skillsToShow}—demonstrated in their application.`);
+  } else if (noMatchingSkills) {
+    fitNotes.push(`I couldn't identify any of the required skills for this position in their background.`);
+  }
+  
+  if (fitNotes.length > 0) {
+    paragraphs.push(fitNotes.join(' '));
+  }
+  
+  // ============= Red Flags (only if present) =============
+  if (hasNameMismatch || hasResumeIssue) {
+    if (hasNameMismatch && hasResumeIssue) {
+      paragraphs.push(`There's also a red flag worth investigating: the name on their resume doesn't match their application, and there are questions about the document's authenticity.`);
+    } else if (hasNameMismatch) {
+      paragraphs.push(`There's also a red flag: the name on their resume doesn't match their application, which is worth investigating.`);
+    } else {
+      paragraphs.push(`I noticed some concerns about the resume's authenticity that might be worth looking into.`);
+    }
+  }
+  
+  // ============= Closing Recommendation =============
+  if (finalScoreNum !== null || recommendationText) {
+    const recLower = recommendationText?.toLowerCase() || '';
+    
+    if (finalScoreNum !== null && finalScoreNum >= 75) {
+      paragraphs.push(`Overall, they scored ${finalScoreNum}/100. I think they're worth moving forward with.`);
+    } else if (finalScoreNum !== null && finalScoreNum >= 50) {
+      paragraphs.push(`With a score of ${finalScoreNum}/100, they could work depending on your priorities—it's a judgment call.`);
+    } else if (finalScoreNum !== null) {
+      paragraphs.push(`With a score of ${finalScoreNum}/100, I'd recommend passing on this candidate.`);
+    } else if (recLower.includes('not recommend') || recLower.includes('pass')) {
+      paragraphs.push(`Based on everything, I'd recommend passing on this candidate.`);
+    } else if (recLower.includes('recommend') || recLower.includes('proceed') || recLower.includes('advance')) {
+      paragraphs.push(`Overall, I think they're worth moving forward with.`);
+    }
+  }
+  
+  // Return natural narrative or minimal fallback
   if (paragraphs.length > 0) {
     return paragraphs.join('\n\n');
   }
   
-  return "Application received. Complete the phase-by-phase analysis below for detailed insights.";
+  return "I'll have more insights once they complete the assessment phases.";
 }
 
 // ============= Parsing Logic =============
