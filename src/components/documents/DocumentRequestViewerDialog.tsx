@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import "react-pdf/dist/esm/Page/TextLayer.css";
 import {
   Dialog,
   DialogContent,
@@ -18,13 +21,17 @@ import {
   FileText,
   Download,
   Calendar,
-  User,
   Loader2,
   ZoomIn,
   ZoomOut,
   RotateCw,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface DocumentRequestViewerDialogProps {
   request: DocumentRequestWithDetails | null;
@@ -42,6 +49,9 @@ export function DocumentRequestViewerDialog({
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pdfLoading, setPdfLoading] = useState(true);
 
   useEffect(() => {
     if (open && request?.file_url) {
@@ -51,8 +61,25 @@ export function DocumentRequestViewerDialog({
       setError(null);
       setZoom(1);
       setRotation(0);
+      setNumPages(0);
+      setCurrentPage(1);
+      setPdfLoading(true);
     }
   }, [open, request?.file_url]);
+
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setCurrentPage(1);
+    setPdfLoading(false);
+  };
+
+  const onDocumentLoadError = () => {
+    setPdfLoading(false);
+    setError("Failed to load PDF document");
+  };
+
+  const goToPreviousPage = () => setCurrentPage((p) => Math.max(p - 1, 1));
+  const goToNextPage = () => setCurrentPage((p) => Math.min(p + 1, numPages));
 
   const fetchSignedUrl = async () => {
     if (!request?.file_url) return;
@@ -147,18 +174,31 @@ export function DocumentRequestViewerDialog({
             <SecurityBadge variant="encrypted" size="sm" />
           </div>
           <div className="flex items-center gap-2">
-            {isImage && (
+            {(isImage || isPdf) && (
               <>
-                <Button size="icon" variant="ghost" onClick={handleZoomOut}>
+                <Button size="icon" variant="ghost" onClick={handleZoomOut} title="Zoom out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={handleZoomIn}>
+                <Button size="icon" variant="ghost" onClick={handleZoomIn} title="Zoom in">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" onClick={handleRotate}>
+                <Button size="icon" variant="ghost" onClick={handleRotate} title="Rotate">
                   <RotateCw className="h-4 w-4" />
                 </Button>
               </>
+            )}
+            {isPdf && numPages > 1 && (
+              <div className="flex items-center gap-1 border-l pl-2 ml-1">
+                <Button size="icon" variant="ghost" onClick={goToPreviousPage} disabled={currentPage <= 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground min-w-[60px] text-center">
+                  {currentPage} / {numPages}
+                </span>
+                <Button size="icon" variant="ghost" onClick={goToNextPage} disabled={currentPage >= numPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             )}
             <Button size="sm" variant="outline" onClick={handleDownload} disabled={!signedUrl}>
               <Download className="h-4 w-4 mr-1" />
@@ -195,11 +235,34 @@ export function DocumentRequestViewerDialog({
                 animate={{ opacity: 1 }}
               />
             ) : isPdf ? (
-              <iframe
-                src={signedUrl}
-                className="w-full h-full min-h-[500px] rounded-lg"
-                title={documentLabel}
-              />
+              <div className="flex flex-col items-center w-full overflow-auto p-4">
+                <Document
+                  file={signedUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                      <p>Loading PDF...</p>
+                    </div>
+                  }
+                  error={
+                    <div className="flex flex-col items-center gap-3 text-destructive">
+                      <AlertCircle className="h-8 w-8" />
+                      <p>Failed to load PDF</p>
+                    </div>
+                  }
+                >
+                  <Page
+                    pageNumber={currentPage}
+                    scale={zoom}
+                    rotate={rotation}
+                    renderTextLayer={true}
+                    renderAnnotationLayer={true}
+                    className="shadow-lg"
+                  />
+                </Document>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-3 text-muted-foreground">
                 <FileText className="h-16 w-16" />
