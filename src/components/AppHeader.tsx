@@ -96,7 +96,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
               </Avatar>
               <div className="hidden md:flex flex-col items-start">
                 <span className="text-sm font-medium text-foreground">{userName}</span>
-                <span className="text-xs text-muted-foreground capitalize">{role}</span>
+                <span className="text-xs text-muted-foreground truncate max-w-[150px]">{user?.email || ""}</span>
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
             </Button>
