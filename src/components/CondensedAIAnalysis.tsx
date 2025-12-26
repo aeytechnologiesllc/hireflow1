@@ -1339,7 +1339,7 @@ function PhaseBasedAnalysis({
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                   {phase.summary}
                 </p>
               </div>
