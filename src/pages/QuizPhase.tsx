@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,9 +74,11 @@ export default function QuizPhase() {
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
-  // Refs for timer cleanup
+  // Refs for timer cleanup and stable callbacks
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isFinishingRef = useRef(false);
+  const currentQuestionIndexRef = useRef(currentQuestionIndex);
+  const questionsLengthRef = useRef(0);
 
   // Fetch application details
   const { data: application, isLoading } = useQuery({
@@ -116,8 +118,8 @@ export default function QuizPhase() {
     };
   }, [id, queryClient]);
 
-  // Get questions from job
-  const questions: QuizQuestion[] = (() => {
+  // Memoize questions to prevent recalculation on every render
+  const questions: QuizQuestion[] = useMemo(() => {
     if (!application?.jobs) return [];
     
     // First check workflow_steps for quiz config
@@ -130,7 +132,11 @@ export default function QuizPhase() {
     
     // Fallback to quiz_questions from job
     return (application.jobs.quiz_questions as QuizQuestion[]) || [];
-  })();
+  }, [application?.jobs, stepId]);
+
+  // Keep refs in sync for stable timer callbacks
+  currentQuestionIndexRef.current = currentQuestionIndex;
+  questionsLengthRef.current = questions.length;
 
   const currentQuestion = questions[currentQuestionIndex];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
@@ -188,7 +194,7 @@ export default function QuizPhase() {
     return { correct, total: questions.length, score, passed };
   };
 
-const handleFinishQuiz = () => {
+  const handleFinishQuiz = useCallback(() => {
     if (isFinishingRef.current) return;
     isFinishingRef.current = true;
     
@@ -201,9 +207,10 @@ const handleFinishQuiz = () => {
     const calculatedResults = calculateResults();
     setResults(calculatedResults);
     setShowResults(true);
-  };
+  }, []);
 
   // Timer effect - countdown for each question
+  // Uses refs to avoid stale closure issues
   useEffect(() => {
     if (!currentQuestion || showResults || questions.length === 0) return;
     
@@ -227,8 +234,9 @@ const handleFinishQuiz = () => {
           }
           
           // Use setTimeout to avoid state update during render
+          // Use refs instead of closure values to get current state
           setTimeout(() => {
-            if (currentQuestionIndex < questions.length - 1) {
+            if (currentQuestionIndexRef.current < questionsLengthRef.current - 1) {
               setCurrentQuestionIndex(i => i + 1);
             } else {
               handleFinishQuiz();
@@ -247,7 +255,7 @@ const handleFinishQuiz = () => {
         timerRef.current = null;
       }
     };
-  }, [currentQuestionIndex, showResults, questions.length]);
+  }, [currentQuestionIndex, showResults, questions.length, handleFinishQuiz]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
@@ -550,6 +558,24 @@ const handleFinishQuiz = () => {
             </p>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Guard against undefined currentQuestion (prevents blank screen)
+  if (!currentQuestion && !showResults) {
+    console.error('[QuizPhase] currentQuestion undefined - resetting to first question', {
+      currentQuestionIndex,
+      questionsLength: questions.length,
+    });
+    // Auto-recover by resetting to first question
+    if (currentQuestionIndex !== 0) {
+      setCurrentQuestionIndex(0);
+    }
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
