@@ -201,27 +201,24 @@ export async function generateCertificatePDF(
   
   y += 15;
 
-  // QR Code (if provided)
-  if (qrDataUrl) {
-    const qrSize = 30;
-    const qrX = pageWidth - margin - qrSize;
-    const qrY = y - 5;
-    
-    try {
-      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-      pdf.setFontSize(7);
-      pdf.setTextColor(100);
-      pdf.text("Scan to verify", qrX + qrSize / 2, qrY + qrSize + 4, { align: "center" });
-    } catch (e) {
-      console.error("Error adding QR code to PDF:", e);
-    }
+  // Compliance Statement - Calculate dynamic height
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const bottomMargin = 15;
+  const complianceTextLines = pdf.splitTextToSize(cert.compliance_statement, pageWidth - 2 * margin - 10);
+  const lineHeight = 4;
+  const complianceBoxHeight = 14 + (complianceTextLines.length * lineHeight);
+
+  // Check if we need a new page for compliance statement
+  if (y + complianceBoxHeight > pageHeight - bottomMargin) {
+    pdf.addPage();
+    y = margin;
   }
 
-  // Compliance Statement
+  // Draw compliance box with dynamic height
   pdf.setFillColor(250, 250, 250);
-  pdf.rect(margin, y, pageWidth - 2 * margin, 35, 'F');
+  pdf.rect(margin, y, pageWidth - 2 * margin, complianceBoxHeight, 'F');
   pdf.setDrawColor(200);
-  pdf.rect(margin, y, pageWidth - 2 * margin, 35, 'S');
+  pdf.rect(margin, y, pageWidth - 2 * margin, complianceBoxHeight, 'S');
   
   y += 6;
   pdf.setFontSize(8);
@@ -232,8 +229,31 @@ export async function generateCertificatePDF(
   y += 5;
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(60);
-  const complianceLines = pdf.splitTextToSize(cert.compliance_statement, pageWidth - 2 * margin - 10);
-  pdf.text(complianceLines, margin + 5, y);
+  pdf.text(complianceTextLines, margin + 5, y);
+
+  y += complianceBoxHeight - 6;
+
+  // QR Code (if provided) - positioned after compliance box
+  if (qrDataUrl) {
+    const qrSize = 30;
+    const qrX = pageWidth - margin - qrSize;
+    const qrY = y + 5;
+    
+    // Check if QR code fits on current page
+    if (qrY + qrSize + 10 > pageHeight - bottomMargin) {
+      pdf.addPage();
+      y = margin;
+    }
+    
+    try {
+      pdf.addImage(qrDataUrl, "PNG", qrX, y + 5, qrSize, qrSize);
+      pdf.setFontSize(7);
+      pdf.setTextColor(100);
+      pdf.text("Scan to verify", qrX + qrSize / 2, y + 5 + qrSize + 4, { align: "center" });
+    } catch (e) {
+      console.error("Error adding QR code to PDF:", e);
+    }
+  }
 
   return pdf;
 }
