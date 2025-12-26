@@ -553,21 +553,32 @@ serve(async (req) => {
     // === RESOURCES ===
     const resources = improvements.filter((i: any) => i.resource?.name).slice(0, 5);
     if (resources.length > 0) {
-      y = checkPageBreak(doc, y, 12 + resources.length * 6, pageH, margin);
+      y = checkPageBreak(doc, y, 12 + resources.length * 10, pageH, margin);
       y = drawSectionTitle(doc, 'Resources', y, COLORS.resource);
       
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      
       resources.forEach((imp: any) => {
-        y = checkPageBreak(doc, y, 6, pageH, margin);
+        y = checkPageBreak(doc, y, 10, pageH, margin);
+        
+        // Resource name on first line
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
         doc.setTextColor(COLORS.resource.r, COLORS.resource.g, COLORS.resource.b);
-        doc.text(sanitizeText(`* ${imp.resource.name}`), margin, y);
+        const nameLines = wrapText(doc, `* ${imp.resource.name}`, contentW - 10);
+        nameLines.forEach((line) => {
+          doc.text(line, margin, y);
+          y += 4.5;
+        });
+        
+        // URL on second line, indented
         if (imp.resource.url) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
           doc.setTextColor(COLORS.muted.r, COLORS.muted.g, COLORS.muted.b);
-          doc.text(truncate(doc, imp.resource.url, 100), margin + 50, y);
+          doc.text(sanitizeText(imp.resource.url), margin + 5, y);
+          y += 5;
         }
-        y += 5;
+        
+        y += 2;
       });
       y += 4;
     }
