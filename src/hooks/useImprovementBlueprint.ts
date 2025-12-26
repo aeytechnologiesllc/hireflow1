@@ -55,8 +55,8 @@ export interface ImprovementBlueprintData {
   };
 }
 
-// v4 cache key to force regeneration with tone refinement, executive summary, and professional language
-const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v4";
+// v5 cache key to force regeneration with final tone-safety refinements and developmental disclaimer
+const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v5";
 
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
