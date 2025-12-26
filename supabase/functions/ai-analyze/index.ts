@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -587,10 +587,10 @@ serve(async (req) => {
   }
 
   try {
-    if (!openAIApiKey) {
-      console.error("OpenAI API key is not configured");
+    if (!LOVABLE_API_KEY) {
+      console.error("Lovable API key is not configured");
       return new Response(
-        JSON.stringify({ error: "OpenAI API key is not configured" }),
+        JSON.stringify({ error: "Lovable API key is not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -656,7 +656,7 @@ serve(async (req) => {
 
     if (resumeImage && (type === "resume" || type === "application")) {
       // Use vision capability for image-based resume analysis
-      console.log(`Using GPT-4o vision for resume image analysis (type: ${type})`);
+      console.log(`Using Gemini vision for resume image analysis (type: ${type})`);
       resumeExtracted = true;
       
       messages = [
@@ -709,28 +709,34 @@ serve(async (req) => {
       ];
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAIApiKey}`,
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "google/gemini-2.5-flash",
         messages,
-        max_tokens: 4000, // Increased for more detailed analysis
-        temperature: 0.2,
+        max_tokens: 4000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI API error:", response.status, errorText);
+      console.error("Lovable AI Gateway error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add funds to your Lovable workspace." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
