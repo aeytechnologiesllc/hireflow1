@@ -100,6 +100,41 @@ export type Database = {
           },
         ]
       }
+      blueprint_purchases: {
+        Row: {
+          amount_paid: number | null
+          application_id: string
+          id: string
+          purchased_at: string
+          stripe_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_paid?: number | null
+          application_id: string
+          id?: string
+          purchased_at?: string
+          stripe_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_paid?: number | null
+          application_id?: string
+          id?: string
+          purchased_at?: string
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blueprint_purchases_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_audit_logs: {
         Row: {
           action: string

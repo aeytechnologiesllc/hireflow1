@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface ImprovementBlueprintData {
   honestReflection: {
@@ -58,8 +59,110 @@ export interface ImprovementBlueprintData {
 // v5 cache key to force regeneration with final tone-safety refinements and developmental disclaimer
 const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v5";
 
+// Blueprint price in cents
+export const BLUEPRINT_PRICE_CENTS = 199;
+export const BLUEPRINT_PRICE_FORMATTED = "$1.99";
+
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isCheckingPurchase, setIsCheckingPurchase] = useState(false);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const { user } = useAuth();
+
+  // Check if user has purchased the blueprint for a given application
+  const checkPurchaseStatus = useCallback(async (applicationId: string) => {
+    if (!applicationId || !user) {
+      setHasPurchased(false);
+      return false;
+    }
+
+    setIsCheckingPurchase(true);
+    try {
+      const { data, error } = await supabase
+        .from("blueprint_purchases")
+        .select("id")
+        .eq("application_id", applicationId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking purchase status:", error);
+        setHasPurchased(false);
+        return false;
+      }
+
+      const purchased = !!data;
+      setHasPurchased(purchased);
+      return purchased;
+    } catch (error) {
+      console.error("Error checking purchase:", error);
+      setHasPurchased(false);
+      return false;
+    } finally {
+      setIsCheckingPurchase(false);
+    }
+  }, [user]);
+
+  // Verify purchase after Stripe redirect and record it
+  const verifyPurchase = useCallback(async (sessionId: string, applicationId: string) => {
+    if (!sessionId || !applicationId) return false;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-blueprint-purchase', {
+        body: { sessionId, applicationId }
+      });
+
+      if (error) {
+        console.error("Error verifying purchase:", error);
+        return false;
+      }
+
+      if (data?.success) {
+        setHasPurchased(true);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error verifying purchase:", error);
+      return false;
+    }
+  }, []);
+
+  // Initiate purchase flow
+  const purchaseBlueprint = async (applicationId: string) => {
+    if (!applicationId) {
+      toast.error("Application ID not available");
+      return;
+    }
+
+    setIsPurchasing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('purchase-blueprint', {
+        body: { applicationId }
+      });
+
+      if (error) {
+        console.error("Error creating checkout:", error);
+        toast.error("Failed to start checkout. Please try again.");
+        return;
+      }
+
+      if (data?.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else {
+        toast.error("Failed to create checkout session");
+      }
+    } catch (error: unknown) {
+      console.error("Error purchasing blueprint:", error);
+      const message = error instanceof Error ? error.message : "Failed to start checkout";
+      toast.error(message);
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
 
   const downloadBlueprint = async (applicationId: string) => {
     if (!applicationId) {
@@ -155,13 +258,23 @@ export function useImprovementBlueprint() {
       URL.revokeObjectURL(url);
       
       toast.success("Your Improvement Blueprint has been downloaded!");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error generating blueprint:", error);
-      toast.error(error.message || "Failed to generate improvement blueprint");
+      const message = error instanceof Error ? error.message : "Failed to generate improvement blueprint";
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  return { downloadBlueprint, isGenerating };
+  return { 
+    downloadBlueprint, 
+    isGenerating,
+    purchaseBlueprint,
+    isPurchasing,
+    checkPurchaseStatus,
+    isCheckingPurchase,
+    hasPurchased,
+    verifyPurchase,
+  };
 }
