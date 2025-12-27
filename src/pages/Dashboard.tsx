@@ -6,6 +6,7 @@ import { useJobStats, useEmployerJobs, useDeleteJob, useCreateJob, type JobWithA
 import { useApplicationStats } from "@/hooks/useApplications";
 import { useCandidateApplications } from "@/hooks/useApplications";
 import { useUpcomingInterviews } from "@/hooks/useInterviews";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +30,7 @@ import {
   Trash2,
   Loader2,
   Send,
+  Rocket,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -373,6 +375,23 @@ export default function Dashboard() {
   // Candidate data
   const { data: candidateApps, isLoading: isLoadingCandidateApps } = useCandidateApplications();
   const { data: upcomingInterviews } = useUpcomingInterviews();
+  
+  // Subscription for testing onboarding
+  const { refetch: refetchSubscription } = useSubscription();
+
+  // Test onboarding handler
+  const handleTestOnboarding = async () => {
+    if (!user) return;
+    
+    await supabase
+      .from('subscriptions')
+      .update({ onboarding_completed: false })
+      .eq('user_id', user.id);
+    
+    await refetchSubscription();
+    toast.success("Onboarding reset - reloading...");
+    setTimeout(() => window.location.reload(), 500);
+  };
 
   // Job details dialog state
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
@@ -470,6 +489,21 @@ export default function Dashboard() {
       animate="visible"
       variants={staggerContainer}
     >
+      {/* Test Onboarding Button - Development Only */}
+      {isEmployer && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleTestOnboarding}
+            className="text-muted-foreground text-xs opacity-50 hover:opacity-100"
+          >
+            <Rocket className="h-4 w-4 mr-1" />
+            Test Onboarding
+          </Button>
+        </div>
+      )}
+      
       {/* Stats Grid */}
       <motion.div variants={staggerItem} className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
         {isEmployer ? (
