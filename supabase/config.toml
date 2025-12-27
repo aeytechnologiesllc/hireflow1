@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.check-email-exists]
 verify_jwt = false
+
+[functions.deduct-voice-minutes]
+verify_jwt = true

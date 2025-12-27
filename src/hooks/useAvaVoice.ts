@@ -80,6 +80,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const reconnectAttemptsRef = useRef(0);
   const isInterviewEndedRef = useRef(false);
   const optionsRef = useRef(options);
+  
+  // Session duration tracking for voice minute deduction
+  const sessionStartTimeRef = useRef<number | null>(null);
 
   // Keep options ref updated
   useEffect(() => {
@@ -460,6 +463,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     dcRef.current.addEventListener('open', () => {
       console.log('Data channel opened');
       lastActivityRef.current = Date.now();
+      
+      // Start session timer for voice minute tracking
+      sessionStartTimeRef.current = Date.now();
+      console.log('[AvaVoice] Session started at:', new Date(sessionStartTimeRef.current).toISOString());
+      
       setState(s => ({ 
         ...s, 
         isConnected: true, 
@@ -759,7 +767,36 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
   }, [connectInternal, toast]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
+    // Deduct voice minutes if session was started
+    if (sessionStartTimeRef.current) {
+      const sessionDurationMs = Date.now() - sessionStartTimeRef.current;
+      const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000); // Round up to nearest minute
+      
+      // Only deduct if session was at least 5 seconds (avoid connection test deductions)
+      if (sessionDurationMs >= 5000) {
+        console.log(`[AvaVoice] Session ended. Duration: ${sessionDurationMinutes} minute(s). Deducting voice credits...`);
+        
+        try {
+          const { data, error } = await supabase.functions.invoke('deduct-voice-minutes', {
+            body: { sessionDurationMinutes }
+          });
+          
+          if (error) {
+            console.error('[AvaVoice] Failed to deduct voice minutes:', error);
+          } else {
+            console.log('[AvaVoice] Voice minutes deducted:', data);
+          }
+        } catch (err) {
+          console.error('[AvaVoice] Error calling deduct-voice-minutes:', err);
+        }
+      } else {
+        console.log('[AvaVoice] Session too short (<5s), skipping deduction');
+      }
+      
+      sessionStartTimeRef.current = null;
+    }
+    
     clearProcessingTimeout();
     cleanupConnection();
 

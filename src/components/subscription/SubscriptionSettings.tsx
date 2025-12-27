@@ -349,7 +349,7 @@ export default function SubscriptionSettings() {
                     <Badge variant="secondary" className="text-xs">2 Active Jobs</Badge>
                     <Badge variant="secondary" className="text-xs">15 Applicants</Badge>
                     <Badge variant="secondary" className="text-xs">10 Documents</Badge>
-                    <Badge variant="secondary" className="text-xs">3 Voice Interviews</Badge>
+                    <Badge variant="secondary" className="text-xs">15 Voice Minutes</Badge>
                     <Badge variant="secondary" className="text-xs">Unlimited AI Screening</Badge>
                   </div>
                 </div>
@@ -408,9 +408,9 @@ export default function SubscriptionSettings() {
           />
           <UsageStat
             icon={Mic}
-            label="Voice Interviews"
-            current={Math.round(usage.voice_minutes_used / 5)}
-            limit={limits.voiceMinutes === -1 ? -1 : Math.round(limits.voiceMinutes / 5)}
+            label="Voice Minutes"
+            current={usage.voice_minutes_used}
+            limit={limits.voiceMinutes}
           />
         </div>
       </div>
