@@ -76,12 +76,15 @@ serve(async (req) => {
           const planType = session.metadata?.plan_type;
           const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
           
+          // Clear trial fields when upgrading - they're now a paying customer
           await supabaseAdmin.from("subscriptions").upsert({
             user_id: userId,
             stripe_customer_id: session.customer as string,
             stripe_subscription_id: session.subscription as string,
             plan_type: planType || 'growth',
             status: 'active',
+            trial_start: null,
+            trial_end: null,
             current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
             amount: subscription.items.data[0]?.price?.unit_amount,
