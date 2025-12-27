@@ -31,22 +31,37 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2023-10-16",
+    });
+
+    // First try to get customer ID from subscriptions table
     const { data: subscription } = await supabaseClient
       .from("subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
       .single();
 
-    if (!subscription?.stripe_customer_id) {
-      throw new Error("No Stripe customer found");
+    let customerId = subscription?.stripe_customer_id;
+
+    // If not found in DB, look up by email in Stripe
+    if (!customerId) {
+      const customers = await stripe.customers.list({ 
+        email: user.email, 
+        limit: 1 
+      });
+      
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+      }
     }
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2023-10-16",
-    });
+    if (!customerId) {
+      throw new Error("No Stripe customer found. Please subscribe to a plan first.");
+    }
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: subscription.stripe_customer_id,
+      customer: customerId,
       return_url: returnUrl,
     });
 
