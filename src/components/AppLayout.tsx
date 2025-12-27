@@ -12,15 +12,15 @@ import OnboardingWizard from "./subscription/OnboardingWizard";
 import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MiniAvaContainer } from "@/components/MiniAva";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading, role, signOut } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
-  const isEmployer = role === "employer";
   const isMobile = useIsMobile();
+  
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return !isMobile;
@@ -131,9 +131,6 @@ export default function AppLayout() {
             <Outlet />
           </main>
         </div>
-        
-        {/* Mini Ava Mascot - only for employers */}
-        {isEmployer && <MiniAvaContainer />}
       </div>
     </TooltipProvider>
   );
