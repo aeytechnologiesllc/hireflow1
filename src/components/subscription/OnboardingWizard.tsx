@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
   Sparkles,
@@ -87,6 +88,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const { completeOnboarding } = useSubscription();
   const pricing = usePricing();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (step === 1) {
@@ -427,362 +429,660 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <h2 className="text-3xl font-bold text-foreground mb-2">How AVA Works For You</h2>
               <p className="text-muted-foreground mb-8">Watch AVA guide candidates through your hiring journey</p>
 
-              {/* Interactive Journey Map */}
+              {/* Interactive Journey Map - Responsive */}
               <div className="relative w-full max-w-4xl mb-8">
-                {/* SVG Journey Path */}
-                <svg
-                  viewBox="0 0 900 320"
-                  className="w-full h-auto"
-                  style={{ overflow: 'visible' }}
-                >
-                  <defs>
-                    {/* Gradient for the path */}
-                    <linearGradient id="journeyPathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" />
-                      <stop offset="25%" stopColor="hsl(280, 85%, 65%)" />
-                      <stop offset="50%" stopColor="hsl(200, 85%, 55%)" />
-                      <stop offset="75%" stopColor="hsl(170, 80%, 45%)" />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" />
-                    </linearGradient>
-                    
-                    {/* Glow filter */}
-                    <filter id="pathGlow" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                      <feMerge>
-                        <feMergeNode in="coloredBlur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
+                {/* Mobile Vertical Journey */}
+                {isMobile ? (
+                  <div className="relative">
+                    <svg
+                      viewBox="0 0 320 700"
+                      className="w-full h-auto"
+                      style={{ overflow: 'visible' }}
+                    >
+                      <defs>
+                        {/* Gradient for the path - vertical */}
+                        <linearGradient id="journeyPathGradientMobile" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" />
+                          <stop offset="25%" stopColor="hsl(280, 85%, 65%)" />
+                          <stop offset="50%" stopColor="hsl(200, 85%, 55%)" />
+                          <stop offset="75%" stopColor="hsl(170, 80%, 45%)" />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" />
+                        </linearGradient>
+                        
+                        {/* Glow filter */}
+                        <filter id="pathGlowMobile" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                          <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                          </feMerge>
+                        </filter>
 
-                    {/* AVA orb gradient */}
-                    <radialGradient id="avaOrbGradient" cx="35%" cy="35%" r="60%">
-                      <stop offset="0%" stopColor="hsl(160, 84%, 50%)" />
-                      <stop offset="100%" stopColor="hsl(160, 84%, 35%)" />
-                    </radialGradient>
-                  </defs>
+                        {/* AVA orb gradient */}
+                        <radialGradient id="avaOrbGradientMobile" cx="30%" cy="30%">
+                          <stop offset="0%" stopColor="hsl(160, 90%, 60%)" />
+                          <stop offset="50%" stopColor="hsl(160, 84%, 45%)" />
+                          <stop offset="100%" stopColor="hsl(160, 80%, 35%)" />
+                        </radialGradient>
+                      </defs>
 
-                  {/* Background path (dim) */}
-                  <motion.path
-                    d="M 90 160 
-                       C 150 160, 170 80, 270 80 
-                       C 370 80, 390 240, 450 240 
-                       C 510 240, 530 80, 630 80 
-                       C 730 80, 750 160, 810 160"
-                    fill="none"
-                    stroke="hsl(var(--muted))"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    opacity={0.3}
-                  />
+                      {/* Vertical S-curve path */}
+                      <motion.path
+                        d="M 160 50 
+                           C 160 90, 240 110, 240 150 
+                           C 240 190, 80 230, 80 280 
+                           C 80 330, 240 370, 240 420 
+                           C 240 470, 80 510, 80 560 
+                           C 80 600, 160 630, 160 660"
+                        fill="none"
+                        stroke="url(#journeyPathGradientMobile)"
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        filter="url(#pathGlowMobile)"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 2, ease: "easeInOut" }}
+                      />
 
-                  {/* Animated path draw */}
-                  <motion.path
-                    d="M 90 160 
-                       C 150 160, 170 80, 270 80 
-                       C 370 80, 390 240, 450 240 
-                       C 510 240, 530 80, 630 80 
-                       C 730 80, 750 160, 810 160"
-                    fill="none"
-                    stroke="url(#journeyPathGradient)"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    filter="url(#pathGlow)"
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 1 }}
-                    transition={{ duration: 2.5, ease: "easeInOut" }}
-                  />
-
-                  {/* Step nodes with glowing dots */}
-                  {[
-                    { x: 90, y: 160 },
-                    { x: 270, y: 80 },
-                    { x: 450, y: 240 },
-                    { x: 630, y: 80 },
-                    { x: 810, y: 160 },
-                  ].map((pos, idx) => (
-                    <g key={idx}>
-                      {/* Outer glow ring */}
-                      <motion.circle
-                        cx={pos.x}
-                        cy={pos.y}
-                        r={24}
+                      {/* Faint background path */}
+                      <path
+                        d="M 160 50 
+                           C 160 90, 240 110, 240 150 
+                           C 240 190, 80 230, 80 280 
+                           C 80 330, 240 370, 240 420 
+                           C 240 470, 80 510, 80 560 
+                           C 80 600, 160 630, 160 660"
                         fill="none"
                         stroke="hsl(var(--primary))"
-                        strokeWidth={2}
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{ 
-                          opacity: [0.2, 0.5, 0.2],
-                          scale: 1 
-                        }}
-                        transition={{ 
-                          opacity: { duration: 2, repeat: Infinity, delay: idx * 0.2 },
-                          scale: { duration: 0.5, delay: 0.5 + idx * 0.3 }
-                        }}
-                        style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
-                      />
-                      
-                      {/* Inner glowing dot */}
-                      <motion.circle
-                        cx={pos.x}
-                        cy={pos.y}
-                        r={10}
-                        fill="hsl(var(--primary))"
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.4, delay: 0.5 + idx * 0.3 }}
-                        style={{ 
-                          filter: 'drop-shadow(0 0 8px hsl(var(--primary)))',
-                        }}
+                        strokeWidth={1}
+                        strokeOpacity={0.1}
                       />
 
-                      {/* Step number */}
-                      <motion.text
-                        x={pos.x}
-                        y={pos.y + 4}
-                        textAnchor="middle"
-                        fill="hsl(var(--primary-foreground))"
-                        fontSize="11"
-                        fontWeight="bold"
+                      {/* Step nodes on the vertical path */}
+                      {[
+                        { x: 160, y: 50 },
+                        { x: 240, y: 150 },
+                        { x: 80, y: 280 },
+                        { x: 240, y: 420 },
+                        { x: 80, y: 560 },
+                      ].map((pos, idx) => (
+                        <g key={idx}>
+                          {/* Outer glow ring */}
+                          <motion.circle
+                            cx={pos.x}
+                            cy={pos.y}
+                            r={20}
+                            fill="none"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            initial={{ opacity: 0, scale: 0 }}
+                            animate={{ 
+                              opacity: [0.2, 0.5, 0.2],
+                              scale: 1 
+                            }}
+                            transition={{ 
+                              opacity: { duration: 2, repeat: Infinity, delay: idx * 0.2 },
+                              scale: { duration: 0.5, delay: 0.5 + idx * 0.3 }
+                            }}
+                            style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
+                          />
+                          
+                          {/* Inner glowing dot */}
+                          <motion.circle
+                            cx={pos.x}
+                            cy={pos.y}
+                            r={10}
+                            fill="hsl(var(--primary))"
+                            initial={{ opacity: 0, scale: 0 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.4, delay: 0.5 + idx * 0.3 }}
+                            style={{ 
+                              filter: 'drop-shadow(0 0 8px hsl(var(--primary)))',
+                            }}
+                          />
+
+                          {/* Step number */}
+                          <motion.text
+                            x={pos.x}
+                            y={pos.y + 4}
+                            textAnchor="middle"
+                            fill="hsl(var(--primary-foreground))"
+                            fontSize="10"
+                            fontWeight="bold"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.7 + idx * 0.3 }}
+                          >
+                            {idx + 1}
+                          </motion.text>
+                        </g>
+                      ))}
+
+                      {/* AVA Orb traveling along vertical path */}
+                      <motion.g
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: 0.7 + idx * 0.3 }}
+                        transition={{ delay: 0.3 }}
                       >
-                        {idx + 1}
-                      </motion.text>
-                    </g>
-                  ))}
+                        {/* Exhaust particles trailing behind */}
+                        {[0, 1, 2, 3].map((particleIdx) => (
+                          <motion.circle
+                            key={`particle-mobile-${particleIdx}`}
+                            r={2.5 - particleIdx * 0.4}
+                            fill="hsl(160, 84%, 50%)"
+                            initial={{ offsetDistance: "0%", opacity: 0 }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0, 0.5 - particleIdx * 0.1, 0]
+                            }}
+                            transition={{ 
+                              duration: 5, 
+                              ease: "easeInOut",
+                              delay: 0.5 + particleIdx * 0.08,
+                              repeat: Infinity,
+                              repeatDelay: 1
+                            }}
+                            style={{
+                              offsetPath: `path("M 160 50 C 160 90, 240 110, 240 150 C 240 190, 80 230, 80 280 C 80 330, 240 370, 240 420 C 240 470, 80 510, 80 560 C 80 600, 160 630, 160 660")`,
+                            }}
+                          />
+                        ))}
 
-                  {/* AVA Orb traveling along path with rocket-style wobble */}
-                  <motion.g
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {/* Exhaust particles trailing behind */}
-                    {[0, 1, 2, 3, 4].map((particleIdx) => (
-                      <motion.circle
-                        key={`particle-${particleIdx}`}
-                        r={3 - particleIdx * 0.4}
-                        fill="hsl(160, 84%, 50%)"
-                        initial={{ offsetDistance: "0%", opacity: 0 }}
-                        animate={{ 
-                          offsetDistance: "100%",
-                          opacity: [0, 0.6 - particleIdx * 0.1, 0]
-                        }}
-                        transition={{ 
-                          duration: 4, 
-                          ease: "easeInOut",
-                          delay: 0.5 + particleIdx * 0.08,
-                          repeat: Infinity,
-                          repeatDelay: 1
-                        }}
-                        style={{
-                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
-                        }}
-                      />
-                    ))}
-
-                    {/* Wrapper group for synchronized wobble - matches autopilot rocket */}
-                    <motion.g
-                      animate={{ 
-                        y: [0, -6, 0, -8, 0, -4, 0],
-                        x: [-2, 2, -1, 1, -2, 2, 0]
-                      }}
-                      transition={{ 
-                        duration: 0.4, 
-                        repeat: Infinity, 
-                        ease: "easeInOut" 
-                      }}
-                    >
-                      {/* Orb outer glow ring */}
-                      <motion.circle
-                        r={20}
-                        fill="none"
-                        stroke="hsl(160, 84%, 45%)"
-                        strokeWidth={2}
-                        initial={{ offsetDistance: "0%" }}
-                        animate={{ 
-                          offsetDistance: "100%",
-                          opacity: [0.2, 0.5, 0.2],
-                          scale: [1, 1.1, 1]
-                        }}
-                        transition={{ 
-                          offsetDistance: {
-                            duration: 4, 
-                            ease: "easeInOut",
-                            delay: 0.5,
-                            repeat: Infinity,
-                            repeatDelay: 1
-                          },
-                          opacity: {
-                            duration: 0.3,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          },
-                          scale: {
-                            duration: 0.3,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }
-                        }}
-                        style={{
-                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
-                        }}
-                      />
-                      
-                      {/* Main AVA orb with scale pulse */}
-                      <motion.circle
-                        r={14}
-                        fill="url(#avaOrbGradient)"
-                        initial={{ offsetDistance: "0%" }}
-                        animate={{ 
-                          offsetDistance: "100%",
-                          scale: [1, 1.08, 1]
-                        }}
-                        transition={{ 
-                          offsetDistance: {
-                            duration: 4, 
-                            ease: "easeInOut",
-                            delay: 0.5,
-                            repeat: Infinity,
-                            repeatDelay: 1
-                          },
-                          scale: {
-                            duration: 0.3,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }
-                        }}
-                        style={{
-                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
-                          filter: 'drop-shadow(0 0 12px hsl(160, 84%, 50%))',
-                        }}
-                      />
-
-                      {/* Orb inner core with rapid pulse */}
-                      <motion.circle
-                        r={6}
-                        fill="white"
-                        initial={{ offsetDistance: "0%" }}
-                        animate={{ 
-                          offsetDistance: "100%",
-                          opacity: [0.4, 0.9, 0.4],
-                          scale: [1, 1.2, 1]
-                        }}
-                        transition={{ 
-                          offsetDistance: {
-                            duration: 4, 
-                            ease: "easeInOut",
-                            delay: 0.5,
-                            repeat: Infinity,
-                            repeatDelay: 1
-                          },
-                          opacity: {
-                            duration: 0.25,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          },
-                          scale: {
-                            duration: 0.25,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }
-                        }}
-                        style={{
-                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
-                        }}
-                      />
-
-                      {/* Energy burst effect */}
-                      <motion.circle
-                        r={10}
-                        fill="none"
-                        stroke="hsl(160, 84%, 60%)"
-                        strokeWidth={1}
-                        initial={{ offsetDistance: "0%" }}
-                        animate={{ 
-                          offsetDistance: "100%",
-                          scale: [1, 1.6, 1],
-                          opacity: [0.5, 0, 0.5]
-                        }}
-                        transition={{ 
-                          offsetDistance: {
-                            duration: 4, 
-                            ease: "easeInOut",
-                            delay: 0.5,
-                            repeat: Infinity,
-                            repeatDelay: 1
-                          },
-                          scale: {
-                            duration: 0.6,
-                            repeat: Infinity,
-                            ease: "easeOut"
-                          },
-                          opacity: {
-                            duration: 0.6,
-                            repeat: Infinity,
-                            ease: "easeOut"
-                          }
-                        }}
-                        style={{
-                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
-                        }}
-                      />
-                    </motion.g>
-                  </motion.g>
-                </svg>
-
-                {/* Step cards positioned below path nodes */}
-                <div className="absolute inset-0 pointer-events-none">
-                  {WORKFLOW_STEPS.map((workflowStep, idx) => {
-                    const Icon = workflowStep.icon;
-                    // Position cards relative to SVG viewBox positions
-                    const positions = [
-                      { left: '10%', top: '65%' },
-                      { left: '30%', top: '0%' },
-                      { left: '50%', top: '75%' },
-                      { left: '70%', top: '0%' },
-                      { left: '90%', top: '55%' },
-                    ];
-                    const pos = positions[idx];
-                    
-                    return (
-                      <motion.div
-                        key={workflowStep.title}
-                        className="absolute pointer-events-auto"
-                        style={{
-                          left: pos.left,
-                          top: pos.top,
-                          transform: 'translateX(-50%)',
-                        }}
-                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ 
-                          duration: 0.5, 
-                          delay: 1 + idx * 0.2,
-                          ease: "easeOut"
-                        }}
-                      >
-                        <div className="relative p-3 rounded-xl bg-card/80 backdrop-blur-md border border-primary/20 shadow-lg hover:border-primary/40 hover:shadow-primary/20 transition-all duration-300 w-[120px] md:w-[140px]">
-                          {/* Glass morphism effect */}
-                          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+                        {/* Wrapper group for synchronized wobble */}
+                        <motion.g
+                          animate={{ 
+                            y: [0, -5, 0, -6, 0, -3, 0],
+                            x: [-1.5, 1.5, -1, 1, -1.5, 1.5, 0]
+                          }}
+                          transition={{ 
+                            duration: 0.4, 
+                            repeat: Infinity, 
+                            ease: "easeInOut" 
+                          }}
+                        >
+                          {/* Orb outer glow ring */}
+                          <motion.circle
+                            r={16}
+                            fill="none"
+                            stroke="hsl(160, 84%, 45%)"
+                            strokeWidth={2}
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0.2, 0.5, 0.2],
+                              scale: [1, 1.1, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 5, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              opacity: { duration: 0.3, repeat: Infinity, ease: "easeInOut" },
+                              scale: { duration: 0.3, repeat: Infinity, ease: "easeInOut" }
+                            }}
+                            style={{
+                              offsetPath: `path("M 160 50 C 160 90, 240 110, 240 150 C 240 190, 80 230, 80 280 C 80 330, 240 370, 240 420 C 240 470, 80 510, 80 560 C 80 600, 160 630, 160 660")`,
+                            }}
+                          />
                           
-                          <div className="relative flex flex-col items-center text-center gap-1">
-                            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                              <Icon className="h-4 w-4 text-primary" />
+                          {/* Main AVA orb */}
+                          <motion.circle
+                            r={11}
+                            fill="url(#avaOrbGradientMobile)"
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              scale: [1, 1.08, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 5, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              scale: { duration: 0.3, repeat: Infinity, ease: "easeInOut" }
+                            }}
+                            style={{
+                              offsetPath: `path("M 160 50 C 160 90, 240 110, 240 150 C 240 190, 80 230, 80 280 C 80 330, 240 370, 240 420 C 240 470, 80 510, 80 560 C 80 600, 160 630, 160 660")`,
+                              filter: 'drop-shadow(0 0 10px hsl(160, 84%, 50%))',
+                            }}
+                          />
+
+                          {/* Orb inner core */}
+                          <motion.circle
+                            r={5}
+                            fill="white"
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0.4, 0.9, 0.4],
+                              scale: [1, 1.2, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 5, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              opacity: { duration: 0.25, repeat: Infinity, ease: "easeInOut" },
+                              scale: { duration: 0.25, repeat: Infinity, ease: "easeInOut" }
+                            }}
+                            style={{
+                              offsetPath: `path("M 160 50 C 160 90, 240 110, 240 150 C 240 190, 80 230, 80 280 C 80 330, 240 370, 240 420 C 240 470, 80 510, 80 560 C 80 600, 160 630, 160 660")`,
+                            }}
+                          />
+                        </motion.g>
+                      </motion.g>
+                    </svg>
+
+                    {/* Mobile step cards positioned beside nodes */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {WORKFLOW_STEPS.map((workflowStep, idx) => {
+                        const Icon = workflowStep.icon;
+                        // Alternating left/right positions for mobile
+                        const isRight = idx === 0 || idx === 2 || idx === 4;
+                        const yPositions = ['5%', '19%', '37%', '57%', '77%'];
+                        
+                        return (
+                          <motion.div
+                            key={workflowStep.title}
+                            className="absolute pointer-events-auto"
+                            style={{
+                              top: yPositions[idx],
+                              ...(isRight 
+                                ? { left: '58%', right: '4%' }
+                                : { left: '4%', right: '58%' }
+                              ),
+                            }}
+                            initial={{ opacity: 0, x: isRight ? 20 : -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ 
+                              duration: 0.5, 
+                              delay: 1 + idx * 0.15,
+                              ease: "easeOut"
+                            }}
+                          >
+                            <div className="p-2.5 rounded-xl bg-card/80 backdrop-blur-md border border-primary/20 shadow-lg">
+                              <div className="relative flex flex-col items-center text-center gap-1">
+                                <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
+                                  <Icon className="h-3.5 w-3.5 text-primary" />
+                                </div>
+                                <h4 className="font-semibold text-foreground text-[11px] leading-tight">
+                                  {workflowStep.title}
+                                </h4>
+                                <p className="text-[9px] text-muted-foreground leading-tight">
+                                  {workflowStep.description}
+                                </p>
+                              </div>
                             </div>
-                            <h4 className="font-semibold text-foreground text-xs md:text-sm leading-tight">
-                              {workflowStep.title}
-                            </h4>
-                            <p className="text-[10px] md:text-xs text-muted-foreground leading-tight">
-                              {workflowStep.description}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Desktop Horizontal Journey - Original Layout */
+                  <>
+                    <svg
+                      viewBox="0 0 900 320"
+                      className="w-full h-auto"
+                      style={{ overflow: 'visible' }}
+                    >
+                      <defs>
+                        {/* Gradient for the path */}
+                        <linearGradient id="journeyPathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" />
+                          <stop offset="25%" stopColor="hsl(280, 85%, 65%)" />
+                          <stop offset="50%" stopColor="hsl(200, 85%, 55%)" />
+                          <stop offset="75%" stopColor="hsl(170, 80%, 45%)" />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" />
+                        </linearGradient>
+                        
+                        {/* Glow filter */}
+                        <filter id="pathGlow" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                          <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                          </feMerge>
+                        </filter>
+
+                        {/* AVA orb gradient */}
+                        <radialGradient id="avaOrbGradient" cx="30%" cy="30%">
+                          <stop offset="0%" stopColor="hsl(160, 90%, 60%)" />
+                          <stop offset="50%" stopColor="hsl(160, 84%, 45%)" />
+                          <stop offset="100%" stopColor="hsl(160, 80%, 35%)" />
+                        </radialGradient>
+                      </defs>
+
+                      {/* Main S-curve journey path */}
+                      <motion.path
+                        d="M 90 160 
+                           C 150 160, 170 80, 270 80 
+                           C 370 80, 390 240, 450 240 
+                           C 510 240, 530 80, 630 80 
+                           C 730 80, 750 160, 810 160"
+                        fill="none"
+                        stroke="url(#journeyPathGradient)"
+                        strokeWidth={4}
+                        strokeLinecap="round"
+                        filter="url(#pathGlow)"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 2, ease: "easeInOut" }}
+                      />
+
+                      {/* Faint background path */}
+                      <path
+                        d="M 90 160 
+                           C 150 160, 170 80, 270 80 
+                           C 370 80, 390 240, 450 240 
+                           C 510 240, 530 80, 630 80 
+                           C 730 80, 750 160, 810 160"
+                        fill="none"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={1}
+                        strokeOpacity={0.1}
+                      />
+
+                      {/* Step nodes along the path */}
+                      {[
+                        { x: 90, y: 160 },
+                        { x: 270, y: 80 },
+                        { x: 450, y: 240 },
+                        { x: 630, y: 80 },
+                        { x: 810, y: 160 },
+                      ].map((pos, idx) => (
+                        <g key={idx}>
+                          {/* Outer glow ring */}
+                          <motion.circle
+                            cx={pos.x}
+                            cy={pos.y}
+                            r={24}
+                            fill="none"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            initial={{ opacity: 0, scale: 0 }}
+                            animate={{ 
+                              opacity: [0.2, 0.5, 0.2],
+                              scale: 1 
+                            }}
+                            transition={{ 
+                              opacity: { duration: 2, repeat: Infinity, delay: idx * 0.2 },
+                              scale: { duration: 0.5, delay: 0.5 + idx * 0.3 }
+                            }}
+                            style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
+                          />
+                          
+                          {/* Inner glowing dot */}
+                          <motion.circle
+                            cx={pos.x}
+                            cy={pos.y}
+                            r={10}
+                            fill="hsl(var(--primary))"
+                            initial={{ opacity: 0, scale: 0 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.4, delay: 0.5 + idx * 0.3 }}
+                            style={{ 
+                              filter: 'drop-shadow(0 0 8px hsl(var(--primary)))',
+                            }}
+                          />
+
+                          {/* Step number */}
+                          <motion.text
+                            x={pos.x}
+                            y={pos.y + 4}
+                            textAnchor="middle"
+                            fill="hsl(var(--primary-foreground))"
+                            fontSize="11"
+                            fontWeight="bold"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.7 + idx * 0.3 }}
+                          >
+                            {idx + 1}
+                          </motion.text>
+                        </g>
+                      ))}
+
+                      {/* AVA Orb traveling along path with rocket-style wobble */}
+                      <motion.g
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        {/* Exhaust particles trailing behind */}
+                        {[0, 1, 2, 3, 4].map((particleIdx) => (
+                          <motion.circle
+                            key={`particle-${particleIdx}`}
+                            r={3 - particleIdx * 0.4}
+                            fill="hsl(160, 84%, 50%)"
+                            initial={{ offsetDistance: "0%", opacity: 0 }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0, 0.6 - particleIdx * 0.1, 0]
+                            }}
+                            transition={{ 
+                              duration: 4, 
+                              ease: "easeInOut",
+                              delay: 0.5 + particleIdx * 0.08,
+                              repeat: Infinity,
+                              repeatDelay: 1
+                            }}
+                            style={{
+                              offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                            }}
+                          />
+                        ))}
+
+                        {/* Wrapper group for synchronized wobble - matches autopilot rocket */}
+                        <motion.g
+                          animate={{ 
+                            y: [0, -6, 0, -8, 0, -4, 0],
+                            x: [-2, 2, -1, 1, -2, 2, 0]
+                          }}
+                          transition={{ 
+                            duration: 0.4, 
+                            repeat: Infinity, 
+                            ease: "easeInOut" 
+                          }}
+                        >
+                          {/* Orb outer glow ring */}
+                          <motion.circle
+                            r={20}
+                            fill="none"
+                            stroke="hsl(160, 84%, 45%)"
+                            strokeWidth={2}
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0.2, 0.5, 0.2],
+                              scale: [1, 1.1, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 4, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              opacity: {
+                                duration: 0.3,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              },
+                              scale: {
+                                duration: 0.3,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }
+                            }}
+                            style={{
+                              offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                            }}
+                          />
+                          
+                          {/* Main AVA orb with scale pulse */}
+                          <motion.circle
+                            r={14}
+                            fill="url(#avaOrbGradient)"
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              scale: [1, 1.08, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 4, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              scale: {
+                                duration: 0.3,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }
+                            }}
+                            style={{
+                              offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                              filter: 'drop-shadow(0 0 12px hsl(160, 84%, 50%))',
+                            }}
+                          />
+
+                          {/* Orb inner core with rapid pulse */}
+                          <motion.circle
+                            r={6}
+                            fill="white"
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              opacity: [0.4, 0.9, 0.4],
+                              scale: [1, 1.2, 1]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 4, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              opacity: {
+                                duration: 0.25,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              },
+                              scale: {
+                                duration: 0.25,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }
+                            }}
+                            style={{
+                              offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                            }}
+                          />
+
+                          {/* Energy burst effect */}
+                          <motion.circle
+                            r={10}
+                            fill="none"
+                            stroke="hsl(160, 84%, 60%)"
+                            strokeWidth={1}
+                            initial={{ offsetDistance: "0%" }}
+                            animate={{ 
+                              offsetDistance: "100%",
+                              scale: [1, 1.6, 1],
+                              opacity: [0.5, 0, 0.5]
+                            }}
+                            transition={{ 
+                              offsetDistance: {
+                                duration: 4, 
+                                ease: "easeInOut",
+                                delay: 0.5,
+                                repeat: Infinity,
+                                repeatDelay: 1
+                              },
+                              scale: {
+                                duration: 0.6,
+                                repeat: Infinity,
+                                ease: "easeOut"
+                              },
+                              opacity: {
+                                duration: 0.6,
+                                repeat: Infinity,
+                                ease: "easeOut"
+                              }
+                            }}
+                            style={{
+                              offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                            }}
+                          />
+                        </motion.g>
+                      </motion.g>
+                    </svg>
+
+                    {/* Desktop step cards positioned below path nodes */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {WORKFLOW_STEPS.map((workflowStep, idx) => {
+                        const Icon = workflowStep.icon;
+                        const positions = [
+                          { left: '10%', top: '65%' },
+                          { left: '30%', top: '0%' },
+                          { left: '50%', top: '75%' },
+                          { left: '70%', top: '0%' },
+                          { left: '90%', top: '55%' },
+                        ];
+                        const pos = positions[idx];
+                        
+                        return (
+                          <motion.div
+                            key={workflowStep.title}
+                            className="absolute pointer-events-auto"
+                            style={{
+                              left: pos.left,
+                              top: pos.top,
+                              transform: 'translateX(-50%)',
+                            }}
+                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ 
+                              duration: 0.5, 
+                              delay: 1 + idx * 0.2,
+                              ease: "easeOut"
+                            }}
+                          >
+                            <div className="relative p-3 rounded-xl bg-card/80 backdrop-blur-md border border-primary/20 shadow-lg hover:border-primary/40 hover:shadow-primary/20 transition-all duration-300 w-[120px] md:w-[140px]">
+                              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+                              
+                              <div className="relative flex flex-col items-center text-center gap-1">
+                                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                                  <Icon className="h-4 w-4 text-primary" />
+                                </div>
+                                <h4 className="font-semibold text-foreground text-xs md:text-sm leading-tight">
+                                  {workflowStep.title}
+                                </h4>
+                                <p className="text-[10px] md:text-xs text-muted-foreground leading-tight">
+                                  {workflowStep.description}
+                                </p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Key benefit callout */}
