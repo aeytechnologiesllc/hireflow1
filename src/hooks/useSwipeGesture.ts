@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { PanInfo } from "framer-motion";
+import { hapticMedium } from "@/lib/haptics";
 
 export interface SwipeConfig {
   threshold?: number;  // px offset to trigger swipe (default: 50)
@@ -31,16 +32,20 @@ export function useSwipeGesture(
       // Horizontal swipes
       if (Math.abs(offset.x) > Math.abs(offset.y)) {
         if (offset.x < -threshold || v.x < -velocity) {
+          hapticMedium();
           handlers.onSwipeLeft?.();
         } else if (offset.x > threshold || v.x > velocity) {
+          hapticMedium();
           handlers.onSwipeRight?.();
         }
       } 
       // Vertical swipes
       else {
         if (offset.y < -threshold || v.y < -velocity) {
+          hapticMedium();
           handlers.onSwipeUp?.();
         } else if (offset.y > threshold || v.y > velocity) {
+          hapticMedium();
           handlers.onSwipeDown?.();
         }
       }

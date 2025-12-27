@@ -3197,7 +3197,7 @@ ${interviewType} Interview with AVA Results:
                           </div>
                           
                           {/* Category Scores Preview */}
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             <div className="p-2 bg-muted/50 rounded-lg text-center">
                               <p className={`text-lg font-bold ${
                                 (dialogData.content.evaluation?.discovery ?? null) !== null 
