@@ -68,3 +68,6 @@ verify_jwt = true
 
 [functions.verify-blueprint-purchase]
 verify_jwt = true
+
+[functions.check-email-exists]
+verify_jwt = false
