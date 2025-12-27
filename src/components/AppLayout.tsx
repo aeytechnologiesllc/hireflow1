@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -14,6 +14,10 @@ import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 
+// Edge swipe detection constants
+const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
+const SWIPE_MIN_DISTANCE = 80; // px to trigger open
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,6 +30,11 @@ export default function AppLayout() {
     if (typeof window === "undefined") return !isMobile;
     return window.innerWidth >= 768;
   });
+
+  // Edge swipe state
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // Update sidebar state when screen size changes
   useEffect(() => {
@@ -42,6 +51,38 @@ export default function AppLayout() {
       setSidebarOpen(false);
     }
   }, [isMobile]);
+
+  // Edge swipe to open sidebar on mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || sidebarOpen) return;
+    
+    const touch = e.touches[0];
+    // Only track if starting from left edge
+    if (touch.clientX <= EDGE_SWIPE_THRESHOLD) {
+      touchStartX.current = touch.clientX;
+      touchStartY.current = touch.clientY;
+    }
+  }, [isMobile, sidebarOpen]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || sidebarOpen || touchStartX.current === null) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX.current;
+    const deltaY = Math.abs(touch.clientY - (touchStartY.current || 0));
+    
+    // If horizontal swipe is dominant and exceeds threshold, open sidebar
+    if (deltaX > SWIPE_MIN_DISTANCE && deltaX > deltaY * 2) {
+      setSidebarOpen(true);
+      touchStartX.current = null;
+      touchStartY.current = null;
+    }
+  }, [isMobile, sidebarOpen]);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartX.current = null;
+    touchStartY.current = null;
+  }, []);
 
   const isExpired = subscription?.status === 'expired' ||
                     (subscription?.status === 'trialing' && 
@@ -100,7 +141,12 @@ export default function AppLayout() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full">
+      <div 
+        className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Global notification toasts listener */}
         <GlobalNotificationToasts />
         
@@ -122,7 +168,10 @@ export default function AppLayout() {
           onToggle={handleToggleSidebar}
           onNavigate={handleNavigate}
         />
-        <div className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10">
+        <div 
+          ref={mainContentRef}
+          className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
+        >
           <AppHeader 
             onMenuClick={handleToggleSidebar}
             isMobile={isMobile}

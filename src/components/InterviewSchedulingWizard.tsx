@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview } from "@/hooks/useInterviews";
 import { useUpdateApplication } from "@/hooks/useApplications";
@@ -38,6 +38,8 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface InterviewSchedulingWizardProps {
   applicationId: string | null;
@@ -132,6 +134,7 @@ export default function InterviewSchedulingWizard({
   const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
   const updateApplication = useUpdateApplication();
+  const isMobile = useIsMobile();
 
   const steps = [
     { id: "calendar", title: "Select Date & Time", icon: CalendarIcon },
@@ -139,6 +142,24 @@ export default function InterviewSchedulingWizard({
     { id: "meeting", title: "Meeting Setup", icon: Video },
     { id: "review", title: "Review & Schedule", icon: CheckCircle },
   ];
+
+  // Swipe handlers for step navigation
+  const handleSwipeLeft = useCallback(() => {
+    if (canProceed() && currentStep < steps.length - 1) {
+      handleNext();
+    }
+  }, [currentStep, steps.length]);
+
+  const handleSwipeRight = useCallback(() => {
+    if (currentStep > 0) {
+      handleBack();
+    }
+  }, [currentStep]);
+
+  const swipeProps = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+  }, { threshold: 60, velocity: 400 });
 
   // OAuth callback is now handled by /oauth/google/callback page
   // This effect just checks if tokens were updated after returning from OAuth
@@ -550,8 +571,11 @@ export default function InterviewSchedulingWizard({
               </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            {/* Content - with swipe support on mobile */}
+            <motion.div 
+              className="p-6 overflow-y-auto max-h-[60vh] touch-pan-y"
+              {...(isMobile ? swipeProps : {})}
+            >
               <AnimatePresence mode="wait">
                 {/* Step 1: Calendar */}
                 {currentStep === 0 && (
@@ -871,7 +895,12 @@ export default function InterviewSchedulingWizard({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+              {isMobile && (
+                <p className="text-center text-xs text-muted-foreground pt-4">
+                  Swipe left/right to navigate steps
+                </p>
+              )}
+            </motion.div>
 
             {/* Footer */}
             <div className="border-t border-border p-4 flex justify-between">
