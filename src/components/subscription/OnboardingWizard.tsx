@@ -646,18 +646,23 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 whileTap={{ scale: 0.98 }}
                 animate={{ 
                   boxShadow: [
-                    "0 0 40px -15px hsla(160, 60%, 40%, 1)",
-                    "0 0 80px -15px hsla(160, 60%, 50%, 1)",
-                    "0 0 40px -15px hsla(160, 60%, 40%, 1)"
+                    "0 0 30px -10px hsla(160, 60%, 40%, 0.8), inset 0 0 0 1px hsla(160, 60%, 35%, 0.4)",
+                    "0 0 60px -10px hsla(160, 60%, 50%, 1), inset 0 0 0 1px hsla(160, 60%, 45%, 0.7)",
+                    "0 0 30px -10px hsla(160, 60%, 40%, 0.8), inset 0 0 0 1px hsla(160, 60%, 35%, 0.4)"
+                  ],
+                  borderColor: [
+                    "hsla(160, 60%, 35%, 0.4)",
+                    "hsla(160, 60%, 50%, 0.7)",
+                    "hsla(160, 60%, 35%, 0.4)"
                   ]
                 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="inline-block rounded-xl"
+                className="inline-block rounded-2xl border border-[hsla(160,60%,40%,0.4)]"
               >
                 <Button
                   size="lg"
                   onClick={() => setStep(4)}
-                  className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,17%)] rounded-xl px-8 py-6 text-lg h-auto"
+                  className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border-0 rounded-2xl px-10 py-7 text-lg h-auto font-medium"
                 >
                   Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
                 </Button>
