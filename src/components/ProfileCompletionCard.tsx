@@ -114,7 +114,7 @@ export function ProfileCompletionCard() {
 
             {/* Action Button */}
             <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
-              <Link to="/settings?tab=profile">
+              <Link to="/profile">
                 Complete
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
