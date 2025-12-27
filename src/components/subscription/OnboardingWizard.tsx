@@ -20,7 +20,7 @@ import {
   UserCircle,
   ArrowRight,
 } from "lucide-react";
-import confetti from "canvas-confetti";
+
 import { LaunchSequence } from "@/components/animations/LaunchSequence";
 const HIREFLOW_FEATURES = [
   {
@@ -98,31 +98,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   }, [step]);
 
   const handleComplete = async () => {
-    // Epic confetti burst
-    const duration = 3000;
-    const end = Date.now() + duration;
-
-    const frame = () => {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.7 },
-        colors: ["#14b8a6", "#8b5cf6", "#06b6d4"],
-      });
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.7 },
-        colors: ["#14b8a6", "#8b5cf6", "#06b6d4"],
-      });
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    };
-    frame();
-
     await completeOnboarding.mutateAsync();
     setTimeout(onComplete, 2000);
   };
