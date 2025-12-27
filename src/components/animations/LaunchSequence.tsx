@@ -6,16 +6,32 @@ interface LaunchSequenceProps {
   onComplete: () => void;
 }
 
-type Phase = "init" | "thrust" | "launch" | "success";
+type Phase = "init" | "revRight" | "returnCenter1" | "revLeft" | "returnCenter2" | "thrust" | "launch" | "success";
 
-const phaseMessages = {
+const phaseMessages: Record<Phase, { title: string; subtitle: string }> = {
   init: {
     title: "Initializing Ava",
     subtitle: "Preparing your AI recruiter...",
   },
+  revRight: {
+    title: "Running Diagnostics",
+    subtitle: "Testing flight systems...",
+  },
+  returnCenter1: {
+    title: "",
+    subtitle: "",
+  },
+  revLeft: {
+    title: "Calibrating",
+    subtitle: "Optimizing performance...",
+  },
+  returnCenter2: {
+    title: "",
+    subtitle: "",
+  },
   thrust: {
-    title: "Launching",
-    subtitle: "Systems online...",
+    title: "All Systems Go",
+    subtitle: "Ready for launch...",
   },
   launch: {
     title: "",
@@ -32,27 +48,43 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
   const [statusItems, setStatusItems] = useState<string[]>([]);
 
   useEffect(() => {
-    // Phase 1: Init with status updates (0-2s)
-    const status1 = setTimeout(() => setStatusItems(["AI Core"]), 400);
-    const status2 = setTimeout(() => setStatusItems(prev => [...prev, "Voice Engine"]), 800);
-    const status3 = setTimeout(() => setStatusItems(prev => [...prev, "Analysis Module"]), 1200);
+    // Phase 1: Init with status updates (0-1.5s)
+    const status1 = setTimeout(() => setStatusItems(["AI Core"]), 300);
+    const status2 = setTimeout(() => setStatusItems(prev => [...prev, "Voice Engine"]), 600);
+    const status3 = setTimeout(() => setStatusItems(prev => [...prev, "Analysis Module"]), 900);
     
-    // Phase 2: Thrust buildup (2s-3.2s)
-    const thrustTimer = setTimeout(() => setPhase("thrust"), 2000);
+    // Phase 2: Rev Right (1.5s - flies off right)
+    const revRightTimer = setTimeout(() => setPhase("revRight"), 1500);
     
-    // Phase 3: Launch (3.2s-4.2s)
-    const launchTimer = setTimeout(() => setPhase("launch"), 3200);
+    // Phase 3: Return to Center (2.1s)
+    const returnCenter1Timer = setTimeout(() => setPhase("returnCenter1"), 2100);
     
-    // Phase 4: Success (4.2s-6.5s)
-    const successTimer = setTimeout(() => setPhase("success"), 4200);
+    // Phase 4: Rev Left (2.6s - flies off left)
+    const revLeftTimer = setTimeout(() => setPhase("revLeft"), 2600);
     
-    // Auto-complete (after 6.5s)
-    const completeTimer = setTimeout(onComplete, 6500);
+    // Phase 5: Return to Center (3.2s)
+    const returnCenter2Timer = setTimeout(() => setPhase("returnCenter2"), 3200);
+    
+    // Phase 6: Thrust buildup (3.7s)
+    const thrustTimer = setTimeout(() => setPhase("thrust"), 3700);
+    
+    // Phase 7: Launch (4.5s)
+    const launchTimer = setTimeout(() => setPhase("launch"), 4500);
+    
+    // Phase 8: Success (5.3s)
+    const successTimer = setTimeout(() => setPhase("success"), 5300);
+    
+    // Auto-complete (after 7.5s)
+    const completeTimer = setTimeout(onComplete, 7500);
     
     return () => {
       clearTimeout(status1);
       clearTimeout(status2);
       clearTimeout(status3);
+      clearTimeout(revRightTimer);
+      clearTimeout(returnCenter1Timer);
+      clearTimeout(revLeftTimer);
+      clearTimeout(returnCenter2Timer);
       clearTimeout(thrustTimer);
       clearTimeout(launchTimer);
       clearTimeout(successTimer);
@@ -60,8 +92,57 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
     };
   }, [onComplete]);
 
+  // Get rocket animation based on phase
+  const getRocketAnimation = () => {
+    switch (phase) {
+      case "init":
+        return { x: 0, y: [0, -8, 0], rotate: 0, scale: 1 };
+      case "revRight":
+        return { x: 500, y: 0, rotate: 25, scale: 0.7 };
+      case "returnCenter1":
+        return { x: 0, y: 0, rotate: 0, scale: 1 };
+      case "revLeft":
+        return { x: -500, y: 0, rotate: -25, scale: 0.7 };
+      case "returnCenter2":
+        return { x: 0, y: 0, rotate: 0, scale: 1 };
+      case "thrust":
+        return { x: [-3, 3, -2, 2, -3, 3, 0], y: [0, -6, 0, -10, 0, -4, 0], rotate: 0, scale: 1 };
+      case "launch":
+        return { x: 0, y: -600, rotate: 0, scale: 0.3 };
+      case "success":
+        return { x: 0, y: -600, rotate: 0, scale: 0.3 };
+      default:
+        return { x: 0, y: 0, rotate: 0, scale: 1 };
+    }
+  };
+
+  // Get rocket transition based on phase
+  const getRocketTransition = () => {
+    switch (phase) {
+      case "init":
+        return { duration: 1.5, repeat: Infinity, ease: "easeInOut" as const };
+      case "revRight":
+      case "revLeft":
+        return { duration: 0.5, ease: [0.4, 0, 0.2, 1] as const };
+      case "returnCenter1":
+      case "returnCenter2":
+        return { type: "spring" as const, damping: 12, stiffness: 120, duration: 0.5 };
+      case "thrust":
+        return { duration: 0.4, repeat: 2, ease: "easeInOut" as const };
+      case "launch":
+        return { duration: 0.8, ease: [0.4, 0, 0.2, 1] as const };
+      default:
+        return { duration: 0.5 };
+    }
+  };
+
+  // Check if we should show horizontal trails
+  const showHorizontalTrails = phase === "revRight" || phase === "revLeft";
+  const showVerticalExhaust = phase === "thrust" || phase === "launch";
+  const isFlying = phase === "revRight" || phase === "revLeft";
+
   return (
-    <div className="flex flex-col items-center text-center min-h-[400px] justify-center">
+    <div className="flex flex-col items-center text-center min-h-[400px] justify-center overflow-hidden">
       {/* Status indicators during init */}
       <AnimatePresence mode="wait">
         {phase === "init" && (
@@ -105,7 +186,9 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
               ? { scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }
               : phase === "thrust"
               ? { scale: [1.2, 1.8, 1.4, 2], opacity: [0.5, 0.9, 0.7, 1] }
-              : { scale: 0, opacity: 0 }
+              : isFlying
+              ? { scale: 0.5, opacity: 0.2 }
+              : { scale: 1, opacity: 0.3 }
           }
           transition={{ 
             duration: phase === "init" ? 2 : 1.2,
@@ -113,8 +196,8 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           }}
         />
 
-        {/* Expanding rings - visible during init and thrust */}
-        {phase !== "launch" && phase !== "success" && (
+        {/* Expanding rings - visible during init and return phases */}
+        {(phase === "init" || phase === "returnCenter1" || phase === "returnCenter2" || phase === "thrust") && (
           <>
             {[0, 1, 2].map((i) => (
               <motion.div
@@ -141,25 +224,47 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           </>
         )}
 
+        {/* Speed lines during horizontal flight */}
+        <AnimatePresence>
+          {isFlying && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 pointer-events-none"
+            >
+              {[...Array(8)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute h-0.5 rounded-full bg-gradient-to-r from-primary/60 to-transparent"
+                  style={{
+                    width: 60 + Math.random() * 40,
+                    top: -30 + i * 12,
+                    left: phase === "revRight" ? -100 : 40,
+                  }}
+                  initial={{ opacity: 0, scaleX: 0 }}
+                  animate={{ 
+                    opacity: [0, 0.8, 0],
+                    scaleX: [0, 1, 0.5],
+                    x: phase === "revRight" ? [0, -80] : [0, 80]
+                  }}
+                  transition={{
+                    duration: 0.3,
+                    delay: i * 0.04,
+                    repeat: Infinity,
+                    repeatDelay: 0.1
+                  }}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Rocket */}
         <motion.div 
           className="relative"
-          animate={
-            phase === "init" 
-              ? { y: [0, -8, 0] }
-              : phase === "thrust" 
-              ? { y: [0, -6, 0, -10, 0, -4, 0], x: [-3, 3, -2, 2, -3, 3, 0] }
-              : phase === "launch"
-              ? { y: -600, scale: 0.3 }
-              : { y: -600 }
-          }
-          transition={
-            phase === "init"
-              ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-              : phase === "thrust"
-              ? { duration: 0.4, repeat: 3, ease: "easeInOut" }
-              : { duration: 1, ease: [0.4, 0, 0.2, 1] }
-          }
+          animate={getRocketAnimation()}
+          transition={getRocketTransition()}
         >
           <motion.div
             className="relative w-20 h-20 rounded-full flex items-center justify-center z-10"
@@ -170,6 +275,8 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
             animate={
               phase === "thrust" 
                 ? { scale: [1, 1.15, 1], boxShadow: ["0 0 60px hsl(var(--primary) / 0.5)", "0 0 100px hsl(var(--primary) / 0.8)", "0 0 60px hsl(var(--primary) / 0.5)"] }
+                : isFlying
+                ? { boxShadow: "0 0 80px hsl(var(--primary) / 0.7)" }
                 : {}
             }
             transition={{ duration: 0.3, repeat: phase === "thrust" ? 4 : 0 }}
@@ -177,8 +284,52 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
             <Rocket className="h-10 w-10 text-white" />
           </motion.div>
           
-          {/* Exhaust flames - appear during thrust and launch */}
-          {(phase === "thrust" || phase === "launch") && (
+          {/* Horizontal exhaust trails - during rev phases */}
+          {showHorizontalTrails && (
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 flex items-center"
+              style={{
+                left: phase === "revRight" ? -80 : "auto",
+                right: phase === "revLeft" ? -80 : "auto",
+              }}
+            >
+              {[...Array(12)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute rounded-full"
+                  style={{
+                    width: 12,
+                    height: 12,
+                    background: i % 3 === 0 
+                      ? "linear-gradient(to bottom, hsl(var(--primary)), hsl(180, 100%, 50%))" 
+                      : i % 3 === 1
+                      ? "linear-gradient(to bottom, #f97316, #dc2626)" 
+                      : "linear-gradient(to bottom, #fbbf24, #f97316)",
+                  }}
+                  initial={{ 
+                    x: 0,
+                    y: (Math.random() - 0.5) * 30,
+                    opacity: 1, 
+                    scale: 1 
+                  }}
+                  animate={{ 
+                    x: phase === "revRight" ? -120 : 120,
+                    opacity: [1, 0],
+                    scale: [1, 0.2]
+                  }}
+                  transition={{
+                    duration: 0.35,
+                    repeat: Infinity,
+                    delay: i * 0.03,
+                    ease: "easeOut"
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Vertical exhaust flames - during thrust and launch */}
+          {showVerticalExhaust && (
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
               {[...Array(phase === "launch" ? 24 : 14)].map((_, i) => (
                 <motion.div
@@ -291,7 +442,7 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
 
       {/* Phase text */}
       <AnimatePresence mode="wait">
-        {phase !== "launch" && (
+        {phase !== "launch" && phase !== "returnCenter1" && phase !== "returnCenter2" && (
           <motion.div
             key={phase}
             initial={{ opacity: 0, y: 20 }}
@@ -312,12 +463,14 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
               ) : (
                 <>
                   {phaseMessages[phase].title}
-                  <motion.span
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                  >
-                    ...
-                  </motion.span>
+                  {phaseMessages[phase].title && (
+                    <motion.span
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                    >
+                      ...
+                    </motion.span>
+                  )}
                 </>
               )}
             </motion.h2>
