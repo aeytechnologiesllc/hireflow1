@@ -641,13 +641,27 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 ))}
               </div>
 
-              <Button
-                size="lg"
-                onClick={() => setStep(4)}
-                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg shadow-primary/25"
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                animate={{ 
+                  boxShadow: [
+                    "0 0 40px -15px hsla(160, 60%, 40%, 1)",
+                    "0 0 80px -15px hsla(160, 60%, 50%, 1)",
+                    "0 0 40px -15px hsla(160, 60%, 40%, 1)"
+                  ]
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="inline-block rounded-xl"
               >
-                Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
-              </Button>
+                <Button
+                  size="lg"
+                  onClick={() => setStep(4)}
+                  className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,17%)] rounded-xl px-8 py-6 text-lg h-auto"
+                >
+                  Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
+                </Button>
+              </motion.div>
             </motion.div>
           )}
 
