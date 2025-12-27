@@ -138,14 +138,14 @@ export default function Team() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Team</h2>
           <p className="text-muted-foreground mt-1">Manage your hiring team members</p>
         </div>
-        <Button className="gap-2" onClick={() => setWizardOpen(true)}>
+        <Button className="gap-2 w-full sm:w-auto" onClick={() => setWizardOpen(true)}>
           <UserPlus className="h-4 w-4" />
-          Invite Team Member
+          <span className="sm:inline">Invite Team Member</span>
         </Button>
       </div>
 
@@ -221,39 +221,39 @@ export default function Team() {
               {activeMembers.map((member) => (
                 <Card key={member.id} className="bg-card border-border">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <span className="text-primary font-semibold">
                             {(member.name || member.email).charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-foreground">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-foreground truncate">
                               {member.name || member.email}
                             </p>
-                            <Badge variant="outline" className={permissionColors[member.permission_level]}>
+                            <Badge variant="outline" className={`${permissionColors[member.permission_level]} flex-shrink-0`}>
                               <Shield className="h-3 w-3 mr-1" />
                               {permissionLabels[member.permission_level] || member.permission_level}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                            <span>{member.email}</span>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
+                            <span className="truncate">{member.email}</span>
                             {member.department && (
                               <>
-                                <span>•</span>
+                                <span className="hidden sm:inline">•</span>
                                 <span>{member.department}</span>
                               </>
                             )}
-                            <span>•</span>
+                            <span className="hidden sm:inline">•</span>
                             <span>Joined {format(new Date(member.joined_at), "MMM d, yyyy")}</span>
                           </div>
                         </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-muted-foreground">
+                          <Button variant="ghost" size="icon" className="text-muted-foreground h-8 w-8 self-end sm:self-auto">
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -310,39 +310,39 @@ export default function Team() {
                 return (
                   <Card key={invitation.id} className="bg-card border-border">
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
                             <Mail className="h-5 w-5 text-muted-foreground" />
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-foreground truncate">
                                 {invitation.invitee_name || invitation.invitee_email || "Unnamed Invitation"}
                               </p>
                               {invitation.permission_level && (
-                                <Badge variant="outline" className={permissionColors[invitation.permission_level]}>
+                                <Badge variant="outline" className={`${permissionColors[invitation.permission_level]} flex-shrink-0`}>
                                   {permissionLabels[invitation.permission_level] || invitation.permission_level}
                                 </Badge>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              {invitation.invitee_email && <span>{invitation.invitee_email}</span>}
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
+                              {invitation.invitee_email && <span className="truncate">{invitation.invitee_email}</span>}
                               {invitation.department && (
                                 <>
-                                  <span>•</span>
+                                  <span className="hidden sm:inline">•</span>
                                   <span>{invitation.department}</span>
                                 </>
                               )}
-                              <span>•</span>
-                              <Clock className="h-3 w-3" />
-                              <span>
-                                {isExpired ? "Expired" : `Expires ${format(new Date(invitation.expires_at), "MMM d, yyyy")}`}
+                              <span className="hidden sm:inline">•</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {isExpired ? "Expired" : `Expires ${format(new Date(invitation.expires_at), "MMM d")}`}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 pl-13 sm:pl-0">
                           <Badge className={statusColors[displayStatus]}>
                             {displayStatus}
                           </Badge>
@@ -352,18 +352,18 @@ export default function Team() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleCopyInviteLink(invitation.invite_code!)}
-                                className="gap-1"
+                                className="gap-1 h-8"
                               >
                                 {copiedCode === invitation.invite_code ? (
                                   <Check className="h-4 w-4" />
                                 ) : (
                                   <Copy className="h-4 w-4" />
                                 )}
-                                Copy Link
+                                <span className="hidden xs:inline">Copy Link</span>
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="text-muted-foreground">
+                                  <Button variant="ghost" size="icon" className="text-muted-foreground h-8 w-8">
                                     <MoreVertical className="h-5 w-5" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -383,10 +383,10 @@ export default function Team() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleDeleteInvitation(invitation.id)}
-                              className="gap-2 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                              className="gap-2 h-8 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                             >
                               <Trash2 className="h-4 w-4" />
-                              Delete
+                              <span className="hidden xs:inline">Delete</span>
                             </Button>
                           )}
                         </div>

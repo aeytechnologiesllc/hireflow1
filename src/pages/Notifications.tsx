@@ -115,7 +115,7 @@ export default function Notifications() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Notifications</h2>
           <p className="text-muted-foreground mt-1">
@@ -131,23 +131,27 @@ export default function Notifications() {
           {unreadCount > 0 && (
             <Button 
               variant="outline" 
-              className="gap-2"
+              size="sm"
+              className="gap-2 h-9"
               onClick={() => markAllAsRead.mutate()}
               disabled={markAllAsRead.isPending}
             >
               <Check className="h-4 w-4" />
-              Mark All as Read
+              <span className="hidden sm:inline">Mark All as Read</span>
+              <span className="sm:hidden">Read All</span>
             </Button>
           )}
           {notifications && notifications.length > 0 && (
             <Button 
               variant="outline" 
-              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              size="sm"
+              className="gap-2 h-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={handleClearAll}
               disabled={deleteAll.isPending}
             >
               <Trash2 className="h-4 w-4" />
-              Clear All
+              <span className="hidden sm:inline">Clear All</span>
+              <span className="sm:hidden">Clear</span>
             </Button>
           )}
         </div>
