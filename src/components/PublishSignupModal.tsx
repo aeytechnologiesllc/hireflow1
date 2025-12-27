@@ -128,7 +128,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       passwordSchema.parse(signInPassword);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({ variant: "destructive", description: err.errors[0].message });
+        toast({ variant: "warning", description: err.errors[0].message });
         setIsLoading(false);
         return;
       }
@@ -138,7 +138,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
 
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Sign In Failed",
         description: error.message === "Invalid login credentials" 
           ? "Invalid email or password."
@@ -166,7 +166,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       nameSchema.parse(signUpName);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({ variant: "destructive", description: err.errors[0].message });
+        toast({ variant: "warning", description: err.errors[0].message });
         setIsLoading(false);
         return;
       }
@@ -179,7 +179,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
         ? "This email is already registered. Please sign in instead."
         : error.message;
       
-      toast({ variant: "destructive", title: "Sign Up Failed", description: errorMessage });
+      toast({ variant: "warning", title: "Sign Up Failed", description: errorMessage });
       setIsLoading(false);
     } else {
       setCelebrationName(signUpName);

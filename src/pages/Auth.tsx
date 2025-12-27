@@ -119,7 +119,7 @@ export default function Auth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -131,7 +131,7 @@ export default function Auth() {
 
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Sign In Failed",
         description: error.message === "Invalid login credentials" 
           ? "Invalid email or password. Please try again."
@@ -159,7 +159,7 @@ export default function Auth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -176,7 +176,7 @@ export default function Auth() {
         : error.message;
       
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Sign Up Failed",
         description: errorMessage,
       });
@@ -200,7 +200,7 @@ export default function Auth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -214,7 +214,7 @@ export default function Auth() {
 
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Reset Failed",
         description: error.message,
       });
@@ -240,7 +240,7 @@ export default function Auth() {
     
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Google Sign In Failed",
         description: error.message,
       });
@@ -259,7 +259,7 @@ export default function Auth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -269,7 +269,7 @@ export default function Auth() {
 
     if (newPassword !== confirmPassword) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         description: "Passwords do not match",
       });
       setIsLoading(false);
@@ -280,7 +280,7 @@ export default function Auth() {
 
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Password Reset Failed",
         description: error.message,
       });

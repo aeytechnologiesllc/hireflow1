@@ -93,7 +93,7 @@ export default function CandidateAuth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -105,7 +105,7 @@ export default function CandidateAuth() {
 
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Sign In Failed",
         description: error.message === "Invalid login credentials" 
           ? "Invalid email or password. Please try again."
@@ -139,7 +139,7 @@ export default function CandidateAuth() {
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
-          variant: "destructive",
+          variant: "warning",
           description: err.errors[0].message,
         });
         setIsLoading(false);
@@ -156,7 +156,7 @@ export default function CandidateAuth() {
         : error.message;
       
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Sign Up Failed",
         description: errorMessage,
       });
@@ -179,7 +179,7 @@ export default function CandidateAuth() {
     
     if (error) {
       toast({
-        variant: "destructive",
+        variant: "warning",
         title: "Google Sign In Failed",
         description: error.message,
       });
