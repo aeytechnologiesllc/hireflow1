@@ -414,7 +414,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </motion.div>
           )}
 
-          {/* Step 2: How AVA Works (NEW) */}
+          {/* Step 2: How AVA Works - Interactive Journey Map */}
           {step === 2 && (
             <motion.div
               key="workflow"
@@ -425,67 +425,274 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               className="flex flex-col items-center"
             >
               <h2 className="text-3xl font-bold text-foreground mb-2">How AVA Works For You</h2>
-              <p className="text-muted-foreground mb-10">You only interview candidates AVA has already vetted</p>
+              <p className="text-muted-foreground mb-8">Watch AVA guide candidates through your hiring journey</p>
 
-              {/* Workflow visualization */}
-              <div className="w-full max-w-3xl mb-10">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-2">
+              {/* Interactive Journey Map */}
+              <div className="relative w-full max-w-4xl mb-8">
+                {/* SVG Journey Path */}
+                <svg
+                  viewBox="0 0 900 320"
+                  className="w-full h-auto"
+                  style={{ overflow: 'visible' }}
+                >
+                  <defs>
+                    {/* Gradient for the path */}
+                    <linearGradient id="journeyPathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" />
+                      <stop offset="25%" stopColor="hsl(280, 85%, 65%)" />
+                      <stop offset="50%" stopColor="hsl(200, 85%, 55%)" />
+                      <stop offset="75%" stopColor="hsl(170, 80%, 45%)" />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" />
+                    </linearGradient>
+                    
+                    {/* Glow filter */}
+                    <filter id="pathGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+
+                    {/* AVA orb gradient */}
+                    <radialGradient id="avaOrbGradient" cx="35%" cy="35%" r="60%">
+                      <stop offset="0%" stopColor="hsl(160, 84%, 50%)" />
+                      <stop offset="100%" stopColor="hsl(160, 84%, 35%)" />
+                    </radialGradient>
+                  </defs>
+
+                  {/* Background path (dim) */}
+                  <motion.path
+                    d="M 90 160 
+                       C 150 160, 170 80, 270 80 
+                       C 370 80, 390 240, 450 240 
+                       C 510 240, 530 80, 630 80 
+                       C 730 80, 750 160, 810 160"
+                    fill="none"
+                    stroke="hsl(var(--muted))"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    opacity={0.3}
+                  />
+
+                  {/* Animated path draw */}
+                  <motion.path
+                    d="M 90 160 
+                       C 150 160, 170 80, 270 80 
+                       C 370 80, 390 240, 450 240 
+                       C 510 240, 530 80, 630 80 
+                       C 730 80, 750 160, 810 160"
+                    fill="none"
+                    stroke="url(#journeyPathGradient)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    filter="url(#pathGlow)"
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{ duration: 2.5, ease: "easeInOut" }}
+                  />
+
+                  {/* Step nodes with glowing dots */}
+                  {[
+                    { x: 90, y: 160 },
+                    { x: 270, y: 80 },
+                    { x: 450, y: 240 },
+                    { x: 630, y: 80 },
+                    { x: 810, y: 160 },
+                  ].map((pos, idx) => (
+                    <g key={idx}>
+                      {/* Outer glow ring */}
+                      <motion.circle
+                        cx={pos.x}
+                        cy={pos.y}
+                        r={24}
+                        fill="none"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ 
+                          opacity: [0.2, 0.5, 0.2],
+                          scale: 1 
+                        }}
+                        transition={{ 
+                          opacity: { duration: 2, repeat: Infinity, delay: idx * 0.2 },
+                          scale: { duration: 0.5, delay: 0.5 + idx * 0.3 }
+                        }}
+                        style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
+                      />
+                      
+                      {/* Inner glowing dot */}
+                      <motion.circle
+                        cx={pos.x}
+                        cy={pos.y}
+                        r={10}
+                        fill="hsl(var(--primary))"
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4, delay: 0.5 + idx * 0.3 }}
+                        style={{ 
+                          filter: 'drop-shadow(0 0 8px hsl(var(--primary)))',
+                        }}
+                      />
+
+                      {/* Step number */}
+                      <motion.text
+                        x={pos.x}
+                        y={pos.y + 4}
+                        textAnchor="middle"
+                        fill="hsl(var(--primary-foreground))"
+                        fontSize="11"
+                        fontWeight="bold"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.7 + idx * 0.3 }}
+                      >
+                        {idx + 1}
+                      </motion.text>
+                    </g>
+                  ))}
+
+                  {/* AVA Orb traveling along path */}
+                  <motion.g
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    {/* Orb trail */}
+                    <motion.circle
+                      r={18}
+                      fill="none"
+                      stroke="hsl(160, 84%, 45%)"
+                      strokeWidth={2}
+                      opacity={0.3}
+                      initial={{ offsetDistance: "0%" }}
+                      animate={{ offsetDistance: "100%" }}
+                      transition={{ 
+                        duration: 4, 
+                        ease: "easeInOut",
+                        delay: 0.5,
+                        repeat: Infinity,
+                        repeatDelay: 1
+                      }}
+                      style={{
+                        offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                      }}
+                    />
+                    
+                    {/* Main AVA orb */}
+                    <motion.circle
+                      r={14}
+                      fill="url(#avaOrbGradient)"
+                      initial={{ offsetDistance: "0%" }}
+                      animate={{ offsetDistance: "100%" }}
+                      transition={{ 
+                        duration: 4, 
+                        ease: "easeInOut",
+                        delay: 0.5,
+                        repeat: Infinity,
+                        repeatDelay: 1
+                      }}
+                      style={{
+                        offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                        filter: 'drop-shadow(0 0 12px hsl(160, 84%, 50%))',
+                      }}
+                    />
+
+                    {/* Orb inner glow */}
+                    <motion.circle
+                      r={6}
+                      fill="white"
+                      opacity={0.4}
+                      initial={{ offsetDistance: "0%" }}
+                      animate={{ offsetDistance: "100%" }}
+                      transition={{ 
+                        duration: 4, 
+                        ease: "easeInOut",
+                        delay: 0.5,
+                        repeat: Infinity,
+                        repeatDelay: 1
+                      }}
+                      style={{
+                        offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                      }}
+                    />
+                  </motion.g>
+                </svg>
+
+                {/* Step cards positioned below path nodes */}
+                <div className="absolute inset-0 pointer-events-none">
                   {WORKFLOW_STEPS.map((workflowStep, idx) => {
                     const Icon = workflowStep.icon;
+                    // Position cards relative to SVG viewBox positions
+                    const positions = [
+                      { left: '10%', top: '65%' },
+                      { left: '30%', top: '0%' },
+                      { left: '50%', top: '75%' },
+                      { left: '70%', top: '0%' },
+                      { left: '90%', top: '55%' },
+                    ];
+                    const pos = positions[idx];
+                    
                     return (
                       <motion.div
                         key={workflowStep.title}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className="flex flex-col items-center text-center flex-1"
+                        className="absolute pointer-events-auto"
+                        style={{
+                          left: pos.left,
+                          top: pos.top,
+                          transform: 'translateX(-50%)',
+                        }}
+                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ 
+                          duration: 0.5, 
+                          delay: 1 + idx * 0.2,
+                          ease: "easeOut"
+                        }}
                       >
-                        <motion.div
-                          className="relative w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mb-3"
-                          whileHover={{ scale: 1.1 }}
-                          animate={{
-                            boxShadow: [
-                              "0 0 0px hsl(var(--primary) / 0)",
-                              "0 0 20px hsl(var(--primary) / 0.3)",
-                              "0 0 0px hsl(var(--primary) / 0)",
-                            ],
-                          }}
-                          transition={{ duration: 2, repeat: Infinity, delay: idx * 0.3 }}
-                        >
-                          <Icon className="h-7 w-7 text-primary" />
-                          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                            {idx + 1}
+                        <div className="relative p-3 rounded-xl bg-card/80 backdrop-blur-md border border-primary/20 shadow-lg hover:border-primary/40 hover:shadow-primary/20 transition-all duration-300 w-[120px] md:w-[140px]">
+                          {/* Glass morphism effect */}
+                          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+                          
+                          <div className="relative flex flex-col items-center text-center gap-1">
+                            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                              <Icon className="h-4 w-4 text-primary" />
+                            </div>
+                            <h4 className="font-semibold text-foreground text-xs md:text-sm leading-tight">
+                              {workflowStep.title}
+                            </h4>
+                            <p className="text-[10px] md:text-xs text-muted-foreground leading-tight">
+                              {workflowStep.description}
+                            </p>
                           </div>
-                        </motion.div>
-                        <h4 className="font-semibold text-foreground text-sm mb-1">{workflowStep.title}</h4>
-                        <p className="text-xs text-muted-foreground">{workflowStep.description}</p>
-                        
-                        {/* Arrow connector (hidden on mobile, visible on md+) */}
-                        {idx < WORKFLOW_STEPS.length - 1 && (
-                          <ArrowRight className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-5 w-5 text-primary/50" style={{ position: 'relative', marginTop: '-60px' }} />
-                        )}
+                        </div>
                       </motion.div>
                     );
                   })}
-                </div>
-
-                {/* Connecting line (desktop only) */}
-                <div className="hidden md:block relative mt-4">
-                  <div className="absolute top-0 left-[10%] right-[10%] h-0.5 bg-gradient-to-r from-primary/20 via-primary/50 to-primary/20" style={{ marginTop: '-90px' }} />
                 </div>
               </div>
 
               {/* Key benefit callout */}
               <motion.div
-                className="w-full max-w-2xl p-6 rounded-2xl border border-primary/30 bg-primary/5 mb-8"
+                className="w-full max-w-2xl p-5 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent backdrop-blur-sm mb-8"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 2 }}
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <motion.div 
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center shrink-0 border border-primary/20"
+                    animate={{
+                      boxShadow: [
+                        "0 0 20px hsl(var(--primary) / 0.2)",
+                        "0 0 30px hsl(var(--primary) / 0.4)",
+                        "0 0 20px hsl(var(--primary) / 0.2)",
+                      ],
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
                     <Sparkles className="h-6 w-6 text-primary" />
-                  </div>
+                  </motion.div>
                   <div>
                     <h4 className="font-bold text-foreground mb-1">The AVA Difference</h4>
                     <p className="text-muted-foreground text-sm">
@@ -495,13 +702,19 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 </div>
               </motion.div>
 
-              <Button
-                size="lg"
-                onClick={() => setStep(3)}
-                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg"
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 2.2 }}
               >
-                See What You Get <ChevronRight className="h-5 w-5 ml-2" />
-              </Button>
+                <Button
+                  size="lg"
+                  onClick={() => setStep(3)}
+                  className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg hover:shadow-primary/30 transition-all"
+                >
+                  See What You Get <ChevronRight className="h-5 w-5 ml-2" />
+                </Button>
+              </motion.div>
             </motion.div>
           )}
 
