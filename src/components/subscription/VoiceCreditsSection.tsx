@@ -79,8 +79,8 @@ export default function VoiceCreditsSection() {
         </motion.div>
       )}
 
-      {/* Current credits breakdown */}
-      {voiceCredits.credits.length > 0 && (
+      {/* Credits breakdown - only show for Enterprise, simplified for trial */}
+      {isEnterprise && voiceCredits.credits.length > 0 && (
         <div className="mb-4 space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Credit Packs</p>
           {voiceCredits.credits.map((credit) => (
@@ -139,9 +139,12 @@ export default function VoiceCreditsSection() {
 
       {/* Trial user message */}
       {isTrialing && (
-        <p className="text-xs text-center text-muted-foreground">
-          Upgrade to Enterprise for more voice minutes
-        </p>
+        <div className="text-center space-y-1">
+          <p className="text-sm text-foreground">3 voice interviews included with your trial</p>
+          <p className="text-xs text-muted-foreground">
+            Upgrade to Enterprise for unlimited voice minutes
+          </p>
+        </div>
       )}
     </div>
   );
