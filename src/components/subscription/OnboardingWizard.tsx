@@ -552,45 +552,107 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                     </g>
                   ))}
 
-                  {/* AVA Orb traveling along path */}
+                  {/* AVA Orb traveling along path with dynamic wobble */}
                   <motion.g
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
                   >
-                    {/* Orb trail */}
+                    {/* Exhaust particles trailing behind */}
+                    {[0, 1, 2, 3, 4].map((particleIdx) => (
+                      <motion.circle
+                        key={`particle-${particleIdx}`}
+                        r={3 - particleIdx * 0.4}
+                        fill="hsl(160, 84%, 50%)"
+                        initial={{ offsetDistance: "0%", opacity: 0 }}
+                        animate={{ 
+                          offsetDistance: "100%",
+                          opacity: [0, 0.6 - particleIdx * 0.1, 0]
+                        }}
+                        transition={{ 
+                          duration: 4, 
+                          ease: "easeInOut",
+                          delay: 0.5 + particleIdx * 0.08,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        }}
+                        style={{
+                          offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                        }}
+                      />
+                    ))}
+
+                    {/* Orb outer glow ring with wobble */}
                     <motion.circle
-                      r={18}
+                      r={20}
                       fill="none"
                       stroke="hsl(160, 84%, 45%)"
                       strokeWidth={2}
-                      opacity={0.3}
                       initial={{ offsetDistance: "0%" }}
-                      animate={{ offsetDistance: "100%" }}
+                      animate={{ 
+                        offsetDistance: "100%",
+                        opacity: [0.2, 0.5, 0.2, 0.4, 0.2],
+                        scale: [1, 1.1, 1, 1.15, 1]
+                      }}
                       transition={{ 
-                        duration: 4, 
-                        ease: "easeInOut",
-                        delay: 0.5,
-                        repeat: Infinity,
-                        repeatDelay: 1
+                        offsetDistance: {
+                          duration: 4, 
+                          ease: "easeInOut",
+                          delay: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        },
+                        opacity: {
+                          duration: 0.4,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        },
+                        scale: {
+                          duration: 0.5,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }
                       }}
                       style={{
                         offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
                       }}
                     />
                     
-                    {/* Main AVA orb */}
+                    {/* Main AVA orb with energetic wobble */}
                     <motion.circle
                       r={14}
                       fill="url(#avaOrbGradient)"
                       initial={{ offsetDistance: "0%" }}
-                      animate={{ offsetDistance: "100%" }}
+                      animate={{ 
+                        offsetDistance: "100%",
+                        // Rocket-style wobble movement
+                        cy: [0, -4, 0, -6, 0, -3, 0],
+                        cx: [-2, 2, -1, 2, -2, 1, 0],
+                        scale: [1, 1.08, 1, 1.05, 1, 1.1, 1]
+                      }}
                       transition={{ 
-                        duration: 4, 
-                        ease: "easeInOut",
-                        delay: 0.5,
-                        repeat: Infinity,
-                        repeatDelay: 1
+                        offsetDistance: {
+                          duration: 4, 
+                          ease: "easeInOut",
+                          delay: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        },
+                        cy: {
+                          duration: 0.6,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        },
+                        cx: {
+                          duration: 0.5,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        },
+                        scale: {
+                          duration: 0.4,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }
                       }}
                       style={{
                         offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
@@ -598,19 +660,70 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       }}
                     />
 
-                    {/* Orb inner glow */}
+                    {/* Orb inner core with rapid pulse */}
                     <motion.circle
                       r={6}
                       fill="white"
-                      opacity={0.4}
                       initial={{ offsetDistance: "0%" }}
-                      animate={{ offsetDistance: "100%" }}
+                      animate={{ 
+                        offsetDistance: "100%",
+                        opacity: [0.3, 0.8, 0.4, 0.9, 0.3],
+                        scale: [1, 1.2, 0.9, 1.3, 1]
+                      }}
                       transition={{ 
-                        duration: 4, 
-                        ease: "easeInOut",
-                        delay: 0.5,
-                        repeat: Infinity,
-                        repeatDelay: 1
+                        offsetDistance: {
+                          duration: 4, 
+                          ease: "easeInOut",
+                          delay: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        },
+                        opacity: {
+                          duration: 0.25,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        },
+                        scale: {
+                          duration: 0.3,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }
+                      }}
+                      style={{
+                        offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
+                      }}
+                    />
+
+                    {/* Energy burst effect */}
+                    <motion.circle
+                      r={10}
+                      fill="none"
+                      stroke="hsl(160, 84%, 60%)"
+                      strokeWidth={1}
+                      initial={{ offsetDistance: "0%" }}
+                      animate={{ 
+                        offsetDistance: "100%",
+                        scale: [1, 1.8, 1],
+                        opacity: [0.5, 0, 0.5]
+                      }}
+                      transition={{ 
+                        offsetDistance: {
+                          duration: 4, 
+                          ease: "easeInOut",
+                          delay: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 1
+                        },
+                        scale: {
+                          duration: 0.8,
+                          repeat: Infinity,
+                          ease: "easeOut"
+                        },
+                        opacity: {
+                          duration: 0.8,
+                          repeat: Infinity,
+                          ease: "easeOut"
+                        }
                       }}
                       style={{
                         offsetPath: `path("M 90 160 C 150 160, 170 80, 270 80 C 370 80, 390 240, 450 240 C 510 240, 530 80, 630 80 C 730 80, 750 160, 810 160")`,
