@@ -1,4 +1,4 @@
-import { X, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,8 +32,8 @@ export function ImageLightbox({ open, onOpenChange, imageUrl, fileName }: ImageL
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 bg-background/95 backdrop-blur-sm border-border">
-        <div className="relative">
-          <div className="absolute top-2 right-2 z-10 flex gap-2">
+        <div className="relative pt-12">
+          <div className="absolute top-2 left-2 z-10">
             <Button
               variant="secondary"
               size="icon"
@@ -41,14 +41,6 @@ export function ImageLightbox({ open, onOpenChange, imageUrl, fileName }: ImageL
               className="h-8 w-8 bg-background/80 backdrop-blur-sm"
             >
               <Download className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8 bg-background/80 backdrop-blur-sm"
-            >
-              <X className="h-4 w-4" />
             </Button>
           </div>
           <img
