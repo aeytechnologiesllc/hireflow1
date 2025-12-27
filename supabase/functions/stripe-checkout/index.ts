@@ -49,6 +49,22 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
+    // Use service role to check current subscription status
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Check if user is currently on a trial
+    const { data: existingSub } = await supabaseAdmin
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", user.id)
+      .single();
+
+    const isCurrentlyTrialing = existingSub?.status === 'trialing';
+    console.log("User trial status:", isCurrentlyTrialing ? "trialing (will charge immediately)" : "not trialing (will get 7-day trial)");
+
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2023-10-16",
     });
@@ -71,14 +87,15 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Create checkout session with 7-day free trial
+    // Create checkout session - only give trial to NEW users, not upgrading trial users
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
       subscription_data: {
-        trial_period_days: 7,
+        // Skip trial for users already trialing - they get charged immediately
+        ...(isCurrentlyTrialing ? {} : { trial_period_days: 7 }),
         metadata: {
           user_id: user.id,
           plan_type: planType,
