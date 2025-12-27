@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Rocket, Sparkles, Zap, CheckCircle2 } from "lucide-react";
+import { Rocket, Zap, CheckCircle2 } from "lucide-react";
 
 interface LaunchSequenceProps {
   onComplete: () => void;
@@ -142,7 +142,53 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
   const isFlying = phase === "revRight" || phase === "revLeft";
 
   return (
-    <div className="flex flex-col items-center text-center min-h-[400px] justify-center overflow-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col items-center text-center justify-center overflow-hidden bg-background">
+      {/* Background grid */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
+              linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }}
+        />
+        {/* Animated scan line */}
+        <motion.div
+          className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+          initial={{ top: "-10%" }}
+          animate={{ top: "110%" }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
+
+      {/* Floating orbs */}
+      <motion.div
+        className="absolute top-[10%] right-[15%] w-[400px] h-[400px] rounded-full bg-primary/20 blur-[120px]"
+        animate={{
+          scale: [1, 1.2, 1],
+          opacity: [0.2, 0.3, 0.2],
+        }}
+        transition={{ duration: 8, repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute bottom-[10%] left-[10%] w-[350px] h-[350px] rounded-full bg-accent/15 blur-[100px]"
+        animate={{
+          scale: [1.2, 1, 1.2],
+          opacity: [0.15, 0.25, 0.15],
+        }}
+        transition={{ duration: 6, repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute top-[40%] left-[30%] w-[200px] h-[200px] rounded-full bg-cyan-500/10 blur-[80px]"
+        animate={{
+          x: [0, 100, 0],
+          y: [0, -50, 0],
+        }}
+        transition={{ duration: 10, repeat: Infinity }}
+      />
       {/* Status indicators during init */}
       <AnimatePresence mode="wait">
         {phase === "init" && (
@@ -411,33 +457,6 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           )}
         </AnimatePresence>
 
-        {/* Sparkle burst on success */}
-        <AnimatePresence>
-          {phase === "success" && (
-            <>
-              {[...Array(16)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute left-1/2 top-1/2"
-                  initial={{ scale: 0, opacity: 1 }}
-                  animate={{ 
-                    scale: [0, 1, 0.5],
-                    opacity: [1, 1, 0],
-                    x: Math.cos((i / 16) * Math.PI * 2) * 120 - 6,
-                    y: Math.sin((i / 16) * Math.PI * 2) * 120 - 6,
-                  }}
-                  transition={{ 
-                    duration: 1,
-                    delay: i * 0.03,
-                    ease: "easeOut"
-                  }}
-                >
-                  <Sparkles className="h-4 w-4 text-primary" />
-                </motion.div>
-              ))}
-            </>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Phase text */}
