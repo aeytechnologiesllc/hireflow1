@@ -602,7 +602,7 @@ export default function InterviewSchedulingWizard({
                       {/* Time Slots */}
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Select Time</Label>
-                        <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-2">
                           {timeSlots.map((slot) => (
                             <Button
                               key={slot.value}

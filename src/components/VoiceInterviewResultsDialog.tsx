@@ -205,30 +205,31 @@ Date: ${new Date().toLocaleDateString()}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <span>{videoEnabled ? 'Video' : 'Voice'} Interview Analysis</span>
             <div className="flex gap-2">
               {transcript && transcript.length > 0 && (
-                <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-2">
+                <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-2 min-h-[44px] sm:min-h-0">
                   <FileText className="h-4 w-4" />
-                  Transcript
+                  <span className="hidden sm:inline">Transcript</span>
+                  <span className="sm:hidden">TXT</span>
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={exportPDFReport} className="gap-2">
+              <Button variant="outline" size="sm" onClick={exportPDFReport} className="gap-2 min-h-[44px] sm:min-h-0">
                 <Download className="h-4 w-4" />
-                PDF Report
+                PDF
               </Button>
             </div>
           </DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="questions">Questions</TabsTrigger>
-            <TabsTrigger value="softskills">Soft Skills</TabsTrigger>
-            <TabsTrigger value="highlights">Highlights</TabsTrigger>
-            <TabsTrigger value="followups">Follow-ups</TabsTrigger>
+          <TabsList className="flex w-full overflow-x-auto">
+            <TabsTrigger value="overview" className="flex-1 min-w-[80px]">Overview</TabsTrigger>
+            <TabsTrigger value="questions" className="flex-1 min-w-[80px]">Questions</TabsTrigger>
+            <TabsTrigger value="softskills" className="flex-1 min-w-[80px]">Skills</TabsTrigger>
+            <TabsTrigger value="highlights" className="flex-1 min-w-[80px]">Highlights</TabsTrigger>
+            <TabsTrigger value="followups" className="flex-1 min-w-[80px]">Follow-ups</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="h-[60vh] mt-4">
@@ -288,7 +289,7 @@ Date: ${new Date().toLocaleDateString()}
               </Card>
 
               {/* Score Breakdown Grid */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
                   { label: "Communication", value: result.communication_score },
                   { label: "Technical", value: result.technical_score },
@@ -316,7 +317,7 @@ Date: ${new Date().toLocaleDateString()}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="text-center p-2 bg-muted/30 rounded">
                         <p className="text-lg font-bold">{result.communication_metrics.avg_response_time_seconds}s</p>
                         <p className="text-xs text-muted-foreground">Avg Response Time</p>
@@ -368,7 +369,7 @@ Date: ${new Date().toLocaleDateString()}
               )}
 
               {/* Strengths & Concerns */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {result.strengths?.length > 0 && (
                   <Card>
                     <CardHeader className="pb-2">
@@ -500,7 +501,7 @@ Date: ${new Date().toLocaleDateString()}
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                       {softSkillsData.map((item, i) => (
                         <div key={i} className="text-center p-2 bg-muted/30 rounded">
                           <p className="text-lg font-bold">{item.value}</p>
