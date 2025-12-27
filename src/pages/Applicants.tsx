@@ -1,9 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useJob } from "@/hooks/useJobs";
 import { useAIShortlist } from "@/hooks/useAIShortlist";
 import { Card, CardContent } from "@/components/ui/card";
@@ -278,12 +280,19 @@ export default function Applicants() {
   const { role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
   const isEmployer = role === "employer" || isTeamMember;
-  const { data: applications, isLoading } = useEmployerApplications();
+  const { data: applications, isLoading, refetch: refetchApplications } = useEmployerApplications();
   const { data: filteredJob } = useJob(jobIdFilter || undefined);
-  const { data: stats } = useApplicationStats();
+  const { data: stats, refetch: refetchStats } = useApplicationStats();
   const updateApplication = useUpdateApplication();
   const { generateShortlist, shortlist, isLoading: isShortlistLoading, clearShortlist } = useAIShortlist();
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Mobile pull-to-refresh
+  const isMobile = useIsMobile();
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refetchApplications(), refetchStats()]);
+  }, [refetchApplications, refetchStats]);
+  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [shortlistDialogOpen, setShortlistDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
@@ -438,7 +447,9 @@ export default function Applicants() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
+      {...(isMobile ? pullHandlers : {})}
     >
+      {isMobile && <PullIndicator />}
       {/* Header */}
       <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

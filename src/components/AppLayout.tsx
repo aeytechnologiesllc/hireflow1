@@ -3,6 +3,7 @@ import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AnimatePresence } from "framer-motion";
 
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
@@ -13,6 +14,8 @@ import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard"
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { PageTransition } from "@/components/PageTransition";
 
 // Edge swipe detection constants
 const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
@@ -147,6 +150,9 @@ export default function AppLayout() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
+        {/* Offline indicator */}
+        <OfflineIndicator />
+        
         {/* Global notification toasts listener */}
         <GlobalNotificationToasts />
         
@@ -177,7 +183,11 @@ export default function AppLayout() {
             isMobile={isMobile}
           />
           <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
-            <Outlet />
+            <AnimatePresence mode="wait">
+              <PageTransition key={location.pathname}>
+                <Outlet />
+              </PageTransition>
+            </AnimatePresence>
           </main>
         </div>
       </div>
