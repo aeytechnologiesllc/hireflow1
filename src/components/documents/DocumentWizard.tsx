@@ -1606,7 +1606,7 @@ export function DocumentWizard({
     <div className="flex flex-col h-[85vh] max-h-[85vh] min-h-0">
       {/* Progress Header - Fixed */}
       <div className="flex-shrink-0 border-b border-border p-4 md:p-6 bg-gradient-to-r from-primary/5 to-primary/10">
-        <div className="flex items-center justify-between mb-3 md:mb-4">
+        <div className="flex items-center justify-between mb-3 md:mb-4 pr-10 sm:pr-8">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/20 flex items-center justify-center">
               {documentSource === "upload" ? (

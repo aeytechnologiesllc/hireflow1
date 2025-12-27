@@ -516,7 +516,7 @@ export default function InterviewSchedulingWizard({
           <>
             {/* Progress Header */}
             <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-accent/5">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 pr-10 sm:pr-8">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
                     {(() => {
