@@ -365,8 +365,8 @@ export default function Profile() {
           <CardDescription>Update your personal details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="full_name">Full Name</Label>
               <Input 
                 id="full_name" 

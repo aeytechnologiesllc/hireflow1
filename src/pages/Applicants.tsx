@@ -144,7 +144,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
       className={`bg-card border-border hover:border-primary/50 transition-colors cursor-pointer ${isSelected ? "ring-2 ring-primary border-primary" : ""}`}
       onClick={handleCardClick}
     >
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start gap-4">
           {isSelectionMode && (
             <div className="flex items-center justify-center pt-1" onClick={(e) => e.stopPropagation()}>
