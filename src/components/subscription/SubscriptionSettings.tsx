@@ -341,6 +341,19 @@ export default function SubscriptionSettings() {
                   Renews on {format(new Date(subscription.current_period_end), "MMM d, yyyy")}
                 </p>
               )}
+              {/* Trial Includes Summary */}
+              {isTrialing && (
+                <div className="mt-3 p-3 rounded-lg bg-muted/30 border border-border">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your trial includes:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="text-xs">2 Active Jobs</Badge>
+                    <Badge variant="secondary" className="text-xs">15 Applicants</Badge>
+                    <Badge variant="secondary" className="text-xs">10 Documents</Badge>
+                    <Badge variant="secondary" className="text-xs">3 Voice Interviews</Badge>
+                    <Badge variant="secondary" className="text-xs">Unlimited AI Screening</Badge>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           {isPaid && (
@@ -368,7 +381,7 @@ export default function SubscriptionSettings() {
       {/* Usage Stats */}
       <div className="p-6 rounded-xl border border-border bg-card/50">
         <h3 className="text-lg font-semibold text-foreground mb-4">Usage This Period</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <UsageStat
             icon={Briefcase}
             label="Jobs"
@@ -392,6 +405,12 @@ export default function SubscriptionSettings() {
             label="Ava Analyses"
             current={usage.ai_analyses_used}
             limit={limits.aiAnalyses}
+          />
+          <UsageStat
+            icon={Mic}
+            label="Voice Interviews"
+            current={Math.round(usage.voice_minutes_used / 5)}
+            limit={limits.voiceMinutes === -1 ? -1 : Math.round(limits.voiceMinutes / 5)}
           />
         </div>
       </div>

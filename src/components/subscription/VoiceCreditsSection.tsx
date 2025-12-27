@@ -14,8 +14,13 @@ export default function VoiceCreditsSection() {
   const [loading, setLoading] = useState<string | null>(null);
 
   const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
+  const isTrialing = subscription?.status === 'trialing';
   
-  if (!isEnterprise) return null;
+  // Show for enterprise users and trial users (who have voice credits)
+  if (!isEnterprise && !isTrialing) return null;
+  
+  // Don't show if no voice credits available
+  if (voiceCredits.totalMinutesAvailable <= 0 && !isEnterprise) return null;
 
   const handlePurchase = async (packSize: 'small' | 'medium' | 'large') => {
     setLoading(packSize);
@@ -98,37 +103,46 @@ export default function VoiceCreditsSection() {
         </div>
       )}
 
-      {/* Purchase options */}
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide">Buy More Minutes</p>
-        <div className="grid grid-cols-3 gap-2">
-          {(['small', 'medium', 'large'] as const).map((size) => {
-            const pack = pricing.voiceCredits[size];
-            return (
-              <Button
-                key={size}
-                variant="outline"
-                className="flex-col h-auto py-3 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
-                onClick={() => handlePurchase(size)}
-                disabled={loading !== null}
-              >
-                {loading === size ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <span className="text-lg font-bold text-purple-400">{pack.minutes}</span>
-                    <span className="text-xs text-muted-foreground">minutes</span>
-                    <span className="text-sm font-medium text-foreground mt-1">{pack.priceFormatted}</span>
-                  </>
-                )}
-              </Button>
-            );
-          })}
+      {/* Purchase options - only show for Enterprise users */}
+      {isEnterprise && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Buy More Minutes</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(['small', 'medium', 'large'] as const).map((size) => {
+              const pack = pricing.voiceCredits[size];
+              return (
+                <Button
+                  key={size}
+                  variant="outline"
+                  className="flex-col h-auto py-3 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
+                  onClick={() => handlePurchase(size)}
+                  disabled={loading !== null}
+                >
+                  {loading === size ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span className="text-lg font-bold text-purple-400">{pack.minutes}</span>
+                      <span className="text-xs text-muted-foreground">minutes</span>
+                      <span className="text-sm font-medium text-foreground mt-1">{pack.priceFormatted}</span>
+                    </>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            Credits roll over and expire 6 months after purchase
+          </p>
         </div>
-        <p className="text-xs text-center text-muted-foreground mt-2">
-          Credits roll over and expire 6 months after purchase
+      )}
+
+      {/* Trial user message */}
+      {isTrialing && (
+        <p className="text-xs text-center text-muted-foreground">
+          Upgrade to Enterprise for more voice minutes
         </p>
-      </div>
+      )}
     </div>
   );
 }
