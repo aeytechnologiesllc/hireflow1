@@ -21,7 +21,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-
+import { LaunchSequence } from "@/components/animations/LaunchSequence";
 const HIREFLOW_FEATURES = [
   {
     icon: UserCircle,
@@ -651,106 +651,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </motion.div>
           )}
 
-          {/* Step 4: Celebrate */}
+          {/* Step 4: Launch Sequence Celebration */}
           {step === 4 && (
             <motion.div
               key="celebrate"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.6, type: "spring" }}
-              className="flex flex-col items-center text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center min-h-[500px] w-full"
             >
-              {/* Epic celebration animation */}
-              <div className="relative mb-8">
-                {/* Expanding rings */}
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute rounded-full border border-primary/30"
-                    style={{
-                      width: 160,
-                      height: 160,
-                      left: -40,
-                      top: -40,
-                    }}
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{
-                      scale: [1, 2, 2],
-                      opacity: [0.5, 0.2, 0],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      delay: i * 0.6,
-                    }}
-                  />
-                ))}
-
-                <motion.div
-                  className="relative w-20 h-20 rounded-full flex items-center justify-center"
-                  style={{
-                    background: "linear-gradient(135deg, hsl(var(--primary)), hsl(180, 100%, 50%))",
-                    boxShadow: "0 0 80px hsl(var(--primary) / 0.6)",
-                  }}
-                  initial={{ scale: 0 }}
-                  animate={{ 
-                    scale: 1,
-                    rotate: [0, 10, -10, 0],
-                  }}
-                  transition={{ 
-                    scale: { duration: 0.5, type: "spring" },
-                    rotate: { duration: 0.5, delay: 0.5 },
-                  }}
-                >
-                  <Rocket className="h-10 w-10 text-white" />
-                </motion.div>
-              </div>
-
-              <motion.h2
-                className="text-4xl md:text-5xl font-bold text-foreground mb-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                You are <span className="text-gradient">Ready</span>
-              </motion.h2>
-
-              <motion.p
-                className="text-xl text-muted-foreground max-w-md mb-8"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                AVA is ready to start screening your candidates. Let's find your next great hire.
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Button
-                  size="lg"
-                  onClick={handleComplete}
-                  className="group relative px-10 py-7 text-lg bg-gradient-to-r from-primary via-cyan-400 to-primary bg-[length:200%_auto] hover:bg-right text-primary-foreground shadow-[0_0_40px_hsl(var(--primary)/0.4)] transition-all duration-500"
-                >
-                  <span className="flex items-center gap-3">
-                    <Sparkles className="h-5 w-5" />
-                    Launch HireFlow
-                    <Sparkles className="h-5 w-5" />
-                  </span>
-                </Button>
-              </motion.div>
-
-              <motion.p
-                className="text-sm text-muted-foreground mt-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-              >
-                Welcome to smarter hiring.
-              </motion.p>
+              <LaunchSequence onComplete={handleComplete} />
             </motion.div>
           )}
         </AnimatePresence>
