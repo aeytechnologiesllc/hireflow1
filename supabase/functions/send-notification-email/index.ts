@@ -34,7 +34,9 @@ type NotificationType =
   | "status_rejected"
   | "status_hired"
   | "application_received"
-  | "reschedule_requested";
+  | "reschedule_requested"
+  | "voice_minutes_low"
+  | "voice_minutes_exhausted";
 
 interface NotificationRequest {
   type: NotificationType;
@@ -55,6 +57,8 @@ interface NotificationRequest {
     rejection_reason?: string;
     proposed_times?: string;
     candidate_note?: string;
+    minutes_remaining?: string;
+    active_jobs_count?: string;
   };
 }
 
@@ -266,6 +270,31 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         `${baseUrl}/interviews`
       ),
     },
+    
+    // EMPLOYER-FACING - Voice Minutes
+    voice_minutes_low: {
+      subject: `Low Voice Minutes: Only ${data.minutes_remaining} minutes remaining`,
+      html: wrapEmail(
+        "Voice Minutes Running Low",
+        `<p>Your voice minutes are running low. You have <strong>${data.minutes_remaining} minutes</strong> remaining.</p>
+         ${parseInt(data.active_jobs_count || '0') > 0 ? `<p style="color: #666;">You have <strong>${data.active_jobs_count} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> that may be affected if you run out of minutes.</p>` : ''}
+         <p style="color: #666;">Purchase more voice minutes to ensure uninterrupted AI voice interviews for your candidates.</p>`,
+        "Purchase Voice Minutes",
+        `${baseUrl}/settings?tab=subscription`
+      ),
+    },
+    
+    voice_minutes_exhausted: {
+      subject: `Action Required: Voice Minutes Exhausted`,
+      html: wrapEmail(
+        "Voice Minutes Exhausted",
+        `<p style="color: #dc2626;"><strong>Your voice minutes have been depleted.</strong></p>
+         ${parseInt(data.active_jobs_count || '0') > 0 ? `<p>Candidates applying to your <strong>${data.active_jobs_count} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> cannot complete AI voice interviews until you purchase more minutes.</p>` : '<p>Candidates cannot complete AI voice interviews until you purchase more minutes.</p>'}
+         <p style="color: #666;">Purchase more voice minutes immediately to restore AI voice interview functionality.</p>`,
+        "Purchase Voice Minutes Now",
+        `${baseUrl}/settings?tab=subscription`
+      ),
+    },
   };
 
   return templates[type];
@@ -288,6 +317,8 @@ const getPreferenceField = (type: NotificationType): string => {
     status_rejected: "email_phase_updates",
     status_hired: "email_phase_updates",
     reschedule_requested: "email_interview_reminders",
+    voice_minutes_low: "email_voice_minutes",
+    voice_minutes_exhausted: "email_voice_minutes",
   };
   return mapping[type];
 };
@@ -311,7 +342,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get user's email and preferences
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("email, email_notifications_enabled, email_new_applications, email_messages, email_interview_reminders, email_document_updates, email_phase_updates")
+      .select("email, email_notifications_enabled, email_new_applications, email_messages, email_interview_reminders, email_document_updates, email_phase_updates, email_voice_minutes")
       .eq("user_id", recipient_user_id)
       .single();
 
