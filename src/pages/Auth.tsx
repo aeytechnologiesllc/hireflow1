@@ -208,6 +208,29 @@ export default function Auth() {
       }
     }
 
+    // First check if email exists in the system
+    try {
+      const response = await supabase.functions.invoke('check-email-exists', {
+        body: { email: forgotPasswordEmail }
+      });
+
+      if (response.error) {
+        console.error('Error checking email:', response.error);
+        // Fall back to sending reset email anyway if check fails
+      } else if (!response.data?.exists) {
+        toast({
+          variant: "warning",
+          title: "Email Not Found",
+          description: "No account found with this email address. Please check the email or sign up for a new account.",
+        });
+        setIsLoading(false);
+        return;
+      }
+    } catch (checkError) {
+      console.error('Error checking email existence:', checkError);
+      // Continue with password reset if check fails
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
       redirectTo: `${window.location.origin}/auth?reset=true`,
     });
