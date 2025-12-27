@@ -1016,7 +1016,7 @@ export default function CreateJob() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="department">Department</Label>
                       <Input
@@ -1039,7 +1039,7 @@ export default function CreateJob() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="job_type">Job Type</Label>
                       <Select value={formData.job_type} onValueChange={(v) => handleChange("job_type", v)}>

@@ -35,28 +35,38 @@ export default function BulkActionsBar({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+          className="fixed bottom-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50"
         >
-          <div className="bg-card/95 backdrop-blur-lg border border-border rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-4">
-            <div className="flex items-center gap-3 pr-4 border-r border-border">
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-lg font-bold text-primary">{selectedCount}</span>
+          <div className="bg-card/95 backdrop-blur-lg border border-border rounded-2xl shadow-2xl px-3 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+            <div className="flex items-center justify-between sm:justify-start gap-3 sm:pr-4 sm:border-r border-border">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="text-base sm:text-lg font-bold text-primary">{selectedCount}</span>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  applicant{selectedCount !== 1 ? "s" : ""} selected
+                </span>
               </div>
-              <span className="text-sm text-muted-foreground">
-                applicant{selectedCount !== 1 ? "s" : ""} selected
-              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClearSelection}
+                className="sm:hidden text-muted-foreground hover:text-foreground h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:flex-row items-center gap-2">
               {canManagePipeline && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onReject}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 h-9"
                 >
                   <XCircle className="h-4 w-4" />
-                  Reject
+                  <span className="hidden xs:inline sm:inline">Reject</span>
                 </Button>
               )}
               
@@ -65,10 +75,10 @@ export default function BulkActionsBar({
                   variant="ghost"
                   size="sm"
                   onClick={onScheduleInterview}
-                  className="gap-2"
+                  className="gap-2 h-9"
                 >
                   <Calendar className="h-4 w-4" />
-                  Schedule Interview
+                  <span className="hidden xs:inline sm:inline">Interview</span>
                 </Button>
               )}
               
@@ -77,10 +87,10 @@ export default function BulkActionsBar({
                   variant="ghost"
                   size="sm"
                   onClick={onSendDocument}
-                  className="gap-2"
+                  className="gap-2 h-9"
                 >
                   <FileText className="h-4 w-4" />
-                  Send Document
+                  <span className="hidden xs:inline sm:inline">Document</span>
                 </Button>
               )}
               
@@ -89,10 +99,10 @@ export default function BulkActionsBar({
                   variant="ghost"
                   size="sm"
                   onClick={onSendMessage}
-                  className="gap-2"
+                  className="gap-2 h-9"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  Message
+                  <span className="hidden xs:inline sm:inline">Message</span>
                 </Button>
               )}
             </div>
@@ -101,7 +111,7 @@ export default function BulkActionsBar({
               variant="ghost"
               size="icon"
               onClick={onClearSelection}
-              className="ml-2 text-muted-foreground hover:text-foreground"
+              className="hidden sm:flex ml-2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </Button>

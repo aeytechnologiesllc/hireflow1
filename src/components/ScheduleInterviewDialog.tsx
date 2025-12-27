@@ -101,7 +101,7 @@ export default function ScheduleInterviewDialog({
               className="bg-background border-border"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-foreground">Duration</Label>
               <Select value={duration} onValueChange={setDuration}>

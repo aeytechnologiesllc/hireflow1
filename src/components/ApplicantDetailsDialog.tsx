@@ -184,26 +184,26 @@ Resume URL: ${application.resume_url || "Not provided"}
             {/* Contact Info */}
             <div className="space-y-3">
               <h3 className="font-semibold text-foreground">Contact Information</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span>{profile?.email}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+                  <Mail className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{profile?.email}</span>
                 </div>
                 {profile?.phone && (
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-4 w-4 flex-shrink-0" />
                     <span>{profile.phone}</span>
                   </div>
                 )}
                 {profile?.location && (
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4 flex-shrink-0" />
                     <span>{profile.location}</span>
                   </div>
                 )}
                 {profile?.experience_years && (
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <Briefcase className="h-4 w-4" />
+                    <Briefcase className="h-4 w-4 flex-shrink-0" />
                     <span>{profile.experience_years} years experience</span>
                   </div>
                 )}
