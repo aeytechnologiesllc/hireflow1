@@ -68,6 +68,7 @@ export default function Auth() {
 
   // Password reset state
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isWaitingForSession, setIsWaitingForSession] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -89,15 +90,27 @@ export default function Auth() {
   useEffect(() => {
     const isResetMode = searchParams.get("reset") === "true";
     if (isResetMode) {
-      setIsResettingPassword(true);
+      // Show loading state while waiting for session to establish
+      setIsWaitingForSession(true);
     }
 
-    // Listen for PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    // Listen for PASSWORD_RECOVERY event - this fires when session is ready
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) {
+        setIsWaitingForSession(false);
         setIsResettingPassword(true);
       }
     });
+
+    // Also check if session already exists (in case event fired before listener was set up)
+    if (isResetMode) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setIsWaitingForSession(false);
+          setIsResettingPassword(true);
+        }
+      });
+    }
 
     return () => subscription.unsubscribe();
   }, [searchParams]);
@@ -231,8 +244,14 @@ export default function Auth() {
       // Continue with password reset if check fails
     }
 
+    // Use production URL for password reset redirects
+    const productionUrl = 'https://hireflownow.com';
+    const redirectUrl = window.location.hostname === 'localhost' 
+      ? `${window.location.origin}/auth?reset=true`
+      : `${productionUrl}/auth?reset=true`;
+    
     const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
-      redirectTo: `${window.location.origin}/auth?reset=true`,
+      redirectTo: redirectUrl,
     });
 
     if (error) {
@@ -299,6 +318,20 @@ export default function Auth() {
       return;
     }
 
+    // Verify we have a valid session before attempting password update
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast({
+        variant: "warning",
+        title: "Session Expired",
+        description: "Your reset link may have expired. Please request a new password reset.",
+      });
+      setIsLoading(false);
+      setIsResettingPassword(false);
+      setShowForgotPassword(true);
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
 
     if (error) {
@@ -321,7 +354,7 @@ export default function Auth() {
     setIsLoading(false);
   };
 
-  if (authLoading) {
+  if (authLoading || isWaitingForSession) {
     return <AuthLoadingScreen variant="employer" />;
   }
 
