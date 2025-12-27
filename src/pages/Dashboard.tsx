@@ -46,6 +46,7 @@ import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import ActivityFeed from "@/components/ActivityFeed";
 import PipelineHealthCard from "@/components/PipelineHealthCard";
+import ProfileCompletionCard from "@/components/ProfileCompletionCard";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
 
@@ -640,6 +641,13 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Profile Completion Card - Candidate */}
+      {!isEmployer && (
+        <motion.div variants={staggerItem}>
+          <ProfileCompletionCard />
+        </motion.div>
       )}
 
       {/* Apply Now CTA - Candidate */}

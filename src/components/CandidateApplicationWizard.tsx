@@ -3,12 +3,14 @@ import { formatFileSize } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ChevronRight, 
@@ -22,7 +24,8 @@ import {
   Send,
   X,
   File,
-  XCircle
+  XCircle,
+  User
 } from "lucide-react";
 import { toast } from "sonner";
 import { isPast } from "date-fns";
@@ -71,6 +74,7 @@ export default function CandidateApplicationWizard({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: profile } = useProfile();
   const createApplication = useCreateApplication();
   const updateApplication = useUpdateApplication();
   const { data: existingApplications } = useCandidateApplications();
@@ -177,6 +181,64 @@ export default function CandidateApplicationWizard({
       setCreatedApplicationId(existingDraft.id);
     }
   }, [existingDraft, createdApplicationId]);
+
+  // Pre-fill answers from profile data
+  const [prefilledFields, setPrefilledFields] = useState<Set<string>>(new Set());
+  
+  useEffect(() => {
+    if (!profile || !open) return;
+    
+    const newAnswers: Record<string, string> = {};
+    const prefilled = new Set<string>();
+    
+    applicationQuestions.forEach((question) => {
+      const qLower = question.question.toLowerCase();
+      const idLower = question.id.toLowerCase();
+      
+      // Match common question patterns to profile fields
+      if ((qLower.includes("name") || idLower.includes("name")) && !qLower.includes("company")) {
+        if (profile.full_name && !answers[question.id]) {
+          newAnswers[question.id] = profile.full_name;
+          prefilled.add(question.id);
+        }
+      } else if (qLower.includes("email") || idLower.includes("email") || question.type === "email") {
+        if (profile.email && !answers[question.id]) {
+          newAnswers[question.id] = profile.email;
+          prefilled.add(question.id);
+        }
+      } else if (qLower.includes("phone") || idLower.includes("phone") || question.type === "phone") {
+        if (profile.phone && !answers[question.id]) {
+          newAnswers[question.id] = profile.phone;
+          prefilled.add(question.id);
+        }
+      } else if (qLower.includes("location") || qLower.includes("city") || idLower.includes("location")) {
+        if (profile.location && !answers[question.id]) {
+          newAnswers[question.id] = profile.location;
+          prefilled.add(question.id);
+        }
+      } else if (qLower.includes("linkedin") || idLower.includes("linkedin")) {
+        if (profile.linkedin_url && !answers[question.id]) {
+          newAnswers[question.id] = profile.linkedin_url;
+          prefilled.add(question.id);
+        }
+      } else if (qLower.includes("portfolio") || qLower.includes("website") || idLower.includes("portfolio")) {
+        if (profile.portfolio_url && !answers[question.id]) {
+          newAnswers[question.id] = profile.portfolio_url;
+          prefilled.add(question.id);
+        }
+      }
+    });
+    
+    if (Object.keys(newAnswers).length > 0) {
+      setAnswers((prev) => ({ ...prev, ...newAnswers }));
+      setPrefilledFields(prefilled);
+    }
+    
+    // Pre-fill resume if available and not already set
+    if (profile.resume_url && !resumeUrl && !hasFileQuestionInQuestions) {
+      setResumeUrl(profile.resume_url);
+    }
+  }, [profile, open, applicationQuestions]);
 
   const resetWizard = () => {
     setCurrentStep(0);
