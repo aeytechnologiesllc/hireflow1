@@ -148,21 +148,36 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
     }
   };
 
+  const isRejected = application.status === "rejected";
+
   return (
     <Card 
-      className={`bg-card border-border transition-all cursor-pointer group ${
-        hasActionRequired 
-          ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
-          : "hover:border-primary/50"
+      className={`bg-card border-border transition-all cursor-pointer group relative overflow-hidden ${
+        isRejected
+          ? "border-destructive/30 opacity-90"
+          : hasActionRequired 
+            ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
+            : "hover:border-primary/50"
       }`}
       onClick={() => navigate(`/applications/${application.id}`)}
     >
+      {/* Rejected stamp overlay */}
+      {isRejected && (
+        <div className="absolute top-4 right-4 z-10 rotate-12 pointer-events-none">
+          <div className="px-3 py-1.5 rounded border-2 border-destructive/60 bg-destructive/10 backdrop-blur-sm">
+            <span className="text-destructive font-bold text-sm tracking-wider uppercase">
+              Rejected
+            </span>
+          </div>
+        </div>
+      )}
+      
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                <h3 className={`text-lg font-semibold group-hover:text-primary transition-colors ${isRejected ? "text-muted-foreground" : "text-foreground"}`}>
                   {job?.title || "Unknown Position"}
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
@@ -174,7 +189,7 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                   {statusLabels[application.status]}
                 </Badge>
               )}
-              {application.status === "rejected" && (
+              {isRejected && (
                 <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5">
                   <Download className="h-3.5 w-3.5" />
                   Get Feedback Report
