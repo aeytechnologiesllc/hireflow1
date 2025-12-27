@@ -17,7 +17,7 @@ export default function VoiceCreditsSection() {
   const isTrialing = subscription?.status === 'trialing';
   
   // Show for enterprise users and trial users (who have voice credits)
-  if (!isEnterprise && !isTrialing) return null;
+  if (!isEnterprise) return null;
   
   // Don't show if no voice credits available
   if (voiceCredits.totalMinutesAvailable <= 0 && !isEnterprise) return null;
