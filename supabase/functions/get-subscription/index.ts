@@ -184,12 +184,12 @@ serve(async (req) => {
         user_id: user.id,
       });
 
-      // Create initial trial voice credits (unlimited for testing, expires with trial)
+      // Create initial trial voice credits (15 minutes for ~3 voice interviews)
       await supabaseAdmin.from("voice_credits").insert({
         user_id: user.id,
-        source: 'subscription',
-        minutes_granted: 9999,
-        minutes_remaining: 9999,
+        source: 'trial',
+        minutes_granted: 15,
+        minutes_remaining: 15,
         expires_at: trialEnd.toISOString(),
       });
 
@@ -198,11 +198,11 @@ serve(async (req) => {
         usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
         limits: getPlanLimits('trial'),
         voiceCredits: {
-          totalMinutesAvailable: 9999,
+          totalMinutesAvailable: 15,
           credits: [{
             id: 'initial',
-            source: 'subscription',
-            minutes_remaining: 9999,
+            source: 'trial',
+            minutes_remaining: 15,
             expires_at: trialEnd.toISOString(),
           }],
         },
@@ -309,20 +309,20 @@ function getPlanLimits(planType: string) {
         hasVoiceAssistant: false,
         hasVoiceInterviews: false,
       };
-    default: // trial - unlimited for testing
+    default: // trial - LIMITED to encourage upgrades
       return {
-        jobs: 999,
-        applicants: 999,
-        documents: 999,
-        teamMembers: 999,
-        aiAnalyses: 999,
-        voiceMinutes: 9999,
-        hasAdvancedAnalytics: true,
-        hasTeamPortal: true,
+        jobs: 2,
+        applicants: 15,
+        documents: 10,
+        teamMembers: 0,
+        aiAnalyses: 15,
+        voiceMinutes: 15,
+        hasAdvancedAnalytics: false,
+        hasTeamPortal: false,
         hasDocuments: true,
         hasPrioritySupport: false,
         hasVoiceAssistant: false,
-        hasVoiceInterviews: false,
+        hasVoiceInterviews: true,
         hasVoiceTrialAccess: true,
       };
   }
