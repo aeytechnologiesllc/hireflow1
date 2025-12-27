@@ -4,6 +4,9 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import { motion } from "framer-motion";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ImageLightboxProps {
   open: boolean;
@@ -13,6 +16,12 @@ interface ImageLightboxProps {
 }
 
 export function ImageLightbox({ open, onOpenChange, imageUrl, fileName }: ImageLightboxProps) {
+  const isMobile = useIsMobile();
+  
+  const swipeProps = useSwipeGesture({
+    onSwipeDown: () => onOpenChange(false),
+  }, { threshold: 80 });
+
   const handleDownload = async () => {
     try {
       const response = await fetch(imageUrl);
@@ -43,11 +52,29 @@ export function ImageLightbox({ open, onOpenChange, imageUrl, fileName }: ImageL
               <Download className="h-4 w-4" />
             </Button>
           </div>
-          <img
-            src={imageUrl}
-            alt={fileName || "Image"}
-            className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
-          />
+          {isMobile ? (
+            <motion.div
+              {...swipeProps}
+              className="touch-pan-y"
+            >
+              <img
+                src={imageUrl}
+                alt={fileName || "Image"}
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg pointer-events-none"
+              />
+            </motion.div>
+          ) : (
+            <img
+              src={imageUrl}
+              alt={fileName || "Image"}
+              className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+            />
+          )}
+          {isMobile && (
+            <p className="text-center text-xs text-muted-foreground py-2">
+              Swipe down to close
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

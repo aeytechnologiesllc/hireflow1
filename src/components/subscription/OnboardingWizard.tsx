@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { Button } from "@/components/ui/button";
 import {
   Sparkles,
@@ -90,6 +91,26 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const pricing = usePricing();
   const isMobile = useIsMobile();
 
+  const totalSteps = 5;
+
+  // Swipe handlers for step navigation
+  const handleSwipeLeft = useCallback(() => {
+    if (step < totalSteps - 1) {
+      setStep(prev => prev + 1);
+    }
+  }, [step, totalSteps]);
+
+  const handleSwipeRight = useCallback(() => {
+    if (step > 0) {
+      setStep(prev => prev - 1);
+    }
+  }, [step]);
+
+  const swipeProps = useSwipeGesture({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+  }, { threshold: 60, velocity: 400 });
+
   useEffect(() => {
     if (step === 1) {
       const interval = setInterval(() => {
@@ -133,8 +154,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       premium: true,
     },
   ];
-
-  const totalSteps = 5;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background py-6 md:py-8">
@@ -185,8 +204,11 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         transition={{ duration: 10, repeat: Infinity }}
       />
 
-      {/* Main content */}
-      <div className="relative z-10 w-full max-w-4xl mx-auto px-4 md:px-6 pb-24 md:pb-8">
+        {/* Main content - with swipe support on mobile */}
+        <motion.div 
+          className="relative z-10 w-full max-w-4xl mx-auto px-4 md:px-6 pb-24 md:pb-8 touch-pan-y"
+          {...(isMobile ? swipeProps : {})}
+        >
         {/* Progress indicators */}
         <div className="flex justify-center gap-3 mb-8">
           {Array.from({ length: totalSteps }).map((_, s) => (
@@ -1284,7 +1306,12 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+        {isMobile && step < 4 && (
+          <p className="text-center text-xs text-muted-foreground pt-4">
+            Swipe left/right to navigate
+          </p>
+        )}
+      </motion.div>
     </div>
   );
 }
