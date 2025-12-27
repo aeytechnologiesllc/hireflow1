@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,16 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, Upload, FileText, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { ProfileCompleteness } from "@/components/ProfileCompleteness";
 
 export default function Profile() {
   const { user, role } = useAuth();
   const isEmployer = role === "employer";
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
+
+  // File input refs
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload states
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -29,6 +39,8 @@ export default function Profile() {
     linkedin_url: "",
     skills: "",
     experience_years: "",
+    avatar_url: "",
+    resume_url: "",
   });
 
   // Load profile data into form
@@ -45,12 +57,117 @@ export default function Profile() {
         linkedin_url: profile.linkedin_url || "",
         skills: profile.skills?.join(", ") || "",
         experience_years: profile.experience_years?.toString() || "",
+        avatar_url: profile.avatar_url || "",
+        resume_url: profile.resume_url || "",
       });
     }
   }, [profile]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be less than 5MB");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      await updateProfile.mutateAsync({ avatar_url: urlData.publicUrl });
+      setFormData((prev) => ({ ...prev, avatar_url: urlData.publicUrl }));
+      toast.success("Profile photo updated!");
+    } catch (error) {
+      console.error("Avatar upload error:", error);
+      toast.error("Failed to upload photo");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PDF or Word document");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File must be less than 10MB");
+      return;
+    }
+
+    setIsUploadingResume(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}/profile-resume-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("resumes")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("resumes")
+        .getPublicUrl(fileName);
+
+      // Update profile with new resume URL
+      await updateProfile.mutateAsync({ resume_url: urlData.publicUrl });
+      setFormData((prev) => ({ ...prev, resume_url: urlData.publicUrl }));
+      toast.success("Resume uploaded!");
+    } catch (error) {
+      console.error("Resume upload error:", error);
+      toast.error("Failed to upload resume");
+    } finally {
+      setIsUploadingResume(false);
+      if (resumeInputRef.current) {
+        resumeInputRef.current.value = "";
+      }
+    }
+  };
+
+  const removeResume = async () => {
+    try {
+      await updateProfile.mutateAsync({ resume_url: null });
+      setFormData((prev) => ({ ...prev, resume_url: "" }));
+      toast.success("Resume removed");
+    } catch (error) {
+      toast.error("Failed to remove resume");
+    }
   };
 
   const handleSave = async () => {
@@ -97,9 +214,16 @@ export default function Profile() {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Profile</h2>
-        <p className="text-muted-foreground mt-1">Manage your public profile information</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Profile</h2>
+          <p className="text-muted-foreground mt-1">Manage your public profile information</p>
+        </div>
+        
+        {/* Profile Completeness - Candidates Only */}
+        {!isEmployer && (
+          <ProfileCompleteness profile={profile} compact />
+        )}
       </div>
 
       {/* Avatar Section */}
@@ -108,15 +232,31 @@ export default function Profile() {
           <div className="flex items-center gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
+                {formData.avatar_url && (
+                  <AvatarImage src={formData.avatar_url} alt="Profile" />
+                )}
                 <AvatarFallback className="bg-primary/10 text-primary text-2xl font-medium">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
               <Button 
                 size="icon" 
                 className="absolute bottom-0 right-0 h-8 w-8 rounded-full"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isUploadingAvatar}
               >
-                <Camera className="h-4 w-4" />
+                {isUploadingAvatar ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <div>
@@ -129,6 +269,94 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Profile Completeness - Full (Candidates Only) */}
+      {!isEmployer && (
+        <ProfileCompleteness profile={profile} />
+      )}
+
+      {/* Resume Upload - Candidates Only */}
+      {!isEmployer && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-lg">Default Resume</CardTitle>
+            <CardDescription>
+              Upload your resume to auto-fill applications
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <input
+              ref={resumeInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              className="hidden"
+              onChange={handleResumeUpload}
+            />
+            
+            {formData.resume_url ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground truncate">
+                      Profile Resume
+                    </span>
+                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ready to use in applications
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.open(formData.resume_url, "_blank")}
+                  >
+                    View
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={removeResume}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                onClick={() => resumeInputRef.current?.click()}
+              >
+                {isUploadingResume ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Uploading...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center">
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Upload your resume
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PDF or Word document, max 10MB
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Info */}
       <Card className="bg-card border-border">
