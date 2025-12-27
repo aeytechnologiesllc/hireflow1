@@ -56,8 +56,8 @@ export interface ImprovementBlueprintData {
   };
 }
 
-// v5 cache key to force regeneration with final tone-safety refinements and developmental disclaimer
-const BLUEPRINT_CACHE_KEY = "improvement_blueprint_cache_v5";
+// Permanent cache key - blueprints are locked forever after first generation
+const BLUEPRINT_CACHE_KEY = "improvement_blueprint";
 
 // Blueprint price in cents
 export const BLUEPRINT_PRICE_CENTS = 199;
@@ -187,12 +187,12 @@ export function useImprovementBlueprint() {
       let blueprintData: ImprovementBlueprintData | null = null;
       const notes = application?.notes ? JSON.parse(application.notes as string) : {};
 
-      // Check if blueprint already exists in notes
+      // Check if blueprint already exists - if so, it's permanently locked
       if (notes[BLUEPRINT_CACHE_KEY]) {
         toast.info("Retrieving your saved blueprint...", { duration: 2000 });
         blueprintData = notes[BLUEPRINT_CACHE_KEY] as ImprovementBlueprintData;
       } else {
-        // Generate new blueprint
+        // Generate blueprint ONCE - this is permanent and can never be regenerated
         toast.info("Creating your personalized improvement blueprint...", { duration: 5000 });
 
         const { data, error } = await supabase.functions.invoke('ai-generate-performance-report', {
@@ -210,10 +210,11 @@ export function useImprovementBlueprint() {
 
         blueprintData = data as ImprovementBlueprintData;
 
-        // Cache the blueprint in application notes
+        // Permanently lock the blueprint in application notes with generation timestamp
         const updatedNotes = {
           ...notes,
           [BLUEPRINT_CACHE_KEY]: blueprintData,
+          improvement_blueprint_generated_at: new Date().toISOString(),
         };
 
         await supabase
