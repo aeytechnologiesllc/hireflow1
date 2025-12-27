@@ -15,7 +15,9 @@ type NotificationType =
   | "status_rejected"
   | "status_hired"
   | "application_received"
-  | "reschedule_requested";
+  | "reschedule_requested"
+  | "voice_minutes_low"
+  | "voice_minutes_exhausted";
 
 interface NotificationData {
   candidate_name?: string;
@@ -33,6 +35,8 @@ interface NotificationData {
   rejection_reason?: string;
   proposed_times?: string;
   candidate_note?: string;
+  minutes_remaining?: string;
+  active_jobs_count?: string;
 }
 
 async function sendNotificationEmail(
@@ -299,5 +303,33 @@ export async function sendInterviewReminder(
     interview_date: interviewDate,
     interview_time: interviewTime,
     company_name: companyName,
+  });
+}
+
+// ============ VOICE MINUTES NOTIFICATIONS ============
+
+/**
+ * Notify employer when voice minutes are running low
+ */
+export async function notifyVoiceMinutesLow(
+  employerId: string,
+  minutesRemaining: number,
+  activeJobsCount: number
+): Promise<void> {
+  await sendNotificationEmail("voice_minutes_low", employerId, {
+    minutes_remaining: minutesRemaining.toString(),
+    active_jobs_count: activeJobsCount.toString(),
+  });
+}
+
+/**
+ * Notify employer when voice minutes are exhausted
+ */
+export async function notifyVoiceMinutesExhausted(
+  employerId: string,
+  activeJobsCount: number
+): Promise<void> {
+  await sendNotificationEmail("voice_minutes_exhausted", employerId, {
+    active_jobs_count: activeJobsCount.toString(),
   });
 }

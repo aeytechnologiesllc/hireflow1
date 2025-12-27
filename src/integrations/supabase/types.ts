@@ -780,6 +780,7 @@ export type Database = {
           email_new_applications: boolean | null
           email_notifications_enabled: boolean | null
           email_phase_updates: boolean | null
+          email_voice_minutes: boolean | null
           experience_years: number | null
           full_name: string | null
           id: string
@@ -808,6 +809,7 @@ export type Database = {
           email_new_applications?: boolean | null
           email_notifications_enabled?: boolean | null
           email_phase_updates?: boolean | null
+          email_voice_minutes?: boolean | null
           experience_years?: number | null
           full_name?: string | null
           id?: string
@@ -836,6 +838,7 @@ export type Database = {
           email_new_applications?: boolean | null
           email_notifications_enabled?: boolean | null
           email_phase_updates?: boolean | null
+          email_voice_minutes?: boolean | null
           experience_years?: number | null
           full_name?: string | null
           id?: string
@@ -914,6 +917,7 @@ export type Database = {
           trial_start: string | null
           updated_at: string
           user_id: string
+          voice_low_balance_notified_at: string | null
         }
         Insert: {
           amount?: number | null
@@ -932,6 +936,7 @@ export type Database = {
           trial_start?: string | null
           updated_at?: string
           user_id: string
+          voice_low_balance_notified_at?: string | null
         }
         Update: {
           amount?: number | null
@@ -950,6 +955,7 @@ export type Database = {
           trial_start?: string | null
           updated_at?: string
           user_id?: string
+          voice_low_balance_notified_at?: string | null
         }
         Relationships: []
       }
