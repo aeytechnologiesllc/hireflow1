@@ -2120,7 +2120,7 @@ export default function CreateJob() {
                       <Sparkles className="h-4 w-4 text-primary" />
                       Hiring Workflow
                     </h4>
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                       <div className="p-3 rounded-lg bg-secondary/50">
                         <div className="text-2xl font-bold text-primary">{applicationQuestions.length}</div>
                         <div className="text-xs text-muted-foreground">Application Questions</div>
