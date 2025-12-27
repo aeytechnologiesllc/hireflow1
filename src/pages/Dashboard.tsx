@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -366,18 +368,33 @@ export default function Dashboard() {
   }, [isTeamMember, navigate]);
   
   // Employer data
-  const { data: jobStats, isLoading: isLoadingJobStats } = useJobStats();
-  const { data: appStats, isLoading: isLoadingAppStats } = useApplicationStats();
-  const { data: jobs, isLoading: isLoadingJobs } = useEmployerJobs();
+  const { data: jobStats, isLoading: isLoadingJobStats, refetch: refetchJobStats } = useJobStats();
+  const { data: appStats, isLoading: isLoadingAppStats, refetch: refetchAppStats } = useApplicationStats();
+  const { data: jobs, isLoading: isLoadingJobs, refetch: refetchJobs } = useEmployerJobs();
   const deleteJob = useDeleteJob();
   const createJob = useCreateJob();
   
   // Candidate data
-  const { data: candidateApps, isLoading: isLoadingCandidateApps } = useCandidateApplications();
-  const { data: upcomingInterviews } = useUpcomingInterviews();
+  const { data: candidateApps, isLoading: isLoadingCandidateApps, refetch: refetchCandidateApps } = useCandidateApplications();
+  const { data: upcomingInterviews, refetch: refetchInterviews } = useUpcomingInterviews();
   
   // Subscription for testing onboarding
   const { refetch: refetchSubscription } = useSubscription();
+  
+  // Mobile detection and pull-to-refresh
+  const isMobile = useIsMobile();
+  
+  const handleRefresh = useCallback(async () => {
+    if (isEmployer) {
+      await Promise.all([refetchJobStats(), refetchAppStats(), refetchJobs()]);
+    } else {
+      await Promise.all([refetchCandidateApps(), refetchInterviews()]);
+    }
+  }, [isEmployer, refetchJobStats, refetchAppStats, refetchJobs, refetchCandidateApps, refetchInterviews]);
+  
+  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  });
 
   // Test onboarding handler
   const handleTestOnboarding = async () => {
@@ -488,7 +505,10 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
+      {...(isMobile ? pullHandlers : {})}
     >
+      {/* Pull to refresh indicator */}
+      {isMobile && <PullIndicator />}
       {/* Test Onboarding Button - Development Only */}
       {isEmployer && (
         <div className="flex justify-end">

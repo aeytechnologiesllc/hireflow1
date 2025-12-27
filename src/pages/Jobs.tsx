@@ -2,6 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +44,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import { ProcessingModeToggle } from "@/components/ProcessingModeToggle";
@@ -199,11 +201,18 @@ export default function Jobs() {
   const { data: permissions } = useTeamMemberPermissions();
   const navigate = useNavigate();
   const isEmployer = role === "employer" || isTeamMember;
-  const { data: jobs, isLoading } = useEmployerJobs();
-  const { data: stats } = useJobStats();
+  const { data: jobs, isLoading, refetch: refetchJobs } = useEmployerJobs();
+  const { data: stats, refetch: refetchStats } = useJobStats();
   const deleteJob = useDeleteJob();
   const createJob = useCreateJob();
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Mobile pull-to-refresh
+  const isMobile = useIsMobile();
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refetchJobs(), refetchStats()]);
+  }, [refetchJobs, refetchStats]);
+  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
@@ -308,7 +317,9 @@ export default function Jobs() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
+      {...(isMobile ? pullHandlers : {})}
     >
+      {isMobile && <PullIndicator />}
       {/* Header */}
       <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
