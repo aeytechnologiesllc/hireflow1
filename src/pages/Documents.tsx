@@ -397,13 +397,13 @@ export default function Documents() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setRequestWizardOpen(true)}>
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-              <span className="hidden xs:inline">Request</span>
-              <span className="xs:hidden">Request</span>
+              <span className="hidden sm:inline">Request Document</span>
+              <span className="sm:hidden">Request</span>
             </Button>
             <Button size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setWizardOpen(true)}>
               <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-              <span className="hidden xs:inline">Create</span>
-              <span className="xs:hidden">Create</span>
+              <span className="hidden sm:inline">Create Document</span>
+              <span className="sm:hidden">Create</span>
             </Button>
           </div>
         )}

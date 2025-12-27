@@ -103,69 +103,69 @@ export default function Analytics() {
       </div>
 
       {/* Key Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)
         ) : (
           <>
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Briefcase className="h-4 w-4 text-primary" />
                   <TrendIndicator value={0} />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{jobStats?.published || 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{jobStats?.published || 0}</p>
                 <p className="text-xs text-muted-foreground">Active Jobs</p>
               </CardContent>
             </Card>
 
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Users className="h-4 w-4 text-blue-500" />
                   <TrendIndicator value={advancedStats?.weeklyComparison.change || 0} suffix="%" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{advancedStats?.totalApplications || 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.totalApplications || 0}</p>
                 <p className="text-xs text-muted-foreground">Total Applications</p>
               </CardContent>
             </Card>
 
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Calendar className="h-4 w-4 text-purple-500" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{advancedStats?.interviewMetrics?.total || 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.interviewMetrics?.total || 0}</p>
                 <p className="text-xs text-muted-foreground">Interviews Scheduled</p>
               </CardContent>
             </Card>
 
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <CheckCircle className="h-4 w-4 text-success" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{hireRate}%</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{hireRate}%</p>
                 <p className="text-xs text-muted-foreground">Hire Rate</p>
               </CardContent>
             </Card>
 
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Brain className="h-4 w-4 text-amber-500" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{advancedStats?.candidateQualityScore || 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.candidateQualityScore || 0}</p>
                 <p className="text-xs text-muted-foreground">Avg AI Score</p>
               </CardContent>
             </Card>
 
             <Card className="bg-card border-border">
-              <CardContent className="p-4">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Clock className="h-4 w-4 text-cyan-500" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">{advancedStats?.timeToHire?.avgDays || "—"}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.timeToHire?.avgDays || "—"}</p>
                 <p className="text-xs text-muted-foreground">Avg Days to Hire</p>
               </CardContent>
             </Card>
@@ -175,13 +175,15 @@ export default function Analytics() {
 
       {/* Tabs for different analytics views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/50">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="quality">Quality</TabsTrigger>
-          <TabsTrigger value="engagement">Engagement</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="bg-muted/50 inline-flex w-auto min-w-full sm:min-w-0">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Pipeline</TabsTrigger>
+            <TabsTrigger value="performance" className="text-xs sm:text-sm">Performance</TabsTrigger>
+            <TabsTrigger value="quality" className="text-xs sm:text-sm">Quality</TabsTrigger>
+            <TabsTrigger value="engagement" className="text-xs sm:text-sm">Engagement</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">

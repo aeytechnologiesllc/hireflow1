@@ -77,7 +77,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
       className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
       onClick={() => onCardClick(job)}
     >
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
