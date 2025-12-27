@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Lightbulb, 
   Calendar, 
-  Download, 
   ArrowRight,
   Sparkles,
   ExternalLink,
@@ -24,16 +23,11 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
-import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
-import type { Tables } from "@/integrations/supabase/types";
-
-type ApplicationData = Tables<"applications"> & {
-  jobs: Tables<"jobs"> | null;
-};
 
 interface InterviewDetails {
   scheduledAt?: string;
@@ -47,11 +41,6 @@ interface CandidateStatusScreenProps {
   companyName?: string;
   interviewDetails?: InterviewDetails;
   onClose: () => void;
-  onDownloadReport?: () => void;
-  isGeneratingReport?: boolean;
-  // New prop for direct application data (used in phase components)
-  applicationData?: ApplicationData;
-  candidateId?: string;
   // New props for interview actions
   interviewId?: string;
   applicationId?: string;
@@ -66,10 +55,6 @@ export function CandidateStatusScreen({
   companyName,
   interviewDetails,
   onClose,
-  onDownloadReport,
-  isGeneratingReport: externalIsGenerating = false,
-  applicationData,
-  candidateId,
   interviewId,
   applicationId,
   candidateResponse: initialCandidateResponse,
@@ -77,10 +62,6 @@ export function CandidateStatusScreen({
   onRescheduleRequested,
 }: CandidateStatusScreenProps) {
   const queryClient = useQueryClient();
-  const { downloadBlueprint, isGenerating: hookIsGenerating } = useImprovementBlueprint();
-  
-  // Use hook's loading state if we're using applicationData, otherwise use external
-  const isGeneratingReport = applicationData ? hookIsGenerating : externalIsGenerating;
   
   // Interview action states
   const [isConfirming, setIsConfirming] = useState(false);
@@ -134,14 +115,6 @@ export function CandidateStatusScreen({
     onRescheduleRequested?.();
   };
   
-  // Handle blueprint download - use hook if applicationData provided, otherwise use callback
-  const handleDownloadReport = () => {
-    if (applicationData) {
-      downloadBlueprint(applicationData.id);
-    } else if (onDownloadReport) {
-      onDownloadReport();
-    }
-  };
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
@@ -307,31 +280,22 @@ export function CandidateStatusScreen({
                   every interview is a stepping stone. We've prepared a personalized report to help you grow.
                 </motion.p>
 
-                {/* Report Download CTA */}
+                {/* Blueprint CTA - directs to card below */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
                   className="pt-2"
                 >
-                  <Button
-                    size="lg"
-                    onClick={handleDownloadReport}
-                    disabled={isGeneratingReport}
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0"
-                  >
-                    {isGeneratingReport ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Creating Your Blueprint...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-5 w-5" />
-                        Download Your Improvement Blueprint
-                      </>
-                    )}
-                  </Button>
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                      <Sparkles className="h-5 w-5" />
+                      <span className="font-medium">Personalized Blueprint Available</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Scroll down to unlock your personalized Improvement Blueprint with actionable insights and a 30-day growth plan.
+                    </p>
+                  </div>
                 </motion.div>
 
                 {/* Motivational quote */}

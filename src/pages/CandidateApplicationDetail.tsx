@@ -38,7 +38,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
+
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
@@ -363,13 +363,6 @@ export default function CandidateApplicationDetail() {
     }
   }, [candidateInterview]);
 
-  // Handle report download from status screen
-  const { downloadBlueprint, isGenerating: isGeneratingReportHook } = useImprovementBlueprint();
-  
-  const handleDownloadReport = () => {
-    if (!application) return;
-    downloadBlueprint(application.id);
-  };
 
   // Build phases from workflow
   const phases = (() => {
@@ -607,8 +600,6 @@ export default function CandidateApplicationDetail() {
         companyName={job?.department}
         interviewDetails={interviewDetails || undefined}
         onClose={() => setStatusScreen(null)}
-        onDownloadReport={handleDownloadReport}
-        isGeneratingReport={isGeneratingReportHook}
         interviewId={candidateInterview?.id}
         applicationId={id}
         candidateResponse={candidateInterview?.candidate_response}

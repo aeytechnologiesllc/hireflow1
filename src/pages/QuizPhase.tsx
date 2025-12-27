@@ -792,8 +792,6 @@ export default function QuizPhase() {
         <CandidateStatusScreen
           state="rejected"
           jobTitle={application?.jobs?.title}
-          applicationData={application as any}
-          candidateId={user?.id}
           onClose={() => navigate(`/applications/${id}`)}
         />
       );

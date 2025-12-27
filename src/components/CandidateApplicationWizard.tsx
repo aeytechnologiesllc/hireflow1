@@ -746,8 +746,6 @@ Resume URL: ${resumeUrl || "Not provided"}
         <CandidateStatusScreen
           state="rejected"
           jobTitle={job.title}
-          applicationData={{ id: createdApplicationId, jobs: job, status: "rejected" } as any}
-          candidateId={undefined}
           onClose={() => {
             handleClose();
             navigate("/applications");

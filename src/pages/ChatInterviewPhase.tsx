@@ -810,8 +810,6 @@ export default function ChatInterviewPhase() {
       <CandidateStatusScreen
         state="rejected"
         jobTitle={application?.jobs?.title}
-        applicationData={rejectedAppData}
-        candidateId={user?.id}
         onClose={() => navigate(`/applications/${id}`)}
       />
     );
