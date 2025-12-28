@@ -695,32 +695,29 @@ export default function CandidateApplicationDetail() {
         />
       )}
 
-      {/* Application Status - Rejected with Improvement Blueprint */}
+      {/* Application Status - Rejected (simplified, details in modal) */}
       {isRejected && (
-        <div className="space-y-4">
-          <Card className="bg-destructive/10 border-destructive/40">
-            <CardContent className="p-4 flex items-start gap-3">
+        <Card className="bg-destructive/10 border-destructive/40">
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
               <div>
-                <h3 className="font-semibold text-destructive">Application Rejected</h3>
+                <h3 className="font-semibold text-destructive">Application Closed</h3>
                 <p className="text-sm text-muted-foreground">
-                  Unfortunately, your application did not meet the requirements for this position.
-                  {application.phase_ai_analysis && (
-                    <span className="block mt-2 text-foreground/80 italic">
-                      "{application.phase_ai_analysis}"
-                    </span>
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Download your personalized improvement blueprint below to strengthen your next application.
+                  This opportunity wasn't the right match this time.
                 </p>
               </div>
-            </CardContent>
-          </Card>
-          
-          {/* Improvement Blueprint Download */}
-          <ImprovementBlueprintCard applicationId={application.id} />
-        </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setStatusScreen("rejected")}
+              className="shrink-0"
+            >
+              View Details
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {isHired && (
