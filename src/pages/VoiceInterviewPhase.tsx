@@ -174,6 +174,13 @@ export default function VoiceInterviewPhase() {
         formatted_time: new Date(m.timestamp).toISOString()
       }));
 
+      // Fetch employer_id for notifications
+      const { data: appData } = await supabase
+        .from("applications")
+        .select("job_id, jobs:job_id (employer_id)")
+        .eq("id", applicationId)
+        .single();
+
       // Save result AND transcript to database
       const { error } = await supabase
         .from("applications")
@@ -186,8 +193,29 @@ export default function VoiceInterviewPhase() {
 
       if (error) throw error;
       
-      // Trigger AVA analysis in background (fire-and-forget)
+      // Trigger AVA analysis in background (fire-and-forget) - calculates score but NO auto pass/fail
       triggerAvaAnalysis(applicationId!).catch(console.error);
+
+      // Notify employer: email + in-app notification
+      const employerId = (appData?.jobs as any)?.employer_id;
+      if (employerId) {
+        // Email notification
+        import("@/utils/emailNotifications").then(({ notifyPhaseCompleted }) => {
+          notifyPhaseCompleted(employerId, candidateName, videoEnabled ? "AIVA Video Interview" : "AIVA Voice Interview", job?.title || "Position").catch(console.error);
+        });
+
+        // In-app notification
+        supabase.from("notifications").insert({
+          user_id: employerId,
+          type: "application" as const,
+          title: "AIVA Interview Completed",
+          message: `${candidateName} has completed their ${videoEnabled ? "video" : "voice"} interview for ${job?.title || "a position"}. View the recording and scores.`,
+          link: `/applicants?applicationId=${applicationId}`,
+          is_read: false,
+        }).then(({ error: notifError }) => {
+          if (notifError) console.error("Failed to create employer notification:", notifError);
+        });
+      }
     } catch (error) {
       console.error("Error saving interview result:", error);
       toast.error("Failed to save interview results");
@@ -197,7 +225,7 @@ export default function VoiceInterviewPhase() {
       // Done processing - show completion state
       setIsProcessingEnd(false);
     }
-  }, [applicationId, messages, stopRecording, uploadRecording, cleanupVideo]);
+  }, [applicationId, messages, stopRecording, uploadRecording, cleanupVideo, candidateName, job, videoEnabled]);
 
   const {
     isConnected,
@@ -1001,7 +1029,7 @@ Duration: ${formatTime(elapsedSeconds)}
                       <div className="space-y-2">
                         <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
                         <p className="text-muted-foreground max-w-md mx-auto">
-                          Thank you for speaking with Ava. We will review your interview and get back to you soon.
+                          Your interview has been submitted! The employer is now reviewing your results and will be in touch with next steps.
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Duration: {formatTime(elapsedSeconds)}
