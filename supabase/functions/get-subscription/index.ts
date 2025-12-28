@@ -170,27 +170,34 @@ serve(async (req) => {
     const isTrial = subscription?.status === 'trialing';
     if (isTrial && totalVoiceMinutes <= 0) {
       console.log("Trial user has no active voice credits - auto-provisioning trial allocation");
-      
+
       // Get trial end date from subscription
-      const trialEnd = subscription?.trial_end 
-        ? new Date(subscription.trial_end) 
+      const trialEnd = subscription?.trial_end
+        ? new Date(subscription.trial_end)
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default 7 days
-      
+
       // Create trial credit bucket (15 minutes, expires when trial ends)
-      const { error: insertError } = await supabaseAdmin
+      const { data: insertedCredit, error: insertError } = await supabaseAdmin
         .from("voice_credits")
         .insert({
           user_id: user.id,
-          source: 'trial',
+          source: 'subscription',
           minutes_granted: 15,
           minutes_remaining: 15,
           expires_at: trialEnd.toISOString(),
           status: 'active',
+        })
+        .select("id, minutes_remaining, expires_at")
+        .maybeSingle();
+
+      if (insertError) {
+        console.error("Failed to auto-provision trial voice credits", {
+          user_id: user.id,
+          error: insertError,
         });
-      
-      if (!insertError) {
-        console.log("Auto-provisioned 15 voice minutes for Trial user");
-        
+      } else {
+        console.log("Auto-provisioned 15 voice minutes for Trial user", insertedCredit);
+
         // Re-fetch credits after provisioning
         const { data: refreshedCredits } = await supabaseAdmin
           .from("voice_credits")
@@ -199,7 +206,7 @@ serve(async (req) => {
           .eq("status", "active")
           .gt("expires_at", new Date().toISOString())
           .order("expires_at", { ascending: true });
-        
+
         voiceCredits = refreshedCredits;
         totalVoiceMinutes = (voiceCredits || []).reduce(
           (sum, credit) => sum + (credit.minutes_remaining || 0),
@@ -229,10 +236,11 @@ serve(async (req) => {
       // Create initial trial voice credits (15 minutes for ~3 voice interviews)
       await supabaseAdmin.from("voice_credits").insert({
         user_id: user.id,
-        source: 'trial',
+        source: 'subscription',
         minutes_granted: 15,
         minutes_remaining: 15,
         expires_at: trialEnd.toISOString(),
+        status: 'active',
       });
 
       return new Response(JSON.stringify({
