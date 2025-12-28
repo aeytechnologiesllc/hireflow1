@@ -2351,7 +2351,7 @@ export default function ApplicantDetails() {
                   <span className="hidden md:inline">
                     {badge.title}
                     {badge.isSkipped && " (Skipped)"}
-                    {!badge.isSkipped && badge.score && ` (${badge.score})`}
+                    {!badge.isSkipped && badge.score != null && ` (${Math.round(badge.score)})`}
                   </span>
                 </Badge>
               );
@@ -2605,9 +2605,9 @@ export default function ApplicantDetails() {
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Resume
-              {application.ai_score && (
+              {(application as any).resume_score != null && (
                 <Badge className="bg-success/20 text-success ml-2">
-                  Ava Score: {application.ai_score}/100
+                  Resume Score: {Math.round((application as any).resume_score)}/100
                 </Badge>
               )}
             </DialogTitle>
@@ -2669,9 +2669,9 @@ export default function ApplicantDetails() {
                   <DialogTitle className="flex items-center gap-2">
                     <Icon className="h-5 w-5 text-primary" />
                     {dialogData.title}
-                    {badge?.score && (
+                    {badge?.score != null && (
                       <Badge className="bg-success/20 text-success ml-2">
-                        Score: {badge.score}
+                        Score: {Math.round(badge.score)}
                       </Badge>
                     )}
                   </DialogTitle>
