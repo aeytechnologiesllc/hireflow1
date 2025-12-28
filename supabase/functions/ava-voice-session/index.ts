@@ -7,6 +7,135 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// =============== RESUME DETECTION UTILITIES ===============
+// Keywords that indicate a resume/CV upload question
+const RESUME_KEYWORDS = ['resume', 'cv', 'curriculum vitae', 'curriculum', 'résumé'];
+
+// Check if a URL looks like a file URL (uploaded document)
+function isFileUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const filePatterns = ['/storage/v1/object/', '/resumes/', '/documents/', '.pdf', '.doc', '.docx'];
+  const lowerUrl = url.toLowerCase();
+  return filePatterns.some(pattern => lowerUrl.includes(pattern));
+}
+
+// Check if a question text indicates it's asking for a resume
+function isResumeQuestion(questionText: string): boolean {
+  if (!questionText || typeof questionText !== 'string') return false;
+  const lowerQuestion = questionText.toLowerCase();
+  return RESUME_KEYWORDS.some(keyword => lowerQuestion.includes(keyword));
+}
+
+// Detects the best available resume URL from application data
+function detectResumeUrl(resumeUrlField: string | null | undefined, parsedNotes: any): string | null {
+  // Priority 1: Use canonical resume_url field if it exists and is valid
+  if (resumeUrlField && typeof resumeUrlField === 'string' && resumeUrlField.trim()) {
+    console.log('[detectResumeUrl] Using canonical resume_url field:', resumeUrlField);
+    return resumeUrlField.trim();
+  }
+
+  // Priority 2: Look for resume in applicationAnswers
+  const answers = parsedNotes?.applicationAnswers;
+  if (!answers || !Array.isArray(answers)) {
+    console.log('[detectResumeUrl] No applicationAnswers found');
+    return null;
+  }
+
+  // First pass: Look for answers that are file URLs AND have resume-related question text
+  for (const answer of answers) {
+    if (isFileUrl(answer.answer) && isResumeQuestion(answer.question)) {
+      console.log('[detectResumeUrl] Found resume in applicationAnswers (resume question):', answer.answer);
+      return answer.answer;
+    }
+  }
+
+  // Second pass: If only one file URL exists, treat it as the resume
+  const fileUrlAnswers = answers.filter((a: any) => isFileUrl(a.answer));
+  if (fileUrlAnswers.length === 1) {
+    console.log('[detectResumeUrl] Found single file upload, treating as resume:', fileUrlAnswers[0].answer);
+    return fileUrlAnswers[0].answer;
+  }
+
+  // Third pass: Look for any answer that is a URL containing /resumes/ bucket
+  for (const answer of answers) {
+    if (answer.answer && typeof answer.answer === 'string' && 
+        answer.answer.toLowerCase().includes('/resumes/')) {
+      console.log('[detectResumeUrl] Found file in resumes bucket:', answer.answer);
+      return answer.answer;
+    }
+  }
+
+  console.log('[detectResumeUrl] No resume URL found');
+  return null;
+}
+
+// Attempt to fetch and extract text from a PDF URL
+async function fetchResumeText(resumeUrl: string): Promise<string | null> {
+  try {
+    console.log('[fetchResumeText] Attempting to fetch resume from:', resumeUrl);
+    
+    // Fetch the PDF
+    const response = await fetch(resumeUrl);
+    if (!response.ok) {
+      console.log('[fetchResumeText] Failed to fetch resume:', response.status);
+      return null;
+    }
+    
+    const contentType = response.headers.get('content-type') || '';
+    console.log('[fetchResumeText] Content-Type:', contentType);
+    
+    // If it's a PDF, we'll try to extract basic text
+    // Note: Full PDF parsing would require a library, but we can try to extract readable text
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    
+    // Simple text extraction for PDFs - look for text streams
+    let textContent = '';
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const rawText = decoder.decode(bytes);
+    
+    // Extract text between parentheses (common PDF text encoding)
+    const textMatches = rawText.match(/\(([^)]+)\)/g);
+    if (textMatches) {
+      textContent = textMatches
+        .map(m => m.slice(1, -1))
+        .filter(t => t.length > 2 && !/^[\d\s.]+$/.test(t))
+        .join(' ')
+        .replace(/\\n/g, '\n')
+        .replace(/\\/g, '')
+        .slice(0, 5000); // Limit to 5000 chars
+    }
+    
+    // Also try to find text in BT/ET blocks
+    const btMatches = rawText.match(/BT[\s\S]*?ET/g);
+    if (btMatches) {
+      for (const block of btMatches) {
+        const tjMatches = block.match(/\(([^)]+)\)/g);
+        if (tjMatches) {
+          textContent += ' ' + tjMatches.map(m => m.slice(1, -1)).join(' ');
+        }
+      }
+    }
+    
+    // Clean up the extracted text
+    textContent = textContent
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (textContent.length > 100) {
+      console.log('[fetchResumeText] Extracted text length:', textContent.length);
+      return textContent.slice(0, 8000); // Limit to 8000 chars for context
+    }
+    
+    console.log('[fetchResumeText] Could not extract meaningful text from PDF');
+    return null;
+  } catch (error) {
+    console.error('[fetchResumeText] Error fetching resume:', error);
+    return null;
+  }
+}
+
 interface VoiceSessionRequest {
   mode: 'assistant' | 'interview';
   applicationId?: string;
@@ -1027,6 +1156,38 @@ Keep greetings to ONE short sentence - don't ramble.`;
       // Parse notes for ALL previous phase data
       const notes = typeof application.notes === 'string' ? JSON.parse(application.notes || '{}') : (application.notes || {});
 
+      // =============== DIRECT RESUME ACCESS ===============
+      // Detect and fetch the actual resume content (not relying on ai_analysis)
+      const resumeUrl = detectResumeUrl(application.resume_url, notes);
+      let resumeContent = "";
+      
+      if (resumeUrl) {
+        console.log('[Interview Mode] Resume URL detected:', resumeUrl);
+        const extractedText = await fetchResumeText(resumeUrl);
+        if (extractedText) {
+          resumeContent = `
+=== RESUME CONTENT (EXTRACTED FROM PDF) ===
+${extractedText}
+=== END RESUME CONTENT ===`;
+          console.log('[Interview Mode] Successfully extracted resume text, length:', extractedText.length);
+        } else {
+          // Resume exists but couldn't extract text - let Ava know the file exists
+          resumeContent = `
+=== RESUME FILE ===
+The candidate uploaded a resume file at: ${resumeUrl}
+(The text could not be extracted from this PDF - ask the candidate about their background, experience, and qualifications directly. The file exists, so they made the effort to upload it.)
+=== END RESUME FILE ===`;
+          console.log('[Interview Mode] Resume file exists but text extraction failed');
+        }
+      } else {
+        resumeContent = `
+=== RESUME ===
+No resume was uploaded for this application.
+(The candidate did not provide a resume - you may want to ask about their background and experience directly.)
+=== END RESUME ===`;
+        console.log('[Interview Mode] No resume URL found');
+      }
+
       // Build salary range string for context
       const salaryRange = application.jobs.salary_min && application.jobs.salary_max 
         ? `${application.jobs.salary_currency || 'USD'} ${application.jobs.salary_min.toLocaleString()} - ${application.jobs.salary_max.toLocaleString()}`
@@ -1056,7 +1217,9 @@ BASIC INFO:
 - Skills: ${candidateProfile?.skills?.join(', ') || 'Not specified'}
 - Bio: ${candidateProfile?.bio || 'Not provided'}
 
-RESUME ANALYSIS:
+${resumeContent}
+
+PREVIOUS AI ANALYSIS (for reference, may be incomplete):
 ${application.ai_analysis || 'Not analyzed yet'}
 
 APPLICATION ANSWERS:
@@ -1191,6 +1354,36 @@ The time limit is a GUIDE, not a hard cutoff. It's better to go 1-2 minutes over
 - Circle back to earlier answers and probe deeper
 
 REMEMBER: Ending early wastes the employer's credits and shortchanges the candidate's opportunity.
+
+=== HANDLING CANDIDATE SILENCE / INACTIVITY (IMPORTANT) ===
+If you haven't heard from the candidate for an extended period after asking a question:
+
+**First check-in (after ~8-10 seconds of silence - be patient, they might be thinking):**
+- "Hey, you still with me?"
+- "Take your time - I'm here when you're ready."
+- "Did you hear my question?"
+- "Everything okay on your end?"
+
+**Second check-in (after another ~10 seconds of silence):**
+- "I haven't heard from you for a bit. Are we still connected?"
+- "Is everything okay? I want to make sure you can hear me."
+- "Hello? Are you there?"
+
+**Third check-in (final - after another ~10 seconds):**
+- "I'm not hearing anything from your end. If you're having technical difficulties, we may need to pause here."
+- "It seems like we might have a connection issue. Are you still there?"
+
+**If no response after 3 check-ins:**
+- Acknowledge the situation politely: "It looks like we've lost connection. I'll make a note of this and the team will follow up with you about rescheduling. Thanks for your time today."
+- Call end_interview with a note about the disconnection and provide partial evaluation based on what you observed.
+
+**IMPORTANT GUIDELINES FOR SILENCE:**
+- Be PATIENT before your first check-in - some candidates think carefully before answering (this is good!)
+- Normal thinking pauses (3-5 seconds) are FINE - don't interrupt those
+- Only start checking after genuine extended silence (8+ seconds of nothing)
+- Be supportive and understanding, not accusatory - they might have audio issues
+- Don't assume they left - give them the benefit of the doubt
+- If they come back after a check-in, acknowledge warmly: "Oh good, you're back! No worries - let's continue."
 
 === SPEECH PATTERN FOR AUDIO STABILITY ===
 **At the START of the interview:**
