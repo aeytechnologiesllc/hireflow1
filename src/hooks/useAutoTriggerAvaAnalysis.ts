@@ -62,6 +62,20 @@ export function useAutoTriggerAvaAnalysis({
   }, [applicationId, cooldownMs]);
   
   const checkAndTrigger = useCallback((application: Tables<"applications">) => {
+    // RACE CONDITION FIX: Skip if application is in a candidate-submission phase
+    // Let the autopilot system handle the analysis without interference
+    const candidateSubmissionPhases = [
+      "application", "quiz", "typing_test", "video_intro", 
+      "portfolio_upload", "chat_simulation", "chat_interview", 
+      "sales_simulation", "voice_interview"
+    ];
+    
+    if (application.status === "pending" && 
+        candidateSubmissionPhases.includes(application.phase || "")) {
+      console.log("[useAutoTriggerAvaAnalysis] Skipping - in candidate submission phase, autopilot will handle");
+      return;
+    }
+    
     // Parse notes to check for meaningful data
     let parsedNotes: Record<string, any> = {};
     try {

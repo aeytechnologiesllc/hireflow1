@@ -95,7 +95,7 @@ serve(async (req) => {
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions)
+        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, employer_id)
       `)
       .eq("id", applicationId)
       .single();
@@ -106,6 +106,29 @@ serve(async (req) => {
         JSON.stringify({ error: "Application not found", details: fetchError?.message }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
+    if (application.status === "rejected" && !force) {
+      console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
+      return new Response(
+        JSON.stringify({ success: true, message: "Application already rejected", skipped: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // RACE CONDITION FIX: Skip if analysis was just completed recently (within 10 seconds)
+    // This prevents duplicate parallel calls from overwriting each other
+    if (!force && application.ai_analysis && application.ai_score !== null) {
+      const lastUpdated = new Date(application.updated_at).getTime();
+      const now = Date.now();
+      if (now - lastUpdated < 10000) { // Within 10 seconds
+        console.log("[trigger-ava-analysis] Analysis was just completed, skipping duplicate call");
+        return new Response(
+          JSON.stringify({ success: true, message: "Analysis already present", skipped: true, score: application.ai_score }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Fetch profile separately using candidate_id
