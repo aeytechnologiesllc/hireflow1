@@ -250,17 +250,28 @@ export default function ChatInterviewPhase() {
 
           const isAutoModeAutoEnd = freshJobAutoEnd?.processing_mode === "auto";
 
+          // Save phase data only - do NOT write ai_score directly
+          // Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH for scoring
           await supabase
             .from("applications")
             .update({
               notes: JSON.stringify(updatedNotes),
-              phase: isAutoModeAutoEnd ? (nextStep ? nextStep.id : "review") : application.phase,
               phase_ai_analysis: evaluation?.summary || null,
-              ai_score: evaluation?.score || null,
               status: "reviewing",
               updated_at: new Date().toISOString(),
             })
             .eq("id", id);
+
+          // Trigger backend analysis - it will calculate weighted ai_score and decide pass/fail
+          await triggerAvaAnalysis(id!);
+          
+          // If auto mode, advance phase after backend processes
+          if (isAutoModeAutoEnd && nextStep) {
+            await supabase
+              .from("applications")
+              .update({ phase: nextStep.id })
+              .eq("id", id);
+          }
 
           queryClient.invalidateQueries({ queryKey: ["applications"] });
           queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });

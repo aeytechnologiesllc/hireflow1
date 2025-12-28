@@ -232,12 +232,9 @@ export default function TypingTestPhase() {
     const speedScore = Math.min(100, (grossWpm / requiredWpm) * 100);
     const score = Math.round(speedScore * (accuracy / 100));
 
-    const passingScore = application?.jobs?.passing_score || 60;
-    
-    // Candidate must meet BOTH the WPM threshold AND the combined score threshold
-    const meetsWpmRequirement = grossWpm >= requiredWpm;
-    const meetsScoreRequirement = score >= passingScore;
-    const passed = meetsWpmRequirement && meetsScoreRequirement;
+    // NOTE: local 'passed' is for UI display ONLY. Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH
+    // for the official pass/fail decision via weighted ai_score calculation
+    const passed = false; // Always false locally - backend decides
 
     console.log("Typing test results:", { 
       typedLength: currentTypedText.length,
@@ -444,8 +441,8 @@ export default function TypingTestPhase() {
           }
         } catch (err) {
           console.error("[TypingTestPhase] Backend analysis failed:", err);
-          // Fallback to local result for UX, but backend is source of truth
-          setEvaluationState(results.passed ? "passed" : "failed");
+          // Keep evaluating state - backend is source of truth, no local fallback
+          setEvaluationState("evaluating");
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate

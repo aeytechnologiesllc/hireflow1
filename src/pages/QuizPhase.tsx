@@ -371,10 +371,10 @@ export default function QuizPhase() {
     
     // Score is based only on multiple-choice questions
     const score = multipleChoiceCount > 0 ? Math.round((correct / multipleChoiceCount) * 100) : 100;
-    const passingScore = application?.jobs?.passing_score || 60;
-    const passed = score >= passingScore;
     
-    return { correct, total: multipleChoiceCount, score, passed };
+    // NOTE: local 'passed' is for UI display ONLY. Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH
+    // for the official pass/fail decision via weighted ai_score calculation
+    return { correct, total: multipleChoiceCount, score, passed: false }; // Always false locally - backend decides
   }, [questions, answers, application?.jobs?.passing_score]);
 
   const handleFinishQuiz = useCallback(() => {
@@ -685,8 +685,8 @@ export default function QuizPhase() {
           }
         } catch (err) {
           console.error("[QuizPhase] Backend analysis failed:", err);
-          // Fallback to local result for UX, but backend is source of truth
-          setEvaluationState(results.passed ? "passed" : "failed");
+          // Keep evaluating state - backend is source of truth, no local fallback
+          setEvaluationState("evaluating");
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
