@@ -496,6 +496,40 @@ ${interviewType} Interview with AVA Results:
           } else {
             // Only voice_interview steps exist - cannot auto-advance, needs employer config
             console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+            
+            // Notify employer that candidate is ready for AIVA interview
+            try {
+              const candidateName = profile?.full_name || profile?.email || "A candidate";
+              const jobTitle = job?.title || "your job posting";
+              
+              // Create in-app notification for employer
+              await supabaseAdmin.from("notifications").insert({
+                user_id: job.employer_id,
+                type: "interview",
+                title: "Candidate Ready for AIVA Interview",
+                message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
+                link: `/applicants/${applicationId}`,
+                is_read: false,
+              });
+              
+              // Send email notification
+              await supabaseAdmin.functions.invoke("send-notification-email", {
+                body: {
+                  type: "interview_ready",
+                  recipient_user_id: job.employer_id,
+                  data: {
+                    candidate_name: candidateName,
+                    job_title: jobTitle,
+                    score: finalScore?.toString(),
+                  },
+                },
+              });
+              
+              console.log("[trigger-ava-analysis] Notified employer that candidate is ready for AIVA interview");
+            } catch (notifyError) {
+              console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
+            }
+            
             return new Response(
               JSON.stringify({ 
                 success: true, 
@@ -514,6 +548,40 @@ ${interviewType} Interview with AVA Results:
           } else {
             // Only voice_interview steps exist - cannot auto-advance, needs employer config
             console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+            
+            // Notify employer that candidate is ready for AIVA interview
+            try {
+              const candidateName = profile?.full_name || profile?.email || "A candidate";
+              const jobTitle = job?.title || "your job posting";
+              
+              // Create in-app notification for employer
+              await supabaseAdmin.from("notifications").insert({
+                user_id: job.employer_id,
+                type: "interview",
+                title: "Candidate Ready for AIVA Interview",
+                message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
+                link: `/applicants/${applicationId}`,
+                is_read: false,
+              });
+              
+              // Send email notification
+              await supabaseAdmin.functions.invoke("send-notification-email", {
+                body: {
+                  type: "interview_ready",
+                  recipient_user_id: job.employer_id,
+                  data: {
+                    candidate_name: candidateName,
+                    job_title: jobTitle,
+                    score: finalScore?.toString(),
+                  },
+                },
+              });
+              
+              console.log("[trigger-ava-analysis] Notified employer that candidate is ready for AIVA interview");
+            } catch (notifyError) {
+              console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
+            }
+            
             return new Response(
               JSON.stringify({ 
                 success: true, 

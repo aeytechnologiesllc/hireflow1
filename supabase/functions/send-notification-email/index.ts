@@ -36,7 +36,8 @@ type NotificationType =
   | "application_received"
   | "reschedule_requested"
   | "voice_minutes_low"
-  | "voice_minutes_exhausted";
+  | "voice_minutes_exhausted"
+  | "interview_ready";
 
 interface NotificationRequest {
   type: NotificationType;
@@ -59,6 +60,7 @@ interface NotificationRequest {
     candidate_note?: string;
     minutes_remaining?: string;
     active_jobs_count?: string;
+    score?: string;
   };
 }
 
@@ -295,6 +297,18 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         `${baseUrl}/settings?tab=subscription`
       ),
     },
+    
+    // EMPLOYER-FACING - Interview Ready
+    interview_ready: {
+      subject: `Ready for Interview: ${data.candidate_name} scored ${data.score}% for ${data.job_title}`,
+      html: wrapEmail(
+        "Candidate Ready for AIVA Interview",
+        `<p><strong>${data.candidate_name}</strong> has passed all automated assessments for <strong>${data.job_title}</strong> with a score of <strong>${data.score}%</strong>.</p>
+         <p style="color: #666;">They are now ready for the AIVA voice interview. You'll need to manually move them to the interview phase and configure the interview settings.</p>`,
+        "Review Candidate",
+        `${baseUrl}/applicants`
+      ),
+    },
   };
 
   return templates[type];
@@ -319,6 +333,7 @@ const getPreferenceField = (type: NotificationType): string => {
     reschedule_requested: "email_interview_reminders",
     voice_minutes_low: "email_voice_minutes",
     voice_minutes_exhausted: "email_voice_minutes",
+    interview_ready: "email_new_applications", // Uses new_applications pref since it's about new candidates
   };
   return mapping[type];
 };

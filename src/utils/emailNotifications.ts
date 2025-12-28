@@ -17,7 +17,8 @@ type NotificationType =
   | "application_received"
   | "reschedule_requested"
   | "voice_minutes_low"
-  | "voice_minutes_exhausted";
+  | "voice_minutes_exhausted"
+  | "interview_ready";
 
 interface NotificationData {
   candidate_name?: string;
@@ -37,6 +38,7 @@ interface NotificationData {
   candidate_note?: string;
   minutes_remaining?: string;
   active_jobs_count?: string;
+  score?: string;
 }
 
 async function sendNotificationEmail(
@@ -331,5 +333,24 @@ export async function notifyVoiceMinutesExhausted(
 ): Promise<void> {
   await sendNotificationEmail("voice_minutes_exhausted", employerId, {
     active_jobs_count: activeJobsCount.toString(),
+  });
+}
+
+// ============ INTERVIEW READY NOTIFICATIONS ============
+
+/**
+ * Notify employer when a candidate is ready for AIVA voice interview
+ * (candidate passed automated assessments and awaits employer to configure interview)
+ */
+export async function notifyInterviewReady(
+  employerId: string,
+  candidateName: string,
+  jobTitle: string,
+  score: number
+): Promise<void> {
+  await sendNotificationEmail("interview_ready", employerId, {
+    candidate_name: candidateName,
+    job_title: jobTitle,
+    score: score.toString(),
   });
 }
