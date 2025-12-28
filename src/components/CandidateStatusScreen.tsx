@@ -630,26 +630,28 @@ export function CandidateStatusScreen({
               {/* Premium dark-to-gold gradient background */}
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-900" />
               
-              {/* Animated floating particles */}
+              {/* Animated floating particles - GPU accelerated */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                {[...Array(30)].map((_, i) => (
+                {[...Array(20)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute"
+                    className="absolute will-change-transform"
+                    style={{ 
+                      left: `${Math.random() * 100}%`,
+                      transform: 'translate3d(0, 0, 0)' // Force GPU layer
+                    }}
                     initial={{ 
-                      x: `${Math.random() * 100}vw`,
                       y: "110vh",
                       opacity: 0,
                     }}
                     animate={{ 
                       y: "-10vh",
-                      opacity: [0, 1, 1, 0],
-                      scale: [0.5, 1, 1, 0.5],
+                      opacity: [0, 0.8, 0.8, 0],
                     }}
                     transition={{
-                      duration: 4 + Math.random() * 3,
+                      duration: 5 + Math.random() * 4,
                       repeat: Infinity,
-                      delay: Math.random() * 3,
+                      delay: Math.random() * 4,
                       ease: "linear"
                     }}
                   >
