@@ -428,14 +428,53 @@ export default function PortfolioUploadPhase() {
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       
-      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
-      supabase.functions.invoke("trigger-ava-analysis", {
-        body: { applicationId: id! },
-      }).catch(err => console.error("[PortfolioUploadPhase] AVA analysis trigger failed:", err));
-
       if (isAutoMode) {
-        setEvaluationState("passed");
+        // Show evaluating state while backend processes
+        setEvaluationState("evaluating");
+        
+        // Trigger AVA analysis and WAIT for backend decision
+        try {
+          const { data: analysisResult, error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
+            body: { applicationId: id!, autopilotDecision: true },
+          });
+          
+          if (analysisError) {
+            console.error("[PortfolioUploadPhase] AVA analysis error:", analysisError);
+            // Keep evaluating state - backend is source of truth
+            setEvaluationState("evaluating");
+          } else {
+            // Backend decides pass/fail based on weighted ai_score vs passing_score
+            const decision = analysisResult?.decision;
+            if (decision === "advanced") {
+              setEvaluationState("passed");
+            } else if (decision === "rejected") {
+              setEvaluationState("failed" as any); // EvaluationScreen handles "failed"
+            } else {
+              // Fallback: check application status
+              const { data: updatedApp } = await supabase
+                .from("applications")
+                .select("status, ai_score")
+                .eq("id", id!)
+                .single();
+              
+              if (updatedApp?.status === "rejected") {
+                setEvaluationState("failed" as any);
+              } else {
+                setEvaluationState("passed");
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[PortfolioUploadPhase] Backend analysis failed:", err);
+          // Keep evaluating state - backend is source of truth, no local fallback
+          setEvaluationState("evaluating");
+        }
       } else {
+        // Manual mode - just trigger analysis in background, toast and navigate
+        supabase.functions.invoke("trigger-ava-analysis", {
+          body: { applicationId: id! },
+        }).catch(err => console.error("[PortfolioUploadPhase] AVA analysis trigger failed:", err));
+        
         toast.success("Portfolio submitted!", {
           description: "Your portfolio has been uploaded. The employer will review your work.",
         });
