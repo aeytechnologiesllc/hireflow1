@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { triggerAvaAnalysis } from "./triggerAvaAnalysis";
 import { notifyPhaseAdvanced } from "./emailNotifications";
 
 interface WorkflowStep {
@@ -248,10 +247,21 @@ export async function processAutopilotCatchUp(
         // FIRST: Check AI score - reject immediately if below threshold (regardless of phase completion)
         let aiScore = application.ai_score;
         
-        // Run AI analysis if no score exists
+        // Run AI analysis via backend function if no score exists
+        // The backend function computes the weighted overall score (resume + quiz + voice + portfolio)
         if (aiScore === null || aiScore === undefined) {
-          console.log(`[processAutopilotCatchUp] Running AI analysis for application ${application.id}`);
-          await triggerAvaAnalysis(application.id);
+          console.log(`[processAutopilotCatchUp] Running AI analysis via backend for application ${application.id}`);
+          
+          const { error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
+            body: {
+              applicationId: application.id,
+              force: true,
+            },
+          });
+          
+          if (analysisError) {
+            console.error(`[processAutopilotCatchUp] Backend analysis error for ${application.id}:`, analysisError);
+          }
           
           // Fetch updated score
           const { data: updated } = await supabase
