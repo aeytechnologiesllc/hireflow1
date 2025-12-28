@@ -1554,6 +1554,144 @@ export default function ApplicantDetails() {
     handleReanalyzeRef.current = handleReanalyze;
   });
 
+  // Helper to get resume URL from either resume_url field or application answers
+  // Moved BEFORE early returns to maintain hooks order
+  const resumeUrl = useMemo((): string | null => {
+    if (!application) return null;
+    // First check the direct resume_url field
+    if (application.resume_url) {
+      return application.resume_url;
+    }
+    
+    // Check application answers for uploaded resume
+    if (parsedNotes.applicationAnswers && Array.isArray(parsedNotes.applicationAnswers)) {
+      const resumeAnswer = parsedNotes.applicationAnswers.find(
+        (item: { question: string; answer: string }) => 
+          item.question?.toLowerCase().includes('resume') && 
+          item.answer?.startsWith('http')
+      );
+      if (resumeAnswer?.answer) {
+        return resumeAnswer.answer;
+      }
+    }
+    
+    return null;
+  }, [application, parsedNotes]);
+
+  // Build badge data from workflow steps
+  // Moved BEFORE early returns to maintain hooks order
+  const workflowBadges = useMemo(() => {
+    if (!application) return [];
+    
+    const job = application.jobs;
+    const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
+    const quizQuestions = job?.quiz_questions as any[] | undefined;
+    const badges: { id: string; title: string; type: string; hasData: boolean; isSkipped: boolean; score?: number; icon: any }[] = [];
+    
+    // Helper to get step submission data (inlined to avoid dependency issues)
+    const getStepData = (stepId: string, stepType: string) => {
+      if (stepType === "quiz") {
+        return parsedNotes.quizAnswers?.[stepId] || parsedNotes.quizAnswers;
+      }
+      if (stepType === "typing_test") {
+        return parsedNotes.typingTestResult;
+      }
+      if (stepType === "video_intro" || stepType === "video_message") {
+        if (parsedNotes[stepId]) {
+          return parsedNotes[stepId];
+        }
+        return parsedNotes.videoIntroUrl;
+      }
+      if (stepType === "portfolio_upload") {
+        return parsedNotes[stepId];
+      }
+      if (stepType === "chat_simulation") {
+        if (parsedNotes[stepId]) {
+          return parsedNotes[stepId];
+        }
+        return parsedNotes.chatSimulationResult;
+      }
+      if (stepType === "chat_interview") {
+        if (parsedNotes[stepId]) {
+          return parsedNotes[stepId];
+        }
+        return parsedNotes.chatInterviewResult;
+      }
+      if (stepType === "sales_simulation") {
+        if (parsedNotes[stepId]) {
+          return parsedNotes[stepId];
+        }
+        return parsedNotes.salesSimulationResult;
+      }
+      if (stepType === "voice_interview") {
+        return application?.voice_interview_result;
+      }
+      return parsedNotes[stepId];
+    };
+    
+    // Application badge (always present)
+    const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
+    const isApplicationSkipped = isPhaseSkipped({ id: "application", type: "application" }) && !hasApplicationData;
+    badges.push({
+      id: "application",
+      title: "Application",
+      type: "application",
+      hasData: hasApplicationData,
+      isSkipped: isApplicationSkipped,
+      icon: FileCheck,
+    });
+
+    // Resume badge (if resume uploaded or required)
+    // Resume is also skipped if Application is skipped (since resume is part of application)
+    if (job?.require_resume !== false || resumeUrl) {
+      const hasResumeData = !!resumeUrl;
+      const isResumeSkipped = isPhaseSkipped({ id: "resume", type: "resume" }) && !hasResumeData;
+      badges.push({
+        id: "resume",
+        title: "Resume",
+        type: "resume",
+        hasData: hasResumeData,
+        isSkipped: isResumeSkipped || isApplicationSkipped,
+        score: resumeUrl ? (application as any).resume_score || undefined : undefined,
+        icon: FileText,
+      });
+    }
+
+    // Quiz badge (if quiz_questions exist)
+    if (quizQuestions && quizQuestions.length > 0) {
+      const quizData = parsedNotes.quiz || parsedNotes.quizResult || parsedNotes.quizAnswers;
+      const hasQuizData = !!quizData;
+      badges.push({
+        id: "quiz",
+        title: "Quiz",
+        type: "quiz",
+        hasData: hasQuizData,
+        isSkipped: isPhaseSkipped({ id: "quiz", type: "quiz" }) && !hasQuizData,
+        score: quizData?.score,
+        icon: ClipboardList,
+      });
+    }
+
+    // Workflow step badges
+    if (workflowSteps && workflowSteps.length > 0) {
+      workflowSteps.forEach(step => {
+        const stepData = getStepData(step.id, step.type);
+        const hasStepData = !!stepData;
+        badges.push({
+          id: step.id,
+          title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
+          type: step.type,
+          hasData: hasStepData,
+          isSkipped: isPhaseSkipped({ id: step.id, type: step.type }) && !hasStepData,
+          score: stepData?.score,
+          icon: stepTypeIcons[step.type] || ClipboardList,
+        });
+      });
+    }
+    
+    return badges;
+  }, [application, parsedNotes, resumeUrl, isPhaseSkipped]);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -1637,99 +1775,6 @@ export default function ApplicantDetails() {
     }
     return parsedNotes[stepId];
   };
-
-  // Helper to get resume URL from either resume_url field or application answers
-  const getResumeUrl = (): string | null => {
-    // First check the direct resume_url field
-    if (application.resume_url) {
-      return application.resume_url;
-    }
-    
-    // Check application answers for uploaded resume
-    if (parsedNotes.applicationAnswers && Array.isArray(parsedNotes.applicationAnswers)) {
-      const resumeAnswer = parsedNotes.applicationAnswers.find(
-        (item: { question: string; answer: string }) => 
-          item.question?.toLowerCase().includes('resume') && 
-          item.answer?.startsWith('http')
-      );
-      if (resumeAnswer?.answer) {
-        return resumeAnswer.answer;
-      }
-    }
-    
-    return null;
-  };
-
-  const resumeUrl = getResumeUrl();
-
-  // Build badge data from workflow steps
-  const workflowBadges = useMemo(() => {
-    const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
-    const quizQuestions = job?.quiz_questions as any[] | undefined;
-    const badges: { id: string; title: string; type: string; hasData: boolean; isSkipped: boolean; score?: number; icon: any }[] = [];
-    
-    // Application badge (always present)
-    const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
-    const isApplicationSkipped = isPhaseSkipped({ id: "application", type: "application" }) && !hasApplicationData;
-    badges.push({
-      id: "application",
-      title: "Application",
-      type: "application",
-      hasData: hasApplicationData,
-      isSkipped: isApplicationSkipped,
-      icon: FileCheck,
-    });
-
-    // Resume badge (if resume uploaded or required)
-    // Resume is also skipped if Application is skipped (since resume is part of application)
-    if (job?.require_resume !== false || resumeUrl) {
-      const hasResumeData = !!resumeUrl;
-      const isResumeSkipped = isPhaseSkipped({ id: "resume", type: "resume" }) && !hasResumeData;
-      badges.push({
-        id: "resume",
-        title: "Resume",
-        type: "resume",
-        hasData: hasResumeData,
-        isSkipped: isResumeSkipped || isApplicationSkipped,
-        score: resumeUrl ? (application as any).resume_score || undefined : undefined,
-        icon: FileText,
-      });
-    }
-
-    // Quiz badge (if quiz_questions exist)
-    if (quizQuestions && quizQuestions.length > 0) {
-      const quizData = parsedNotes.quiz || parsedNotes.quizResult || parsedNotes.quizAnswers;
-      const hasQuizData = !!quizData;
-      badges.push({
-        id: "quiz",
-        title: "Quiz",
-        type: "quiz",
-        hasData: hasQuizData,
-        isSkipped: isPhaseSkipped({ id: "quiz", type: "quiz" }) && !hasQuizData,
-        score: quizData?.score,
-        icon: ClipboardList,
-      });
-    }
-
-    // Workflow step badges
-    if (workflowSteps && workflowSteps.length > 0) {
-      workflowSteps.forEach(step => {
-        const stepData = getStepSubmissionData(step.id, step.type);
-        const hasStepData = !!stepData;
-        badges.push({
-          id: step.id,
-          title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
-          type: step.type,
-          hasData: hasStepData,
-          isSkipped: isPhaseSkipped({ id: step.id, type: step.type }) && !hasStepData,
-          score: stepData?.score,
-          icon: stepTypeIcons[step.type] || ClipboardList,
-        });
-      });
-    }
-    
-    return badges;
-  }, [job, application, parsedNotes, resumeUrl, isPhaseSkipped]);
 
   // Standardized display titles for phase types - function to handle dynamic video/voice text
   const getTypeDisplayTitle = (type: string): string => {
