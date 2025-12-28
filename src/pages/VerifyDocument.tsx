@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Shield, CheckCircle, XCircle, FileText, Clock, User, Hash, AlertTriangle } from "lucide-react";
+import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -78,7 +79,7 @@ export default function VerifyDocument() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+          <StaggeredBarsLoader size="lg" />
           <p className="text-muted-foreground">Verifying document...</p>
         </div>
       </div>
