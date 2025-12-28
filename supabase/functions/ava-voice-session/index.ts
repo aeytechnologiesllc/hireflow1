@@ -1902,7 +1902,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       ];
     }
 
-    const selectedVoice = "coral";
+    const selectedVoice = "alloy";
 
     console.log("Creating voice session with voice:", {
       voice: selectedVoice,
