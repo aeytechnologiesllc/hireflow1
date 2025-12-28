@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,9 @@ import {
   Info,
   CheckCircle,
   Clock,
-  Loader2
+  Loader2,
+  Download,
+  Lock
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
@@ -28,7 +31,202 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
-import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
+import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
+import { cn } from "@/lib/utils";
+
+// Unified Rejected State Card with integrated blueprint section
+function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; applicationId?: string }) {
+  const { 
+    downloadBlueprint, 
+    isGenerating, 
+    purchaseBlueprint, 
+    isPurchasing,
+    checkPurchaseStatus,
+    isCheckingPurchase,
+    hasPurchased,
+    verifyPurchase
+  } = useImprovementBlueprint();
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [hasVerified, setHasVerified] = useState(false);
+
+  // Check purchase status on mount
+  useEffect(() => {
+    if (applicationId) {
+      checkPurchaseStatus(applicationId);
+    }
+  }, [applicationId, checkPurchaseStatus]);
+
+  // Handle Stripe redirect verification
+  useEffect(() => {
+    const blueprintSuccess = searchParams.get("blueprint_success");
+    const sessionId = searchParams.get("session_id");
+    
+    if (blueprintSuccess === "true" && sessionId && applicationId && !hasVerified) {
+      setHasVerified(true);
+      
+      verifyPurchase(sessionId, applicationId).then((success) => {
+        if (success) {
+          toast.success("Payment successful! You can now download your blueprint.");
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete("blueprint_success");
+          newParams.delete("session_id");
+          setSearchParams(newParams, { replace: true });
+        } else {
+          toast.error("There was an issue verifying your payment. Please contact support.");
+        }
+      });
+    }
+
+    if (searchParams.get("blueprint_cancelled") === "true") {
+      toast.info("Checkout was cancelled.");
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("blueprint_cancelled");
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, applicationId, verifyPurchase, hasVerified, setSearchParams]);
+
+  const handleDownload = () => {
+    if (applicationId) downloadBlueprint(applicationId);
+  };
+
+  const handlePurchase = () => {
+    if (applicationId) purchaseBlueprint(applicationId);
+  };
+
+  return (
+    <Card className="bg-card border-border overflow-hidden">
+      {/* Decorative top gradient */}
+      <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
+      
+      <CardContent className="p-8 text-center space-y-6">
+        {/* Icon */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", delay: 0.2 }}
+          className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
+        >
+          <Lightbulb className="h-10 w-10 text-amber-500" />
+        </motion.div>
+
+        {/* Headline */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-2"
+        >
+          <h2 className="text-2xl font-bold text-foreground">
+            This Chapter Has Closed
+          </h2>
+          <p className="text-muted-foreground">
+            But your story continues
+          </p>
+        </motion.div>
+
+        {/* Message */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-muted-foreground leading-relaxed"
+        >
+          While the <span className="text-foreground font-medium">{jobTitle || "position"}</span> wasn't the right fit this time, 
+          every interview is a stepping stone.
+        </motion.p>
+
+        {/* Blueprint Section - Integrated */}
+        {applicationId && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="pt-4 border-t border-border space-y-4"
+          >
+            <div className="flex items-center justify-center gap-2 text-amber-500">
+              <Star className="h-4 w-4 fill-amber-500/30" />
+              <span className="text-sm font-medium">Get Your Improvement Blueprint</span>
+              <Star className="h-4 w-4 fill-amber-500/30" />
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              A personalized coaching guide with actionable steps to strengthen your next application.
+            </p>
+
+            {isCheckingPurchase ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <span className="text-sm text-muted-foreground">Loading...</span>
+              </div>
+            ) : hasPurchased ? (
+              <Button 
+                onClick={handleDownload} 
+                disabled={isGenerating}
+                className={cn(
+                  "gap-2",
+                  "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 bg-[length:200%_100%]",
+                  "hover:bg-[position:100%_0] transition-all duration-500",
+                  "text-white font-semibold border-0",
+                  "shadow-lg shadow-amber-500/25"
+                )}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating Blueprint...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download Blueprint
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                onClick={handlePurchase} 
+                disabled={isPurchasing}
+                className={cn(
+                  "gap-2",
+                  "bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 bg-[length:200%_100%]",
+                  "hover:bg-[position:100%_0] transition-all duration-500",
+                  "text-white font-semibold border-0",
+                  "shadow-lg shadow-amber-500/25"
+                )}
+              >
+                {isPurchasing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting Checkout...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4" />
+                    Unlock for {BLUEPRINT_PRICE_FORMATTED}
+                  </>
+                )}
+              </Button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Motivational quote */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="pt-4 border-t border-border"
+        >
+          <p className="text-xs text-muted-foreground italic">
+            "Success is not final, failure is not fatal: it is the courage to continue that counts."
+          </p>
+        </motion.div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface InterviewDetails {
   scheduledAt?: string;
@@ -238,78 +436,12 @@ export function CandidateStatusScreen({
             <X className="h-4 w-4" />
           </Button>
 
-          {/* Rejected State */}
+          {/* Rejected State - Single unified card */}
           {state === "rejected" && (
-            <div className="space-y-6">
-              <Card className="bg-card border-border overflow-hidden">
-                {/* Decorative top gradient */}
-                <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-                
-                <CardContent className="p-8 text-center space-y-6">
-                  {/* Icon */}
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", delay: 0.2 }}
-                    className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
-                  >
-                    <Lightbulb className="h-10 w-10 text-amber-500" />
-                  </motion.div>
-
-                  {/* Headline */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="space-y-2"
-                  >
-                    <h2 className="text-2xl font-bold text-foreground">
-                      This Chapter Has Closed
-                    </h2>
-                    <p className="text-muted-foreground">
-                      But your story continues
-                    </p>
-                  </motion.div>
-
-                  {/* Message */}
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="text-muted-foreground leading-relaxed"
-                  >
-                    While the <span className="text-foreground font-medium">{jobTitle || "position"}</span> wasn't the right fit this time, 
-                    every interview is a stepping stone. We've prepared a personalized report to help you grow.
-                  </motion.p>
-
-                  {/* Motivational quote */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="pt-4 border-t border-border"
-                  >
-                    <p className="text-sm text-muted-foreground italic">
-                      "Success is not final, failure is not fatal: it is the courage to continue that counts."
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      The best is yet to come. Keep going!
-                    </p>
-                  </motion.div>
-                </CardContent>
-              </Card>
-
-              {/* Blueprint Card - directly embedded */}
-              {applicationId && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <ImprovementBlueprintCard applicationId={applicationId} />
-                </motion.div>
-              )}
-            </div>
+            <RejectedStateCard 
+              jobTitle={jobTitle} 
+              applicationId={applicationId} 
+            />
           )}
 
           {/* Interview Scheduled State */}
