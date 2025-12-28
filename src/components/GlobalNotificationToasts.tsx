@@ -10,13 +10,14 @@ import { useQueryClient } from "@tanstack/react-query";
  * Mount this component once in AppLayout to get real-time notification popups
  */
 export function GlobalNotificationToasts() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    if (!user?.id) return;
+    // Don't show toast notifications for candidates - they have the notifications page
+    if (!user?.id || role === "candidate") return;
 
     // Clean up previous channel if exists
     if (channelRef.current) {
@@ -96,7 +97,7 @@ export function GlobalNotificationToasts() {
         channelRef.current = null;
       }
     };
-  }, [user?.id, navigate, queryClient]);
+  }, [user?.id, role, navigate, queryClient]);
 
   // This component renders nothing - it's purely for side effects
   return null;
