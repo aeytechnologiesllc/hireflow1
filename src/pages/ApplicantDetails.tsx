@@ -61,6 +61,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import { useAutoTriggerAvaAnalysis } from "@/hooks/useAutoTriggerAvaAnalysis";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface WorkflowStep {
   id: string;
@@ -135,6 +136,7 @@ export default function ApplicantDetails() {
   const updateApplication = useUpdateApplication();
   const { data: permissions } = useTeamMemberPermissions();
   const { downloadDossier, isGenerating: isGeneratingDossier } = useApplicantDossier();
+  const { getVoiceMinutesRemaining } = useSubscription();
   
   // Permission checks for team members
   const canManagePipeline = permissions?.isTeamMember ? permissions.canManagePipeline : true;
@@ -3753,6 +3755,7 @@ export default function ApplicantDetails() {
           const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
           return voiceStep?.config?.language_name || 'English';
         })()}
+        voiceMinutesRemaining={getVoiceMinutesRemaining()}
       />
 
       {/* Hiring Document Prompt Dialog */}

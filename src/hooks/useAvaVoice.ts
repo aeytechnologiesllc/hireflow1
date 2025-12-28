@@ -757,12 +757,24 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       await connectInternal();
     } catch (err) {
       console.error('Connection error:', err);
-      const message = err instanceof Error ? err.message : 'Failed to connect';
-      setState(s => ({ ...s, isConnecting: false, error: message }));
+      const rawMessage = err instanceof Error ? err.message : 'Failed to connect';
+      
+      // Check if this is a billing/subscription-related error that shouldn't be shown to candidates
+      const isBillingError = rawMessage.toLowerCase().includes('minutes exhausted') || 
+                             rawMessage.toLowerCase().includes('voice credits') ||
+                             rawMessage.toLowerCase().includes('trial') ||
+                             rawMessage.toLowerCase().includes('subscription');
+
+      // For interview mode, use generic message for billing errors (candidate-facing)
+      const displayMessage = optionsRef.current.mode === 'interview' && isBillingError
+        ? 'We are unable to start the interview at this time. Please contact the employer for assistance.'
+        : rawMessage;
+      
+      setState(s => ({ ...s, isConnecting: false, error: displayMessage }));
       toast({
         variant: 'destructive',
         title: 'Connection Failed',
-        description: message,
+        description: displayMessage,
       });
     }
   }, [connectInternal, toast]);
