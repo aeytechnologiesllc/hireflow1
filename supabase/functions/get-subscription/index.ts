@@ -166,6 +166,48 @@ serve(async (req) => {
       }
     }
 
+    // AUTO-PROVISION: If Trial user has no active credits, provision trial allocation
+    const isTrial = subscription?.status === 'trialing';
+    if (isTrial && totalVoiceMinutes <= 0) {
+      console.log("Trial user has no active voice credits - auto-provisioning trial allocation");
+      
+      // Get trial end date from subscription
+      const trialEnd = subscription?.trial_end 
+        ? new Date(subscription.trial_end) 
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default 7 days
+      
+      // Create trial credit bucket (15 minutes, expires when trial ends)
+      const { error: insertError } = await supabaseAdmin
+        .from("voice_credits")
+        .insert({
+          user_id: user.id,
+          source: 'trial',
+          minutes_granted: 15,
+          minutes_remaining: 15,
+          expires_at: trialEnd.toISOString(),
+          status: 'active',
+        });
+      
+      if (!insertError) {
+        console.log("Auto-provisioned 15 voice minutes for Trial user");
+        
+        // Re-fetch credits after provisioning
+        const { data: refreshedCredits } = await supabaseAdmin
+          .from("voice_credits")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gt("expires_at", new Date().toISOString())
+          .order("expires_at", { ascending: true });
+        
+        voiceCredits = refreshedCredits;
+        totalVoiceMinutes = (voiceCredits || []).reduce(
+          (sum, credit) => sum + (credit.minutes_remaining || 0),
+          0
+        );
+      }
+    }
+
     // If no subscription exists, create trial
     if (!subscription) {
       const trialEnd = new Date();
