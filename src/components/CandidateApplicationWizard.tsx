@@ -829,7 +829,11 @@ Resume URL: ${resumeUrl || "Not provided"}
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] overflow-hidden p-0"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         {/* Progress Header */}
         <div className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-accent/5">
           <div className="flex items-center justify-between mb-4 pr-10 sm:pr-8">
