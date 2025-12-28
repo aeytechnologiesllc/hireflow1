@@ -448,11 +448,13 @@ ${interviewType} Interview with AVA Results:
     console.log("[trigger-ava-analysis] Final score after weighting and floors:", finalScore, "(AI raw score was:", newScore, ")");
 
     // Update the application with AI analysis using admin client (bypasses RLS)
+    // Save both the raw resume score (newScore) and the weighted overall score (finalScore)
     const { error: updateError } = await supabaseAdmin
       .from("applications")
       .update({
         ai_analysis: analysisData?.analysis || null,
         ai_score: finalScore && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
+        resume_score: newScore && newScore >= 0 && newScore <= 100 ? newScore : null,
       })
       .eq("id", applicationId);
 
