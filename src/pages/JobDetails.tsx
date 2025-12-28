@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useJob } from "@/hooks/useJobs";
@@ -10,25 +10,26 @@ import {
   Briefcase, 
   MapPin, 
   DollarSign, 
-  Clock, 
   Building2,
   Calendar,
   Users,
   CheckCircle2,
   ArrowLeft,
   Sparkles,
-  XCircle
+  XCircle,
+  Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isPast } from "date-fns";
-import CandidateApplicationWizard from "@/components/CandidateApplicationWizard";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { data: job, isLoading, error } = useJob(id);
-  const [showApplicationWizard, setShowApplicationWizard] = useState(false);
+  const [isStartingApplication, setIsStartingApplication] = useState(false);
 
   const isEmployer = role === "employer";
   
@@ -41,6 +42,54 @@ export default function JobDetails() {
     if (min && max) return `${curr} ${min.toLocaleString()} - ${max.toLocaleString()}`;
     if (min) return `${curr} ${min.toLocaleString()}+`;
     return `Up to ${curr} ${max?.toLocaleString()}`;
+  };
+
+  const handleStartApplication = async () => {
+    if (!user || !job) return;
+    
+    setIsStartingApplication(true);
+    try {
+      // Check for existing application
+      const { data: existingApp } = await supabase
+        .from("applications")
+        .select("id, status")
+        .eq("job_id", job.id)
+        .eq("candidate_id", user.id)
+        .maybeSingle();
+
+      if (existingApp) {
+        // Navigate to existing application
+        navigate(`/applications/${existingApp.id}`);
+        return;
+      }
+
+      // Create draft application
+      const { data: newApp, error: createError } = await supabase
+        .from("applications")
+        .insert({
+          job_id: job.id,
+          candidate_id: user.id,
+          status: "in_progress",
+          phase: "application",
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Get the first step ID for the application phase
+      const workflowSteps = job.workflow_steps as Array<{ id: string; type: string }> | null;
+      const applicationStep = workflowSteps?.find(s => s.type === "application");
+      const stepId = applicationStep?.id || "application";
+
+      // Navigate to the full-page application form
+      navigate(`/applications/${newApp.id}/application/${stepId}`);
+    } catch (err) {
+      console.error("Error starting application:", err);
+      toast.error("Failed to start application. Please try again.");
+    } finally {
+      setIsStartingApplication(false);
+    }
   };
 
   if (isEmployer) {
@@ -242,7 +291,8 @@ export default function JobDetails() {
                       
                       {/* Premium Glowing Apply Button */}
                       <Button
-                        onClick={() => setShowApplicationWizard(true)}
+                        onClick={handleStartApplication}
+                        disabled={isStartingApplication}
                         size="lg"
                         className="w-full h-14 text-lg font-semibold relative overflow-hidden group"
                         style={{
@@ -251,13 +301,22 @@ export default function JobDetails() {
                       >
                         <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]" />
                         <span className="relative flex items-center gap-2">
-                          Apply Now
-                          <motion.span
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Sparkles className="h-5 w-5" />
-                          </motion.span>
+                          {isStartingApplication ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              Apply Now
+                              <motion.span
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              >
+                                <Sparkles className="h-5 w-5" />
+                              </motion.span>
+                            </>
+                          )}
                         </span>
                       </Button>
 
@@ -344,12 +403,6 @@ export default function JobDetails() {
         </div>
       </div>
 
-      {/* Application Wizard */}
-      <CandidateApplicationWizard
-        job={job}
-        open={showApplicationWizard}
-        onOpenChange={setShowApplicationWizard}
-      />
     </>
   );
 }
