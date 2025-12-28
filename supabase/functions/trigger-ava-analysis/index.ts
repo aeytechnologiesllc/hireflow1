@@ -381,14 +381,71 @@ ${interviewType} Interview with AVA Results:
       newScore = null;
     }
 
-    // CRITICAL FIX: Always use the score from the newly generated analysis
-    // The ai_analysis text and ai_score MUST be in sync
-    // Previously, we were keeping the old score even when generating a new analysis,
-    // which caused the score to contradict the recommendation in the analysis text
-    const existingScore = application.ai_score;
+    // WEIGHTED SCORE CALCULATION: Combine resume score with phase performance
+    // This ensures quiz/assessment performance compensates for resume weaknesses
+    // Reuse quizData from line 243 (already defined above)
+    const quizScore = quizData?.score || quizData?.percentage || null;
+    const typingTest = parsedNotes.typingTestResult;
+    const voiceResult = application.voice_interview_result as any;
+    const portfolioResult = parsedNotes.portfolioResult;
+    
     let finalScore: number | null = newScore;
     
-    console.log("[trigger-ava-analysis] Using score from new analysis:", finalScore, "(previous score was:", existingScore, ")");
+    // If we have phase performance data, calculate a weighted score
+    if (newScore !== null) {
+      let weightedTotal = newScore * 0.4; // Resume counts for 40%
+      let weightSum = 0.4;
+      
+      // Quiz performance (30% weight if available)
+      if (quizScore !== null && typeof quizScore === 'number') {
+        weightedTotal += quizScore * 0.3;
+        weightSum += 0.3;
+        console.log("[trigger-ava-analysis] Including quiz score in weighted calculation:", quizScore);
+      }
+      
+      // Voice interview (20% weight if available)
+      if (voiceResult?.overall_score) {
+        weightedTotal += voiceResult.overall_score * 0.2;
+        weightSum += 0.2;
+        console.log("[trigger-ava-analysis] Including voice interview score:", voiceResult.overall_score);
+      }
+      
+      // Portfolio (10% weight if available)
+      const portfolioScore = portfolioResult?.aiAnalysis?.score || portfolioResult?.score;
+      if (portfolioScore) {
+        weightedTotal += portfolioScore * 0.1;
+        weightSum += 0.1;
+        console.log("[trigger-ava-analysis] Including portfolio score:", portfolioScore);
+      }
+      
+      // Normalize by actual weights used
+      if (weightSum > 0.4) {
+        finalScore = Math.round(weightedTotal / weightSum * 100) / 100;
+        console.log("[trigger-ava-analysis] Weighted score calculated:", finalScore, "from components (resume:", newScore, ", quiz:", quizScore, ")");
+      }
+      
+      // MINIMUM SCORE FLOORS based on quiz performance
+      // A candidate who aced the quiz should NOT get a failing overall score
+      if (quizScore !== null && typeof quizScore === 'number') {
+        if (quizScore === 100 && finalScore !== null && finalScore < 60) {
+          console.log("[trigger-ava-analysis] Applying floor: 100% quiz -> minimum 60 score");
+          finalScore = 60;
+        } else if (quizScore >= 80 && finalScore !== null && finalScore < 50) {
+          console.log("[trigger-ava-analysis] Applying floor: 80%+ quiz -> minimum 50 score");
+          finalScore = 50;
+        }
+      }
+      
+      // Typing test bonus (if excellent performance)
+      if (typingTest && typingTest.wpm >= 60 && typingTest.accuracy >= 95) {
+        if (finalScore !== null && finalScore < 55) {
+          console.log("[trigger-ava-analysis] Applying floor: excellent typing -> minimum 55 score");
+          finalScore = 55;
+        }
+      }
+    }
+    
+    console.log("[trigger-ava-analysis] Final score after weighting and floors:", finalScore, "(AI raw score was:", newScore, ")");
 
     // Update the application with AI analysis using admin client (bypasses RLS)
     const { error: updateError } = await supabaseAdmin

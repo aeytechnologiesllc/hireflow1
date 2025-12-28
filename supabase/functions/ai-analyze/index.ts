@@ -59,12 +59,12 @@ First, determine if this is actually a resume/CV and if it belongs to the correc
 ## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
 Compare information across ALL provided sources (resume, cover letter, application answers):
 
-**IMPORTANT EMAIL/CONTACT MATCHING RULES:**
-- ONLY compare resume contact info against what the candidate provided in their APPLICATION FORM
-- The input will clearly label "Candidate Email (as provided in application)" - use ONLY this for email matching
-- The "Account Email" is the login email and may legitimately differ from the application email - DO NOT flag this as a mismatch
-- Example: If application says "Candidate Email: john@personal.com" and resume shows "john@personal.com" → MATCH, even if account email is "john.doe@work.com"
-- Example: If application says "Candidate Email: jane@gmail.com" but resume shows "jane.doe@outlook.com" → MISMATCH (these are the values to compare)
+**IMPORTANT - DO NOT PENALIZE FOR CONTACT INFO DIFFERENCES:**
+- DO NOT penalize candidates for using different email addresses or phone numbers between resume and application
+- People commonly have multiple email addresses (personal, work, professional) and phone numbers - this is COMPLETELY NORMAL
+- A candidate using one email on their resume and a different one on their application is NOT suspicious
+- ONLY flag as concerning if the NAME is completely different (which could indicate wrong resume)
+- Email/phone differences should be noted but NEVER counted as a mismatch, penalty, or red flag
 
 **Name Verification:**
 - Does the name on the resume match the "Candidate Name (as provided in application)"?
@@ -128,58 +128,68 @@ Based on writing style, word choices, and presentation:
 ## 7. JOB FIT ASSESSMENT
 Evaluate match with job requirements provided in context.
 
-## 8. SCORING PENALTIES (MANDATORY - APPLY THESE STRICTLY)
+## 8. SCORING GUIDELINES (BE FAIR BUT THOROUGH)
 
 **SCORE CALCULATION METHOD:**
 Start with a base score of 65 (average candidate). Then apply adjustments:
 
-**CRITICAL RED FLAGS (-20 points each, MAX SCORE 60 IF ANY PRESENT):**
-- NO COMPANY/EMPLOYER NAMES in work experience - This is a MAJOR red flag. Real professionals name their employers.
+**CRITICAL - PHASE PERFORMANCE BONUSES (APPLY FIRST):**
+These bonuses reflect the candidate's ACTUAL DEMONSTRATED performance in assessments:
+- Quiz score 100%: +20 points (exceptional performance proves capability)
+- Quiz score 80-99%: +15 points
+- Quiz score 60-79%: +10 points
+- Typing test with 60+ WPM and 95%+ accuracy: +10 points
+- Video intro submitted: +5 points (shows effort and initiative)
+- Portfolio with score 80+: +15 points
+- Portfolio with score 60-79: +10 points
+- Voice/Video interview score 80+: +15 points
+- Voice/Video interview score 60-79: +10 points
+- Chat simulation score 80+: +10 points
+- Sales simulation score 80+: +10 points
+
+**MINIMUM SCORE FLOORS (IMPORTANT):**
+- Candidate who scored 100% on quiz CANNOT score below 60 overall
+- Candidate who scored 80%+ on quiz CANNOT score below 50 overall
+- Candidate who completed all phases successfully CANNOT score below 55 overall
+- These floors exist because demonstrated performance outweighs resume weaknesses
+
+**MAJOR RED FLAGS (-10 points each, MAX SCORE 70 IF ANY PRESENT):**
+- NO COMPANY/EMPLOYER NAMES in work experience - flag but don't destroy score
 - LIKELY_AI_GENERATED content detected with high confidence
-- Major inconsistencies between resume and application answers (lies detected)
+- Major inconsistencies between resume and application answers (actual lies detected)
 - Impossible or clearly fabricated timelines
 
-**MAJOR RED FLAGS (-15 points each):**
-- Buzzword-heavy descriptions without ANY specific examples (e.g., "highly motivated detail-oriented professional")
-- NO quantifiable achievements anywhere (no numbers, percentages, or metrics)
-- Generic job descriptions that could apply to anyone in that role
-- Professional summary over 75 words of pure buzzwords
+**MODERATE RED FLAGS (-5 points each):**
+- Buzzword-heavy descriptions without specific examples
+- NO quantifiable achievements anywhere
+- Generic job descriptions that could apply to anyone
+- Professional summary of pure buzzwords
 - Skills list that reads like copy-pasted job requirements
 
-**MODERATE RED FLAGS (-10 points each):**
+**MINOR RED FLAGS (-3 points each):**
 - No education section or qualifications listed
 - No dates provided for work positions
 - POSSIBLY_AI_ASSISTED content detected
-- Metrics given as vague ranges (e.g., "100-150 daily interactions") instead of specifics
+- Metrics given as vague ranges instead of specifics
 - Job duties described instead of achievements
-
-**MINOR RED FLAGS (-5 points each):**
 - Typos or minor formatting issues
-- Unexplained employment gaps over 6 months
-- Very short descriptions for positions (1 bullet point)
-- Missing contact information
+- Very short descriptions for positions
 
 **POSITIVE ADJUSTMENTS (ADD points):**
 - Named specific companies/employers: +10
-- Quantifiable achievements with exact numbers: +5 to +15
-- Unique projects or accomplishments described: +5 to +10
-- Strong job fit with required skills: +5 to +15
+- Quantifiable achievements with exact numbers: +5 to +10
+- Unique projects or accomplishments described: +5
+- Strong job fit with required skills: +5 to +10
 - Consistent, verifiable timeline: +5
 - Authentic writing voice (not AI-generated): +5
+- Photo included on resume: +3 (shows professionalism)
+- Clean, readable formatting: +3
+- Complete sections (contact, experience, education, skills): +5
 
-**COMMON AI-GENERATED RESUME PATTERNS TO HEAVILY PENALIZE:**
-1. Work experience with job titles but NO COMPANY NAMES - automatic -20
-2. Professional summary with phrases like: "highly motivated", "detail-oriented", "proven ability", "extensive experience", "strong technical aptitude", "results-driven", "passionate about" without specifics
-3. Bullet points that describe job DUTIES rather than ACHIEVEMENTS
-4. Perfect formatting with zero personality or unique details
-5. Every bullet point starting with action verbs but no substance after
-6. Metrics as ranges ("handled 50-100 calls") instead of actuals
-
-**SCORE CAPS:**
-- Resume with NO company names: MAX 60%
-- Resume detected as LIKELY_AI_GENERATED: MAX 55%
-- Resume with no specific achievements AND no company names: MAX 45%
-- Scores 90%+ require: Named companies, specific numbers, verifiable achievements, authentic voice, strong job fit
+**SCORE CAPS (only for severe issues):**
+- Resume with NO company names AND no quiz/assessment data: MAX 70%
+- Resume detected as LIKELY_AI_GENERATED with no redeeming assessment scores: MAX 65%
+- Scores 90%+ require: Strong assessment performance OR (named companies + specific achievements + authentic voice + strong job fit)
 
 REQUIRED OUTPUT FORMAT:
 ---
@@ -305,12 +315,12 @@ When marking as RESUME_UNAVAILABLE:
 ## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
 Compare information across ALL provided sources (resume, cover letter, application answers):
 
-**IMPORTANT EMAIL/CONTACT MATCHING RULES:**
-- ONLY compare resume contact info against what the candidate provided in their APPLICATION FORM
-- The input will clearly label "Candidate Email (as provided in application)" - use ONLY this for email matching
-- The "Account Email" is the login email and may legitimately differ from the application email - DO NOT flag this as a mismatch
-- Example: If application says "Candidate Email: john@personal.com" and resume shows "john@personal.com" → MATCH, even if account email is "john.doe@work.com"
-- Example: If application says "Candidate Email: jane@gmail.com" but resume shows "jane.doe@outlook.com" → MISMATCH (these are the values to compare)
+**IMPORTANT - DO NOT PENALIZE FOR CONTACT INFO DIFFERENCES:**
+- DO NOT penalize candidates for using different email addresses or phone numbers between resume and application
+- People commonly have multiple email addresses (personal, work, professional) and phone numbers - this is COMPLETELY NORMAL
+- A candidate using one email on their resume and a different one on their application is NOT suspicious
+- ONLY flag as concerning if the NAME is completely different (which could indicate wrong resume)
+- Email/phone differences should be noted but NEVER counted as a mismatch, penalty, or red flag
 
 **Name Verification:**
 - Does the name on the resume match the "Candidate Name (as provided in application)"?
@@ -379,79 +389,81 @@ Based on writing style, word choices, and presentation:
 ## 7. JOB FIT ASSESSMENT
 Evaluate match with job requirements provided in context.
 
-## 8. SCORING PENALTIES (MANDATORY - APPLY THESE STRICTLY)
+## 8. SCORING GUIDELINES (BE FAIR BUT THOROUGH)
 
 **SCORE CALCULATION METHOD:**
 Start with a base score of 65 (average candidate). Then apply adjustments:
 
-**CRITICAL RED FLAGS (-20 points each, MAX SCORE 60 IF ANY PRESENT):**
-- NO COMPANY/EMPLOYER NAMES in work experience - This is a MAJOR red flag. Real professionals name their employers.
+**CRITICAL - PHASE PERFORMANCE BONUSES (APPLY FIRST):**
+These bonuses reflect the candidate's ACTUAL DEMONSTRATED performance in assessments:
+- Quiz score 100%: +20 points (exceptional performance proves capability)
+- Quiz score 80-99%: +15 points
+- Quiz score 60-79%: +10 points
+- Typing test with 60+ WPM and 95%+ accuracy: +10 points
+- Video intro submitted: +5 points (shows effort and initiative)
+- Portfolio with score 80+: +15 points
+- Portfolio with score 60-79: +10 points
+- Voice/Video interview score 80+: +15 points
+- Voice/Video interview score 60-79: +10 points
+- Chat simulation score 80+: +10 points
+- Sales simulation score 80+: +10 points
 
-  **CRITICAL - WHAT DOES NOT COUNT AS A COMPANY NAME:**
+**MINIMUM SCORE FLOORS (IMPORTANT):**
+- Candidate who scored 100% on quiz CANNOT score below 60 overall
+- Candidate who scored 80%+ on quiz CANNOT score below 50 overall
+- Candidate who completed all phases successfully CANNOT score below 55 overall
+- These floors exist because demonstrated performance outweighs resume weaknesses
+
+**MAJOR RED FLAGS (-10 points each, MAX SCORE 70 IF ANY PRESENT):**
+- NO COMPANY/EMPLOYER NAMES in work experience - flag but don't destroy score
+
+  **WHAT DOES NOT COUNT AS A COMPANY NAME:**
   - "Remote", "Work from Home", "WFH", "Freelance", "Self-Employed", "Contract"
   - Job titles alone (e.g., "Customer Support Specialist", "Chat Agent")
   - Location descriptors (e.g., "US-based", "International")
   - Industry descriptors (e.g., "Tech Company", "Startup", "E-commerce")
   - Generic terms (e.g., "Various Clients", "Multiple Companies", "Confidential")
-  - Job boards or platforms (e.g., "LinkedIn", "Indeed")
   
   **WHAT COUNTS AS A VALID COMPANY NAME:**
   - Specific business names: "Amazon", "Acme Corp", "TechStartup Inc", "Local Pizza Shop"
   - Companies with legal suffixes: "XYZ Technologies LLC", "ABC Solutions Inc"
   - Named organizations: "University of California", "Red Cross", "City of Austin"
-  
-  **EXAMPLE OF MISSING COMPANY NAME (MUST TRIGGER -20 AND MAX 60%):**
-  "Chat Support Specialist – Remote (2023-Present)" ← NO COMPANY NAMED - this is a red flag!
-  vs
-  "Chat Support Specialist – Zendesk Inc, Remote (2023-Present)" ← Company named - acceptable
-  
-  If the resume shows positions like "Job Title – Remote" or "Job Title, Work from Home" without naming an actual employer, mark Company names present: NO
 
 - LIKELY_AI_GENERATED content detected with high confidence
-- Major inconsistencies between resume and application answers (lies detected)
+- Major inconsistencies between resume and application answers (actual lies detected)
 - Impossible or clearly fabricated timelines
 
-**MAJOR RED FLAGS (-15 points each):**
-- Buzzword-heavy descriptions without ANY specific examples (e.g., "highly motivated detail-oriented professional")
-- NO quantifiable achievements anywhere (no numbers, percentages, or metrics)
-- Generic job descriptions that could apply to anyone in that role
-- Professional summary over 75 words of pure buzzwords
+**MODERATE RED FLAGS (-5 points each):**
+- Buzzword-heavy descriptions without specific examples
+- NO quantifiable achievements anywhere
+- Generic job descriptions that could apply to anyone
+- Professional summary of pure buzzwords
 - Skills list that reads like copy-pasted job requirements
 
-**MODERATE RED FLAGS (-10 points each):**
+**MINOR RED FLAGS (-3 points each):**
 - No education section or qualifications listed
 - No dates provided for work positions
 - POSSIBLY_AI_ASSISTED content detected
-- Metrics given as vague ranges (e.g., "100-150 daily interactions") instead of specifics
+- Metrics given as vague ranges instead of specifics
 - Job duties described instead of achievements
-
-**MINOR RED FLAGS (-5 points each):**
 - Typos or minor formatting issues
-- Unexplained employment gaps over 6 months
-- Very short descriptions for positions (1 bullet point)
-- Missing contact information
+- Very short descriptions for positions
 
 **POSITIVE ADJUSTMENTS (ADD points):**
 - Named specific companies/employers: +10
-- Quantifiable achievements with exact numbers: +5 to +15
-- Unique projects or accomplishments described: +5 to +10
-- Strong job fit with required skills: +5 to +15
+- Quantifiable achievements with exact numbers: +5 to +10
+- Unique projects or accomplishments described: +5
+- Strong job fit with required skills: +5 to +10
 - Consistent, verifiable timeline: +5
 - Authentic writing voice (not AI-generated): +5
+- Photo included on resume: +3 (shows professionalism)
+- Clean, readable formatting: +3
+- Complete sections (contact, experience, education, skills): +5
 
-**COMMON AI-GENERATED RESUME PATTERNS TO HEAVILY PENALIZE:**
-1. Work experience with job titles but NO COMPANY NAMES - automatic -20
-2. Professional summary with phrases like: "highly motivated", "detail-oriented", "proven ability", "extensive experience", "strong technical aptitude", "results-driven", "passionate about" without specifics
-3. Bullet points that describe job DUTIES rather than ACHIEVEMENTS
-4. Perfect formatting with zero personality or unique details
-5. Every bullet point starting with action verbs but no substance after
-6. Metrics as ranges ("handled 50-100 calls") instead of actuals
-
-**SCORE CAPS:**
-- Resume with NO company names: MAX 60%
-- Resume detected as LIKELY_AI_GENERATED: MAX 55%
-- Resume with no specific achievements AND no company names: MAX 45%
-- Scores 90%+ require: Named companies, specific numbers, verifiable achievements, authentic voice, strong job fit
+**SCORE CAPS (only for severe issues):**
+- Resume with NO company names AND no quiz/assessment data: MAX 70%
+- Resume detected as LIKELY_AI_GENERATED with no redeeming assessment scores: MAX 65%
+- Scores 90%+ require: Strong assessment performance OR (named companies + specific achievements + authentic voice + strong job fit)
 
 REQUIRED OUTPUT FORMAT:
 ---
