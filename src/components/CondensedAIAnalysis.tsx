@@ -394,7 +394,26 @@ function generateFullSummary(
     // Check for cross-reference issues
     if (titleLower.includes('cross') && titleLower.includes('reference')) {
       for (const item of section.items) {
-        if (item.toLowerCase().includes('mismatch') || item.toLowerCase().includes('not match') || item.toLowerCase().includes('different')) {
+        const itemLower = item.toLowerCase();
+        
+        // Specifically check the Name Match field for MISMATCH status
+        if (itemLower.startsWith('name match:')) {
+          // Check for explicit MISMATCH status
+          if (itemLower.includes('mismatch') && !itemLower.includes('match -')) {
+            hasNameMismatch = true;
+          }
+          continue;
+        }
+        
+        // For other fields, check for actual mismatch issues but exclude negative contexts
+        const hasMismatchWord = itemLower.includes('mismatch') || itemLower.includes('not match') || itemLower.includes('different');
+        const isNegativeContext = itemLower.includes('no mismatch') || 
+                                   itemLower.includes('no explicit mismatch') ||
+                                   itemLower.includes('none') ||
+                                   itemLower.includes('not found') ||
+                                   itemLower.includes('were found');
+        
+        if (hasMismatchWord && !isNegativeContext) {
           hasNameMismatch = true;
         }
       }
