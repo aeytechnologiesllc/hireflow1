@@ -806,14 +806,14 @@ export default function ApplicantDetails() {
         !!application?.voice_interview_result;
       
       // In Manual mode: show halfway when current phase is complete (awaiting employer action)
-      // In Autopilot: only show halfway after Ava Interview completes
+      // In Autopilot: only show halfway after Ava Interview completes (before employer-driven phases)
       const nextIsEmployerPhase = nextPhase?.type === "voice_interview" || nextPhase?.type === "interview" || nextPhase?.type === "hired";
       
       // Await review (halfway) logic:
-      // - In Manual mode: show halfway when current phase is complete AND next phase is an employer-driven phase
-      // - In Autopilot: only show halfway after Ava Interview completes
+      // - In Manual mode: ALWAYS show halfway when current phase is complete (employer reviews every phase)
+      // - In Autopilot: only show halfway after Ava Interview completes or before employer-driven phases
       const awaitingReview = isComplete && !isLastPhase && 
-        (isManualMode ? nextIsEmployerPhase : isVoiceInterviewCompleted);
+        (isManualMode ? true : (isVoiceInterviewCompleted || nextIsEmployerPhase));
       
       // Debug logging for slider position issues
       console.log('[Slider Position Debug]', {
