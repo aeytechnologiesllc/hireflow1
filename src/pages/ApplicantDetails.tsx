@@ -824,7 +824,10 @@ export default function ApplicantDetails() {
   // Calculate avatar position based on phase
   useEffect(() => {
     // Skip if a phase change is in progress (wait for query invalidation to complete)
-    if (isPhaseChangeInProgressRef.current) return;
+    if (isPhaseChangeInProgressRef.current) {
+      console.log('[Slider Position] Skipping - phase change in progress');
+      return;
+    }
     
     if (sliderRef.current && !isDragging) {
       const currentPhase = phases[effectivePhaseIndex];
@@ -851,6 +854,7 @@ export default function ApplicantDetails() {
       console.log('[Slider Position Debug]', {
         currentPhase: currentPhase?.id,
         phaseType: currentPhase?.type,
+        storedPhase: application?.phase,
         nextPhase: nextPhase?.id,
         nextIsEmployerPhase,
         isComplete,
@@ -859,8 +863,10 @@ export default function ApplicantDetails() {
         isVoiceInterviewCompleted,
         awaitingReview,
         hasVoiceResult: !!application?.voice_interview_result,
+        hasApplicationAnswers: !!parsedNotes.applicationAnswers?.length,
         effectivePhaseIndex,
-        phasesCount: phases.length
+        phasesCount: phases.length,
+        notesPreview: JSON.stringify(parsedNotes).substring(0, 200)
       });
       
       setIsAwaitingReview(awaitingReview);
@@ -1448,7 +1454,13 @@ export default function ApplicantDetails() {
   
   const handleReconsider = async () => {
     if (!application) return;
+    
+    // Set flag to prevent useEffect from overriding slider position during reconsideration
+    isPhaseChangeInProgressRef.current = true;
+    
     try {
+      console.log('[handleReconsider] Starting reconsideration for application:', application.id);
+      
       // Cancel any scheduled interviews
       if (scheduledInterview) {
         await supabase
@@ -1469,11 +1481,16 @@ export default function ApplicantDetails() {
       // Complete reset - start from scratch
       // Find the first candidate-facing phase (after journey_start)
       const firstPhase = phases.find((p, i) => i > 0 && p.type !== "journey_start") || phases[1];
+      const targetPhaseId = firstPhase?.id || "application";
+      const targetPhaseIndex = phases.findIndex(p => p.id === targetPhaseId);
       
-      await updateApplication.mutateAsync({ 
+      console.log('[handleReconsider] Resetting to phase:', targetPhaseId, 'at index:', targetPhaseIndex);
+      
+      // Clear notes as an empty object (NOT stringified - the mutation handles serialization)
+      const result = await updateApplication.mutateAsync({ 
         id: application.id, 
         status: "pending",
-        phase: firstPhase?.id || "application",
+        phase: targetPhaseId,
         ai_score: null,
         ai_analysis: null,
         phase_ai_analysis: null,
@@ -1489,6 +1506,13 @@ export default function ApplicantDetails() {
         rejected_by_type: null,
       });
       
+      console.log('[handleReconsider] Mutation result:', result);
+      console.log('[handleReconsider] Updated notes value:', result?.notes);
+      
+      // Immediately update the slider position to the target phase
+      const snapPercentage = (targetPhaseIndex / (phases.length - 1)) * 100;
+      setDragPosition(snapPercentage);
+      
       // Create notification for candidate about fresh start
       await supabase.from("notifications").insert({
         user_id: application.candidate_id,
@@ -1498,12 +1522,17 @@ export default function ApplicantDetails() {
         link: `/applications/${application.id}`,
       });
       
-      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      // Wait for query invalidation to complete
+      await queryClient.invalidateQueries({ queryKey: ["application", id] });
+      
       setShowReconsiderConfirmation(false);
       toast.success("Candidate reset to beginning - they can now reapply");
     } catch (error) {
-      console.error("Failed to reset candidate:", error);
+      console.error("[handleReconsider] Failed to reset candidate:", error);
       toast.error("Failed to reset candidate application");
+    } finally {
+      // Reset flag after query invalidation completes
+      isPhaseChangeInProgressRef.current = false;
     }
   };
 
