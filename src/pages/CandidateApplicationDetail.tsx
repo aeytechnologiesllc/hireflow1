@@ -436,13 +436,55 @@ export default function CandidateApplicationDetail() {
     return checkPhaseSkipped(notes, phaseId, phaseType);
   }, [notes]);
   
+  // Helper to check if a phase has submission data
+  const hasPhaseData = useCallback((phaseId: string, phaseType: string) => {
+    if (phaseType === "application") {
+      return !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+    } else if (phaseType === "typing_test") {
+      return !!notes.typingTestResult;
+    } else if (phaseType === "chat_simulation") {
+      return !!notes.chatSimulationResult;
+    } else if (phaseType === "chat_interview") {
+      return !!notes.chatInterviewResult;
+    } else if (phaseType === "sales_simulation") {
+      return !!notes.salesSimulationResult;
+    } else if (phaseType === "quiz") {
+      const stepData = (notes as any)[phaseId];
+      return !!(stepData?.completedAt || notes.quizResult);
+    } else if (phaseType === "video_intro" || phaseType === "video_message") {
+      const stepData = (notes as any)[phaseId];
+      return !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
+    } else if (phaseType === "portfolio_upload") {
+      return !!notes.portfolioResult;
+    } else if (phaseType === "voice_interview") {
+      return !!application?.voice_interview_result;
+    } else if (phaseType === "review" || phaseType === "interview" || phaseType === "hired" || phaseType === "journey_start") {
+      return true; // Employer-driven phases don't have candidate data
+    }
+    return !!(notes as any)[phaseId];
+  }, [notes, application?.voice_interview_result]);
+
+  // Helper to check if a phase is implicitly skipped (behind current, no data, candidate-facing)
+  const isImplicitlySkipped = useCallback((phaseIndex: number, phaseId: string, phaseType: string) => {
+    // If phase is at or after current, not skipped
+    if (phaseIndex >= effectivePhaseIndex) return false;
+    // Employer-driven phases can't be "skipped" in this sense
+    if (phaseType === "review" || phaseType === "interview" || phaseType === "hired" || phaseType === "journey_start") return false;
+    // If it has data, it was completed not skipped
+    if (hasPhaseData(phaseId, phaseType)) return false;
+    // If explicitly skipped, not implicitly
+    if (isEmployerSkipped(phaseId, phaseType)) return false;
+    // It's behind current, has no data, and wasn't explicitly marked - implicitly skipped
+    return true;
+  }, [effectivePhaseIndex, hasPhaseData, isEmployerSkipped]);
+
   // Determine phase status for each step
   const getPhaseStatus = (phaseIndex: number) => {
     const phase = phases[phaseIndex];
     const isManualMode = application?.jobs?.processing_mode === "manual";
     
-    // If this phase was skipped by employer, mark as completed
-    if (isEmployerSkipped(phase.id, phase.type) && phaseIndex < effectivePhaseIndex) {
+    // If this phase was skipped by employer (explicitly or implicitly), mark as completed
+    if ((isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(phaseIndex, phase.id, phase.type)) && phaseIndex < effectivePhaseIndex) {
       return "completed";
     }
     
@@ -777,32 +819,6 @@ export default function CandidateApplicationDetail() {
               const isCurrent = index === effectivePhaseIndex;
               const isCompleted = index < effectivePhaseIndex;
 
-              // Determine if this phase has submission data (used to avoid showing "Skipped" when data exists)
-              let hasPhaseData = false;
-              if (phase.type === "application") {
-                hasPhaseData = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
-              } else if (phase.type === "typing_test") {
-                hasPhaseData = !!notes.typingTestResult;
-              } else if (phase.type === "chat_simulation") {
-                hasPhaseData = !!notes.chatSimulationResult;
-              } else if (phase.type === "chat_interview") {
-                hasPhaseData = !!notes.chatInterviewResult;
-              } else if (phase.type === "sales_simulation") {
-                hasPhaseData = !!notes.salesSimulationResult;
-              } else if (phase.type === "quiz") {
-                const stepData = (notes as any)[phase.id];
-                hasPhaseData = !!(stepData?.completedAt || notes.quizResult);
-              } else if (phase.type === "video_intro" || phase.type === "video_message") {
-                const stepData = (notes as any)[phase.id];
-                hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
-              } else if (phase.type === "portfolio_upload") {
-                hasPhaseData = !!notes.portfolioResult;
-              } else if (phase.type === "voice_interview") {
-                hasPhaseData = !!application?.voice_interview_result;
-              } else {
-                hasPhaseData = !!(notes as any)[phase.id];
-              }
-
               return (
                 <div
                   key={phase.id}
@@ -852,7 +868,7 @@ export default function CandidateApplicationDetail() {
                         </Badge>
                       )}
                       {isCompleted && (
-                        isEmployerSkipped(phase.id, phase.type) && !hasPhaseData ? (
+                        (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type)) ? (
                           <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
                             <FastForward className="h-3 w-3 mr-1" />
                             Skipped
