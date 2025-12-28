@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Clock, Globe, Mic, Video, ChevronLeft, ChevronRight, Check, AlertCircle, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,6 +33,7 @@ interface AvaInterviewConfigDialogProps {
   }) => void;
   candidateName: string;
   language?: string;
+  voiceMinutesRemaining?: number;
 }
 
 const DURATION_OPTIONS = [
@@ -73,12 +75,17 @@ export function AvaInterviewConfigDialog({
   onConfirm,
   candidateName,
   language = "en",
+  voiceMinutesRemaining,
 }: AvaInterviewConfigDialogProps) {
   const [step, setStep] = useState(1);
   const [selectedDuration, setSelectedDuration] = useState(10);
   const [selectedLanguage, setSelectedLanguage] = useState(language.toLowerCase().substring(0, 2) || "en");
   const [languageRule, setLanguageRule] = useState<'hard' | 'soft'>('soft');
   const [videoEnabled, setVideoEnabled] = useState(true);
+
+  const hasInsufficientMinutes = voiceMinutesRemaining !== undefined && voiceMinutesRemaining < selectedDuration && voiceMinutesRemaining > 0;
+  const hasNoMinutes = voiceMinutesRemaining !== undefined && voiceMinutesRemaining <= 0;
+  const minutesAfterInterview = voiceMinutesRemaining !== undefined ? Math.max(0, voiceMinutesRemaining - selectedDuration) : undefined;
 
   const handleConfirm = () => {
     onConfirm({
@@ -177,6 +184,52 @@ export function AvaInterviewConfigDialog({
             {/* Step 1: Duration */}
             {step === 1 && (
               <div className="space-y-4">
+                {/* Voice Minutes Display */}
+                {voiceMinutesRemaining !== undefined && (
+                  <div className={cn(
+                    "flex items-center justify-between p-3 rounded-lg border",
+                    hasNoMinutes ? "bg-destructive/10 border-destructive/30" : 
+                    hasInsufficientMinutes ? "bg-amber-500/10 border-amber-500/30" : 
+                    "bg-muted/50 border-border"
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <Clock className={cn(
+                        "h-4 w-4",
+                        hasNoMinutes ? "text-destructive" : 
+                        hasInsufficientMinutes ? "text-amber-500" : 
+                        "text-muted-foreground"
+                      )} />
+                      <span className="text-sm">Voice minutes available:</span>
+                    </div>
+                    <Badge variant={hasNoMinutes ? "destructive" : hasInsufficientMinutes ? "outline" : "secondary"}>
+                      {voiceMinutesRemaining} min
+                    </Badge>
+                  </div>
+                )}
+
+                {/* No Minutes Warning */}
+                {hasNoMinutes && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>No voice minutes available</AlertTitle>
+                    <AlertDescription>
+                      Purchase additional voice credits or upgrade your plan to continue scheduling Ava interviews.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Insufficient Minutes Warning */}
+                {hasInsufficientMinutes && (
+                  <Alert className="border-amber-500/50 bg-amber-500/10">
+                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    <AlertTitle className="text-amber-600">Insufficient minutes</AlertTitle>
+                    <AlertDescription className="text-amber-600/80">
+                      You have {voiceMinutesRemaining} minutes but selected a {selectedDuration}-minute interview. 
+                      The interview may end early.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
@@ -191,8 +244,10 @@ export function AvaInterviewConfigDialog({
                     <button
                       key={option.value}
                       onClick={() => setSelectedDuration(option.value)}
+                      disabled={hasNoMinutes}
                       className={cn(
                         "flex flex-col items-center justify-center p-3 rounded-lg border transition-all",
+                        hasNoMinutes && "opacity-50 cursor-not-allowed",
                         selectedDuration === option.value
                           ? "border-primary bg-primary/10 ring-1 ring-primary"
                           : "border-border hover:border-primary/50 hover:bg-muted/50"
@@ -381,6 +436,21 @@ export function AvaInterviewConfigDialog({
                 {videoEnabled ? 'Video' : 'Audio only'}
               </Badge>
             </div>
+            {/* Voice minutes remaining after interview */}
+            {minutesAfterInterview !== undefined && (
+              <div className={cn(
+                "flex items-center justify-between pt-2 mt-2 border-t border-border text-sm",
+                minutesAfterInterview === 0 && "text-amber-500"
+              )}>
+                <span className="text-muted-foreground">After this interview:</span>
+                <span className={cn(
+                  "font-medium",
+                  minutesAfterInterview === 0 ? "text-amber-500" : "text-foreground"
+                )}>
+                  {minutesAfterInterview} min remaining
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -398,13 +468,18 @@ export function AvaInterviewConfigDialog({
           )}
           <div className="flex-1" />
           {step < 3 ? (
-            <Button onClick={nextStep} className="gap-1 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90">
+            <Button 
+              onClick={nextStep} 
+              disabled={hasNoMinutes}
+              className="gap-1 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+            >
               Next
               <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button
               onClick={handleConfirm}
+              disabled={hasNoMinutes}
               className="gap-1 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
             >
               Start Interview
