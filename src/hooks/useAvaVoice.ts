@@ -45,6 +45,8 @@ interface AvaVoiceState {
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const STUCK_TIMEOUT_MS = 30000; // 30 seconds
+const SILENCE_CHECK_INTERVAL_MS = 1000; // Check silence every second
+const SILENCE_NUDGE_THRESHOLD_S = 10; // Nudge Ava after 10 seconds of candidate silence
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
   const { toast } = useToast();
@@ -83,6 +85,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   
   // Session duration tracking for voice minute deduction
   const sessionStartTimeRef = useRef<number | null>(null);
+  
+  // Silence detection refs - track when candidate goes silent after Ava speaks
+  const silenceTimerRef = useRef<number | null>(null);
+  const candidateSilenceStartRef = useRef<number | null>(null);
+  const silenceNudgeCountRef = useRef(0); // Track how many times we've nudged
 
   // Keep options ref updated
   useEffect(() => {
@@ -105,6 +112,64 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
     setState(s => ({ ...s, isStuck: false }));
   }, []);
+
+  // Clear silence timer helper
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    candidateSilenceStartRef.current = null;
+  }, []);
+
+  // Start silence detection - called when Ava finishes speaking
+  const startSilenceDetection = useCallback(() => {
+    // Only for interview mode
+    if (optionsRef.current.mode !== 'interview') return;
+    if (isInterviewEndedRef.current) return;
+    
+    clearSilenceTimer();
+    candidateSilenceStartRef.current = Date.now();
+    console.log('[AvaVoice] Starting silence detection timer');
+    
+    silenceTimerRef.current = window.setInterval(() => {
+      if (!candidateSilenceStartRef.current || isInterviewEndedRef.current) {
+        clearSilenceTimer();
+        return;
+      }
+      
+      const silenceSeconds = Math.floor((Date.now() - candidateSilenceStartRef.current) / 1000);
+      
+      // After threshold, send a nudge message to Ava
+      if (silenceSeconds >= SILENCE_NUDGE_THRESHOLD_S && silenceNudgeCountRef.current < 3) {
+        silenceNudgeCountRef.current += 1;
+        console.log(`[AvaVoice] Candidate silent for ${silenceSeconds}s, nudging Ava (nudge #${silenceNudgeCountRef.current})`);
+        
+        // Reset silence start to avoid repeated nudges too quickly
+        candidateSilenceStartRef.current = Date.now();
+        
+        // Send contextual update to Ava about silence
+        if (dcRef.current?.readyState === 'open') {
+          const nudgeMessages = [
+            "The candidate has been silent for a while. Check if they're still there with a friendly prompt.",
+            "Extended silence from the candidate. Gently ask if they heard the question or need a moment.",
+            "The candidate seems to have gone quiet. This might be your last check-in before noting a connection issue."
+          ];
+          const message = nudgeMessages[Math.min(silenceNudgeCountRef.current - 1, nudgeMessages.length - 1)];
+          
+          dcRef.current.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [{ type: 'input_text', text: `[SYSTEM: ${message}]` }]
+            }
+          }));
+          dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+        }
+      }
+    }, SILENCE_CHECK_INTERVAL_MS);
+  }, [clearSilenceTimer]);
 
   // Start processing timeout - detect when Ava is stuck
   const startProcessingTimeout = useCallback(() => {
@@ -527,6 +592,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           console.log('Audio done event received, setting isSpeaking false after buffer');
           setTimeout(() => {
             setState(s => ({ ...s, isSpeaking: false }));
+            // Start silence detection when Ava finishes speaking
+            startSilenceDetection();
           }, 300);
           break;
 
@@ -729,6 +796,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
         case 'input_audio_buffer.speech_started':
           clearProcessingTimeout();
+          clearSilenceTimer(); // User is speaking, reset silence detection
+          silenceNudgeCountRef.current = 0; // Reset nudge count when user speaks
           setState(s => ({ ...s, isListening: true, isProcessing: false, isStuck: false }));
           break;
 
