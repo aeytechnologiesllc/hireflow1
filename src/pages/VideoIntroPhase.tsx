@@ -280,14 +280,21 @@ export default function VideoIntroPhase() {
       // Advance to next phase in auto mode, OR if next phase is review (last candidate step)
       if (isAutoMode || nextPhase?.type === "review") {
         if (nextPhase) {
-          newPhase = nextPhase.id;
-          
-          // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
-          if (isAutoMode && nextPhase.type !== "review") {
-            setNextPhaseInfo({
-              id: nextPhase.id,
-              title: nextPhase.title,
-            });
+          // STOP before voice_interview - requires employer to configure
+          if (nextPhase.type === "voice_interview") {
+            // Don't advance to voice interview - stay at current phase completion
+            // Employer must manually configure and approve for Ava interview
+            // Don't set nextPhaseInfo - no "Start Next Phase" button
+          } else {
+            newPhase = nextPhase.id;
+            
+            // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
+            if (isAutoMode && nextPhase.type !== "review") {
+              setNextPhaseInfo({
+                id: nextPhase.id,
+                title: nextPhase.title,
+              });
+            }
           }
         }
       }

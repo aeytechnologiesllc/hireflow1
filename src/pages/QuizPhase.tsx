@@ -595,17 +595,28 @@ export default function QuizPhase() {
         if (results.passed) {
           // Advance to next phase
           if (nextPhase) {
-            newPhase = nextPhase.id;
-            
-            // DON'T show "Start Next Phase" button if next phase is review
-            // The candidate should wait for employer to advance them to premium phases
-            if (nextPhase.type !== "review") {
-              setNextPhaseInfo({
-                id: nextPhase.id,
-                title: nextPhase.title,
+            // STOP before voice_interview - requires employer to configure
+            if (nextPhase.type === "voice_interview") {
+              // Don't advance to voice interview - stay at current phase completion
+              // Employer must manually configure and approve for Ava interview
+              toast.info("Great job! An employer will invite you to a voice interview soon.", {
+                description: "Voice interviews require employer configuration.",
+                duration: 5000,
               });
+              // Don't set nextPhaseInfo - no "Start Next Phase" button
+            } else {
+              newPhase = nextPhase.id;
+              
+              // DON'T show "Start Next Phase" button if next phase is review
+              // The candidate should wait for employer to advance them to premium phases
+              if (nextPhase.type !== "review") {
+                setNextPhaseInfo({
+                  id: nextPhase.id,
+                  title: nextPhase.title,
+                });
+              }
+              // If review phase, nextPhaseInfo stays null - candidate waits for employer
             }
-            // If review phase, nextPhaseInfo stays null - candidate waits for employer
           }
         } else {
           // Failed - reject the application

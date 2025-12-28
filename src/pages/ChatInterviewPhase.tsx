@@ -650,12 +650,23 @@ export default function ChatInterviewPhase() {
       if (isAutoMode) {
         if (passed) {
           if (nextPhase) {
-            newPhase = nextPhase.id;
-            // Note: ChatInterview uses toast instead of EvaluationScreen
+            // STOP before voice_interview - requires employer to configure
+            if (nextPhase.type === "voice_interview") {
+              // Don't advance to voice interview - stay at current phase completion
+              toast.success("Interview completed!", {
+                description: "Great job! An employer will invite you to a voice interview soon.",
+              });
+            } else {
+              newPhase = nextPhase.id;
+              toast.success("Interview completed!", {
+                description: "Your responses have been recorded. You've advanced to the next phase.",
+              });
+            }
+          } else {
+            toast.success("Interview completed!", {
+              description: "Your responses have been recorded. You've advanced to the next phase.",
+            });
           }
-          toast.success("Interview completed!", {
-            description: "Your responses have been recorded. You've advanced to the next phase.",
-          });
         } else {
           newStatus = "rejected";
           // Store app data for rejection screen

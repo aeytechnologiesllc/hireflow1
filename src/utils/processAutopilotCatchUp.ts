@@ -354,6 +354,21 @@ export async function processAutopilotCatchUp(
           const nextPhase = getNextPhase(currentPhaseId, workflowSteps, hasQuizQuestions);
           
           if (nextPhase) {
+            // STOP before voice_interview - requires employer to configure
+            if (nextPhase.type === "voice_interview") {
+              console.log(`[processAutopilotCatchUp] Application ${application.id} ready for voice interview - requires employer action`);
+              // Don't advance - employer must manually configure and approve for Ava interview
+              // Just update the status to show they're ready
+              await supabase
+                .from("applications")
+                .update({
+                  status: "reviewing",
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", application.id);
+              continue;
+            }
+            
             // Advance to next phase
             const { error: updateError } = await supabase
               .from("applications")
