@@ -100,10 +100,21 @@ serve(async (req) => {
       documents_sent: documentsCount,
       team_members_added: teamCount || 0,
       ai_analyses_used: aiAnalysesCount,
+      // Voice minutes used is derived from credits (granted - remaining)
       voice_minutes_used: 0,
     };
 
-    // Get active voice credits (not expired, not voided)
+    // Get voice credits
+    // - For UI balance: only ACTIVE, non-expired credits
+    // - For usage: include exhausted credits so we can compute used = granted - remaining
+    const { data: voiceCreditsForUsage } = await supabaseAdmin
+      .from("voice_credits")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("status", ["active", "exhausted"])
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: true });
+
     let { data: voiceCredits } = await supabaseAdmin
       .from("voice_credits")
       .select("*")
@@ -112,7 +123,20 @@ serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: true });
 
-    // Calculate total voice minutes available
+    // Usage: Used = granted - remaining (bounded to avoid negative)
+    const totalVoiceGranted = (voiceCreditsForUsage || []).reduce(
+      (sum, credit) => sum + (credit.minutes_granted || 0),
+      0
+    );
+
+    const totalVoiceRemainingAll = (voiceCreditsForUsage || []).reduce(
+      (sum, credit) => sum + (credit.minutes_remaining || 0),
+      0
+    );
+
+    usage.voice_minutes_used = Math.max(0, totalVoiceGranted - totalVoiceRemainingAll);
+
+    // Balance: total minutes currently available
     let totalVoiceMinutes = (voiceCredits || []).reduce(
       (sum, credit) => sum + (credit.minutes_remaining || 0),
       0
