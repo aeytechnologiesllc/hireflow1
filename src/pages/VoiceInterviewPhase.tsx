@@ -343,8 +343,8 @@ export default function VoiceInterviewPhase() {
 
       if (appError) throw appError;
 
-      // Check if already submitted
-      if (app.voice_interview_result) {
+      // Check if already submitted - but allow re-submission if reconsidered (status is pending)
+      if (app.voice_interview_result && app.status !== "pending") {
         setIsSubmitted(true);
         setLoading(false);
         return;

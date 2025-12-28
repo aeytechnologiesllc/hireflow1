@@ -102,7 +102,7 @@ export default function ChatSimulationPhase() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch application details
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["chat-simulation-application", id],
     queryFn: async () => {
@@ -116,6 +116,8 @@ export default function ChatSimulationPhase() {
       return data as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -730,6 +732,10 @@ export default function ChatSimulationPhase() {
 
   // Check if already submitted
   const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);
