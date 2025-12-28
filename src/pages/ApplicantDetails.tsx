@@ -1339,7 +1339,7 @@ export default function ApplicantDetails() {
       
       console.log('[handleReconsider] Resetting to phase:', targetPhaseId, 'at index:', targetPhaseIndex);
       
-      // Clear notes as an empty object (NOT stringified - the mutation handles serialization)
+      // Clear notes and ALL application data for a true fresh start
       const result = await updateApplication.mutateAsync({ 
         id: application.id, 
         status: "pending",
@@ -1357,6 +1357,10 @@ export default function ApplicantDetails() {
         voice_interview_video_enabled: null,
         rejected_by: null,
         rejected_by_type: null,
+        // Clear resume and cover letter to prevent auto-analysis from re-triggering
+        cover_letter: null,
+        resume_url: null,
+        resume_score: null,
       });
       
       console.log('[handleReconsider] Mutation result:', result);
