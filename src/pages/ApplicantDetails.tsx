@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped } from "@/utils/applicationNotes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -684,16 +685,15 @@ export default function ApplicantDetails() {
   })();
 
   // Parse submitted data from notes (used for phase completion + analysis gating)
-  // Handles both string (legacy) and object (current) formats
+  // Uses safe parser that handles string, object, or null and never loses data
   const parsedNotes = useMemo(() => {
-    try {
-      if (!application?.notes) return {};
-      if (typeof application.notes === "object") return application.notes as Record<string, any>;
-      return JSON.parse(application.notes as string);
-    } catch {
-      return {};
-    }
+    return parseApplicationNotes(application?.notes);
   }, [application?.notes]);
+  
+  // Helper to check if a phase was skipped by employer (checks both id and type)
+  const isPhaseSkipped = useCallback((phase: { id: string; type: string }) => {
+    return checkPhaseSkipped(parsedNotes, phase.id, phase.type);
+  }, [parsedNotes]);
 
   // Check if candidate has completed the current phase (awaiting employer review)
   const hasCompletedCurrentPhase = (phaseId: string, phaseType: string): boolean => {
@@ -1663,15 +1663,14 @@ export default function ApplicantDetails() {
   const resumeUrl = getResumeUrl();
 
   // Build badge data from workflow steps
-  const workflowBadges = (() => {
+  const workflowBadges = useMemo(() => {
     const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
     const quizQuestions = job?.quiz_questions as any[] | undefined;
-    const skippedPhases = parsedNotes.employerSkippedPhases || [];
     const badges: { id: string; title: string; type: string; hasData: boolean; isSkipped: boolean; score?: number; icon: any }[] = [];
     
     // Application badge (always present)
     const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
-    const isApplicationSkipped = skippedPhases.includes("application");
+    const isApplicationSkipped = isPhaseSkipped({ id: "application", type: "application" });
     badges.push({
       id: "application",
       title: "Application",
@@ -1689,7 +1688,7 @@ export default function ApplicantDetails() {
         title: "Resume",
         type: "resume",
         hasData: !!resumeUrl,
-        isSkipped: skippedPhases.includes("resume") || isApplicationSkipped,
+        isSkipped: isPhaseSkipped({ id: "resume", type: "resume" }) || isApplicationSkipped,
         score: resumeUrl ? (application as any).resume_score || undefined : undefined,
         icon: FileText,
       });
@@ -1703,7 +1702,7 @@ export default function ApplicantDetails() {
         title: "Quiz",
         type: "quiz",
         hasData: !!quizData,
-        isSkipped: skippedPhases.includes("quiz"),
+        isSkipped: isPhaseSkipped({ id: "quiz", type: "quiz" }),
         score: quizData?.score,
         icon: ClipboardList,
       });
@@ -1718,7 +1717,7 @@ export default function ApplicantDetails() {
           title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
           type: step.type,
           hasData: !!stepData,
-          isSkipped: skippedPhases.includes(step.id),
+          isSkipped: isPhaseSkipped({ id: step.id, type: step.type }),
           score: stepData?.score,
           icon: stepTypeIcons[step.type] || ClipboardList,
         });
@@ -1726,7 +1725,7 @@ export default function ApplicantDetails() {
     }
     
     return badges;
-  })();
+  }, [job, application, parsedNotes, resumeUrl, isPhaseSkipped]);
 
   // Standardized display titles for phase types - function to handle dynamic video/voice text
   const getTypeDisplayTitle = (type: string): string => {
@@ -2219,7 +2218,7 @@ export default function ApplicantDetails() {
               const Icon = phase.icon;
               const isCompleted = index < effectivePhaseIndex;
               const isCurrent = index === effectivePhaseIndex;
-              const isSkipped = parsedNotes.employerSkippedPhases?.includes(phase.id);
+              const isSkipped = isPhaseSkipped(phase);
               const isStartPhase = phase.type === "journey_start";
               
               // Start point turns green when candidate has begun their journey:

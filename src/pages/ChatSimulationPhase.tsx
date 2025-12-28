@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 
 interface Message {
   id: string;
@@ -552,7 +553,7 @@ export default function ChatSimulationPhase() {
         evaluation = await evalResponse.json();
       }
 
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
       const agentMessages = messages.filter((m) => m.role === "agent");
       const passed = evaluation.score >= passingScoreFresh;
       

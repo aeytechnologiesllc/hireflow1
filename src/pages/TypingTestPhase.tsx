@@ -21,6 +21,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
+import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
@@ -281,7 +282,7 @@ export default function TypingTestPhase() {
         setEvaluationState("evaluating");
       }
       // Parse existing notes or start fresh
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
       
       // Add typing test results
       const updatedNotes = {
