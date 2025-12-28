@@ -14,14 +14,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
-  MapPin, Briefcase, Calendar, Mail, Phone, Linkedin, 
-  Globe, FileText, Sparkles, Loader2, Clock 
+  MapPin, Briefcase, Mail, Phone, Linkedin, 
+  Globe, FileText, Sparkles, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { convertPdfToImage } from "@/utils/pdfToImage";
-import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 
 interface ApplicantDetailsDialogProps {
@@ -60,73 +58,21 @@ export default function ApplicantDetailsDialog({
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const content = `
-Job Title: ${job?.title || "Unknown"}
-Job Description: ${job?.description || "Not provided"}
-Requirements: ${job?.requirements || "Not specified"}
-
-Candidate Information:
-Name: ${profile?.full_name || "Unknown"}
-Email: ${profile?.email || "Not provided"}
-Location: ${profile?.location || "Not specified"}
-Experience: ${profile?.experience_years ? `${profile.experience_years} years` : "Not specified"}
-Skills: ${profile?.skills?.join(", ") || "Not specified"}
-Bio: ${profile?.bio || "Not provided"}
-
-Cover Letter:
-${application.cover_letter || "Not provided"}
-
-Resume URL: ${application.resume_url || "Not provided"}
-      `;
-
-      // PDF→Image is the PRIMARY method for resume analysis
-      let resumeImage: string | null = null;
-      let resumeText: string | null = null;
-
-      if (application.resume_url) {
-        console.log("[ApplicantDetailsDialog] Attempting PDF to image conversion for:", application.resume_url);
-        
-        // Try image conversion first (PRIMARY method)
-        resumeImage = await convertPdfToImage(application.resume_url);
-        
-        if (resumeImage) {
-          console.log("[ApplicantDetailsDialog] PDF→image SUCCESS, size:", resumeImage.length);
-        } else {
-          // Fallback to text extraction only if image fails
-          console.log("[ApplicantDetailsDialog] PDF→image failed, falling back to text extraction");
-          const { text, extracted } = await extractPdfTextFromUrl(application.resume_url);
-          if (extracted && text.length > 100) {
-            resumeText = text;
-            console.log("[ApplicantDetailsDialog] Text extraction SUCCESS, length:", text.length);
-          } else {
-            console.log("[ApplicantDetailsDialog] Text extraction also failed or insufficient");
-          }
-        }
-      }
-
-      const { data, error } = await supabase.functions.invoke("ai-analyze", {
+      // SINGLE SOURCE OF TRUTH: Use trigger-ava-analysis backend function
+      // DO NOT call ai-analyze directly - backend handles all scoring
+      const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
-          type: "application",
-          content,
-          resumeUrl: application.resume_url,
-          resumeImage,
-          resumeText,
-          context: {
-            skills_required: job?.skills_required,
-            experience_level: job?.experience_level,
-            current_status: application.status,
-          },
+          applicationId: application.id,
+          force: true, // Force re-analysis
         },
       });
 
       if (error) throw error;
 
-      // Extract score from analysis
-      const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-      const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
-
-      if (onAnalyze) {
-        onAnalyze(data.analysis, score && score >= 0 && score <= 100 ? score : null);
+      // Refetch the application to get updated analysis
+      // The backend will have updated ai_analysis and ai_score
+      if (onAnalyze && data) {
+        onAnalyze(data.analysis || "Analysis completed", data.score || null);
       }
 
       toast.success("Ava analysis completed!");

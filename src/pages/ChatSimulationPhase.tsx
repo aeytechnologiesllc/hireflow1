@@ -511,7 +511,6 @@ export default function ChatSimulationPhase() {
     setIsSubmitting(true);
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
-      // This prevents stale cached data from causing auto-rejection in manual mode
       const { data: freshJob } = await supabase
         .from("jobs")
         .select("processing_mode, passing_score")
@@ -519,9 +518,8 @@ export default function ChatSimulationPhase() {
         .single();
       
       const isAutoMode = freshJob?.processing_mode === "auto";
-      const passingScoreFresh = freshJob?.passing_score || 60;
       
-      // Get AI evaluation
+      // Get AI evaluation (for notes/display only - NOT for pass/fail decision)
       const evalResponse = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
@@ -557,7 +555,6 @@ export default function ChatSimulationPhase() {
 
       const existingNotes = parseApplicationNotes(application.notes);
       const agentMessages = messages.filter((m) => m.role === "agent");
-      const passed = evaluation.score >= passingScoreFresh;
       
       const antiCheatLog = {
         violations,
@@ -569,6 +566,7 @@ export default function ChatSimulationPhase() {
         rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
       };
 
+      // Save phase data to notes (NO local pass/fail decision)
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -585,8 +583,7 @@ export default function ChatSimulationPhase() {
             totalMessages: messages.length,
             agentResponses: agentMessages.length,
           },
-          score: evaluation.score,
-          passed,
+          phaseScore: evaluation.score, // Store phase score for backend to use
           antiCheatLog,
           completedAt: new Date().toISOString(),
         },
@@ -598,7 +595,6 @@ export default function ChatSimulationPhase() {
           problemSolving: evaluation.problemSolving,
           strengths: evaluation.strengths,
           improvements: evaluation.improvements,
-          passed,
           completed: true,
           antiCheatSummary: {
             hasViolations: violations.length > 0,
@@ -609,118 +605,59 @@ export default function ChatSimulationPhase() {
         },
       };
 
-      // Determine next phase based on processing mode
-      
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
-      
-      // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
-      
-      const allPhases: { id: string; type: string }[] = [
-        { id: "application", type: "application" },
-      ];
-      
-      // Add quiz phase if quiz_questions exist
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz" });
-      }
-      
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
-        allPhases.push({ id: step.id, type: step.type });
-      });
-      
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review" });
-      
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({ id: voiceInterviewStep.id, type: "voice_interview" });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview" },
-        { id: "hired", type: "hired" }
-      );
-      
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
-      }
-      
-      let newPhase = application.phase;
-      let newStatus = application.status;
-
-      if (isAutoMode) {
-        if (passed) {
-          if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-            const nextPhase = allPhases[currentIndex + 1];
-            // STOP before voice_interview - requires employer to configure
-            if (nextPhase.type === "voice_interview") {
-              // Don't advance to voice interview - stay at current phase completion
-              toast.success("Chat simulation completed!", {
-                description: "Great job! An employer will invite you to a voice interview soon.",
-              });
-            } else {
-              newPhase = nextPhase.id;
-              toast.success("Chat simulation completed!", {
-                description: "Great work! You've advanced to the next phase.",
-              });
-            }
-          } else {
-            toast.success("Chat simulation completed!", {
-              description: "Great work! You've advanced to the next phase.",
-            });
-          }
-        } else {
-          newStatus = "rejected";
-          // Store app data for rejection screen
-          setRejectedAppData({
-            ...application,
-            status: "rejected",
-          });
-        }
-      } else {
-        toast.success("Chat simulation completed!", {
-          description: "Your responses have been recorded. The employer will review your performance.",
-        });
-      }
-
+      // Save notes first (DO NOT set status or make pass/fail decision)
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          // Manual mode must NEVER auto-advance phases
-          phase: isAutoMode ? newPhase : application.phase,
-          status: newStatus as any,
-          phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%. ${passed ? "PASSED" : "FAILED"}`,
-          // Track Ava as the rejector for autopilot rejections
-          ...(newStatus === "rejected" && isAutoMode ? { rejected_by_type: 'ava' } : {}),
+          phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%.`,
         })
         .eq("id", id!);
 
       if (error) throw error;
 
-      // Invalidate candidate applications to update the tile status
+      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
-      supabase.functions.invoke("trigger-ava-analysis", {
-        body: { applicationId: id! },
-      }).catch(err => console.error("[ChatSimulationPhase] AVA analysis trigger failed:", err));
-
-      // Show rejection screen for failed autopilot, otherwise complete
-      if (isAutoMode && !passed) {
-        setState("rejected");
+      // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
+      if (isAutoMode) {
+        try {
+          const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
+            body: { 
+              applicationId: id!,
+              autopilotDecision: true,
+            },
+          });
+          
+          console.log("[ChatSimulationPhase] Backend analysis result:", analysisResult);
+          
+          if (analysisResult?.passed === false) {
+            setRejectedAppData({ ...application, status: "rejected" });
+            setState("rejected");
+          } else {
+            toast.success("Chat simulation completed!", {
+              description: "Great work! You've advanced to the next phase.",
+            });
+            setState("completed");
+            setTimeout(() => navigate(`/applications/${id}`), 2000);
+          }
+        } catch (err) {
+          console.error("[ChatSimulationPhase] Backend analysis failed:", err);
+          setState("completed");
+          setTimeout(() => navigate(`/applications/${id}`), 2000);
+        }
       } else {
+        // Manual mode - trigger analysis in background
+        supabase.functions.invoke("trigger-ava-analysis", {
+          body: { applicationId: id! },
+        }).catch(err => console.error("[ChatSimulationPhase] AVA analysis trigger failed:", err));
+        
+        toast.success("Chat simulation completed!", {
+          description: "Your responses have been recorded. The employer will review your performance.",
+        });
         setState("completed");
         setTimeout(() => navigate(`/applications/${id}`), 2000);
       }
-
     } catch (error) {
       console.error("Error submitting chat:", error);
       toast.error("Failed to submit chat simulation");

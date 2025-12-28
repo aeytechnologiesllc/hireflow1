@@ -512,8 +512,6 @@ export default function SalesSimulationPhase() {
     
     setIsSubmitting(true);
     try {
-      // CRITICAL: Re-fetch fresh job data to get current processing_mode
-      // This prevents stale cached data from causing auto-rejection in manual mode
       const { data: freshJob } = await supabase
         .from("jobs")
         .select("processing_mode, passing_score")
@@ -521,7 +519,6 @@ export default function SalesSimulationPhase() {
         .single();
       
       const isAutoMode = freshJob?.processing_mode === "auto";
-      const passingScoreFresh = freshJob?.passing_score || 60;
       
       const evalResponse = await fetch(SALES_URL, {
         method: "POST",
@@ -544,29 +541,18 @@ export default function SalesSimulationPhase() {
       });
 
       let evaluation = {
-        score: 70,
-        discovery: 70,
-        objectionHandling: 70,
-        valueProposition: 70,
-        closingSkills: 70,
-        rapport: 70,
-        strengths: ["Completed simulation"],
-        improvements: [],
-        wouldBuy: "maybe",
-        overallFeedback: "Simulation completed successfully.",
+        score: 70, discovery: 70, objectionHandling: 70, valueProposition: 70,
+        closingSkills: 70, rapport: 70, strengths: ["Completed simulation"],
+        improvements: [], wouldBuy: "maybe", overallFeedback: "Simulation completed.",
       };
 
-      if (evalResponse.ok) {
-        evaluation = await evalResponse.json();
-      }
+      if (evalResponse.ok) evaluation = await evalResponse.json();
 
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
       const salesRepMessages = messages.filter((m) => m.role === "salesRep");
-      const passed = evaluation.score >= passingScoreFresh;
       
       const antiCheatLog = {
-        violations,
-        totalViolations: violations.length,
+        violations, totalViolations: violations.length,
         tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
         copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
         pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
@@ -577,163 +563,54 @@ export default function SalesSimulationPhase() {
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
-          type: "sales_simulation",
-          scenario: currentScenario.scenario,
-          prospectName: currentScenario.prospectName,
-          prospectCompany: currentScenario.prospectCompany,
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-            timestamp: m.timestamp.toISOString(),
-          })),
-          evaluation,
-          metrics: {
-            totalMessages: messages.length,
-            salesRepResponses: salesRepMessages.length,
-          },
-          score: evaluation.score,
-          passed,
-          antiCheatLog,
-          completedAt: new Date().toISOString(),
+          type: "sales_simulation", scenario: currentScenario.scenario,
+          prospectName: currentScenario.prospectName, prospectCompany: currentScenario.prospectCompany,
+          messages: messages.map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp.toISOString() })),
+          evaluation, metrics: { totalMessages: messages.length, salesRepResponses: salesRepMessages.length },
+          phaseScore: evaluation.score, antiCheatLog, completedAt: new Date().toISOString(),
         },
         salesSimulationResult: {
-          scenario: currentScenario.scenario,
-          prospectCompany: currentScenario.prospectCompany,
-          messageCount: messages.length,
-          score: evaluation.score,
-          discovery: evaluation.discovery,
-          objectionHandling: evaluation.objectionHandling,
-          valueProposition: evaluation.valueProposition,
-          closingSkills: evaluation.closingSkills,
-          wouldBuy: evaluation.wouldBuy,
-          strengths: evaluation.strengths,
-          improvements: evaluation.improvements,
-          passed,
-          completed: true,
-          antiCheatSummary: {
-            hasViolations: violations.length > 0,
-            violationCount: violations.length,
-            tabSwitches: antiCheatLog.tabSwitches,
-            copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts,
-          },
+          scenario: currentScenario.scenario, prospectCompany: currentScenario.prospectCompany,
+          messageCount: messages.length, score: evaluation.score, discovery: evaluation.discovery,
+          objectionHandling: evaluation.objectionHandling, valueProposition: evaluation.valueProposition,
+          closingSkills: evaluation.closingSkills, wouldBuy: evaluation.wouldBuy,
+          strengths: evaluation.strengths, improvements: evaluation.improvements, completed: true,
+          antiCheatSummary: { hasViolations: violations.length > 0, violationCount: violations.length,
+            tabSwitches: antiCheatLog.tabSwitches, copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts },
         },
       };
-      
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
-      
-      // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
-      
-      const allPhases: { id: string; type: string }[] = [
-        { id: "application", type: "application" },
-      ];
-      
-      // Add quiz phase if quiz_questions exist
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz" });
-      }
-      
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
-        allPhases.push({ id: step.id, type: step.type });
-      });
-      
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review" });
-      
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({ id: voiceInterviewStep.id, type: "voice_interview" });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview" },
-        { id: "hired", type: "hired" }
-      );
-      
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
-      }
-      
-      let newPhase = application.phase;
-      let newStatus = application.status;
 
-      // Determine next phase
-      let nextPhase: { id: string; type: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
-      }
-
-      if (isAutoMode) {
-        if (passed) {
-          if (nextPhase) {
-            // STOP before voice_interview - requires employer to configure
-            if (nextPhase.type === "voice_interview") {
-              // Don't advance to voice interview - stay at current phase completion
-              toast.success("Sales simulation completed!", {
-                description: "Great job! An employer will invite you to a voice interview soon.",
-              });
-            } else {
-              newPhase = nextPhase.id;
-              toast.success("Sales simulation completed!", {
-                description: `Great work! You've completed this phase.`,
-              });
-            }
-          } else {
-            toast.success("Sales simulation completed!", {
-              description: `Great work! You've completed this phase.`,
-            });
-          }
-        } else {
-          newStatus = "rejected";
-          // Store app data for rejection screen
-          setRejectedAppData({
-            ...application,
-            status: "rejected",
-          });
-        }
-      } else {
-        toast.success("Sales simulation completed!", {
-          description: "Your performance has been recorded. The employer will review it.",
-        });
-      }
-
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          // Manual mode must NEVER auto-advance phases
-          phase: isAutoMode ? newPhase : application.phase,
-          status: newStatus as any,
-          phase_ai_analysis: `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}. ${passed ? "PASSED" : "FAILED"}`,
-          // Track Ava as the rejector for autopilot rejections
-          ...(newStatus === "rejected" && isAutoMode ? { rejected_by_type: 'ava' } : {}),
-        })
-        .eq("id", id!);
+      const { error } = await supabase.from("applications").update({
+        notes: JSON.stringify(updatedNotes),
+        phase_ai_analysis: `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}.`,
+      }).eq("id", id!);
 
       if (error) throw error;
-
-      // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Trigger AVA analysis via backend edge function (bypasses RLS issues)
-      supabase.functions.invoke("trigger-ava-analysis", {
-        body: { applicationId: id! },
-      }).catch(err => console.error("[SalesSimulationPhase] AVA analysis trigger failed:", err));
-
-      // Show rejection screen for failed autopilot, otherwise complete
-      if (isAutoMode && !passed) {
-        setState("rejected");
+      if (isAutoMode) {
+        try {
+          const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
+            body: { applicationId: id!, autopilotDecision: true },
+          });
+          if (analysisResult?.passed === false) {
+            setRejectedAppData({ ...application, status: "rejected" });
+            setState("rejected");
+          } else {
+            toast.success("Sales simulation completed!");
+            setState("completed");
+            setTimeout(() => navigate(`/applications/${id}`), 2000);
+          }
+        } catch (err) {
+          setState("completed");
+          setTimeout(() => navigate(`/applications/${id}`), 2000);
+        }
       } else {
+        supabase.functions.invoke("trigger-ava-analysis", { body: { applicationId: id! } }).catch(() => {});
+        toast.success("Sales simulation completed!");
         setState("completed");
         setTimeout(() => navigate(`/applications/${id}`), 2000);
       }
-
     } catch (error) {
       console.error("Error submitting sales simulation:", error);
       toast.error("Failed to submit sales simulation");
