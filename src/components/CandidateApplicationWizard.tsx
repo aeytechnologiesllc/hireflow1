@@ -518,97 +518,8 @@ export default function CandidateApplicationWizard({
     }
   };
 
-  const analyzeApplication = async () => {
-    setIsAnalyzing(true);
-    try {
-      let content = `
-Job Title: ${job.title}
-Job Description: ${job.description}
-Requirements: ${job.requirements || "Not specified"}
-
-Application Answers:
-${Object.entries(answers).map(([id, answer]) => {
-  const question = applicationQuestions.find(q => q.id === id);
-  return `Q: ${question?.question || id}\nA: ${answer}`;
-}).join("\n\n")}
-
-Cover Letter:
-${coverLetter || "Not provided"}
-
-Resume URL: ${resumeUrl || "Not provided"}
-      `;
-
-      // PDF→Image is the PRIMARY method for resume analysis
-      let resumeImage: string | null = null;
-      let resumeText: string | null = null;
-
-      if (resumeUrl) {
-        console.log("[CandidateApplicationWizard] Attempting PDF to image conversion for:", resumeUrl);
-        
-        // Try image conversion first (PRIMARY method)
-        resumeImage = await convertPdfToImage(resumeUrl);
-        
-        if (resumeImage) {
-          console.log("[CandidateApplicationWizard] PDF→image SUCCESS, size:", resumeImage.length);
-        } else {
-          // Fallback to text extraction only if image fails
-          console.log("[CandidateApplicationWizard] PDF→image failed, falling back to text extraction");
-          const { text, extracted } = await extractPdfTextFromUrl(resumeUrl);
-          if (extracted && text.length > 100) {
-            resumeText = text;
-            console.log("[CandidateApplicationWizard] Text extraction SUCCESS, length:", text.length);
-          } else {
-            console.log("[CandidateApplicationWizard] Text extraction also failed or insufficient");
-          }
-        }
-      }
-
-      // Prepare structured application answers for cross-reference
-      const structuredAnswers = Object.entries(answers).map(([id, answer]) => {
-        const question = applicationQuestions.find(q => q.id === id);
-        return { question: question?.question || id, answer: String(answer) };
-      });
-
-      // Extract name from answers if available (name field usually first)
-      const nameAnswer = Object.entries(answers).find(([id]) => 
-        id.toLowerCase().includes('name') || applicationQuestions.find(q => q.id === id)?.question.toLowerCase().includes('name')
-      );
-      const applicantName = nameAnswer ? String(nameAnswer[1]) : undefined;
-
-      const { data, error } = await supabase.functions.invoke("ai-analyze", {
-        body: {
-          type: "application",
-          content,
-          resumeUrl,
-          resumeImage,
-          resumeText,
-          // Cross-reference data for enhanced verification
-          applicantName,
-          applicationAnswers: structuredAnswers,
-          coverLetter: coverLetter || undefined,
-          context: {
-            skills_required: job.skills_required,
-            experience_level: job.experience_level,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-      const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
-
-      return {
-        analysis: data.analysis,
-        score: score && score >= 0 && score <= 100 ? score : null,
-      };
-    } catch (error) {
-      console.error("AI analysis error:", error);
-      return null;
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  // NOTE: Frontend AI analysis removed - all scoring is done by backend trigger-ava-analysis
+  // This is the SINGLE SOURCE OF TRUTH for scoring
 
   const handleSubmit = async () => {
     // Double-check deadline hasn't passed before submitting
@@ -621,10 +532,6 @@ Resume URL: ${resumeUrl || "Not provided"}
     setIsSubmitting(true);
 
     try {
-      // Run AI analysis
-      const aiResult = await analyzeApplication();
-      setAiScore(aiResult?.score || null);
-
       // Prepare notes with application answers
       const applicationAnswers = Object.entries(answers).map(([id, answer]) => {
         const question = applicationQuestions.find(q => q.id === id);
@@ -654,12 +561,10 @@ Resume URL: ${resumeUrl || "Not provided"}
         }
       }
 
-      // Determine if autopilot mode and what the next phase should be
+      // Determine if autopilot mode
       const isAutoMode = job.processing_mode === "auto";
-      const passingScore = job.passing_score || 60;
-      const passed = aiResult?.score !== null && aiResult.score >= passingScore;
 
-      // Build the phases list to determine next phase
+      // Build the phases list to determine next phase (for autopilot)
       const workflowSteps = (job.workflow_steps as any[]) || [];
       const quizQuestions = (job.quiz_questions as any[]) || [];
       
@@ -684,53 +589,29 @@ Resume URL: ${resumeUrl || "Not provided"}
         { id: "hired", type: "hired", title: "Hired" }
       );
 
-      // Determine phase and status based on mode and score
-      let newPhase = "application";
-      let newStatus: "pending" | "rejected" = "pending";
-      
-      if (isAutoMode && aiResult?.score !== null) {
-        if (passed) {
-          // Advance to next phase
-          const currentIndex = 0; // application is index 0
-          if (currentIndex < allPhases.length - 1) {
-            newPhase = allPhases[currentIndex + 1].id;
-            setNextPhaseInfo({
-              id: allPhases[currentIndex + 1].id,
-              title: allPhases[currentIndex + 1].title,
-            });
-          }
-        } else {
-          // Failed - reject
-          newStatus = "rejected";
-        }
-      }
-
       // Update the existing draft application or create new if somehow no draft exists
+      // DO NOT set ai_score or ai_analysis here - backend will do that
       let finalAppId = createdApplicationId;
       
       if (createdApplicationId) {
-        // Update the existing draft application
+        // Update the existing draft application - NO frontend scoring
         await updateApplication.mutateAsync({
           id: createdApplicationId,
           cover_letter: coverLetter || null,
           resume_url: finalResumeUrl,
-          ai_analysis: aiResult?.analysis || null,
-          ai_score: aiResult?.score || null,
           notes,
-          phase: newPhase,
-          status: newStatus,
+          phase: "application",
+          status: "pending",
         });
       } else {
-        // Fallback: create new application if no draft exists
+        // Fallback: create new application if no draft exists - NO frontend scoring
         const createdApp = await createApplication.mutateAsync({
           job_id: job.id,
           cover_letter: coverLetter || null,
           resume_url: finalResumeUrl,
-          ai_analysis: aiResult?.analysis || null,
-          ai_score: aiResult?.score || null,
           notes,
-          phase: newPhase,
-          status: newStatus,
+          phase: "application",
+          status: "pending",
         });
         finalAppId = createdApp.id;
         setCreatedApplicationId(createdApp.id);
@@ -738,14 +619,53 @@ Resume URL: ${resumeUrl || "Not provided"}
 
       queryClient.invalidateQueries({ queryKey: ["applications"] });
 
-      if (isAutoMode && aiResult?.score !== null) {
-        // Show evaluation screen
-        setEvaluationState(passed ? "passed" : "failed");
-      } else {
-        // Manual mode - just toast and navigate
-        toast.success("Application submitted successfully!");
-        handleClose();
-        navigate("/applications");
+      // SINGLE SOURCE OF TRUTH: Trigger backend analysis
+      // Backend will calculate ai_score and decide pass/fail
+      if (finalAppId) {
+        console.log("[CandidateApplicationWizard] Triggering backend analysis for:", finalAppId);
+        
+        if (isAutoMode) {
+          // In autopilot mode, show evaluating state and trigger backend with autopilot decision
+          setEvaluationState("evaluating");
+          
+          try {
+            const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
+              body: { 
+                applicationId: finalAppId,
+                autopilotDecision: true,
+              },
+            });
+            
+            console.log("[CandidateApplicationWizard] Backend analysis result:", analysisResult);
+            
+            // Check the result from backend
+            if (analysisResult?.passed === false) {
+              setEvaluationState("failed");
+            } else {
+              // Passed - set next phase info for autopilot
+              if (allPhases.length > 1) {
+                setNextPhaseInfo({
+                  id: allPhases[1].id,
+                  title: allPhases[1].title,
+                });
+              }
+              setEvaluationState("passed");
+            }
+          } catch (err) {
+            console.error("[CandidateApplicationWizard] Backend analysis failed:", err);
+            // On error, still show as passed (manual review will catch issues)
+            setEvaluationState("passed");
+          }
+        } else {
+          // Manual mode - trigger analysis in background and navigate
+          supabase.functions.invoke("trigger-ava-analysis", {
+            body: { applicationId: finalAppId },
+          }).catch(err => console.error("[CandidateApplicationWizard] Background analysis failed:", err));
+          
+          toast.success("Application submitted successfully!");
+          handleClose();
+          navigate("/applications");
+        }
       }
     } catch (error: any) {
       // Check for duplicate application error

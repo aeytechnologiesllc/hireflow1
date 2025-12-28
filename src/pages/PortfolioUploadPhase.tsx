@@ -314,7 +314,8 @@ export default function PortfolioUploadPhase() {
       setIsAnalyzing(false);
 
       const existingNotes = application.notes ? JSON.parse(application.notes) : {};
-      
+
+      // Save phase data (NO local pass/fail decision - backend decides)
       const portfolioResult = {
         type: "portfolio_upload",
         files: uploadedUrls.map((url, i) => ({
@@ -325,8 +326,7 @@ export default function PortfolioUploadPhase() {
         uploadedAt: new Date().toISOString(),
         completed: true,
         aiAnalysis,
-        score: aiAnalysis?.score || 100,
-        passed: true,
+        phaseScore: aiAnalysis?.score || null, // Store for backend to use
       };
       
       const updatedNotes = {
