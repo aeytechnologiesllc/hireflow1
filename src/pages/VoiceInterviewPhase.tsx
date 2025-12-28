@@ -44,6 +44,7 @@ export default function VoiceInterviewPhase() {
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
   const [isProcessingEnd, setIsProcessingEnd] = useState(false);
+  const [isUserEndingInterview, setIsUserEndingInterview] = useState(false); // Immediate loading when user clicks End
   const [justFinishedSpeaking, setJustFinishedSpeaking] = useState(false);
 
   // Camera/video states
@@ -407,6 +408,7 @@ export default function VoiceInterviewPhase() {
   }, [isConnected, interviewStarted, cameraTestPassed, isRecording, startRecording, getAvaAudioElement]);
 
   const endInterview = () => {
+    setIsUserEndingInterview(true); // Show loading immediately
     sendTextMessage("I would like to end the interview now.");
   };
 
@@ -654,9 +656,9 @@ Duration: ${formatTime(elapsedSeconds)}
       ) : (
         /* Active interview UI */
         <div className="space-y-4 relative">
-          {/* Wrapping Up Interview Overlay - shows immediately when Ava triggers end */}
+          {/* Wrapping Up Interview Overlay - shows immediately when user clicks End OR when Ava triggers end */}
           <AnimatePresence>
-            {isEndingInterview && !showCompletionScreen && (
+            {(isEndingInterview || isUserEndingInterview) && !showCompletionScreen && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -676,10 +678,14 @@ Duration: ${formatTime(elapsedSeconds)}
                     </div>
                   </div>
                   <h2 className="text-xl font-semibold text-foreground">
-                    Wrapping Up Interview...
+                    {isUserEndingInterview && !isEndingInterview 
+                      ? "Ending Interview..."
+                      : "Wrapping Up Interview..."}
                   </h2>
                   <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                    Ava is finishing up. Your responses are being saved.
+                    {isUserEndingInterview && !isEndingInterview 
+                      ? "Asking Ava to wrap up. She may have a few closing questions."
+                      : "Ava is finishing up. Your responses are being saved."}
                   </p>
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
