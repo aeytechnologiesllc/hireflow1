@@ -346,31 +346,31 @@ ${interviewType} Interview with AVA Results:
 
     console.log("[trigger-ava-analysis] AI analysis completed, extracting score...");
 
-    // Improved score extraction with multiple patterns
+    // Improved score extraction with multiple patterns - supports decimal scores
     const analysisText = analysisData?.analysis || "";
     let newScore: number | null = null;
     
-    // Pattern 1: FINAL CALCULATED SCORE (preferred)
-    const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+)/i);
+    // Pattern 1: FINAL CALCULATED SCORE (preferred) - supports decimals
+    const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+(?:\.\d+)?)/i);
     if (finalScoreMatch) {
-      newScore = parseInt(finalScoreMatch[1], 10);
+      newScore = parseFloat(finalScoreMatch[1]);
       console.log("[trigger-ava-analysis] Score extracted via FINAL CALCULATED SCORE:", newScore);
     }
     
-    // Pattern 2: Overall Score
+    // Pattern 2: Overall Score - supports decimals
     if (newScore === null) {
-      const overallMatch = analysisText.match(/Overall Score[:\s]+(\d+)/i);
+      const overallMatch = analysisText.match(/Overall Score[:\s]+(\d+(?:\.\d+)?)/i);
       if (overallMatch) {
-        newScore = parseInt(overallMatch[1], 10);
+        newScore = parseFloat(overallMatch[1]);
         console.log("[trigger-ava-analysis] Score extracted via Overall Score:", newScore);
       }
     }
     
-    // Pattern 3: Generic "Score: XX" at end of line
+    // Pattern 3: Generic "Score: XX" at end of line - supports decimals
     if (newScore === null) {
-      const genericMatch = analysisText.match(/Score[:\s]+(\d+)(?:\s*\/\s*100|\s*$)/im);
+      const genericMatch = analysisText.match(/Score[:\s]+(\d+(?:\.\d+)?)(?:\s*\/\s*100|\s*$)/im);
       if (genericMatch) {
-        newScore = parseInt(genericMatch[1], 10);
+        newScore = parseFloat(genericMatch[1]);
         console.log("[trigger-ava-analysis] Score extracted via generic pattern:", newScore);
       }
     }
