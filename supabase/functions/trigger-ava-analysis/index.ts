@@ -149,8 +149,9 @@ serve(async (req) => {
     console.log("[trigger-ava-analysis] Detected resume URL:", detectedResumeUrl);
 
     // Build content string from all available phase data
-    const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
-      ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
+    const applicationAnswers = parsedNotes.applicationAnswers || [];
+    const applicationAnswersText = applicationAnswers.length > 0
+      ? applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
       : "Not provided";
 
     const job = application.jobs as any;
@@ -158,6 +159,37 @@ serve(async (req) => {
     // Extract workflow phases from job to inform AI what phases exist for this job
     const workflowSteps = (job?.workflow_steps as any[]) || [];
     const workflowPhaseTypes = workflowSteps.map((step: any) => step.type).filter(Boolean);
+
+    // CRITICAL FIX: Extract candidate info from APPLICATION ANSWERS, not profile
+    // Profile email is the LOGIN email, which may differ from the application email
+    // We should cross-reference resume against what the candidate PROVIDED in their application
+    const extractFromApplicationAnswers = (keywords: string[]): string | null => {
+      for (const answer of applicationAnswers) {
+        const q = (answer.question || "").toLowerCase();
+        if (keywords.some(kw => q.includes(kw))) {
+          return answer.answer || null;
+        }
+      }
+      return null;
+    };
+
+    // Extract candidate-provided info from application (this is what should match the resume)
+    const applicationEmail = extractFromApplicationAnswers(["email", "e-mail"]);
+    const applicationName = extractFromApplicationAnswers(["full name", "your name", "name"]);
+    const applicationPhone = extractFromApplicationAnswers(["phone", "mobile", "contact number"]);
+
+    console.log("[trigger-ava-analysis] Candidate info sources:", {
+      applicationEmail,
+      applicationName,
+      applicationPhone,
+      profileEmail: profile?.email,
+      profileName: profile?.full_name,
+    });
+
+    // Use application-provided name/email for cross-reference (the candidate's stated identity)
+    // Fall back to profile only if not provided in application
+    const candidateName = applicationName || profile?.full_name || "Unknown";
+    const candidateEmail = applicationEmail || "Not provided in application";
 
     let content = `
 Job Title: ${job?.title || "Unknown"}
@@ -171,9 +203,18 @@ ${workflowPhaseTypes.length > 0 ? workflowPhaseTypes.map((p: string) => `- ${p}`
 
 CRITICAL INSTRUCTION: In your PHASE PERFORMANCE SUMMARY, you must ONLY include phases that are listed above. Do NOT mention phases that were NOT part of this job's workflow. For example, if there is no "typing_test" in the workflow above, do NOT say "Typing Test: Not Completed" - simply omit it entirely.
 
-Candidate Information:
-Name: ${profile?.full_name || "Unknown"}
-Email: ${profile?.email || "Not provided"}
+=== CANDIDATE INFORMATION (from Application Form) ===
+Candidate Name (as provided in application): ${candidateName}
+Candidate Email (as provided in application): ${candidateEmail}
+${applicationPhone ? `Candidate Phone (as provided in application): ${applicationPhone}` : ""}
+
+IMPORTANT FOR CROSS-REFERENCE: Compare resume contact info against the ABOVE application-provided values.
+The account login email (${profile?.email || "unknown"}) may differ from the application email - this is NORMAL and should NOT be flagged as a mismatch.
+Only flag as a "name mismatch" if the resume name differs from "${candidateName}" above.
+Only flag as an "email mismatch" if the resume email differs from "${candidateEmail}" above.
+
+=== PROFILE METADATA (for context only, NOT for cross-reference) ===
+Account Email: ${profile?.email || "Not provided"} (NOTE: This is the login email, may differ from application email - do NOT use for mismatch detection)
 Skills: ${profile?.skills?.join(", ") || "Not specified"}
 Experience Years: ${profile?.experience_years || "Not specified"}
 Bio: ${profile?.bio || "Not provided"}
@@ -340,19 +381,14 @@ ${interviewType} Interview with AVA Results:
       newScore = null;
     }
 
-    // Determine final score based on force flag
+    // CRITICAL FIX: Always use the score from the newly generated analysis
+    // The ai_analysis text and ai_score MUST be in sync
+    // Previously, we were keeping the old score even when generating a new analysis,
+    // which caused the score to contradict the recommendation in the analysis text
     const existingScore = application.ai_score;
-    let finalScore: number | null;
+    let finalScore: number | null = newScore;
     
-    if (force) {
-      // Force mode: always use the new score (even if null)
-      finalScore = newScore;
-      console.log("[trigger-ava-analysis] Force mode: using new score:", finalScore);
-    } else {
-      // Normal mode: preserve existing score if present
-      finalScore = existingScore ?? newScore;
-      console.log("[trigger-ava-analysis] Normal mode: existing:", existingScore, "new:", newScore, "final:", finalScore);
-    }
+    console.log("[trigger-ava-analysis] Using score from new analysis:", finalScore, "(previous score was:", existingScore, ")");
 
     // Update the application with AI analysis using admin client (bypasses RLS)
     const { error: updateError } = await supabaseAdmin
@@ -387,17 +423,48 @@ ${interviewType} Interview with AVA Results:
         let nextPhaseId = "application";
         let nextPhaseTitle = "Application";
         
+        // SAFETY GATE: Filter out voice_interview from auto-advance targets
+        // voice_interview requires employer to configure duration, language, etc.
+        const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
+        
         if (currentPhaseId === "application") {
           if (hasQuizQuestions) {
             nextPhaseId = "quiz";
             nextPhaseTitle = "Quiz";
-          } else if (workflowSteps.length > 0) {
-            // Skip voice_interview step, it goes after review
-            const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
-            if (nonVoiceSteps.length > 0) {
-              nextPhaseId = nonVoiceSteps[0].id;
-              nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
-            }
+          } else if (nonVoiceSteps.length > 0) {
+            nextPhaseId = nonVoiceSteps[0].id;
+            nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
+          } else {
+            // Only voice_interview steps exist - cannot auto-advance, needs employer config
+            console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                message: "Analysis completed, awaiting employer configuration for Ava interview",
+                score: finalScore,
+                decision: "needs_employer_approval",
+                reason: "Next phase is Ava Interview which requires employer configuration",
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else if (currentPhaseId === "quiz") {
+          if (nonVoiceSteps.length > 0) {
+            nextPhaseId = nonVoiceSteps[0].id;
+            nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
+          } else {
+            // Only voice_interview steps exist - cannot auto-advance, needs employer config
+            console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                message: "Analysis completed, awaiting employer configuration for Ava interview",
+                score: finalScore,
+                decision: "needs_employer_approval",
+                reason: "Next phase is Ava Interview which requires employer configuration",
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
           }
         }
         
