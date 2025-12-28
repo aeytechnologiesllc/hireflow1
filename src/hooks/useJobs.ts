@@ -202,6 +202,10 @@ export function useUpdateJob() {
       queryClient.invalidateQueries({ queryKey: ["sales-simulation-application"] });
       queryClient.invalidateQueries({ queryKey: ["voice-interview-application"] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      
+      // CRITICAL: Invalidate application detail queries too (for ApplicantDetails page)
+      // This ensures the mode badge updates in real-time when employer toggles processing_mode
+      queryClient.invalidateQueries({ queryKey: ["application"] });
     },
   });
 }

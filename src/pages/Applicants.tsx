@@ -1,10 +1,12 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useJob } from "@/hooks/useJobs";
 import { useAIShortlist } from "@/hooks/useAIShortlist";
@@ -306,6 +308,31 @@ export default function Applicants() {
   const [applicationToDelete, setApplicationToDelete] = useState<ApplicationWithCandidate | null>(null);
   
   const deleteApplication = useDeleteApplication();
+  const queryClient = useQueryClient();
+
+  // Real-time subscription for application updates (phase changes, status updates)
+  useEffect(() => {
+    const channel = supabase
+      .channel('applications-list')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'applications',
+        },
+        (payload) => {
+          console.log('Applications updated in real-time:', payload);
+          queryClient.invalidateQueries({ queryKey: ["applications", "employer"] });
+          queryClient.invalidateQueries({ queryKey: ["applications", "stats"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Permission checks
   const canManagePipeline = !isTeamMember || permissions?.canManagePipeline;
