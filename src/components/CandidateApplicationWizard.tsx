@@ -638,10 +638,10 @@ export default function CandidateApplicationWizard({
             
             console.log("[CandidateApplicationWizard] Backend analysis result:", analysisResult);
             
-            // Check the result from backend
-            if (analysisResult?.passed === false) {
+            // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
+            if (analysisResult?.decision === "rejected") {
               setEvaluationState("failed");
-            } else {
+            } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
               // Passed - set next phase info for autopilot
               if (allPhases.length > 1) {
                 setNextPhaseInfo({
@@ -650,6 +650,25 @@ export default function CandidateApplicationWizard({
                 });
               }
               setEvaluationState("passed");
+            } else {
+              // Fallback: check application status from database
+              const { data: updatedApp } = await supabase
+                .from("applications")
+                .select("status")
+                .eq("id", finalAppId!)
+                .single();
+              
+              if (updatedApp?.status === "rejected") {
+                setEvaluationState("failed");
+              } else {
+                if (allPhases.length > 1) {
+                  setNextPhaseInfo({
+                    id: allPhases[1].id,
+                    title: allPhases[1].title,
+                  });
+                }
+                setEvaluationState("passed");
+              }
             }
           } catch (err) {
             console.error("[CandidateApplicationWizard] Backend analysis failed:", err);
