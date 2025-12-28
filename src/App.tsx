@@ -10,20 +10,25 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingFallback from "@/components/LoadingFallback";
 import AppLayout from "@/components/AppLayout";
 
-// Lazy load all pages for code splitting
+// Eager load core pages for instant navigation
+import Dashboard from "./pages/Dashboard";
+import Jobs from "./pages/Jobs";
+import Applicants from "./pages/Applicants";
+import ApplicantDetails from "./pages/ApplicantDetails";
+import Interviews from "./pages/Interviews";
+import Messages from "./pages/Messages";
+import Documents from "./pages/Documents";
+import Team from "./pages/Team";
+import Analytics from "./pages/Analytics";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
+
+// Lazy load less frequently visited pages
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Jobs = lazy(() => import("./pages/Jobs"));
-const Applicants = lazy(() => import("./pages/Applicants"));
-const ApplicantDetails = lazy(() => import("./pages/ApplicantDetails"));
-const Interviews = lazy(() => import("./pages/Interviews"));
-const Messages = lazy(() => import("./pages/Messages"));
-const Documents = lazy(() => import("./pages/Documents"));
-const Team = lazy(() => import("./pages/Team"));
 const TeamPortal = lazy(() => import("./pages/TeamPortal"));
 const JoinTeam = lazy(() => import("./pages/JoinTeam"));
-const Analytics = lazy(() => import("./pages/Analytics"));
 const ApplyWithCode = lazy(() => import("./pages/ApplyWithCode"));
 const JobDetails = lazy(() => import("./pages/JobDetails"));
 const Applications = lazy(() => import("./pages/Applications"));
@@ -37,9 +42,6 @@ const ChatInterviewPhase = lazy(() => import("./pages/ChatInterviewPhase"));
 const SalesSimulationPhase = lazy(() => import("./pages/SalesSimulationPhase"));
 const VoiceInterviewPhase = lazy(() => import("./pages/VoiceInterviewPhase"));
 const PortfolioUploadPhase = lazy(() => import("./pages/PortfolioUploadPhase"));
-const Notifications = lazy(() => import("./pages/Notifications"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Profile = lazy(() => import("./pages/Profile"));
 const CreateJob = lazy(() => import("./pages/CreateJob"));
 const GuestJobCreator = lazy(() => import("./pages/GuestJobCreator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
