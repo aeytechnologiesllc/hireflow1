@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 
 interface Message {
   id: string;
@@ -222,9 +223,9 @@ export default function ChatInterviewPhase() {
             evaluation = await evalResponse.json();
           }
 
-          const notes = application.notes ? JSON.parse(application.notes) : {};
+          const existingNotes = parseApplicationNotes(application.notes);
           const updatedNotes = {
-            ...notes,
+            ...existingNotes,
             chatInterviewResult: {
               messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
               duration: getDuration(),

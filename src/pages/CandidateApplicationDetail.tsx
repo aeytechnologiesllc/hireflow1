@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped } from "@/utils/applicationNotes";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -425,21 +426,15 @@ export default function CandidateApplicationDetail() {
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
 
   // Parse notes to check for phase data and employer-skipped phases
-  // Handles both string (legacy) and object (current) formats
+  // Uses safe parser that handles string, object, or null and never loses data
   const notes = useMemo(() => {
-    try {
-      if (!application?.notes) return {};
-      if (typeof application.notes === "object") return application.notes as Record<string, any>;
-      return JSON.parse(application.notes as string);
-    } catch {
-      return {};
-    }
+    return parseApplicationNotes(application?.notes);
   }, [application?.notes]);
   
-  // Check if a phase was employer-skipped (candidate shouldn't be penalized)
-  const isEmployerSkipped = (phaseId: string) => {
-    return notes.employerSkippedPhases?.includes(phaseId) || false;
-  };
+  // Check if a phase was employer-skipped (checks both id and type for backward compat)
+  const isEmployerSkipped = useCallback((phaseId: string, phaseType?: string) => {
+    return checkPhaseSkipped(notes, phaseId, phaseType);
+  }, [notes]);
   
   // Determine phase status for each step
   const getPhaseStatus = (phaseIndex: number) => {
@@ -447,7 +442,7 @@ export default function CandidateApplicationDetail() {
     const isManualMode = application?.jobs?.processing_mode === "manual";
     
     // If this phase was skipped by employer, mark as completed
-    if (isEmployerSkipped(phase.id) && phaseIndex < effectivePhaseIndex) {
+    if (isEmployerSkipped(phase.id, phase.type) && phaseIndex < effectivePhaseIndex) {
       return "completed";
     }
     
@@ -831,23 +826,17 @@ export default function CandidateApplicationDetail() {
                         </Badge>
                       )}
                       {isCompleted && (
-                        (() => {
-                          const notesData = typeof application.notes === 'string' 
-                            ? JSON.parse(application.notes || '{}') 
-                            : (application.notes || {});
-                          const isSkipped = notesData.employerSkippedPhases?.includes(phase.id);
-                          return isSkipped ? (
-                            <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
-                              <FastForward className="h-3 w-3 mr-1" />
-                              Skipped
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-success/20 text-success border-success/30">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Completed
-                            </Badge>
-                          );
-                        })()
+                        isEmployerSkipped(phase.id, phase.type) ? (
+                          <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
+                            <FastForward className="h-3 w-3 mr-1" />
+                            Skipped
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-success/20 text-success border-success/30">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
+                        )
                       )}
                     </div>
                     

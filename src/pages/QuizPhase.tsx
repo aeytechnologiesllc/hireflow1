@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
+import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
@@ -458,8 +459,8 @@ export default function QuizPhase() {
       if (isAutoMode) {
         setEvaluationState("evaluating");
       }
-      // Parse existing notes
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      // Parse existing notes (safe parser handles string, object, or null)
+      const existingNotes = parseApplicationNotes(application.notes);
       
       // Create answers summary
       const answersSummary = questions.map(q => {
