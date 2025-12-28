@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
+import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 
 interface InterviewDetails {
   scheduledAt?: string;
@@ -208,14 +209,14 @@ export function CandidateStatusScreen({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-8"
       >
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-background/95 backdrop-blur-sm"
+          className="fixed inset-0 bg-background/95 backdrop-blur-sm"
           onClick={onClose}
         />
 
@@ -225,13 +226,13 @@ export function CandidateStatusScreen({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: "spring", duration: 0.5 }}
-          className="relative z-10 w-full max-w-lg"
+          className="relative z-10 w-full max-w-lg px-4"
         >
           {/* Close button */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -top-2 -right-2 z-20 rounded-full bg-card border border-border"
+            className="absolute top-0 right-6 z-20 rounded-full bg-card border border-border"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
@@ -239,81 +240,76 @@ export function CandidateStatusScreen({
 
           {/* Rejected State */}
           {state === "rejected" && (
-            <Card className="bg-card border-border overflow-hidden">
-              {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
-                >
-                  <Lightbulb className="h-10 w-10 text-amber-500" />
-                </motion.div>
+            <div className="space-y-6">
+              <Card className="bg-card border-border overflow-hidden">
+                {/* Decorative top gradient */}
+                <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
+                
+                <CardContent className="p-8 text-center space-y-6">
+                  {/* Icon */}
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.2 }}
+                    className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
+                  >
+                    <Lightbulb className="h-10 w-10 text-amber-500" />
+                  </motion.div>
 
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground">
-                    This Chapter Has Closed
-                  </h2>
-                  <p className="text-muted-foreground">
-                    But your story continues
-                  </p>
-                </motion.div>
-
-                {/* Message */}
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-muted-foreground leading-relaxed"
-                >
-                  While the <span className="text-foreground font-medium">{jobTitle || "position"}</span> wasn't the right fit this time, 
-                  every interview is a stepping stone. We've prepared a personalized report to help you grow.
-                </motion.p>
-
-                {/* Blueprint CTA - directs to card below */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="pt-2"
-                >
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                      <Sparkles className="h-5 w-5" />
-                      <span className="font-medium">Personalized Blueprint Available</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Scroll down to unlock your personalized Improvement Blueprint with actionable insights and a 30-day growth plan.
+                  {/* Headline */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="space-y-2"
+                  >
+                    <h2 className="text-2xl font-bold text-foreground">
+                      This Chapter Has Closed
+                    </h2>
+                    <p className="text-muted-foreground">
+                      But your story continues
                     </p>
-                  </div>
-                </motion.div>
+                  </motion.div>
 
-                {/* Motivational quote */}
+                  {/* Message */}
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-muted-foreground leading-relaxed"
+                  >
+                    While the <span className="text-foreground font-medium">{jobTitle || "position"}</span> wasn't the right fit this time, 
+                    every interview is a stepping stone. We've prepared a personalized report to help you grow.
+                  </motion.p>
+
+                  {/* Motivational quote */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="pt-4 border-t border-border"
+                  >
+                    <p className="text-sm text-muted-foreground italic">
+                      "Success is not final, failure is not fatal: it is the courage to continue that counts."
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      The best is yet to come. Keep going!
+                    </p>
+                  </motion.div>
+                </CardContent>
+              </Card>
+
+              {/* Blueprint Card - directly embedded */}
+              {applicationId && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
-                  className="pt-4 border-t border-border"
                 >
-                  <p className="text-sm text-muted-foreground italic">
-                    "Success is not final, failure is not fatal: it is the courage to continue that counts."
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    The best is yet to come. Keep going!
-                  </p>
+                  <ImprovementBlueprintCard applicationId={applicationId} />
                 </motion.div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )}
 
           {/* Interview Scheduled State */}
