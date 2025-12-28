@@ -176,6 +176,9 @@ export default function CandidateApplicationDetail() {
   useEffect(() => {
     if (!id) return;
 
+    console.log("[Realtime] Setting up application subscription for:", id);
+    console.log("[Realtime] Initial refs - status:", previousStatusRef.current, "phase:", previousPhaseRef.current);
+
     const channel = supabase
       .channel(`application-${id}`)
       .on(
@@ -187,17 +190,26 @@ export default function CandidateApplicationDetail() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          console.log("Application updated:", payload);
+          console.log("[Realtime] Application update received:", payload);
+          console.log("[Realtime] payload.old:", payload.old);
+          console.log("[Realtime] payload.new:", payload.new);
+          console.log("[Realtime] previousStatusRef:", previousStatusRef.current);
+          console.log("[Realtime] previousPhaseRef:", previousPhaseRef.current);
+          
           const newStatus = payload.new.status as string;
-          // Use previousStatusRef as fallback when payload.old.status is undefined
+          // With REPLICA IDENTITY FULL, payload.old should now contain the full old record
           const oldStatus = payload.old?.status as string || previousStatusRef.current;
           const newPhase = payload.new.phase;
           const oldPhase = payload.old?.phase || previousPhaseRef.current;
+          
+          console.log("[Realtime] Status change detected:", oldStatus, "->", newStatus);
+          console.log("[Realtime] Phase change detected:", oldPhase, "->", newPhase);
           
           refetch();
           
           // Detect reconsideration (rejected → reviewing)
           if (newStatus === "reviewing" && oldStatus === "rejected") {
+            console.log("[Realtime] Showing reconsidered screen");
             setStatusScreen("reconsidered");
             previousStatusRef.current = newStatus;
             previousPhaseRef.current = newPhase as string;
@@ -206,13 +218,17 @@ export default function CandidateApplicationDetail() {
           
           // Detect status changes and show appropriate screen
           const statusChanged = newStatus !== oldStatus;
+          console.log("[Realtime] statusChanged:", statusChanged);
           
           if (statusChanged) {
             if (newStatus === "rejected") {
+              console.log("[Realtime] Showing rejected screen");
               setStatusScreen("rejected");
             } else if (newStatus === "hired") {
+              console.log("[Realtime] Showing hired screen");
               setStatusScreen("hired");
             } else if (newStatus === "interview") {
+              console.log("[Realtime] Showing interview_scheduled screen");
               fetchInterviewDetails(id);
               setStatusScreen("interview_scheduled");
             }
@@ -248,9 +264,12 @@ export default function CandidateApplicationDetail() {
           previousPhaseRef.current = newPhase as string;
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[Realtime] Subscription status:", status);
+      });
 
     return () => {
+      console.log("[Realtime] Cleaning up application subscription");
       supabase.removeChannel(channel);
     };
   }, [id, refetch]);
