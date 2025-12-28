@@ -12,11 +12,11 @@ export function RejectedStampAnimation({ isVisible, onComplete }: RejectedStampA
 
   useEffect(() => {
     if (isVisible) {
-      // Trigger smoke at moment of impact (150ms)
+      // Trigger smoke at moment of impact (100ms - faster for direct slam)
       const smokeTimer = setTimeout(() => {
         setShowSmoke(true);
         setShowGlow(true);
-      }, 150);
+      }, 100);
 
       // Call onComplete after full animation
       const completeTimer = setTimeout(() => {
@@ -46,255 +46,236 @@ export function RejectedStampAnimation({ isVisible, onComplete }: RejectedStampA
           <motion.div
             className="relative flex items-center justify-center w-full h-full"
             animate={{
-              x: [0, -6, 6, -4, 4, -2, 0],
-              y: [0, 4, -4, 2, -2, 1, 0],
+              x: [0, -8, 8, -5, 5, -2, 0],
+              y: [0, 5, -5, 3, -3, 1, 0],
             }}
             transition={{
-              duration: 0.25,
-              delay: 0.15,
+              duration: 0.3,
+              delay: 0.1,
               ease: "easeOut",
             }}
           >
-            {/* LEFT Smoke Puff */}
-            {showSmoke && (
-              <motion.div
-                className="absolute rounded-full blur-md"
-                style={{
-                  width: 80,
-                  height: 40,
-                  background: "linear-gradient(90deg, hsl(var(--muted-foreground) / 0.4), hsl(var(--muted-foreground) / 0.1))",
-                }}
-                initial={{ 
-                  x: -20, 
-                  y: 30, 
-                  scale: 0.3,
-                  opacity: 0.7 
-                }}
-                animate={{ 
-                  x: -120,
-                  y: 40,
-                  scale: [0.3, 1.2, 1.5],
-                  opacity: [0.7, 0.5, 0],
-                }}
-                transition={{
-                  duration: 0.4,
-                  ease: "easeOut",
-                }}
-              />
-            )}
-
-            {/* RIGHT Smoke Puff */}
-            {showSmoke && (
-              <motion.div
-                className="absolute rounded-full blur-md"
-                style={{
-                  width: 80,
-                  height: 40,
-                  background: "linear-gradient(-90deg, hsl(var(--muted-foreground) / 0.4), hsl(var(--muted-foreground) / 0.1))",
-                }}
-                initial={{ 
-                  x: 20, 
-                  y: 30, 
-                  scale: 0.3,
-                  opacity: 0.7 
-                }}
-                animate={{ 
-                  x: 120,
-                  y: 40,
-                  scale: [0.3, 1.2, 1.5],
-                  opacity: [0.7, 0.5, 0],
-                }}
-                transition={{
-                  duration: 0.4,
-                  ease: "easeOut",
-                }}
-              />
-            )}
-
-            {/* Small dust particles bursting from sides */}
+            {/* Smoke puffs that burst outward on impact */}
             {showSmoke && (
               <>
-                {/* Left particles */}
-                {[...Array(4)].map((_, i) => (
-                  <motion.div
-                    key={`left-${i}`}
-                    className="absolute rounded-full bg-muted-foreground/30"
-                    style={{
-                      width: 6 + i * 2,
-                      height: 6 + i * 2,
-                    }}
-                    initial={{ x: -30, y: 25 + i * 5, scale: 0, opacity: 0.6 }}
-                    animate={{ 
-                      x: -60 - i * 20,
-                      y: 20 + i * 8 + Math.random() * 20,
-                      scale: [0, 1, 0.5],
-                      opacity: [0.6, 0.4, 0],
-                    }}
-                    transition={{
-                      duration: 0.3 + i * 0.05,
-                      delay: i * 0.02,
-                      ease: "easeOut",
-                    }}
-                  />
-                ))}
-                {/* Right particles */}
-                {[...Array(4)].map((_, i) => (
-                  <motion.div
-                    key={`right-${i}`}
-                    className="absolute rounded-full bg-muted-foreground/30"
-                    style={{
-                      width: 6 + i * 2,
-                      height: 6 + i * 2,
-                    }}
-                    initial={{ x: 30, y: 25 + i * 5, scale: 0, opacity: 0.6 }}
-                    animate={{ 
-                      x: 60 + i * 20,
-                      y: 20 + i * 8 + Math.random() * 20,
-                      scale: [0, 1, 0.5],
-                      opacity: [0.6, 0.4, 0],
-                    }}
-                    transition={{
-                      duration: 0.3 + i * 0.05,
-                      delay: i * 0.02,
-                      ease: "easeOut",
-                    }}
-                  />
-                ))}
+                {/* LEFT Smoke Puff - main cloud */}
+                <motion.div
+                  className="absolute rounded-full blur-xl"
+                  style={{
+                    width: 100,
+                    height: 60,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.5), transparent 70%)",
+                  }}
+                  initial={{ 
+                    x: 0, 
+                    y: 0, 
+                    scale: 0.2,
+                    opacity: 0.8 
+                  }}
+                  animate={{ 
+                    x: -140,
+                    y: 10,
+                    scale: [0.2, 1.5, 2],
+                    opacity: [0.8, 0.5, 0],
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    ease: "easeOut",
+                  }}
+                />
+
+                {/* RIGHT Smoke Puff - main cloud */}
+                <motion.div
+                  className="absolute rounded-full blur-xl"
+                  style={{
+                    width: 100,
+                    height: 60,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.5), transparent 70%)",
+                  }}
+                  initial={{ 
+                    x: 0, 
+                    y: 0, 
+                    scale: 0.2,
+                    opacity: 0.8 
+                  }}
+                  animate={{ 
+                    x: 140,
+                    y: 10,
+                    scale: [0.2, 1.5, 2],
+                    opacity: [0.8, 0.5, 0],
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    ease: "easeOut",
+                  }}
+                />
+
+                {/* TOP-LEFT Smoke wisp */}
+                <motion.div
+                  className="absolute rounded-full blur-lg"
+                  style={{
+                    width: 60,
+                    height: 40,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.4), transparent 70%)",
+                  }}
+                  initial={{ x: 0, y: 0, scale: 0.1, opacity: 0.7 }}
+                  animate={{ 
+                    x: -100,
+                    y: -50,
+                    scale: [0.1, 1, 1.3],
+                    opacity: [0.7, 0.4, 0],
+                  }}
+                  transition={{ duration: 0.4, ease: "easeOut", delay: 0.02 }}
+                />
+
+                {/* TOP-RIGHT Smoke wisp */}
+                <motion.div
+                  className="absolute rounded-full blur-lg"
+                  style={{
+                    width: 60,
+                    height: 40,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.4), transparent 70%)",
+                  }}
+                  initial={{ x: 0, y: 0, scale: 0.1, opacity: 0.7 }}
+                  animate={{ 
+                    x: 100,
+                    y: -50,
+                    scale: [0.1, 1, 1.3],
+                    opacity: [0.7, 0.4, 0],
+                  }}
+                  transition={{ duration: 0.4, ease: "easeOut", delay: 0.02 }}
+                />
+
+                {/* BOTTOM-LEFT Smoke wisp */}
+                <motion.div
+                  className="absolute rounded-full blur-lg"
+                  style={{
+                    width: 50,
+                    height: 35,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.35), transparent 70%)",
+                  }}
+                  initial={{ x: 0, y: 0, scale: 0.1, opacity: 0.6 }}
+                  animate={{ 
+                    x: -80,
+                    y: 60,
+                    scale: [0.1, 1.2, 1.5],
+                    opacity: [0.6, 0.3, 0],
+                  }}
+                  transition={{ duration: 0.45, ease: "easeOut", delay: 0.03 }}
+                />
+
+                {/* BOTTOM-RIGHT Smoke wisp */}
+                <motion.div
+                  className="absolute rounded-full blur-lg"
+                  style={{
+                    width: 50,
+                    height: 35,
+                    background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.35), transparent 70%)",
+                  }}
+                  initial={{ x: 0, y: 0, scale: 0.1, opacity: 0.6 }}
+                  animate={{ 
+                    x: 80,
+                    y: 60,
+                    scale: [0.1, 1.2, 1.5],
+                    opacity: [0.6, 0.3, 0],
+                  }}
+                  transition={{ duration: 0.45, ease: "easeOut", delay: 0.03 }}
+                />
               </>
             )}
 
-            {/* The Full Stamp Assembly (Handle + Base) */}
+            {/* Dust particles bursting from center */}
+            {showSmoke && (
+              <>
+                {/* Particles bursting in all directions */}
+                {[...Array(8)].map((_, i) => {
+                  const angle = (i / 8) * Math.PI * 2;
+                  const distance = 80 + Math.random() * 40;
+                  return (
+                    <motion.div
+                      key={`particle-${i}`}
+                      className="absolute rounded-full bg-muted-foreground/40"
+                      style={{
+                        width: 4 + Math.random() * 4,
+                        height: 4 + Math.random() * 4,
+                      }}
+                      initial={{ x: 0, y: 0, scale: 0, opacity: 0.7 }}
+                      animate={{ 
+                        x: Math.cos(angle) * distance,
+                        y: Math.sin(angle) * distance,
+                        scale: [0, 1.5, 0.5],
+                        opacity: [0.7, 0.5, 0],
+                      }}
+                      transition={{
+                        duration: 0.35,
+                        delay: i * 0.01,
+                        ease: "easeOut",
+                      }}
+                    />
+                  );
+                })}
+              </>
+            )}
+
+            {/* The Stamp Impression - Direct slam effect */}
             <motion.div
               className="relative flex flex-col items-center"
               initial={{ 
-                y: -200,
-                opacity: 1,
+                scale: 1.4,
+                opacity: 0,
                 rotate: -12,
               }}
               animate={{ 
-                y: [null, 0, -8, 0],
+                scale: [1.4, 0.92, 1.02, 1],
                 opacity: 1,
                 rotate: -12,
               }}
               transition={{
-                y: {
-                  duration: 0.35,
-                  times: [0, 0.4, 0.7, 1],
-                  ease: [0.32, 0, 0.67, 0], // Fast ease-in for slam, then spring
+                scale: {
+                  duration: 0.25,
+                  times: [0, 0.5, 0.75, 1],
+                  ease: [0.22, 1, 0.36, 1], // Custom ease for impact feel
+                },
+                opacity: {
+                  duration: 0.08,
                 },
               }}
             >
-              {/* Wooden Handle - Top grip */}
-              <motion.div
-                className="relative"
-                animate={{
-                  y: showGlow ? [0, -4, 0] : 0,
-                }}
-                transition={{
-                  y: { duration: 0.2, delay: 0.02 },
-                }}
-              >
-                {/* Main wooden handle body */}
-                <div 
-                  className="relative rounded-t-lg"
-                  style={{
-                    width: 70,
-                    height: 40,
-                    background: "linear-gradient(180deg, #A67C52 0%, #8B5E3C 30%, #6B4423 70%, #5D3A1A 100%)",
-                    boxShadow: "inset 0 2px 4px rgba(255,255,255,0.2), inset 0 -3px 6px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.3)",
-                    borderRadius: "10px 10px 4px 4px",
-                  }}
-                >
-                  {/* Wood grain texture lines */}
-                  <div 
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      background: `repeating-linear-gradient(
-                        0deg,
-                        transparent,
-                        transparent 4px,
-                        rgba(0,0,0,0.1) 4px,
-                        rgba(0,0,0,0.1) 5px
-                      )`,
-                      borderRadius: "10px 10px 4px 4px",
-                    }}
-                  />
-                  {/* Highlight on top edge */}
-                  <div 
-                    className="absolute top-0 left-0 right-0 h-2 rounded-t-lg"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%)",
-                    }}
-                  />
-                </div>
-              </motion.div>
-
-              {/* Metal Band connecting handle to rubber base */}
-              <div 
-                className="relative"
-                style={{
-                  width: 60,
-                  height: 10,
-                  background: "linear-gradient(180deg, #999 0%, #777 40%, #555 100%)",
-                  boxShadow: "inset 0 1px 2px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2)",
-                }}
-              >
-                {/* Metal shine highlight */}
-                <div 
-                  className="absolute top-0 left-1/4 right-1/4 h-1"
-                  style={{
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                  }}
-                />
-              </div>
-
-              {/* Rubber/Ink Pad section */}
-              <div 
-                className="relative"
-                style={{
-                  width: 56,
-                  height: 8,
-                  background: "linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)",
-                  boxShadow: "inset 0 -1px 2px rgba(0,0,0,0.5)",
-                }}
-              />
-
               {/* Ink spread glow on impact */}
               {showGlow && (
                 <motion.div
                   className="absolute rounded-lg"
                   style={{
-                    bottom: -15,
-                    left: -30,
-                    right: -30,
-                    height: 80,
-                    background: "hsl(var(--destructive) / 0.3)",
-                    filter: "blur(20px)",
+                    top: -20,
+                    bottom: -20,
+                    left: -40,
+                    right: -40,
+                    background: "hsl(var(--destructive) / 0.35)",
+                    filter: "blur(25px)",
                   }}
-                  initial={{ scale: 0.8, opacity: 0 }}
+                  initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ 
-                    scale: [0.8, 1.4, 1.2],
-                    opacity: [0, 0.8, 0],
+                    scale: [0.5, 1.5, 1.3],
+                    opacity: [0, 0.9, 0],
                   }}
                   transition={{
-                    duration: 0.4,
+                    duration: 0.45,
                     ease: "easeOut",
                   }}
                 />
               )}
               
-              {/* Main stamp text box (the "rubber" part that makes the impression) */}
+              {/* Main stamp text box */}
               <motion.div
                 className="relative"
                 animate={{
-                  scaleY: showGlow ? [1, 0.85, 1.02, 1] : 1,
+                  scaleY: showGlow ? [1, 0.88, 1.03, 1] : 1,
+                  scaleX: showGlow ? [1, 1.04, 0.98, 1] : 1,
                 }}
                 transition={{
-                  scaleY: {
-                    duration: 0.2,
-                    times: [0, 0.4, 0.7, 1],
-                    ease: "easeOut",
-                  },
+                  duration: 0.2,
+                  times: [0, 0.4, 0.7, 1],
+                  ease: "easeOut",
                 }}
               >
                 <div className="relative border-4 border-destructive rounded-lg px-8 py-3 bg-background/90 backdrop-blur-sm shadow-2xl">
