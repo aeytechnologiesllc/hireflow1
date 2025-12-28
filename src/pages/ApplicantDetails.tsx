@@ -2099,21 +2099,27 @@ export default function ApplicantDetails() {
                   View Only
                 </Badge>
               )}
+              {/* Desktop: Visible subtle red Reject button */}
+              {canManagePipeline && !isRejected && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRejectConfirmation(true)}
+                  className="hidden md:flex gap-1.5 h-8 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-800/50"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Reject
+                </Button>
+              )}
+              {/* Mobile: Dropdown with Reject option */}
               {canManagePipeline && !isRejected && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => setShowHelpDialog(true)}
-                      className="gap-2"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                      How to use slider
-                    </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={() => setShowRejectConfirmation(true)}
                       className="gap-2 text-destructive focus:text-destructive"
