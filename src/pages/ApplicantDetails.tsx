@@ -2268,8 +2268,13 @@ export default function ApplicantDetails() {
               const isCompleted = index < effectivePhaseIndex;
               const isCurrent = index === effectivePhaseIndex;
               const hasData = hasCompletedCurrentPhase(phase.id, phase.type);
-              // Only show "Skipped" if the employer marked it skipped AND the candidate did not submit data for it.
-              const isSkipped = isPhaseSkipped(phase) && !hasData && index < effectivePhaseIndex;
+              // Show "Skipped" if:
+              // 1. Employer explicitly marked it skipped (isPhaseSkipped) AND no data, OR
+              // 2. Implicitly skipped: behind current phase, no data, and it's a candidate-facing phase
+              const isExplicitlySkipped = isPhaseSkipped(phase) && !hasData && index < effectivePhaseIndex;
+              const isCandidateFacingPhase = phase.type !== "review" && phase.type !== "interview" && phase.type !== "hired" && phase.type !== "journey_start";
+              const isImplicitlySkipped = index < effectivePhaseIndex && !hasData && isCandidateFacingPhase && !isPhaseSkipped(phase);
+              const isSkipped = isExplicitlySkipped || isImplicitlySkipped;
               const isStartPhase = phase.type === "journey_start";
               
               // Start point turns green when candidate has begun their journey:
@@ -3786,10 +3791,48 @@ export default function ApplicantDetails() {
           if (!pendingAvaInterview || !application) return;
           
           try {
-            // Update application with all config and advance to phase
+            // Track skipped phases when advancing to Ava Interview
+            let updatedNotes = { ...parsedNotes };
+            const currentIndex = effectivePhaseIndex;
+            const targetIndex = pendingAvaInterview.newIndex;
+            
+            // Check which phases are being skipped (between current and target)
+            const originPhase = phases[currentIndex];
+            const originHasData = hasCompletedCurrentPhase(originPhase.id, originPhase.type);
+            
+            // Phases between origin and destination (excludes review phases)
+            let skippedPhaseIds = phases.slice(currentIndex + 1, targetIndex)
+              .filter(p => p.type !== "review" && p.type !== "journey_start")
+              .map(p => p.id);
+            
+            // If origin phase has no data (was reset/not completed), also mark it as skipped
+            // Exception: Don't mark 'journey_start' or 'review' as skipped
+            if (!originHasData && originPhase.type !== "journey_start" && originPhase.type !== "review") {
+              skippedPhaseIds = [originPhase.id, ...skippedPhaseIds];
+            }
+            
+            // Also check for quiz - common case where employer skips directly to Ava Interview
+            const quizIndex = phases.findIndex(p => p.type === "quiz");
+            if (quizIndex >= 0) {
+              const quizPhase = phases[quizIndex];
+              const hasQuizData = hasCompletedCurrentPhase(quizPhase.id, quizPhase.type);
+              if (quizIndex >= currentIndex && quizIndex < targetIndex && !hasQuizData && !skippedPhaseIds.includes(quizPhase.id)) {
+                skippedPhaseIds.push(quizPhase.id);
+              }
+            }
+            
+            if (skippedPhaseIds.length > 0) {
+              updatedNotes.employerSkippedPhases = [
+                ...(updatedNotes.employerSkippedPhases || []),
+                ...skippedPhaseIds.filter(id => !updatedNotes.employerSkippedPhases?.includes(id)), // Dedupe
+              ];
+            }
+            
+            // Update application with all config, notes, and advance to phase
             await updateApplication.mutateAsync({
               id: application.id,
               phase: pendingAvaInterview.newPhase.id,
+              notes: JSON.stringify(updatedNotes),
               voice_interview_duration: config.duration,
               voice_interview_language: config.language,
               voice_interview_language_rule: config.languageRule,
