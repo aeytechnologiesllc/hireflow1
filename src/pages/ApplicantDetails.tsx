@@ -1670,7 +1670,7 @@ export default function ApplicantDetails() {
     
     // Application badge (always present)
     const hasApplicationData = !!(application.cover_letter || parsedNotes.applicationAnswers?.length > 0);
-    const isApplicationSkipped = isPhaseSkipped({ id: "application", type: "application" });
+    const isApplicationSkipped = isPhaseSkipped({ id: "application", type: "application" }) && !hasApplicationData;
     badges.push({
       id: "application",
       title: "Application",
@@ -1679,45 +1679,49 @@ export default function ApplicantDetails() {
       isSkipped: isApplicationSkipped,
       icon: FileCheck,
     });
-    
+
     // Resume badge (if resume uploaded or required)
     // Resume is also skipped if Application is skipped (since resume is part of application)
     if (job?.require_resume !== false || resumeUrl) {
+      const hasResumeData = !!resumeUrl;
+      const isResumeSkipped = isPhaseSkipped({ id: "resume", type: "resume" }) && !hasResumeData;
       badges.push({
         id: "resume",
         title: "Resume",
         type: "resume",
-        hasData: !!resumeUrl,
-        isSkipped: isPhaseSkipped({ id: "resume", type: "resume" }) || isApplicationSkipped,
+        hasData: hasResumeData,
+        isSkipped: isResumeSkipped || isApplicationSkipped,
         score: resumeUrl ? (application as any).resume_score || undefined : undefined,
         icon: FileText,
       });
     }
-    
+
     // Quiz badge (if quiz_questions exist)
     if (quizQuestions && quizQuestions.length > 0) {
       const quizData = parsedNotes.quiz || parsedNotes.quizResult || parsedNotes.quizAnswers;
+      const hasQuizData = !!quizData;
       badges.push({
         id: "quiz",
         title: "Quiz",
         type: "quiz",
-        hasData: !!quizData,
-        isSkipped: isPhaseSkipped({ id: "quiz", type: "quiz" }),
+        hasData: hasQuizData,
+        isSkipped: isPhaseSkipped({ id: "quiz", type: "quiz" }) && !hasQuizData,
         score: quizData?.score,
         icon: ClipboardList,
       });
     }
-    
+
     // Workflow step badges
     if (workflowSteps && workflowSteps.length > 0) {
       workflowSteps.forEach(step => {
         const stepData = getStepSubmissionData(step.id, step.type);
+        const hasStepData = !!stepData;
         badges.push({
           id: step.id,
           title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
           type: step.type,
-          hasData: !!stepData,
-          isSkipped: isPhaseSkipped({ id: step.id, type: step.type }),
+          hasData: hasStepData,
+          isSkipped: isPhaseSkipped({ id: step.id, type: step.type }) && !hasStepData,
           score: stepData?.score,
           icon: stepTypeIcons[step.type] || ClipboardList,
         });
@@ -2218,7 +2222,9 @@ export default function ApplicantDetails() {
               const Icon = phase.icon;
               const isCompleted = index < effectivePhaseIndex;
               const isCurrent = index === effectivePhaseIndex;
-              const isSkipped = isPhaseSkipped(phase);
+              const hasData = hasCompletedCurrentPhase(phase.id, phase.type);
+              // Only show "Skipped" if the employer marked it skipped AND the candidate did not submit data for it.
+              const isSkipped = isPhaseSkipped(phase) && !hasData && index < effectivePhaseIndex;
               const isStartPhase = phase.type === "journey_start";
               
               // Start point turns green when candidate has begun their journey:

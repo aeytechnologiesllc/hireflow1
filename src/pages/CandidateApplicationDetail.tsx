@@ -777,6 +777,32 @@ export default function CandidateApplicationDetail() {
               const isCurrent = index === effectivePhaseIndex;
               const isCompleted = index < effectivePhaseIndex;
 
+              // Determine if this phase has submission data (used to avoid showing "Skipped" when data exists)
+              let hasPhaseData = false;
+              if (phase.type === "application") {
+                hasPhaseData = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+              } else if (phase.type === "typing_test") {
+                hasPhaseData = !!notes.typingTestResult;
+              } else if (phase.type === "chat_simulation") {
+                hasPhaseData = !!notes.chatSimulationResult;
+              } else if (phase.type === "chat_interview") {
+                hasPhaseData = !!notes.chatInterviewResult;
+              } else if (phase.type === "sales_simulation") {
+                hasPhaseData = !!notes.salesSimulationResult;
+              } else if (phase.type === "quiz") {
+                const stepData = (notes as any)[phase.id];
+                hasPhaseData = !!(stepData?.completedAt || notes.quizResult);
+              } else if (phase.type === "video_intro" || phase.type === "video_message") {
+                const stepData = (notes as any)[phase.id];
+                hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
+              } else if (phase.type === "portfolio_upload") {
+                hasPhaseData = !!notes.portfolioResult;
+              } else if (phase.type === "voice_interview") {
+                hasPhaseData = !!application?.voice_interview_result;
+              } else {
+                hasPhaseData = !!(notes as any)[phase.id];
+              }
+
               return (
                 <div
                   key={phase.id}
@@ -826,7 +852,7 @@ export default function CandidateApplicationDetail() {
                         </Badge>
                       )}
                       {isCompleted && (
-                        isEmployerSkipped(phase.id, phase.type) ? (
+                        isEmployerSkipped(phase.id, phase.type) && !hasPhaseData ? (
                           <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
                             <FastForward className="h-3 w-3 mr-1" />
                             Skipped
