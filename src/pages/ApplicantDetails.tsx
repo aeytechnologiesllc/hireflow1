@@ -654,72 +654,13 @@ export default function ApplicantDetails() {
     ];
   })();
 
-  // Find current phase index with fuzzy matching to handle spaces/underscores
-  const normalizePhase = (str: string | null | undefined) => str?.toLowerCase().replace(/[\s-]/g, '_') || '';
-  
-  const currentPhaseIndex = phases.findIndex(p => {
-    const appPhase = application?.phase;
-    if (!appPhase) return false;
-    
-    const normalizedAppPhase = normalizePhase(appPhase);
-    return (
-      p.id === appPhase ||
-      p.type === appPhase ||
-      normalizePhase(p.type) === normalizedAppPhase ||
-      normalizePhase(p.id) === normalizedAppPhase
-    );
-  });
-  const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
-
-  // Parse submitted data from notes (moved earlier for use in phase completion check)
+  // Parse submitted data from notes (used for phase completion + analysis gating)
   const parsedNotes = (() => {
     try {
       return application?.notes ? JSON.parse(application.notes) : {};
     } catch {
       return {};
     }
-  })();
-
-  // Keep refs updated for the drag event handlers (fixes stale closure bug)
-  useEffect(() => {
-    dragPositionRef.current = dragPosition;
-  }, [dragPosition]);
-
-  useEffect(() => {
-    effectivePhaseIndexRef.current = effectivePhaseIndex;
-  }, [effectivePhaseIndex]);
-
-  useEffect(() => {
-    phasesRef.current = phases;
-  }, [phases]);
-
-  useEffect(() => {
-    applicationRef.current = application || null;
-  }, [application]);
-
-  useEffect(() => {
-    parsedNotesRef.current = parsedNotes;
-  }, [parsedNotes]);
-
-  // Check if there's valid application data to analyze
-  // This is true if: applicationAnswers exist OR resume_url exists
-  const hasValidApplicationData = useMemo(() => {
-    const hasApplicationAnswers = parsedNotes.applicationAnswers?.length > 0;
-    const hasResume = !!application?.resume_url;
-    return hasApplicationAnswers || hasResume;
-  }, [parsedNotes, application?.resume_url]);
-
-  // Extract applicant display name from application answers (prioritize Full Name)
-  const applicantDisplayName = (() => {
-    if (parsedNotes.applicationAnswers?.length > 0) {
-      const fullNameAnswer = parsedNotes.applicationAnswers.find(
-        (a: { question: string; answer: string }) =>
-          a.question.toLowerCase().includes("full name") ||
-          a.question.toLowerCase() === "name"
-      );
-      if (fullNameAnswer?.answer) return fullNameAnswer.answer;
-    }
-    return application?.profiles?.full_name || application?.profiles?.email || "Unknown Candidate";
   })();
 
   // Check if candidate has completed the current phase (awaiting employer review)
@@ -768,6 +709,82 @@ export default function ApplicantDetails() {
     // Review, Interview, Hired are employer-controlled - no candidate submission
     return false;
   };
+
+  // Find current phase index with fuzzy matching to handle spaces/underscores
+  const normalizePhase = (str: string | null | undefined) => str?.toLowerCase().replace(/[\s-]/g, '_') || '';
+
+  const currentPhaseIndex = phases.findIndex((p) => {
+    const appPhase = application?.phase;
+    if (!appPhase) return false;
+
+    const normalizedAppPhase = normalizePhase(appPhase);
+    return (
+      p.id === appPhase ||
+      p.type === appPhase ||
+      normalizePhase(p.type) === normalizedAppPhase ||
+      normalizePhase(p.id) === normalizedAppPhase
+    );
+  });
+
+  // Backward-compat: some older flows store phase as "review" even though we don't render an explicit Review node.
+  // In that case, anchor the slider to the latest *candidate-completed* phase so it doesn't snap back to Start.
+  const fallbackPhaseIndex = useMemo(() => {
+    if (currentPhaseIndex >= 0) return null;
+    if (normalizePhase(application?.phase) !== 'review') return null;
+
+    let lastCompleted = 0;
+    for (let i = 0; i < phases.length; i++) {
+      const p = phases[i];
+      // Stop before employer-controlled phases
+      if (p.type === 'interview' || p.type === 'hired') break;
+      if (hasCompletedCurrentPhase(p.id, p.type)) lastCompleted = i;
+    }
+    return lastCompleted;
+  }, [application?.phase, currentPhaseIndex, phases, parsedNotes, application?.cover_letter, application?.voice_interview_result]);
+
+  const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : (fallbackPhaseIndex ?? 0);
+
+  // Keep refs updated for the drag event handlers (fixes stale closure bug)
+  useEffect(() => {
+    dragPositionRef.current = dragPosition;
+  }, [dragPosition]);
+
+  useEffect(() => {
+    effectivePhaseIndexRef.current = effectivePhaseIndex;
+  }, [effectivePhaseIndex]);
+
+  useEffect(() => {
+    phasesRef.current = phases;
+  }, [phases]);
+
+  useEffect(() => {
+    applicationRef.current = application || null;
+  }, [application]);
+
+  useEffect(() => {
+    parsedNotesRef.current = parsedNotes;
+  }, [parsedNotes]);
+
+  // Check if there's valid application data to analyze
+  // This is true if: applicationAnswers exist OR resume_url exists
+  const hasValidApplicationData = useMemo(() => {
+    const hasApplicationAnswers = parsedNotes.applicationAnswers?.length > 0;
+    const hasResume = !!application?.resume_url;
+    return hasApplicationAnswers || hasResume;
+  }, [parsedNotes, application?.resume_url]);
+
+  // Extract applicant display name from application answers (prioritize Full Name)
+  const applicantDisplayName = (() => {
+    if (parsedNotes.applicationAnswers?.length > 0) {
+      const fullNameAnswer = parsedNotes.applicationAnswers.find(
+        (a: { question: string; answer: string }) =>
+          a.question.toLowerCase().includes("full name") ||
+          a.question.toLowerCase() === "name"
+      );
+      if (fullNameAnswer?.answer) return fullNameAnswer.answer;
+    }
+    return application?.profiles?.full_name || application?.profiles?.email || "Unknown Candidate";
+  })();
 
   // Check if currently in manual mode (not autopilot)
   const isManualMode = application?.jobs?.processing_mode !== "auto";
