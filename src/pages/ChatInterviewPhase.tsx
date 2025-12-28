@@ -239,11 +239,20 @@ export default function ChatInterviewPhase() {
           const currentStepIndex = workflowSteps.findIndex(s => s.id === stepId);
           const nextStep = workflowSteps[currentStepIndex + 1];
 
+          // Respect manual mode: NEVER auto-advance phases.
+          const { data: freshJobAutoEnd } = await supabase
+            .from("jobs")
+            .select("processing_mode")
+            .eq("id", application.job_id)
+            .single();
+
+          const isAutoModeAutoEnd = freshJobAutoEnd?.processing_mode === "auto";
+
           await supabase
             .from("applications")
             .update({
               notes: JSON.stringify(updatedNotes),
-              phase: nextStep ? nextStep.id : "review",
+              phase: isAutoModeAutoEnd ? (nextStep ? nextStep.id : "review") : application.phase,
               phase_ai_analysis: evaluation?.summary || null,
               ai_score: evaluation?.score || null,
               status: "reviewing",
@@ -677,10 +686,6 @@ export default function ChatInterviewPhase() {
           });
         }
       } else {
-        // Manual mode - only advance to review phase if it's the next step
-        if (nextPhase?.type === "review") {
-          newPhase = nextPhase.id;
-        }
         toast.success("Interview completed!", {
           description: "Your responses have been recorded. The employer will review your interview.",
         });
@@ -690,7 +695,8 @@ export default function ChatInterviewPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
+          // Manual mode must NEVER auto-advance phases
+          phase: isAutoMode ? newPhase : application.phase,
           status: newStatus as any,
           phase_ai_analysis: `Interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
           // Track Ava as the rejector for autopilot rejections

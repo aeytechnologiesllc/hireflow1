@@ -277,8 +277,8 @@ export default function VideoIntroPhase() {
         nextPhase = allPhases[currentIndex + 1];
       }
       
-      // Advance to next phase in auto mode, OR if next phase is review (last candidate step)
-      if (isAutoMode || nextPhase?.type === "review") {
+      // Advance to next phase ONLY in auto mode
+      if (isAutoMode) {
         if (nextPhase) {
           // STOP before voice_interview - requires employer to configure
           if (nextPhase.type === "voice_interview") {
@@ -287,9 +287,9 @@ export default function VideoIntroPhase() {
             // Don't set nextPhaseInfo - no "Start Next Phase" button
           } else {
             newPhase = nextPhase.id;
-            
+
             // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
-            if (isAutoMode && nextPhase.type !== "review") {
+            if (nextPhase.type !== "review") {
               setNextPhaseInfo({
                 id: nextPhase.id,
                 title: nextPhase.title,
@@ -331,7 +331,8 @@ export default function VideoIntroPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
+          // Manual mode must NEVER auto-advance phases
+          phase: isAutoMode ? newPhase : application.phase,
           phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
         })
         .eq("id", id!);

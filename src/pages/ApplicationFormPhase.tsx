@@ -418,25 +418,17 @@ export default function ApplicationFormPhase() {
           }
         }
       } else {
-        // Manual mode - advance phase normally, trigger analysis in background
-        let newPhase = application.phase || "application";
-        if (nextPhase?.type === "review") {
-          newPhase = nextPhase.id;
-        } else if (nextPhase) {
-          newPhase = nextPhase.id;
-        }
-        
-        await supabase
-          .from("applications")
-          .update({ phase: newPhase })
-          .eq("id", id!);
-        
-        // Trigger analysis in background
+        // Manual mode - NEVER auto-advance phases.
+        // We only persist the submission data (done above), trigger analysis, and return to the application.
+        // Employers control advancement in manual review mode.
+
         supabase.functions.invoke("trigger-ava-analysis", {
           body: { applicationId: id! },
         }).catch(err => console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err));
-        
-        toast.success("Application submitted successfully!");
+
+        toast.success("Application submitted successfully!", {
+          description: "Awaiting employer review.",
+        });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         navigate(`/applications/${id}`);
       }

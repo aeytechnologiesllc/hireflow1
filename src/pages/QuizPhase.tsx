@@ -624,10 +624,8 @@ export default function QuizPhase() {
           newStatus = "rejected";
         }
       } else {
-        // Manual mode - only advance to review phase if it's the next step
-        if (nextPhase?.type === "review") {
-          newPhase = nextPhase.id;
-        }
+        // Manual mode - NEVER auto-advance phases.
+        // Employer controls advancement.
       }
 
       // Build phase_ai_analysis with violation info
@@ -640,7 +638,8 @@ export default function QuizPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
+          // Manual mode must NEVER auto-advance phases
+          phase: isAutoMode ? newPhase : application.phase,
           status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
           phase_ai_analysis: phaseAnalysis,
         })
