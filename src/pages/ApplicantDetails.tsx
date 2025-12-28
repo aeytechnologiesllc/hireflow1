@@ -2428,6 +2428,13 @@ export default function ApplicantDetails() {
                       return;
                     }
                     
+                    // Intercept interview phase - show scheduling wizard before advancing
+                    if (nextPhase.type === "interview") {
+                      setPendingInterview({ newIndex: nextIndex, newPhase: nextPhase });
+                      setShowInterviewWizard(true);
+                      return;
+                    }
+                    
                     await executePhaseChange(nextIndex, nextPhase, false);
                   }}
                   className="gap-2"
