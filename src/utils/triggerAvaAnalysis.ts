@@ -14,7 +14,8 @@ export interface EvaluationResult {
  * - Voice Interview Score × 0.20
  * - Portfolio Score × 0.10
  * 
- * This ensures consistent scoring across all entry points (manual reanalyze, autopilot, phase completion).
+ * This is the SINGLE SOURCE OF TRUTH for all scoring.
+ * No front-end scoring should ever be done - all scores come from the backend.
  */
 export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
   try {
@@ -39,45 +40,65 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
 }
 
 /**
- * Evaluates a phase submission and returns the result.
- * Used for Autopilot mode to show evaluation screen to candidates.
- * Returns the score and whether the candidate passed based on the passing score.
+ * Waits for the backend to complete analysis and returns the result.
+ * This does NOT calculate any scores locally - it only triggers backend analysis
+ * and waits for the backend to set ai_score on the application.
+ * 
+ * The backend is the SINGLE SOURCE OF TRUTH for pass/fail decisions.
  */
 export async function evaluatePhaseSubmission(
   applicationId: string,
-  phaseScore: number,
+  _phaseScore: number, // Ignored - backend calculates the actual score
   passingScore: number = 60
 ): Promise<EvaluationResult> {
   try {
-    console.log("[evaluatePhaseSubmission] Evaluating application:", applicationId, "Score:", phaseScore, "Passing:", passingScore);
+    console.log("[evaluatePhaseSubmission] Triggering backend analysis for:", applicationId);
     
-    // Run the full analysis
+    // Trigger the backend analysis
     await triggerAvaAnalysis(applicationId);
     
-    // Fetch the updated analysis
+    // Wait a moment for the backend to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Fetch the updated analysis from the backend (SINGLE SOURCE OF TRUTH)
     const { data: application, error } = await supabase
       .from("applications")
-      .select("ai_analysis, ai_score")
+      .select("ai_analysis, ai_score, status")
       .eq("id", applicationId)
       .single();
     
     if (error) {
       console.error("[evaluatePhaseSubmission] Error fetching analysis:", error);
+      // Return unknown state - let realtime subscription handle it
+      return {
+        score: null,
+        passed: false,
+        analysis: null,
+      };
     }
     
-    const passed = phaseScore >= passingScore;
+    // Use the BACKEND score for pass/fail decision, not local calculation
+    const backendScore = application?.ai_score;
+    const passed = backendScore !== null && backendScore >= passingScore;
+    
+    console.log("[evaluatePhaseSubmission] Backend result:", { 
+      backendScore, 
+      passingScore, 
+      passed,
+      status: application?.status 
+    });
     
     return {
-      score: phaseScore,
+      score: backendScore,
       passed,
       analysis: application?.ai_analysis || null,
     };
   } catch (error) {
     console.error("[evaluatePhaseSubmission] Error:", error);
-    // Return based on provided score even if analysis fails
+    // Return unknown state on error
     return {
-      score: phaseScore,
-      passed: phaseScore >= passingScore,
+      score: null,
+      passed: false,
       analysis: null,
     };
   }

@@ -364,57 +364,33 @@ export default function TypingTestPhase() {
       }
       
       if (isAutoMode) {
-        if (results.passed) {
-          // Advance to next phase
-          if (nextPhase) {
-            // STOP before voice_interview - requires employer to configure
-            if (nextPhase.type === "voice_interview") {
-              // Don't advance to voice interview - stay at current phase completion
-              toast.info("Great job! An employer will invite you to a voice interview soon.", {
-                description: "Voice interviews require employer configuration.",
-                duration: 5000,
-              });
-              // Don't set nextPhaseInfo - no "Start Next Phase" button
-            } else {
-              newPhase = nextPhase.id;
-              
-              // DON'T show "Start Next Phase" button if next phase is review
-              // The candidate should wait for employer to advance them to premium phases
-              if (nextPhase.type !== "review") {
-                setNextPhaseInfo({
-                  id: nextPhase.id,
-                  title: nextPhase.title,
-                });
-              }
-              // If review phase, nextPhaseInfo stays null - candidate waits for employer
-            }
-          }
-        } else {
-          // Failed - reject the application
-          newStatus = "rejected";
+        // UNIFIED SCORING: Do NOT make pass/fail decision locally
+        // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
+        // It will calculate the weighted score and decide pass/fail
+        
+        // Determine next phase info for UI (if candidate passes)
+        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.type !== "review") {
+          setNextPhaseInfo({
+            id: nextPhase.id,
+            title: nextPhase.title,
+          });
         }
-      } else {
-        // Manual mode - NEVER auto-advance phases.
-        // Employer controls advancement.
       }
+      // Manual mode - NEVER auto-advance or reject. Employer controls.
 
       // Build detailed phase analysis
       const speedPercent = Math.round((results.wpm / requiredWpm) * 100);
-      const phaseAiAnalysis = results.passed 
-        ? `Typing test passed. Speed: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target), Accuracy: ${results.accuracy}%, Combined Score: ${results.score}%.`
-        : `Typing test failed due to ${
-            results.wpm < requiredWpm * 0.6 ? "low typing speed" : 
-            results.accuracy < 80 ? "low accuracy" : 
-            "combined speed and accuracy below threshold"
-          }.\n\nBreakdown:\n• Accuracy: ${results.accuracy}%\n• Combined Score: ${results.score}%\n• Required: ${passingScore}%`;
+      const phaseAiAnalysis = `Typing test: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target), Accuracy: ${results.accuracy}%, Combined Score: ${results.score}%. Local calculation: ${results.passed ? "PASSED" : "FAILED"}. Backend will compute final weighted score.`;
 
+      // Update application with typing test data but do NOT set status to rejected
+      // The backend will handle status updates via autopilotDecision
       const { error } = await supabase
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          // Manual mode must NEVER auto-advance phases
-          phase: isAutoMode ? newPhase : application.phase,
-          status: newStatus as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
+          // Do NOT change phase or status here - let backend handle in autopilot mode
+          phase: application.phase,
+          status: application.status as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
           phase_ai_analysis: phaseAiAnalysis,
         })
         .eq("id", id!);
@@ -424,17 +400,57 @@ export default function TypingTestPhase() {
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      // Always trigger AVA analysis via backend edge function (bypasses RLS issues)
-      supabase.functions.invoke("trigger-ava-analysis", {
-        body: { applicationId: id! },
-      }).catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
+      // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
+      // The backend will calculate weighted score and decide pass/fail
+      const analysisPromise = supabase.functions.invoke("trigger-ava-analysis", {
+        body: { 
+          applicationId: id!,
+          autopilotDecision: isAutoMode, // Backend makes the pass/fail decision
+          currentPhaseId: stepId,
+        },
+      });
 
       if (isAutoMode) {
-        // Run evaluation and show result screen
-        await evaluatePhaseSubmission(id!, results.score, passingScore);
-        setEvaluationState(results.passed ? "passed" : "failed");
+        // Wait for backend to process and set the result
+        setEvaluationState("evaluating");
+        
+        try {
+          const { data: analysisResult } = await analysisPromise;
+          console.log("[TypingTestPhase] Backend analysis result:", analysisResult);
+          
+          // Check the backend's decision
+          if (analysisResult?.decision === "rejected") {
+            setEvaluationState("failed");
+          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
+            setEvaluationState("passed");
+          } else {
+            // Fallback: fetch fresh application status
+            const { data: freshApp } = await supabase
+              .from("applications")
+              .select("status, ai_score")
+              .eq("id", id!)
+              .single();
+            
+            if (freshApp?.status === "rejected") {
+              setEvaluationState("failed");
+            } else if (freshApp?.ai_score !== null && freshApp.ai_score >= passingScore) {
+              setEvaluationState("passed");
+            } else if (freshApp?.ai_score !== null) {
+              setEvaluationState("failed");
+            } else {
+              // Still processing - show as evaluating, realtime will update
+              setEvaluationState("evaluating");
+            }
+          }
+        } catch (err) {
+          console.error("[TypingTestPhase] Backend analysis failed:", err);
+          // Fallback to local result for UX, but backend is source of truth
+          setEvaluationState(results.passed ? "passed" : "failed");
+        }
       } else {
-        // Manual mode - toast and navigate
+        // Manual mode - just trigger analysis in background, toast and navigate
+        analysisPromise.catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
+        
         toast.success("Typing test submitted successfully!", {
           description: "Your results have been recorded. The employer will review your submission.",
         });

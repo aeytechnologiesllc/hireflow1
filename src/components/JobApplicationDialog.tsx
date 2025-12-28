@@ -30,80 +30,48 @@ export default function JobApplicationDialog({
 }: JobApplicationDialogProps) {
   const [coverLetter, setCoverLetter] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const createApplication = useCreateApplication();
-
-  const analyzeApplication = async (jobData: Tables<"jobs">) => {
-    if (!coverLetter && !resumeUrl) return null;
-
-    setIsAnalyzing(true);
-    try {
-      const content = `
-Job Title: ${jobData.title}
-Job Description: ${jobData.description}
-Requirements: ${jobData.requirements || "Not specified"}
-
-Candidate Cover Letter:
-${coverLetter || "Not provided"}
-
-Resume URL: ${resumeUrl || "Not provided"}
-      `;
-
-      const { data, error } = await supabase.functions.invoke("ai-analyze", {
-        body: {
-          type: "application",
-          content,
-          context: {
-            skills_required: jobData.skills_required,
-            experience_level: jobData.experience_level,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      // Extract score from analysis (simple regex for "Score: XX" pattern)
-      const scoreMatch = data.analysis?.match(/Score[:\s]+(\d+)/i);
-      const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
-
-      return {
-        analysis: data.analysis,
-        score: score && score >= 0 && score <= 100 ? score : null,
-      };
-    } catch (error) {
-      console.error("AI analysis error:", error);
-      return null;
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!job) return;
 
+    setIsSubmitting(true);
+    
     try {
-      // Run AI analysis
-      const aiResult = await analyzeApplication(job);
-
-      await createApplication.mutateAsync({
+      // Create application WITHOUT ai_score/ai_analysis - backend will handle scoring
+      const result = await createApplication.mutateAsync({
         job_id: job.id,
         cover_letter: coverLetter || null,
         resume_url: resumeUrl || null,
-        ai_analysis: aiResult?.analysis || null,
-        ai_score: aiResult?.score || null,
+        // DO NOT set ai_analysis or ai_score here - backend is the single source of truth
       });
 
-      toast.success("Application submitted successfully!");
+      // Trigger backend analysis - this is the ONLY place scoring happens
+      // The backend will process the resume (PDF→image), run AI analysis, and set ai_score
+      supabase.functions.invoke("trigger-ava-analysis", {
+        body: { 
+          applicationId: result.id,
+          force: true,
+        },
+      }).catch(err => {
+        console.error("[JobApplicationDialog] Failed to trigger AVA analysis:", err);
+      });
+
+      toast.success("Application submitted!", {
+        description: "Ava is analyzing your application...",
+      });
+      
       onOpenChange(false);
       setCoverLetter("");
       setResumeUrl("");
     } catch (error: any) {
       toast.error(error.message || "Failed to submit application");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const isPending = createApplication.isPending || isAnalyzing;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -140,7 +108,7 @@ Resume URL: ${resumeUrl || "Not provided"}
           <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
             <Sparkles className="h-4 w-4 text-primary" />
             <span className="text-sm text-muted-foreground">
-              Your application will be analyzed by Ava to help employers understand your fit
+              Ava will analyze your application after submission
             </span>
           </div>
 
@@ -148,11 +116,11 @@ Resume URL: ${resumeUrl || "Not provided"}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && (
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              {isAnalyzing ? "Analyzing..." : "Submit Application"}
+              Submit Application
             </Button>
           </DialogFooter>
         </form>

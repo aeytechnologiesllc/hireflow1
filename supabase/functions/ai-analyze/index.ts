@@ -711,7 +711,19 @@ serve(async (req) => {
       console.log(`No resume image provided for ${type} analysis - will analyze based on other application data`);
       
       if (type === "resume" || type === "application") {
-        userContent += `\n\n--- RESUME STATUS ---\nNo resume image was provided for analysis. Please provide your analysis based on the other application data provided above. Mark the resume as RESUME_UNAVAILABLE in your Document Validation section.`;
+        userContent += `\n\n--- CRITICAL RESUME STATUS ---
+**RESUME NOT PROVIDED FOR VISUAL ANALYSIS**
+
+You MUST NOT claim to have reviewed, analyzed, or seen the resume/CV in any way.
+You MUST NOT say things like "I reviewed the supporting document" or "based on the resume".
+You MUST use status RESUME_UNAVAILABLE in your Document Validation section.
+You MUST clearly state that your assessment is based ONLY on:
+- Application form answers
+- Assessment/phase results (quiz, typing test, interviews, etc.)
+- Cover letter (if provided)
+
+DO NOT CONTRADICT YOURSELF: If you mark resume as RESUME_UNAVAILABLE, you cannot later claim to have reviewed it.
+Your skill match analysis should be based on what the candidate stated in their application answers, NOT a resume you did not see.`;
       }
       // No resume content available - analyze based on other data
       

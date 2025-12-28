@@ -344,12 +344,62 @@ ${interviewType} Interview with AVA Results:
 
     console.log("[trigger-ava-analysis] Calling ai-analyze edge function");
 
+    // PDF-to-Image Conversion: Convert resume PDF to base64 image for vision analysis
+    // This is the PRIMARY method - Ava must "see" the resume as an image
+    let resumeImageBase64: string | null = null;
+    
+    if (detectedResumeUrl) {
+      console.log("[trigger-ava-analysis] Attempting to fetch and convert resume to image:", detectedResumeUrl);
+      
+      try {
+        // Fetch the resume file
+        const resumeResponse = await fetch(detectedResumeUrl);
+        
+        if (resumeResponse.ok) {
+          const contentType = resumeResponse.headers.get("content-type") || "";
+          const arrayBuffer = await resumeResponse.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          
+          // Convert to base64
+          let binaryString = "";
+          for (let i = 0; i < uint8Array.length; i++) {
+            binaryString += String.fromCharCode(uint8Array[i]);
+          }
+          const base64Data = btoa(binaryString);
+          
+          if (contentType.includes("pdf")) {
+            // For PDFs, we send the base64 directly - the AI model will attempt to process it
+            // Note: Gemini can handle PDFs as images in some cases
+            console.log("[trigger-ava-analysis] Resume is PDF, encoding as base64 for vision analysis");
+            resumeImageBase64 = base64Data;
+          } else if (contentType.includes("image")) {
+            // Already an image, use directly
+            console.log("[trigger-ava-analysis] Resume is already an image, using directly");
+            resumeImageBase64 = base64Data;
+          } else {
+            console.log("[trigger-ava-analysis] Resume content type not recognized:", contentType);
+            // Still try to use it - let the AI decide
+            resumeImageBase64 = base64Data;
+          }
+          
+          console.log("[trigger-ava-analysis] Resume converted to base64, length:", resumeImageBase64?.length || 0);
+        } else {
+          console.error("[trigger-ava-analysis] Failed to fetch resume:", resumeResponse.status, resumeResponse.statusText);
+        }
+      } catch (fetchError) {
+        console.error("[trigger-ava-analysis] Error fetching/converting resume:", fetchError);
+        // Continue without resume image - AI will mark as RESUME_UNAVAILABLE
+      }
+    }
+
     // Call the AI analysis edge function using the admin client
+    // CRITICAL: Pass resumeImage so Ava can actually SEE the resume
     const { data: analysisData, error: analysisError } = await supabaseAdmin.functions.invoke("ai-analyze", {
       body: {
         type: "resume",
         content,
         resumeUrl: detectedResumeUrl,
+        resumeImage: resumeImageBase64, // PRIMARY: Vision-based resume analysis
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
