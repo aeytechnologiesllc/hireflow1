@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { notifyPhaseAdvanced } from "./emailNotifications";
+import { notifyPhaseAdvanced, notifyInterviewReady } from "./emailNotifications";
 
 interface WorkflowStep {
   id: string;
@@ -376,6 +376,41 @@ export async function processAutopilotCatchUp(
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", application.id);
+              
+              // Notify employer that candidate is ready for AIVA interview
+              try {
+                // Fetch candidate profile for name
+                const { data: candidateProfile } = await supabase
+                  .from("profiles")
+                  .select("full_name, email")
+                  .eq("user_id", application.candidate_id)
+                  .single();
+                
+                const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
+                
+                // Create in-app notification for employer
+                await supabase.from("notifications").insert({
+                  user_id: job.employer_id,
+                  type: "interview",
+                  title: "Candidate Ready for AIVA Interview",
+                  message: `${candidateName} scored ${aiScore}% and is ready for the AIVA voice interview for ${job.title}`,
+                  link: `/applicants/${application.id}`,
+                  is_read: false,
+                });
+                
+                // Send email notification
+                await notifyInterviewReady(
+                  job.employer_id,
+                  candidateName,
+                  job.title,
+                  aiScore
+                );
+                
+                console.log(`[processAutopilotCatchUp] Notified employer that candidate ${application.id} is ready for AIVA interview`);
+              } catch (notifyError) {
+                console.error(`[processAutopilotCatchUp] Failed to notify employer:`, notifyError);
+              }
+              
               continue;
             }
             
