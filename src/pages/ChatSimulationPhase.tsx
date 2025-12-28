@@ -631,15 +631,34 @@ export default function ChatSimulationPhase() {
           
           console.log("[ChatSimulationPhase] Backend analysis result:", analysisResult);
           
-          if (analysisResult?.passed === false) {
+          // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
+          if (analysisResult?.decision === "rejected") {
             setRejectedAppData({ ...application, status: "rejected" });
             setState("rejected");
-          } else {
+          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
             toast.success("Chat simulation completed!", {
               description: "Great work! You've advanced to the next phase.",
             });
             setState("completed");
             setTimeout(() => navigate(`/applications/${id}`), 2000);
+          } else {
+            // Fallback: check application status from database
+            const { data: updatedApp } = await supabase
+              .from("applications")
+              .select("status")
+              .eq("id", id!)
+              .single();
+            
+            if (updatedApp?.status === "rejected") {
+              setRejectedAppData({ ...application, status: "rejected" });
+              setState("rejected");
+            } else {
+              toast.success("Chat simulation completed!", {
+                description: "Your responses have been recorded.",
+              });
+              setState("completed");
+              setTimeout(() => navigate(`/applications/${id}`), 2000);
+            }
           }
         } catch (err) {
           console.error("[ChatSimulationPhase] Backend analysis failed:", err);

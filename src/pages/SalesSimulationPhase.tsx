@@ -593,13 +593,30 @@ export default function SalesSimulationPhase() {
           const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
             body: { applicationId: id!, autopilotDecision: true },
           });
-          if (analysisResult?.passed === false) {
+          // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
+          if (analysisResult?.decision === "rejected") {
             setRejectedAppData({ ...application, status: "rejected" });
             setState("rejected");
-          } else {
+          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
             toast.success("Sales simulation completed!");
             setState("completed");
             setTimeout(() => navigate(`/applications/${id}`), 2000);
+          } else {
+            // Fallback: check application status from database
+            const { data: updatedApp } = await supabase
+              .from("applications")
+              .select("status")
+              .eq("id", id!)
+              .single();
+            
+            if (updatedApp?.status === "rejected") {
+              setRejectedAppData({ ...application, status: "rejected" });
+              setState("rejected");
+            } else {
+              toast.success("Sales simulation completed!");
+              setState("completed");
+              setTimeout(() => navigate(`/applications/${id}`), 2000);
+            }
           }
         } catch (err) {
           setState("completed");
