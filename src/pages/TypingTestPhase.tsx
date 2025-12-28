@@ -90,7 +90,7 @@ export default function TypingTestPhase() {
   const typedTextRef = useRef<string>("");
   const startTimeRef = useRef<number | null>(null);
 
-  // Fetch application details
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["typing-test-application", id],
     queryFn: async () => {
@@ -116,6 +116,8 @@ export default function TypingTestPhase() {
       return parsed as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -492,6 +494,10 @@ export default function TypingTestPhase() {
 
   // Check if already submitted
   const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);

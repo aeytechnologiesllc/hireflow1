@@ -77,7 +77,7 @@ export default function PortfolioUploadPhase() {
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
-  // Fetch application details
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["portfolio-application", id],
     queryFn: async () => {
@@ -91,6 +91,8 @@ export default function PortfolioUploadPhase() {
       return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -470,6 +472,10 @@ export default function PortfolioUploadPhase() {
 
   // Check if already submitted - check both stepId key and global portfolioResult key
   const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);

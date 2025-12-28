@@ -100,7 +100,7 @@ export default function ChatInterviewPhase() {
     return () => clearInterval(interval);
   }, [state, startTime]);
 
-  // Fetch application details
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["chat-interview-application", id],
     queryFn: async () => {
@@ -122,6 +122,8 @@ export default function ChatInterviewPhase() {
       return { ...data, profiles: profile } as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -775,6 +777,10 @@ export default function ChatInterviewPhase() {
 
   // Check if already submitted
   const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);

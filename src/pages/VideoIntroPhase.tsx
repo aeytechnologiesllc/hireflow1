@@ -63,6 +63,7 @@ export default function VideoIntroPhase() {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["video-intro-application", id],
     queryFn: async () => {
@@ -75,6 +76,8 @@ export default function VideoIntroPhase() {
       return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -445,6 +448,10 @@ export default function VideoIntroPhase() {
 
   // Check if already submitted
   const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
     if (!application?.notes) return null;
     try {
       const notes = JSON.parse(application.notes);

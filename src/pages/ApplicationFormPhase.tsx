@@ -49,6 +49,7 @@ interface ApplicationDetails {
   resume_url: string | null;
   cover_letter: string | null;
   status: string;
+  ai_analysis: string | null;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -102,7 +103,7 @@ export default function ApplicationFormPhase() {
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   const [aiScore, setAiScore] = useState<number | null>(null);
 
-  // Fetch application details
+  // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
     queryKey: ["application-form", id],
     queryFn: async () => {
@@ -116,6 +117,8 @@ export default function ApplicationFormPhase() {
       return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
@@ -151,7 +154,13 @@ export default function ApplicationFormPhase() {
 
   // Parse notes to check if already submitted
   const notes = application?.notes ? JSON.parse(application.notes) : {};
-  const alreadySubmitted = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+  const hasApplicationAnswers = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+  
+  // If application was reconsidered (status reset to pending), allow re-submission
+  const isReconsidered = application?.status === "pending" && 
+                         application?.phase === stepId && 
+                         !application?.ai_analysis;
+  const alreadySubmitted = hasApplicationAnswers && !isReconsidered;
 
   // Auto-fill form fields from candidate profile data
   const [hasPrefilledFromProfile, setHasPrefilledFromProfile] = useState(false);
