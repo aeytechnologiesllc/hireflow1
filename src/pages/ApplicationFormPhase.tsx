@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,7 @@ export default function ApplicationFormPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const updateApplication = useUpdateApplication();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +152,75 @@ export default function ApplicationFormPhase() {
   // Parse notes to check if already submitted
   const notes = application?.notes ? JSON.parse(application.notes) : {};
   const alreadySubmitted = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+
+  // Auto-fill form fields from candidate profile data
+  const [hasPrefilledFromProfile, setHasPrefilledFromProfile] = useState(false);
+  
+  useEffect(() => {
+    if (!profile || questions.length === 0 || hasPrefilledFromProfile || alreadySubmitted) return;
+    
+    const prefilled: Record<string, string> = {};
+    const prefilledCountryCodes: Record<string, string> = {};
+    
+    questions.forEach(q => {
+      const questionLower = q.question.toLowerCase();
+      
+      // Full Name
+      if ((questionLower.includes("full name") || questionLower === "name") && profile.full_name) {
+        prefilled[q.id] = profile.full_name;
+      }
+      
+      // Email
+      if ((q.type === "email" || questionLower.includes("email")) && profile.email) {
+        prefilled[q.id] = profile.email;
+      }
+      
+      // Phone
+      if ((q.type === "phone" || questionLower.includes("phone")) && profile.phone) {
+        // Parse existing phone (might include country code)
+        const phoneMatch = profile.phone.match(/^(\+\d+)?\s*(.*)$/);
+        if (phoneMatch) {
+          if (phoneMatch[1]) prefilledCountryCodes[q.id] = phoneMatch[1];
+          prefilled[q.id] = phoneMatch[2] || profile.phone;
+        } else {
+          prefilled[q.id] = profile.phone;
+        }
+      }
+      
+      // Job Title / Current Position
+      if ((questionLower.includes("job title") || questionLower.includes("current position") || questionLower.includes("current role")) && profile.job_title) {
+        prefilled[q.id] = profile.job_title;
+      }
+      
+      // Years of Experience
+      if (questionLower.includes("years of experience") && profile.experience_years) {
+        prefilled[q.id] = String(profile.experience_years);
+      }
+      
+      // Location
+      if ((questionLower.includes("location") || questionLower.includes("city")) && profile.location) {
+        prefilled[q.id] = profile.location;
+      }
+      
+      // LinkedIn
+      if (questionLower.includes("linkedin") && profile.linkedin_url) {
+        prefilled[q.id] = profile.linkedin_url;
+      }
+      
+      // Portfolio
+      if (questionLower.includes("portfolio") && profile.portfolio_url) {
+        prefilled[q.id] = profile.portfolio_url;
+      }
+    });
+    
+    if (Object.keys(prefilled).length > 0) {
+      setAnswers(prev => ({ ...prefilled, ...prev }));
+      if (Object.keys(prefilledCountryCodes).length > 0) {
+        setPhoneCountryCodes(prev => ({ ...prefilledCountryCodes, ...prev }));
+      }
+      setHasPrefilledFromProfile(true);
+    }
+  }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted]);
 
   // File upload handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
