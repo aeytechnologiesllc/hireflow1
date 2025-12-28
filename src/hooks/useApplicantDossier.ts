@@ -1,38 +1,41 @@
 import { useState } from "react";
-import { generateApplicantDossier } from "@/utils/generateApplicantDossier";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Tables } from "@/integrations/supabase/types";
-
-type ApplicationData = Tables<"applications"> & {
-  jobs: Tables<"jobs"> | null;
-  profiles: Tables<"profiles"> | null;
-};
 
 export function useApplicantDossier() {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const downloadDossier = async (application: ApplicationData | null) => {
-    if (!application) {
-      toast.error("Application data not available");
-      return;
-    }
-
-    if (!application.profiles) {
-      toast.error("Candidate profile not available");
+  const downloadDossier = async (applicationId: string | null) => {
+    if (!applicationId) {
+      toast.error("Application ID not available");
       return;
     }
 
     setIsGenerating(true);
     try {
-      const candidateProfile = {
-        full_name: application.profiles.full_name,
-        email: application.profiles.email,
-        phone: application.profiles.phone,
-        location: application.profiles.location,
-        linkedin_url: application.profiles.linkedin_url,
-      };
+      const { data, error } = await supabase.functions.invoke('generate-applicant-dossier', {
+        body: { applicationId }
+      });
 
-      generateApplicantDossier(application, candidateProfile);
+      if (error) {
+        console.error("Error generating dossier:", error);
+        toast.error("Failed to generate applicant dossier");
+        return;
+      }
+
+      if (!data?.pdfDataUri) {
+        toast.error("Failed to generate PDF");
+        return;
+      }
+
+      // Trigger download
+      const link = document.createElement('a');
+      link.href = data.pdfDataUri;
+      link.download = data.fileName || 'applicant_dossier.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
       toast.success("Applicant dossier downloaded!");
     } catch (error) {
       console.error("Error generating dossier:", error);
