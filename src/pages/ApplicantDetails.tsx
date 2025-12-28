@@ -1658,7 +1658,7 @@ export default function ApplicantDetails() {
         type: "resume",
         hasData: !!resumeUrl,
         isSkipped: skippedPhases.includes("resume") || isApplicationSkipped,
-        score: (application as any).resume_score || undefined,
+        score: resumeUrl ? (application as any).resume_score || undefined : undefined,
         icon: FileText,
       });
     }
@@ -2605,7 +2605,7 @@ export default function ApplicantDetails() {
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Resume
-              {(application as any).resume_score != null && (
+              {resumeUrl && (application as any).resume_score != null && (
                 <Badge className="bg-success/20 text-success ml-2">
                   Resume Score: {Math.round((application as any).resume_score)}/100
                 </Badge>
