@@ -368,6 +368,33 @@ export default function ApplicantDetails() {
     };
   }, [id, queryClient]);
 
+  // Real-time subscription for job updates (processing_mode changes, etc.)
+  useEffect(() => {
+    if (!application?.job_id) return;
+
+    const channel = supabase
+      .channel(`job-${application.job_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `id=eq.${application.job_id}`,
+        },
+        (payload) => {
+          console.log('Job updated in real-time:', payload);
+          // Invalidate the application query since it includes job data
+          queryClient.invalidateQueries({ queryKey: ["application", id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [application?.job_id, id, queryClient]);
+
   // Real-time subscription for interview updates (candidate confirms, reschedules, etc.)
   useEffect(() => {
     if (!id) return;
@@ -1914,6 +1941,55 @@ export default function ApplicantDetails() {
               )}
             </CardContent>
           </Card>
+        );
+      })()}
+
+      {/* Autopilot AVA Interview Prompt - Show when candidate is ready for voice interview in autopilot mode */}
+      {!isRejected && canManagePipeline && (() => {
+        const isAutoPilot = job?.processing_mode === "auto";
+        const currentPhase = phases[effectivePhaseIndex];
+        const nextPhase = phases[effectivePhaseIndex + 1];
+        const isCurrentPhaseComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
+        const isAwaitingVoiceInterview = isAutoPilot && isCurrentPhaseComplete && nextPhase?.type === "voice_interview";
+        
+        if (!isAwaitingVoiceInterview) return null;
+        
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="bg-card border-border border-l-4 border-l-purple-500">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                      <Mic className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-purple-500">Ready for AIVA Interview</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Candidate has passed all automated assessments. Configure the voice interview to continue.
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      const nextIndex = effectivePhaseIndex + 1;
+                      const nextPhaseData = phases[nextIndex];
+                      setPendingAvaInterview({ newIndex: nextIndex, newPhase: nextPhaseData });
+                      setShowAvaInterviewConfig(true);
+                    }} 
+                    className="gap-2 bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Mic className="h-4 w-4" />
+                    Configure Interview
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         );
       })()}
 
