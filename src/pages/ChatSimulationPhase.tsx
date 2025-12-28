@@ -656,12 +656,23 @@ export default function ChatSimulationPhase() {
         if (passed) {
           if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
             const nextPhase = allPhases[currentIndex + 1];
-            newPhase = nextPhase.id;
-            // Note: ChatSimulation uses toast instead of EvaluationScreen so no nextPhaseInfo needed
+            // STOP before voice_interview - requires employer to configure
+            if (nextPhase.type === "voice_interview") {
+              // Don't advance to voice interview - stay at current phase completion
+              toast.success("Chat simulation completed!", {
+                description: "Great job! An employer will invite you to a voice interview soon.",
+              });
+            } else {
+              newPhase = nextPhase.id;
+              toast.success("Chat simulation completed!", {
+                description: "Great work! You've advanced to the next phase.",
+              });
+            }
+          } else {
+            toast.success("Chat simulation completed!", {
+              description: "Great work! You've advanced to the next phase.",
+            });
           }
-          toast.success("Chat simulation completed!", {
-            description: "Great work! You've advanced to the next phase.",
-          });
         } else {
           newStatus = "rejected";
           // Store app data for rejection screen

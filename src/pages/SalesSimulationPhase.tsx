@@ -670,12 +670,23 @@ export default function SalesSimulationPhase() {
       if (isAutoMode) {
         if (passed) {
           if (nextPhase) {
-            newPhase = nextPhase.id;
-            // Note: SalesSimulation uses toast instead of EvaluationScreen
+            // STOP before voice_interview - requires employer to configure
+            if (nextPhase.type === "voice_interview") {
+              // Don't advance to voice interview - stay at current phase completion
+              toast.success("Sales simulation completed!", {
+                description: "Great job! An employer will invite you to a voice interview soon.",
+              });
+            } else {
+              newPhase = nextPhase.id;
+              toast.success("Sales simulation completed!", {
+                description: `Great work! You've completed this phase.`,
+              });
+            }
+          } else {
+            toast.success("Sales simulation completed!", {
+              description: `Great work! You've completed this phase.`,
+            });
           }
-          toast.success("Sales simulation completed!", {
-            description: `Great work! You've completed this phase.`,
-          });
         } else {
           newStatus = "rejected";
           // Store app data for rejection screen
