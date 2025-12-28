@@ -696,10 +696,6 @@ export default function SalesSimulationPhase() {
           });
         }
       } else {
-        // Manual mode - only advance to review phase if it's the next step
-        if (nextPhase?.type === "review") {
-          newPhase = nextPhase.id;
-        }
         toast.success("Sales simulation completed!", {
           description: "Your performance has been recorded. The employer will review it.",
         });
@@ -709,7 +705,8 @@ export default function SalesSimulationPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
+          // Manual mode must NEVER auto-advance phases
+          phase: isAutoMode ? newPhase : application.phase,
           status: newStatus as any,
           phase_ai_analysis: `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}. ${passed ? "PASSED" : "FAILED"}`,
           // Track Ava as the rejector for autopilot rejections

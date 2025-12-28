@@ -692,7 +692,8 @@ export default function ChatSimulationPhase() {
         .from("applications")
         .update({
           notes: JSON.stringify(updatedNotes),
-          phase: newPhase,
+          // Manual mode must NEVER auto-advance phases
+          phase: isAutoMode ? newPhase : application.phase,
           status: newStatus as any,
           phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%. ${passed ? "PASSED" : "FAILED"}`,
           // Track Ava as the rejector for autopilot rejections

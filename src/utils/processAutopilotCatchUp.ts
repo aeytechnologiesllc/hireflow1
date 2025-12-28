@@ -176,12 +176,18 @@ export async function processAutopilotCatchUp(
     // Fetch job details to get workflow steps, passing score, required WPM, and quiz questions
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("workflow_steps, passing_score, required_wpm, title, employer_id, quiz_questions")
+      .select("processing_mode, workflow_steps, passing_score, required_wpm, title, employer_id, quiz_questions")
       .eq("id", jobId)
       .single();
 
     if (jobError || !job) {
       console.error("[processAutopilotCatchUp] Failed to fetch job:", jobError);
+      return result;
+    }
+
+    // SAFETY: Never run catch-up unless the job is actually in auto mode.
+    if (job.processing_mode !== "auto") {
+      console.log("[processAutopilotCatchUp] Job is not in auto mode; skipping catch-up.");
       return result;
     }
 
@@ -191,7 +197,7 @@ export async function processAutopilotCatchUp(
     const quizQuestions = job.quiz_questions as unknown as any[] | null;
     const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
     const hasTypingTest = workflowSteps.some(step => step.type === 'typing_test');
-    
+
     console.log(`[processAutopilotCatchUp] Job config: passingScore=${passingScore}, requiredWpm=${requiredWpm}, hasQuiz=${hasQuizQuestions}, hasTypingTest=${hasTypingTest}, workflowStepsCount=${workflowSteps.length}`);
 
     // Fetch employer profile for company name
