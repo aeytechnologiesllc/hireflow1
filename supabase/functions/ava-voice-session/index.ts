@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Import unpdf for proper PDF text extraction
+import { extractText } from "https://esm.sh/unpdf@0.12.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,66 +71,110 @@ function detectResumeUrl(resumeUrlField: string | null | undefined, parsedNotes:
   return null;
 }
 
-// Attempt to fetch and extract text from a PDF URL
-async function fetchResumeText(resumeUrl: string): Promise<string | null> {
+// Parse Supabase storage URL to extract bucket and path
+function parseStorageUrl(url: string): { bucket: string; path: string } | null {
+  // Match patterns like /storage/v1/object/public/bucket/path or /storage/v1/object/bucket/path
+  const match = url.match(/\/storage\/v1\/object\/(?:public\/)?([^/]+)\/(.+)/);
+  if (match) {
+    return { bucket: match[1], path: decodeURIComponent(match[2]) };
+  }
+  return null;
+}
+
+// Attempt to fetch and extract text from a PDF URL with signed URL fallback
+async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<string | null> {
   try {
     console.log('[fetchResumeText] Attempting to fetch resume from:', resumeUrl);
     
-    // Fetch the PDF
-    const response = await fetch(resumeUrl);
+    let fetchUrl = resumeUrl;
+    let response = await fetch(resumeUrl);
+    
+    // If public fetch fails and we have an admin client, try generating a signed URL
+    if (!response.ok && adminClient) {
+      console.log('[fetchResumeText] Public fetch failed with status:', response.status, '- trying signed URL');
+      const storageInfo = parseStorageUrl(resumeUrl);
+      
+      if (storageInfo) {
+        console.log('[fetchResumeText] Generating signed URL for bucket:', storageInfo.bucket, 'path:', storageInfo.path);
+        const { data: signedData, error: signedError } = await adminClient.storage
+          .from(storageInfo.bucket)
+          .createSignedUrl(storageInfo.path, 120); // 2 minute expiry
+        
+        if (!signedError && signedData?.signedUrl) {
+          fetchUrl = signedData.signedUrl;
+          response = await fetch(fetchUrl);
+          console.log('[fetchResumeText] Signed URL fetch status:', response.status);
+        } else {
+          console.log('[fetchResumeText] Signed URL generation failed:', signedError);
+        }
+      }
+    }
+    
     if (!response.ok) {
-      console.log('[fetchResumeText] Failed to fetch resume:', response.status);
+      console.log('[fetchResumeText] Failed to fetch resume, final status:', response.status);
       return null;
     }
     
     const contentType = response.headers.get('content-type') || '';
     console.log('[fetchResumeText] Content-Type:', contentType);
     
-    // If it's a PDF, we'll try to extract basic text
-    // Note: Full PDF parsing would require a library, but we can try to extract readable text
+    // Get the PDF as array buffer
     const arrayBuffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    console.log('[fetchResumeText] Downloaded file size:', arrayBuffer.byteLength, 'bytes');
     
-    // Simple text extraction for PDFs - look for text streams
-    let textContent = '';
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = decoder.decode(bytes);
-    
-    // Extract text between parentheses (common PDF text encoding)
-    const textMatches = rawText.match(/\(([^)]+)\)/g);
-    if (textMatches) {
-      textContent = textMatches
-        .map(m => m.slice(1, -1))
-        .filter(t => t.length > 2 && !/^[\d\s.]+$/.test(t))
-        .join(' ')
-        .replace(/\\n/g, '\n')
-        .replace(/\\/g, '')
-        .slice(0, 5000); // Limit to 5000 chars
-    }
-    
-    // Also try to find text in BT/ET blocks
-    const btMatches = rawText.match(/BT[\s\S]*?ET/g);
-    if (btMatches) {
-      for (const block of btMatches) {
-        const tjMatches = block.match(/\(([^)]+)\)/g);
-        if (tjMatches) {
-          textContent += ' ' + tjMatches.map(m => m.slice(1, -1)).join(' ');
+    // If it's a PDF, use unpdf for proper text extraction
+    if (contentType.includes('pdf') || resumeUrl.toLowerCase().endsWith('.pdf')) {
+      try {
+        console.log('[fetchResumeText] Extracting text using unpdf library...');
+        const { text } = await extractText(new Uint8Array(arrayBuffer));
+        // unpdf returns text as string or array - normalize it
+        const textStr = Array.isArray(text) ? text.join('\n') : String(text);
+        const cleanedText = textStr.trim();
+        
+        if (cleanedText.length > 50) {
+          // Limit to ~10k chars for context window
+          const truncatedText = cleanedText.slice(0, 10000);
+          console.log('[fetchResumeText] Successfully extracted PDF text, length:', truncatedText.length);
+          return truncatedText;
+        } else {
+          console.log('[fetchResumeText] PDF text extraction yielded insufficient content:', cleanedText.length, 'chars');
+        }
+      } catch (pdfError) {
+        console.error('[fetchResumeText] PDF parsing error with unpdf:', pdfError);
+        
+        // Fallback: try basic text extraction for text-based PDFs
+        try {
+          const decoder = new TextDecoder('utf-8', { fatal: false });
+          const rawText = decoder.decode(new Uint8Array(arrayBuffer));
+          const textMatches = rawText.match(/\(([^)]+)\)/g);
+          if (textMatches && textMatches.length > 20) {
+            const fallbackText = textMatches
+              .map(m => m.slice(1, -1))
+              .filter(t => t.length > 2 && !/^[\d\s.]+$/.test(t))
+              .join(' ')
+              .replace(/\\n/g, '\n')
+              .replace(/\\/g, '')
+              .slice(0, 5000);
+            if (fallbackText.length > 100) {
+              console.log('[fetchResumeText] Fallback extraction yielded text length:', fallbackText.length);
+              return fallbackText;
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('[fetchResumeText] Fallback extraction also failed:', fallbackErr);
         }
       }
+      return null;
     }
     
-    // Clean up the extracted text
-    textContent = textContent
-      .replace(/[\x00-\x1F\x7F-\x9F]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    if (textContent.length > 100) {
-      console.log('[fetchResumeText] Extracted text length:', textContent.length);
-      return textContent.slice(0, 8000); // Limit to 8000 chars for context
+    // For other file types (doc, txt), try to read as text
+    const textContent = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(arrayBuffer));
+    if (textContent.length > 50) {
+      console.log('[fetchResumeText] Extracted non-PDF text length:', textContent.length);
+      return textContent.slice(0, 10000);
     }
     
-    console.log('[fetchResumeText] Could not extract meaningful text from PDF');
+    console.log('[fetchResumeText] Could not extract meaningful content from file');
     return null;
   } catch (error) {
     console.error('[fetchResumeText] Error fetching resume:', error);
@@ -1163,19 +1209,26 @@ Keep greetings to ONE short sentence - don't ramble.`;
       
       if (resumeUrl) {
         console.log('[Interview Mode] Resume URL detected:', resumeUrl);
-        const extractedText = await fetchResumeText(resumeUrl);
+        // Pass adminClient for signed URL fallback if public fetch fails
+        const extractedText = await fetchResumeText(resumeUrl, adminClient);
         if (extractedText) {
           resumeContent = `
 === RESUME CONTENT (EXTRACTED FROM PDF) ===
 ${extractedText}
-=== END RESUME CONTENT ===`;
+=== END RESUME CONTENT ===
+
+**CRITICAL INSTRUCTION:** You have the candidate's resume content above. DO NOT claim you couldn't access or analyze their resume. Reference specific details from it during the interview.`;
           console.log('[Interview Mode] Successfully extracted resume text, length:', extractedText.length);
         } else {
-          // Resume exists but couldn't extract text - let Ava know the file exists
+          // Resume exists but couldn't extract text - tell Ava the file exists but don't claim it's unavailable
           resumeContent = `
-=== RESUME FILE ===
+=== RESUME FILE UPLOADED ===
 The candidate uploaded a resume file at: ${resumeUrl}
-(The text could not be extracted from this PDF - ask the candidate about their background, experience, and qualifications directly. The file exists, so they made the effort to upload it.)
+The system couldn't automatically extract the text from this PDF (it may be a scanned image or have unusual formatting).
+
+**CRITICAL INSTRUCTION:** DO NOT tell the candidate "I couldn't access your resume" or "I don't have your resume." They DID upload one.
+Instead, say something like: "I received your resume file. Since my system couldn't read all the details automatically, let me ask you directly about your background."
+Then proceed to ask about their experience, skills, and qualifications conversationally.
 === END RESUME FILE ===`;
           console.log('[Interview Mode] Resume file exists but text extraction failed');
         }
@@ -1183,7 +1236,7 @@ The candidate uploaded a resume file at: ${resumeUrl}
         resumeContent = `
 === RESUME ===
 No resume was uploaded for this application.
-(The candidate did not provide a resume - you may want to ask about their background and experience directly.)
+(The candidate did not provide a resume - ask about their background and experience directly.)
 === END RESUME ===`;
         console.log('[Interview Mode] No resume URL found');
       }
@@ -1219,8 +1272,10 @@ BASIC INFO:
 
 ${resumeContent}
 
-PREVIOUS AI ANALYSIS (for reference, may be incomplete):
+PREVIOUS AI ANALYSIS (for reference only - may be outdated):
 ${application.ai_analysis || 'Not analyzed yet'}
+
+**IMPORTANT:** If the previous AI analysis mentions "RESUME_UNAVAILABLE" or similar, IGNORE that flag. Check the "RESUME CONTENT" or "RESUME FILE UPLOADED" section above - that is the current truth about the resume. The previous analysis may be stale.
 
 APPLICATION ANSWERS:
 ${notes.applicationAnswers ? Object.entries(notes.applicationAnswers).map(([q, a]) => `- ${q}: ${a}`).join('\n') : 'Not available'}
