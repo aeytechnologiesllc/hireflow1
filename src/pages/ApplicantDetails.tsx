@@ -149,8 +149,7 @@ export default function ApplicantDetails() {
   // Auto-trigger AVA analysis when needed (after phase reset + resubmission)
   useAutoTriggerAvaAnalysis({ applicationId: id, enabled: !!id });
   
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragPosition, setDragPosition] = useState(0);
+  const [sliderPosition, setSliderPosition] = useState(0);
   const [isAwaitingReview, setIsAwaitingReview] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
@@ -159,14 +158,8 @@ export default function ApplicantDetails() {
   const [showInterviewWizard, setShowInterviewWizard] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<SavedWizardState | null>(null);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
-  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
-  const [pendingPhaseChange, setPendingPhaseChange] = useState<{
-    newIndex: number;
-    newPhase: { id: string; title: string; type: string };
-    phasesToReset: { id: string; title: string; type: string }[];
-  } | null>(null);
   const [showResetPhaseDialog, setShowResetPhaseDialog] = useState(false);
   const [phaseToReset, setPhaseToReset] = useState<{ id: string; title: string; type: string } | null>(null);
   const [showSalesAnalysisDialog, setShowSalesAnalysisDialog] = useState(false);
@@ -191,13 +184,7 @@ export default function ApplicantDetails() {
   const [showReconsiderConfirmation, setShowReconsiderConfirmation] = useState(false);
   const [computedRestorePhase, setComputedRestorePhase] = useState<{ id: string; name: string; index: number }>({ id: "review", name: "Review", index: -1 });
   const sliderRef = useRef<HTMLDivElement>(null);
-  
-  // Refs to store current values for the drag event handlers (fixes stale closure bug)
-  const dragPositionRef = useRef(dragPosition);
-  const effectivePhaseIndexRef = useRef(0);
-  const phasesRef = useRef<{ id: string; title: string; icon: any; type: string }[]>([]);
   const applicationRef = useRef<ApplicationDetails | null>(null);
-  const parsedNotesRef = useRef<Record<string, any>>({});
   
   // Ref to prevent useEffect from overriding slider position during phase change
   const isPhaseChangeInProgressRef = useRef(false);
@@ -776,26 +763,10 @@ export default function ApplicantDetails() {
 
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : (fallbackPhaseIndex ?? 0);
 
-  // Keep refs updated for the drag event handlers (fixes stale closure bug)
-  useEffect(() => {
-    dragPositionRef.current = dragPosition;
-  }, [dragPosition]);
-
-  useEffect(() => {
-    effectivePhaseIndexRef.current = effectivePhaseIndex;
-  }, [effectivePhaseIndex]);
-
-  useEffect(() => {
-    phasesRef.current = phases;
-  }, [phases]);
-
+  // Keep ref updated for callbacks
   useEffect(() => {
     applicationRef.current = application || null;
   }, [application]);
-
-  useEffect(() => {
-    parsedNotesRef.current = parsedNotes;
-  }, [parsedNotes]);
 
   // Check if there's valid application data to analyze
   // This is true if: applicationAnswers exist OR resume_url exists
@@ -821,7 +792,7 @@ export default function ApplicantDetails() {
   // Check if currently in manual mode (not autopilot)
   const isManualMode = application?.jobs?.processing_mode !== "auto";
 
-  // Calculate avatar position based on phase
+  // Calculate slider position based on phase (read-only display)
   useEffect(() => {
     // Skip if a phase change is in progress (wait for query invalidation to complete)
     if (isPhaseChangeInProgressRef.current) {
@@ -829,7 +800,7 @@ export default function ApplicantDetails() {
       return;
     }
     
-    if (sliderRef.current && !isDragging) {
+    if (sliderRef.current) {
       const currentPhase = phases[effectivePhaseIndex];
       const nextPhase = phases[effectivePhaseIndex + 1];
       const isComplete = currentPhase ? hasCompletedCurrentPhase(currentPhase.id, currentPhase.type) : false;
@@ -850,25 +821,6 @@ export default function ApplicantDetails() {
       const awaitingReview = isComplete && !isLastPhase && 
         (isManualMode ? true : (isVoiceInterviewCompleted || nextIsEmployerPhase));
       
-      // Debug logging for slider position issues
-      console.log('[Slider Position Debug]', {
-        currentPhase: currentPhase?.id,
-        phaseType: currentPhase?.type,
-        storedPhase: application?.phase,
-        nextPhase: nextPhase?.id,
-        nextIsEmployerPhase,
-        isComplete,
-        isLastPhase,
-        isManualMode,
-        isVoiceInterviewCompleted,
-        awaitingReview,
-        hasVoiceResult: !!application?.voice_interview_result,
-        hasApplicationAnswers: !!parsedNotes.applicationAnswers?.length,
-        effectivePhaseIndex,
-        phasesCount: phases.length,
-        notesPreview: JSON.stringify(parsedNotes).substring(0, 200)
-      });
-      
       setIsAwaitingReview(awaitingReview);
       
       // Add 0.5 offset if awaiting review (halfway to next phase)
@@ -877,126 +829,53 @@ export default function ApplicantDetails() {
         : effectivePhaseIndex;
       
       const percentage = (adjustedPosition / (phases.length - 1)) * 100;
-      setDragPosition(percentage);
+      setSliderPosition(percentage);
     }
-  }, [effectivePhaseIndex, phases.length, isDragging, parsedNotes, application, isManualMode]);
+  }, [effectivePhaseIndex, phases.length, parsedNotes, application, isManualMode]);
 
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDrag = (e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !sliderRef.current) return;
+  // Handler for advancing to next phase via button (replaces drag)
+  const handleAdvanceToNextPhase = async () => {
+    if (!application || effectivePhaseIndex >= phases.length - 1) return;
     
-    const rect = sliderRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const x = clientX - rect.left;
-    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    setDragPosition(percentage);
-  };
-
-  // Global mouse/touch event listeners for smooth magnetic drag
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => handleDrag(e);
-    const handleTouchMove = (e: TouchEvent) => handleDrag(e);
-    const handleMouseUp = () => handleDragEnd();
-    const handleTouchEnd = () => handleDragEnd();
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [isDragging]);
-
-  const handleDragEnd = async () => {
-    // Use refs to get the current values (fixes stale closure bug)
-    const currentDragPosition = dragPositionRef.current;
-    const currentPhases = phasesRef.current;
-    const currentEffectiveIndex = effectivePhaseIndexRef.current;
-    const currentApplication = applicationRef.current;
+    const nextIndex = effectivePhaseIndex + 1;
+    const nextPhase = phases[nextIndex];
     
-    if (!isDragging || !currentApplication) return;
-    setIsDragging(false);
-    
-    // Calculate nearest phase using ref values
-    const stepSize = 100 / (currentPhases.length - 1);
-    let nearestIndex = Math.round(currentDragPosition / stepSize);
-    
-    // Prevent going back to journey_start (index 0) - Application (index 1) is the minimum
-    // Start phase is just a visual marker, not an actionable position
-    const minPhaseIndex = 1;
-    nearestIndex = Math.max(nearestIndex, minPhaseIndex);
-    
-    const newPhase = currentPhases[nearestIndex];
-    
-    // Debug logging to troubleshoot slider issues
-    console.log("[Slider Debug]", {
-      dragPosition: currentDragPosition,
-      nearestIndex,
-      newPhase: newPhase?.id,
-      currentPhase: currentApplication.phase,
-      effectivePhaseIndex: currentEffectiveIndex,
-      phasesCount: currentPhases.length,
-      canManagePipeline,
-    });
-    
-    // Check if the phase actually changed (comparing by index rather than just phase ID)
-    const isPhaseChange = nearestIndex !== currentEffectiveIndex;
-    
-    if (newPhase && isPhaseChange) {
-      const currentIndex = currentEffectiveIndex;
-      
-      // Check if moving backward (resetting phases)
-      if (nearestIndex < currentIndex) {
-        console.log("[Slider Debug] Moving backward from", currentIndex, "to", nearestIndex);
-        // Get phases that will be reset
-        const phasesToReset = currentPhases.slice(nearestIndex, currentIndex + 1);
-        setPendingPhaseChange({
-          newIndex: nearestIndex,
-          newPhase,
-          phasesToReset,
-        });
-        setShowResetConfirmation(true);
-        // Don't snap yet - wait for confirmation
-        return;
-      }
-      
-      // Moving forward - check if voice_interview phase
-      console.log("[Slider Debug] Moving forward from", currentIndex, "to", nearestIndex);
-      
-      if (newPhase.type === "voice_interview") {
-        // Show Ava Interview config dialog instead of executing immediately
-        setPendingAvaInterview({ newIndex: nearestIndex, newPhase });
-        setShowAvaInterviewConfig(true);
-        return;
-      }
-      
-      // Intercept interview phase - wait for scheduling wizard completion before updating DB
-      if (newPhase.type === "interview") {
-        setPendingInterview({ newIndex: nearestIndex, newPhase });
-        // Snap slider to interview position visually
-        const snapPercentage = (nearestIndex / (currentPhases.length - 1)) * 100;
-        setDragPosition(snapPercentage);
-        setShowInterviewWizard(true);
-        return; // Don't execute phase change yet - wait for wizard completion
-      }
-      
-      await executePhaseChange(nearestIndex, newPhase, false);
+    // Handle special phase types that need dialogs
+    if (nextPhase.type === "voice_interview") {
+      setPendingAvaInterview({ newIndex: nextIndex, newPhase: nextPhase });
+      setShowAvaInterviewConfig(true);
+      return;
     }
     
-    // Snap to position
-    const snapPercentage = (nearestIndex / (currentPhases.length - 1)) * 100;
-    setDragPosition(snapPercentage);
+    if (nextPhase.type === "interview") {
+      setPendingInterview({ newIndex: nextIndex, newPhase: nextPhase });
+      setShowInterviewWizard(true);
+      return;
+    }
+    
+    await executePhaseChange(nextIndex, nextPhase, false);
+  };
+  
+  // Handler for skipping to a specific future phase
+  const handleSkipToPhase = async (targetIndex: number) => {
+    if (!application || targetIndex <= effectivePhaseIndex || targetIndex >= phases.length) return;
+    
+    const targetPhase = phases[targetIndex];
+    
+    // Handle special phase types that need dialogs
+    if (targetPhase.type === "voice_interview") {
+      setPendingAvaInterview({ newIndex: targetIndex, newPhase: targetPhase });
+      setShowAvaInterviewConfig(true);
+      return;
+    }
+    
+    if (targetPhase.type === "interview") {
+      setPendingInterview({ newIndex: targetIndex, newPhase: targetPhase });
+      setShowInterviewWizard(true);
+      return;
+    }
+    
+    await executePhaseChange(targetIndex, targetPhase, false);
   };
 
   const executePhaseChange = async (
@@ -1158,29 +1037,7 @@ export default function ApplicantDetails() {
     }
   };
 
-  const handleConfirmReset = async () => {
-    if (!pendingPhaseChange) return;
-    
-    await executePhaseChange(
-      pendingPhaseChange.newIndex,
-      pendingPhaseChange.newPhase,
-      true
-    );
-    
-    setShowResetConfirmation(false);
-    setPendingPhaseChange(null);
-  };
-
-  const handleCancelReset = () => {
-    setShowResetConfirmation(false);
-    setPendingPhaseChange(null);
-    
-    // Snap back to current position
-    const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
-    setDragPosition(snapPercentage);
-  };
-
-  // Handle Schedule Interview button click - syncs with slider
+  // Handle Schedule Interview button click - skips to Interview phase
   const handleScheduleInterviewClick = async () => {
     if (!application) return;
     
@@ -1230,10 +1087,6 @@ export default function ApplicantDetails() {
         status: "interview",
         notes: JSON.stringify(updatedNotes),
       });
-      
-      // Update slider position visually
-      const snapPercentage = (interviewPhaseIndex / (phases.length - 1)) * 100;
-      setDragPosition(snapPercentage);
       
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["application", id] });
@@ -1509,9 +1362,7 @@ export default function ApplicantDetails() {
       console.log('[handleReconsider] Mutation result:', result);
       console.log('[handleReconsider] Updated notes value:', result?.notes);
       
-      // Immediately update the slider position to the target phase
-      const snapPercentage = (targetPhaseIndex / (phases.length - 1)) * 100;
-      setDragPosition(snapPercentage);
+      // Slider position will update automatically via the useEffect
       
       // Create notification for candidate about fresh start
       await supabase.from("notifications").insert({
@@ -2285,8 +2136,8 @@ export default function ApplicantDetails() {
               className="absolute top-8 left-0 h-2 rounded-full"
               style={{ 
                 background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)",
-                width: `${dragPosition}%`,
-                transition: isDragging ? 'none' : 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                width: `${sliderPosition}%`,
+                transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             />
 
@@ -2367,22 +2218,16 @@ export default function ApplicantDetails() {
               );
             })}
 
-            {/* Draggable avatar - Smooth CSS-based movement */}
+            {/* Read-only avatar indicator */}
             <div 
               className={`absolute top-3 z-20 ${
-                isAwaitingReview && !isDragging ? "animate-float-awaiting" : ""
-              } ${
-                canManagePipeline ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-70"
-              } ${
-                phases[effectivePhaseIndex]?.type === "review" && !isDragging && canManagePipeline && !isAwaitingReview ? "animate-bounce-subtle" : ""
+                isAwaitingReview ? "animate-float-awaiting" : ""
               }`}
               style={{ 
-                left: `${dragPosition}%`,
+                left: `${sliderPosition}%`,
                 transform: 'translateX(-50%)',
-                transition: isDragging ? 'none' : 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-              onMouseDown={canManagePipeline ? handleDragStart : undefined}
-              onTouchStart={canManagePipeline ? handleDragStart : undefined}
             >
               <Avatar className={`h-8 w-8 md:h-10 md:w-10 ring-2 md:ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs md:text-sm">
@@ -2452,25 +2297,7 @@ export default function ApplicantDetails() {
                   </div>
                 </div>
                 <Button 
-                  onClick={async () => {
-                    const nextIndex = effectivePhaseIndex + 1;
-                    const nextPhase = phases[nextIndex];
-                    
-                    if (nextPhase.type === "voice_interview") {
-                      setPendingAvaInterview({ newIndex: nextIndex, newPhase: nextPhase });
-                      setShowAvaInterviewConfig(true);
-                      return;
-                    }
-                    
-                    // Intercept interview phase - show scheduling wizard before advancing
-                    if (nextPhase.type === "interview") {
-                      setPendingInterview({ newIndex: nextIndex, newPhase: nextPhase });
-                      setShowInterviewWizard(true);
-                      return;
-                    }
-                    
-                    await executePhaseChange(nextIndex, nextPhase, false);
-                  }}
+                  onClick={handleAdvanceToNextPhase}
                   className="gap-2"
                 >
                   <FastForward className="h-4 w-4" />
@@ -3519,9 +3346,7 @@ export default function ApplicantDetails() {
         initialState={wizardInitialState}
         onOpenChange={(open) => {
           if (!open && pendingInterview) {
-            // Wizard cancelled - snap slider back to original position
-            const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
-            setDragPosition(snapPercentage);
+            // Wizard cancelled - just clear the pending state
             setPendingInterview(null);
           }
           setShowInterviewWizard(open);
@@ -3537,37 +3362,6 @@ export default function ApplicantDetails() {
           }
         }}
       />
-
-      {/* Phase Reset Confirmation Dialog */}
-      <AlertDialog open={showResetConfirmation} onOpenChange={setShowResetConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Reset Candidate Progress?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                Moving back to <strong>{pendingPhaseChange?.newPhase.title}</strong> will reset the following phases:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                {pendingPhaseChange?.phasesToReset.map((phase) => (
-                  <li key={phase.id}>{phase.title}</li>
-                ))}
-              </ul>
-              <p className="text-warning">
-                All submission data for these phases will be cleared, and the candidate will need to redo them.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelReset}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmReset} className="bg-warning text-warning-foreground hover:bg-warning/90">
-              Reset & Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Single Phase Reset Confirmation Dialog */}
       <AlertDialog open={showResetPhaseDialog} onOpenChange={setShowResetPhaseDialog}>
@@ -3811,9 +3605,7 @@ export default function ApplicantDetails() {
           setShowAvaInterviewConfig(open);
           if (!open) {
             setPendingAvaInterview(null);
-            // Reset slider position if cancelled
-            const snapPercentage = (effectivePhaseIndex / (phases.length - 1)) * 100;
-            setDragPosition(snapPercentage);
+            // Slider position will update automatically via useEffect
           }
         }}
         onConfirm={async (config) => {
@@ -3870,10 +3662,7 @@ export default function ApplicantDetails() {
             
             toast.success(`Ava Interview configured - ${config.duration} minutes, ${config.videoEnabled ? 'video' : 'audio only'}`);
             queryClient.invalidateQueries({ queryKey: ["application", id] });
-            
-            // Snap to new position
-            const snapPercentage = (pendingAvaInterview.newIndex / (phases.length - 1)) * 100;
-            setDragPosition(snapPercentage);
+            // Slider position will update automatically via useEffect
           } catch (error) {
             toast.error("Failed to configure interview");
           }
