@@ -1473,189 +1473,24 @@ export default function ApplicantDetails() {
     setIsAnalyzing(true);
     
     try {
-      // Include application answers from notes if they exist
-      const applicationAnswersText = parsedNotes.applicationAnswers?.length > 0
-        ? parsedNotes.applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
-        : "Not provided";
-
-      // Detect resume URL from canonical field OR application answers
-      const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
-      console.log("[handleReanalyze] Detected resume URL:", detectedResumeUrl);
-
-      let content = `
-Job Title: ${application.jobs?.title || "Unknown"}
-Job Description: ${application.jobs?.description || "Not provided"}
-Requirements: ${application.jobs?.requirements || "Not specified"}
-Skills Required: ${application.jobs?.skills_required?.join(", ") || "Not specified"}
-Experience Level: ${application.jobs?.experience_level || "Not specified"}
-
-Candidate Information:
-Name: ${applicantDisplayName}
-Email: ${application.profiles?.email || "Not provided"}
-Skills: ${application.profiles?.skills?.join(", ") || "Not specified"}
-Experience Years: ${application.profiles?.experience_years || "Not specified"}
-Bio: ${application.profiles?.bio || "Not provided"}
-Location: ${application.profiles?.location || "Not specified"}
-
-Application Answers:
-${applicationAnswersText}
-
-Cover Letter:
-${application.cover_letter || "Not provided"}
-
-Resume URL: ${detectedResumeUrl || "Not provided"}
-`;
-
-      // Add Typing Test results if available
-      if (parsedNotes.typingTestResult) {
-        content += `
-Typing Test Results:
-- Speed: ${parsedNotes.typingTestResult.wpm} WPM
-- Accuracy: ${parsedNotes.typingTestResult.accuracy}%
-- Consistency Score: ${parsedNotes.typingTestResult.consistency || 'N/A'}
-`;
-      }
-
-      // Add Quiz answers if available (check multiple formats)
-      const quizData = parsedNotes.quizResult || parsedNotes.quiz;
-      if (quizData) {
-        content += `
-Quiz Performance:
-- Score: ${quizData.score || quizData.percentage || 'N/A'}%
-- Correct: ${quizData.correct || 'N/A'}/${quizData.total || 'N/A'}
-- Passed: ${quizData.passed ? 'Yes' : 'No'}
-`;
-      }
-
-      // Add Chat Simulation results if available
-      if (parsedNotes.chatSimulationResult) {
-        content += `
-Chat Simulation (Customer Support) Results:
-- Score: ${parsedNotes.chatSimulationResult.score || 'N/A'}/100
-- Evaluation: ${parsedNotes.chatSimulationResult.evaluation || 'N/A'}
-`;
-      }
-
-      // Add Chat Interview results if available  
-      if (parsedNotes.chatInterviewResult) {
-        content += `
-Interview Results:
-- Overall Score: ${parsedNotes.chatInterviewResult.overallScore || 'N/A'}/100
-- Evaluation: ${parsedNotes.chatInterviewResult.evaluation || 'N/A'}
-`;
-      }
-
-      // Add Sales Simulation results if available
-      if (parsedNotes.salesSimulationResult) {
-        content += `
-Sales Simulation Results:
-- Score: ${parsedNotes.salesSimulationResult.score || 'N/A'}/100
-- Evaluation: ${parsedNotes.salesSimulationResult.evaluation || 'N/A'}
-`;
-      }
-
-      // Add Video Intro URL if available
-      if (parsedNotes.videoIntroUrl) {
-        content += `
-Video Introduction: Submitted (demonstrates candidate effort and initiative)
-`;
-      }
-
-      // Add Portfolio results if available
-      if (parsedNotes.portfolioResult) {
-        const analysis = parsedNotes.portfolioResult.aiAnalysis || parsedNotes.portfolioResult.analysis;
-        content += `
-Portfolio Upload:
-- Files: ${parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || 'N/A'} files submitted
-- Score: ${analysis?.score || parsedNotes.portfolioResult.score || 'N/A'}/100
-`;
-      }
-
-      // Add Voice Interview results if available (stored as separate column)
-      if (application.voice_interview_result) {
-        const vr = application.voice_interview_result as any;
-        const interviewType = application.voice_interview_video_enabled !== false ? 'Video' : 'Voice';
-        content += `
-${interviewType} Interview with AVA Results:
-- Overall Score: ${vr.overall_score || 'N/A'}/100
-- Recommendation: ${vr.recommendation || 'N/A'}
-- Technical Score: ${vr.technical_score || 'N/A'}/100
-- Communication Score: ${vr.communication_score || 'N/A'}/100
-- Culture Fit Score: ${vr.culture_fit_score || 'N/A'}/100
-- Credibility Rating: ${vr.credibility_rating || 'N/A'}
-- Summary: ${vr.summary || 'Not provided'}
-- Concerns: ${vr.concerns?.join(', ') || 'None noted'}
-`;
-       }
-
-       // Text extraction is PRIMARY method (fast + reliable for most PDFs)
-       // If text fails, let server-side handle PDF attachment directly
-       let resumeText: string | null = null;
-
-       if (detectedResumeUrl) {
-         console.log("[handleReanalyze] Attempting text extraction for:", detectedResumeUrl);
-         
-         // Try text extraction first
-         const { text, extracted } = await extractPdfTextFromUrl(detectedResumeUrl);
-         if (extracted && text.length > 100) {
-           resumeText = text;
-           content += `\n\n--- RESUME CONTENT (extracted from PDF) ---\n${text}\n--- END RESUME CONTENT ---`;
-           console.log("[handleReanalyze] Text extraction SUCCESS, length:", text.length);
-         } else {
-           // Don't do client-side image conversion - let server handle PDF directly
-           console.log("[handleReanalyze] Text extraction insufficient, will send URL for server-side processing");
-         }
-       }
-
-       // Prepare structured application answers for cross-reference
-       const structuredAnswers = parsedNotes.applicationAnswers 
-         ? Object.entries(parsedNotes.applicationAnswers).map(([question, answer]) => ({
-             question,
-             answer: String(answer)
-           }))
-         : [];
-
-       // NOTE: Send resumeUrl but NOT resumeImage - let server-side ai-analyze fetch and attach PDF directly
-       const { data, error } = await supabase.functions.invoke("ai-analyze", {
-         body: {
-           type: "resume",
-           content,
-           resumeUrl: detectedResumeUrl,
-           resumeText, // Only send text if we got it
-           // Cross-reference data for enhanced verification
-           applicantName: applicantDisplayName,
-           applicationAnswers: structuredAnswers,
-           coverLetter: application.cover_letter || undefined,
-           context: {
-             skills_required: application.jobs?.skills_required,
-             experience_level: application.jobs?.experience_level,
-             job_title: application.jobs?.title,
-             job_type: application.jobs?.job_type,
-           },
-         },
-       });
+      console.log("[handleReanalyze] Calling trigger-ava-analysis backend function for application:", application.id);
+      
+      // Call the backend function which computes the weighted overall score
+      // This ensures ai_score is calculated consistently (resume + quiz + voice + portfolio weights)
+      const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
+        body: {
+          applicationId: application.id,
+          force: true, // Force re-analysis even if score exists
+        },
+      });
 
       if (error) throw error;
 
-      // Extract FINAL CALCULATED SCORE (primary) or fallback to Overall Score
-      const analysisText = data.analysis || "";
-      let newScore: number | null = null;
-      const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+)/i);
-      if (finalScoreMatch) {
-        newScore = parseInt(finalScoreMatch[1], 10);
-      } else {
-        const scoreMatch = analysisText.match(/Overall Score[:\s]+(\d+)/i);
-        newScore = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
-      }
-      
-      // Always use the new score from analysis (no preservation of old scores)
-      await updateApplication.mutateAsync({
-        id: application.id,
-        ai_analysis: data.analysis,
-        ai_score: newScore && newScore >= 0 && newScore <= 100 ? newScore : null,
-      });
+      console.log("[handleReanalyze] Backend analysis complete:", data);
 
-      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      // Invalidate and refetch to get the updated score from the database
+      await queryClient.invalidateQueries({ queryKey: ["application", id] });
+      
       toast.success("Ava analysis completed!");
     } catch (error) {
       console.error("Ava analysis error:", error);
@@ -2623,6 +2458,7 @@ ${interviewType} Interview with AVA Results:
                 rejectionReason={application.phase_ai_analysis}
                 passingScore={job?.passing_score}
                 rejectedByType={application.rejected_by_type}
+                isAnalyzing={isAnalyzing}
               />
             </>
           )}

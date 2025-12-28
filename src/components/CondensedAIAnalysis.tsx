@@ -715,12 +715,13 @@ function useAnimatedCounter(value: number) {
   return displayValue;
 }
 
-function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }) {
+function ScoreRing({ score, size = "md", isLoading = false }: { score: number; size?: "sm" | "md"; isLoading?: boolean }) {
   const displayScore = useAnimatedCounter(score);
   const circumference = 94.2;
   const targetDasharray = (score / 100) * circumference;
   
   const getScoreColor = (s: number) => {
+    if (isLoading) return "stroke-muted-foreground/50";
     if (s >= 70) return "stroke-emerald-500";
     if (s >= 50) return "stroke-amber-500";
     return "stroke-red-500";
@@ -731,7 +732,7 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
   
   return (
     <div className="relative">
-      <svg className={cn(sizeClasses, "-rotate-90")} viewBox="0 0 36 36">
+      <svg className={cn(sizeClasses, "-rotate-90", isLoading && "animate-pulse")} viewBox="0 0 36 36">
         <circle
           cx="18" cy="18" r="15"
           fill="none"
@@ -750,7 +751,11 @@ function ScoreRing({ score, size = "md" }: { score: number; size?: "sm" | "md" }
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className={cn(textSize, "font-semibold text-foreground")}>{displayScore}</span>
+        {isLoading ? (
+          <span className={cn(textSize, "font-semibold text-muted-foreground")}>...</span>
+        ) : (
+          <span className={cn(textSize, "font-semibold text-foreground")}>{displayScore}</span>
+        )}
       </div>
     </div>
   );
@@ -1288,6 +1293,7 @@ interface CondensedAIAnalysisProps {
   rejectionReason?: string | null; // Phase AI analysis explaining rejection
   passingScore?: number | null; // Job's passing score for fallback rejection reason
   rejectedByType?: string | null; // 'ava' for autopilot, 'employer' for manual
+  isAnalyzing?: boolean; // Whether re-analysis is in progress
 }
 
 export function CondensedAIAnalysis({ 
@@ -1299,7 +1305,8 @@ export function CondensedAIAnalysis({
   applicationStatus,
   rejectionReason,
   passingScore,
-  rejectedByType
+  rejectedByType,
+  isAnalyzing = false
 }: CondensedAIAnalysisProps) {
   const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult, aiScore), [content, applicationNotes, voiceInterviewResult, aiScore]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -1411,7 +1418,7 @@ export function CondensedAIAnalysis({
               </p>
             </div>
             {displayScore !== null && (
-              <ScoreRing score={displayScore} />
+              <ScoreRing score={displayScore} isLoading={isAnalyzing} />
             )}
           </div>
         </CardContent>
