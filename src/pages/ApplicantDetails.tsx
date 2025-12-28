@@ -684,13 +684,16 @@ export default function ApplicantDetails() {
   })();
 
   // Parse submitted data from notes (used for phase completion + analysis gating)
-  const parsedNotes = (() => {
+  // Handles both string (legacy) and object (current) formats
+  const parsedNotes = useMemo(() => {
     try {
-      return application?.notes ? JSON.parse(application.notes) : {};
+      if (!application?.notes) return {};
+      if (typeof application.notes === "object") return application.notes as Record<string, any>;
+      return JSON.parse(application.notes as string);
     } catch {
       return {};
     }
-  })();
+  }, [application?.notes]);
 
   // Check if candidate has completed the current phase (awaiting employer review)
   const hasCompletedCurrentPhase = (phaseId: string, phaseType: string): boolean => {

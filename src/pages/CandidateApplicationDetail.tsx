@@ -425,13 +425,16 @@ export default function CandidateApplicationDetail() {
   const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
 
   // Parse notes to check for phase data and employer-skipped phases
-  const notes = (() => {
+  // Handles both string (legacy) and object (current) formats
+  const notes = useMemo(() => {
     try {
-      return application?.notes ? JSON.parse(application.notes) : {};
+      if (!application?.notes) return {};
+      if (typeof application.notes === "object") return application.notes as Record<string, any>;
+      return JSON.parse(application.notes as string);
     } catch {
       return {};
     }
-  })();
+  }, [application?.notes]);
   
   // Check if a phase was employer-skipped (candidate shouldn't be penalized)
   const isEmployerSkipped = (phaseId: string) => {
