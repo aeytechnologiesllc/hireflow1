@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye, AlertCircle, Check
+  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye, AlertCircle, Check, Lock
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -27,7 +27,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-500",
   reviewing: "bg-blue-500/20 text-blue-500",
@@ -61,6 +68,7 @@ const phaseActionConfig: Record<string, { icon: React.ElementType; label: string
 
 interface ApplicationCardProps {
   application: ApplicationWithJob;
+  onOpenBlueprint?: (applicationId: string) => void;
 }
 
 function getPhaseType(phase: string, workflowSteps?: any[]): string {
@@ -85,7 +93,7 @@ function getPhaseType(phase: string, workflowSteps?: any[]): string {
   return phase;
 }
  
-function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onDelete: (id: string) => void }) {
+function ApplicationCard({ application, onDelete, onOpenBlueprint }: ApplicationCardProps & { onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const job = application.jobs;
@@ -187,12 +195,6 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                 <Badge className="bg-success/20 text-success border-success/30 gap-1.5 animate-pulse">
                   <PartyPopper className="h-3.5 w-3.5" />
                   {statusLabels[application.status]}
-                </Badge>
-              )}
-              {isRejected && (
-                <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5">
-                  <Download className="h-3.5 w-3.5" />
-                  Get Feedback Report
                 </Badge>
               )}
               {application.status === "offered" && (
@@ -299,6 +301,22 @@ function ApplicationCard({ application, onDelete }: ApplicationCardProps & { onD
                   </Badge>
                 )}
                 
+                {/* Rejected - show unlock blueprint button */}
+                {isRejected && onOpenBlueprint && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-xs border-amber-500/50 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenBlueprint(application.id);
+                    }}
+                  >
+                    <Download className="h-3 w-3" />
+                    Get Feedback Report
+                  </Button>
+                )}
+                
                 {/* Delete button */}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -349,9 +367,16 @@ export default function Applications() {
   const { data: applications, isLoading, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
+  const [blueprintApplicationId, setBlueprintApplicationId] = useState<string | null>(null);
 
   const handleDeleteApplication = (id: string) => {
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+  };
+  
+  const handleOpenBlueprintDialog = (applicationId: string) => {
+    setBlueprintApplicationId(applicationId);
+    setShowBlueprintDialog(true);
   };
 
   // Subscribe to real-time updates for all candidate applications
@@ -475,7 +500,12 @@ export default function Applications() {
           </>
         ) : filteredApplications && filteredApplications.length > 0 ? (
           filteredApplications.map((application) => (
-            <ApplicationCard key={application.id} application={application} onDelete={handleDeleteApplication} />
+            <ApplicationCard 
+              key={application.id} 
+              application={application} 
+              onDelete={handleDeleteApplication}
+              onOpenBlueprint={handleOpenBlueprintDialog}
+            />
           ))
         ) : (
           <Card className="bg-card border-border">
@@ -492,6 +522,18 @@ export default function Applications() {
           </Card>
         )}
       </div>
+      
+      {/* Blueprint Dialog */}
+      <Dialog open={showBlueprintDialog} onOpenChange={setShowBlueprintDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Your Improvement Blueprint</DialogTitle>
+          </DialogHeader>
+          {blueprintApplicationId && (
+            <ImprovementBlueprintCard applicationId={blueprintApplicationId} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

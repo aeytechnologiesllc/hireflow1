@@ -33,7 +33,14 @@ import {
   Loader2,
   Send,
   Rocket,
+  Download,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +60,7 @@ import PipelineHealthCard from "@/components/PipelineHealthCard";
 import ProfileCompletionCard from "@/components/ProfileCompletionCard";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
+import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 
 interface StatCardProps {
   title: string;
@@ -327,8 +335,9 @@ const statusColors: Record<string, string> = {
   rejected: "bg-destructive/20 text-destructive",
 };
 
-function ApplicationCard({ application }: { application: ApplicationWithJob }) {
+function ApplicationCard({ application, onOpenBlueprint }: { application: ApplicationWithJob; onOpenBlueprint?: (id: string) => void }) {
   const job = application.jobs;
+  const isRejected = application.status === "rejected";
 
   return (
     <Card className="bg-card border-border">
@@ -346,9 +355,25 @@ function ApplicationCard({ application }: { application: ApplicationWithJob }) {
               <span>{format(new Date(application.created_at), "MMM d, yyyy")}</span>
             </div>
           </div>
-          <Badge className={`${statusColors[application.status]} text-xs shrink-0`}>
-            {application.status}
-          </Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            {isRejected && onOpenBlueprint && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs border-amber-500/50 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 h-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenBlueprint(application.id);
+                }}
+              >
+                <Download className="h-3 w-3" />
+                Get Report
+              </Button>
+            )}
+            <Badge className={`${statusColors[application.status]} text-xs`}>
+              {application.status}
+            </Badge>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -414,7 +439,14 @@ export default function Dashboard() {
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+  const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
+  const [blueprintApplicationId, setBlueprintApplicationId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  
+  const handleOpenBlueprintDialog = (applicationId: string) => {
+    setBlueprintApplicationId(applicationId);
+    setShowBlueprintDialog(true);
+  };
 
   // Real-time subscription for application updates
   useEffect(() => {
@@ -744,7 +776,11 @@ export default function Dashboard() {
               </>
             ) : candidateApps && candidateApps.length > 0 ? (
               candidateApps.slice(0, 5).map((app) => (
-                <ApplicationCard key={app.id} application={app} />
+                <ApplicationCard 
+                  key={app.id} 
+                  application={app}
+                  onOpenBlueprint={handleOpenBlueprintDialog}
+                />
               ))
             ) : (
               <div className="text-center py-6 md:py-8 text-muted-foreground">
@@ -774,6 +810,18 @@ export default function Dashboard() {
         open={showWorkflowDialog}
         onOpenChange={setShowWorkflowDialog}
       />
+      
+      {/* Blueprint Dialog */}
+      <Dialog open={showBlueprintDialog} onOpenChange={setShowBlueprintDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Your Improvement Blueprint</DialogTitle>
+          </DialogHeader>
+          {blueprintApplicationId && (
+            <ImprovementBlueprintCard applicationId={blueprintApplicationId} />
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
