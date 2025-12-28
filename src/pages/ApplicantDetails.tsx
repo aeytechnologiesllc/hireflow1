@@ -1905,7 +1905,7 @@ ${interviewType} Interview with AVA Results:
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => downloadDossier(application)}
+                onClick={() => downloadDossier(application?.id ?? null)}
                 disabled={isGeneratingDossier}
               >
                 {isGeneratingDossier ? (
