@@ -53,7 +53,6 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
         isActive
           ? "bg-primary/15 text-primary nav-item-active-glow"
           : "text-muted-foreground hover:text-foreground hover:bg-primary/5",
-        highlight && !isActive && "animate-pulse",
         collapsed && "justify-center px-2"
       )}
     >
@@ -81,12 +80,7 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
         )}
       </div>
       {badge !== undefined && badge > 0 && !collapsed && (
-        <span className={cn(
-          "relative z-10 px-2 py-0.5 text-xs rounded-full shadow-[0_0_10px_hsl(var(--primary)/0.4)]",
-          highlight 
-            ? "bg-primary text-primary-foreground animate-bounce" 
-            : "bg-primary text-primary-foreground"
-        )}>
+        <span className="relative z-10 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.4)]">
           {badge}
         </span>
       )}
