@@ -1658,7 +1658,7 @@ export default function ApplicantDetails() {
         type: "resume",
         hasData: !!resumeUrl,
         isSkipped: skippedPhases.includes("resume") || isApplicationSkipped,
-        score: application.ai_score || undefined,
+        score: (application as any).resume_score || undefined,
         icon: FileText,
       });
     }
