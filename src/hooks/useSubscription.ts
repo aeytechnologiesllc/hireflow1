@@ -171,10 +171,24 @@ export function useSubscription() {
       )
       .subscribe();
 
+    // CRITICAL: Subscribe to voice_credits changes for realtime voice minutes updates
+    const voiceCreditsChannel = supabase
+      .channel(`subscription-voice-credits-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'voice_credits', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          console.log('[useSubscription] voice_credits change detected:', payload);
+          queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(jobsChannel);
       supabase.removeChannel(applicationsChannel);
       supabase.removeChannel(documentsChannel);
+      supabase.removeChannel(voiceCreditsChannel);
     };
   }, [user?.id, queryClient]);
 

@@ -583,6 +583,34 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   // IMMEDIATELY signal that we're ending - show overlay to user
                   setState(s => ({ ...s, isEndingInterview: true }));
                   
+                  // CRITICAL: Deduct voice minutes NOW before cleanup
+                  // This ensures minutes are deducted even if user navigates away
+                  if (sessionStartTimeRef.current) {
+                    const sessionDurationMs = Date.now() - sessionStartTimeRef.current;
+                    const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000);
+                    
+                    if (sessionDurationMs >= 5000) {
+                      console.log(`[AvaVoice] End interview - deducting ${sessionDurationMinutes} minutes for applicationId: ${optionsRef.current.applicationId}`);
+                      
+                      // Fire and forget - don't block interview end on deduction
+                      supabase.functions.invoke('deduct-voice-minutes', {
+                        body: { 
+                          sessionDurationMinutes,
+                          applicationId: optionsRef.current.applicationId 
+                        }
+                      }).then(({ data, error }) => {
+                        if (error) {
+                          console.error('[AvaVoice] Failed to deduct voice minutes on end_interview:', error);
+                        } else {
+                          console.log('[AvaVoice] Voice minutes deducted on end_interview:', data);
+                        }
+                      });
+                    }
+                    
+                    // Clear so disconnect() doesn't double-deduct
+                    sessionStartTimeRef.current = null;
+                  }
+                  
                   // Wait for audio queue to finish playing before triggering end
                   const waitForAudioComplete = (): Promise<void> => {
                     return new Promise((resolve) => {
@@ -780,18 +808,22 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   }, [connectInternal, toast]);
 
   const disconnect = useCallback(async () => {
-    // Deduct voice minutes if session was started
+    // Deduct voice minutes if session was started (and not already deducted by end_interview)
     if (sessionStartTimeRef.current) {
       const sessionDurationMs = Date.now() - sessionStartTimeRef.current;
       const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000); // Round up to nearest minute
       
       // Only deduct if session was at least 5 seconds (avoid connection test deductions)
       if (sessionDurationMs >= 5000) {
-        console.log(`[AvaVoice] Session ended. Duration: ${sessionDurationMinutes} minute(s). Deducting voice credits...`);
+        console.log(`[AvaVoice] Disconnect - Duration: ${sessionDurationMinutes} minute(s). Deducting voice credits...`);
         
         try {
+          // Pass applicationId if in interview mode so we deduct from employer
           const { data, error } = await supabase.functions.invoke('deduct-voice-minutes', {
-            body: { sessionDurationMinutes }
+            body: { 
+              sessionDurationMinutes,
+              applicationId: optionsRef.current.applicationId // undefined in assistant mode
+            }
           });
           
           if (error) {

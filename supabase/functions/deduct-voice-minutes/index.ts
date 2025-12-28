@@ -41,10 +41,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[deduct-voice-minutes] User ${user.id} requesting deduction`);
+    console.log(`[deduct-voice-minutes] Caller user ${user.id} requesting deduction`);
 
     // Parse request body
-    const { sessionDurationMinutes } = await req.json();
+    const body = await req.json();
+    const { sessionDurationMinutes, applicationId } = body;
     
     if (typeof sessionDurationMinutes !== 'number' || sessionDurationMinutes <= 0) {
       return new Response(
@@ -53,19 +54,72 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[deduct-voice-minutes] Deducting ${sessionDurationMinutes} minutes for user ${user.id}`);
-
     // Use admin client for database operations
     const supabaseAdmin = createClient(
       supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Determine whose credits to deduct:
+    // - If applicationId is provided, this is a candidate voice interview → deduct from EMPLOYER
+    // - Otherwise, this is assistant mode → deduct from calling user (employer)
+    let targetUserId = user.id;
+    let mode = 'assistant';
+
+    if (applicationId) {
+      mode = 'interview';
+      console.log(`[deduct-voice-minutes] Interview mode - resolving employer from applicationId: ${applicationId}`);
+      
+      // Verify the caller is the candidate for this application (security check)
+      const { data: application, error: appError } = await supabaseAdmin
+        .from('applications')
+        .select('candidate_id, job_id')
+        .eq('id', applicationId)
+        .single();
+      
+      if (appError || !application) {
+        console.error('[deduct-voice-minutes] Application not found:', appError);
+        return new Response(
+          JSON.stringify({ error: 'Application not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Caller must be the candidate for this application
+      if (application.candidate_id !== user.id) {
+        console.error(`[deduct-voice-minutes] Security check failed: caller ${user.id} is not candidate ${application.candidate_id}`);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: caller is not the candidate for this application' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get the employer from the job
+      const { data: job, error: jobError } = await supabaseAdmin
+        .from('jobs')
+        .select('employer_id')
+        .eq('id', application.job_id)
+        .single();
+
+      if (jobError || !job) {
+        console.error('[deduct-voice-minutes] Job not found:', jobError);
+        return new Response(
+          JSON.stringify({ error: 'Job not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      targetUserId = job.employer_id;
+      console.log(`[deduct-voice-minutes] Resolved employer: ${targetUserId} for candidate interview`);
+    }
+
+    console.log(`[deduct-voice-minutes] Mode: ${mode}, Deducting ${sessionDurationMinutes} minutes from user ${targetUserId}`);
+
     // Fetch active voice credits ordered by expiration (FIFO - earliest expiring first)
     const { data: credits, error: creditsError } = await supabaseAdmin
       .from('voice_credits')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', targetUserId)
       .eq('status', 'active')
       .gt('minutes_remaining', 0)
       .gt('expires_at', new Date().toISOString())
@@ -80,12 +134,14 @@ Deno.serve(async (req) => {
     }
 
     if (!credits || credits.length === 0) {
-      console.log(`[deduct-voice-minutes] No active voice credits for user ${user.id}`);
+      console.log(`[deduct-voice-minutes] No active voice credits for user ${targetUserId}`);
       return new Response(
         JSON.stringify({ 
           success: true, 
           minutesDeducted: 0, 
           remainingBalance: 0,
+          targetUserId,
+          mode,
           message: 'No active voice credits to deduct from'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -138,18 +194,18 @@ Deno.serve(async (req) => {
     const { data: updatedCredits } = await supabaseAdmin
       .from('voice_credits')
       .select('minutes_remaining')
-      .eq('user_id', user.id)
+      .eq('user_id', targetUserId)
       .eq('status', 'active')
       .gt('expires_at', new Date().toISOString());
 
     const remainingBalance = updatedCredits?.reduce((sum, c) => sum + c.minutes_remaining, 0) || 0;
 
-    console.log(`[deduct-voice-minutes] Completed: deducted ${totalDeducted} minutes, remaining balance ${remainingBalance}`);
+    console.log(`[deduct-voice-minutes] Completed: deducted ${totalDeducted} minutes from ${targetUserId}, remaining balance ${remainingBalance}`);
 
-    // Check if we need to send email notifications
+    // Check if we need to send email notifications (only to the target employer)
     await checkAndSendNotifications(
       supabaseAdmin,
-      user.id,
+      targetUserId,
       balanceBefore,
       remainingBalance
     );
@@ -159,7 +215,9 @@ Deno.serve(async (req) => {
         success: true,
         minutesDeducted: totalDeducted,
         remainingBalance,
-        creditsUpdated: updates.length
+        creditsUpdated: updates.length,
+        targetUserId,
+        mode,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
