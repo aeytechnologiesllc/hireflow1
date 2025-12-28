@@ -530,13 +530,29 @@ export default function ApplicantDetails() {
         nextPhaseId = "quiz";
         nextPhaseTitle = "Quiz";
       } else if (workflowSteps.length > 0) {
-        nextPhaseId = workflowSteps[0].id;
-        nextPhaseTitle = workflowSteps[0].title;
+        // SAFETY GATE: Never auto-advance to voice_interview - employer must configure it
+        const firstNonVoiceStep = workflowSteps.find((s: WorkflowStep) => s.type !== "voice_interview");
+        if (firstNonVoiceStep) {
+          nextPhaseId = firstNonVoiceStep.id;
+          nextPhaseTitle = firstNonVoiceStep.title;
+        } else {
+          // All steps are voice_interview - cannot auto-advance, employer must configure
+          console.log("[Autopilot Auto-Advance] First step is voice_interview - requires employer configuration");
+          return;
+        }
       }
     } else if (currentPhase === "quiz") {
       if (workflowSteps.length > 0) {
-        nextPhaseId = workflowSteps[0].id;
-        nextPhaseTitle = workflowSteps[0].title;
+        // SAFETY GATE: Never auto-advance to voice_interview - employer must configure it
+        const firstNonVoiceStep = workflowSteps.find((s: WorkflowStep) => s.type !== "voice_interview");
+        if (firstNonVoiceStep) {
+          nextPhaseId = firstNonVoiceStep.id;
+          nextPhaseTitle = firstNonVoiceStep.title;
+        } else {
+          // All steps are voice_interview - cannot auto-advance, employer must configure
+          console.log("[Autopilot Auto-Advance] First step is voice_interview - requires employer configuration");
+          return;
+        }
       }
     }
     

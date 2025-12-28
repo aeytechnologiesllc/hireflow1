@@ -59,9 +59,17 @@ First, determine if this is actually a resume/CV and if it belongs to the correc
 ## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
 Compare information across ALL provided sources (resume, cover letter, application answers):
 
+**IMPORTANT EMAIL/CONTACT MATCHING RULES:**
+- ONLY compare resume contact info against what the candidate provided in their APPLICATION FORM
+- The input will clearly label "Candidate Email (as provided in application)" - use ONLY this for email matching
+- The "Account Email" is the login email and may legitimately differ from the application email - DO NOT flag this as a mismatch
+- Example: If application says "Candidate Email: john@personal.com" and resume shows "john@personal.com" → MATCH, even if account email is "john.doe@work.com"
+- Example: If application says "Candidate Email: jane@gmail.com" but resume shows "jane.doe@outlook.com" → MISMATCH (these are the values to compare)
+
 **Name Verification:**
-- Does the name on the resume match the applicant name provided?
-- Are there any discrepancies in how the name appears across documents?
+- Does the name on the resume match the "Candidate Name (as provided in application)"?
+- Minor variations are OK (e.g., "John Smith" vs "John M. Smith" vs "J. Smith")
+- Only flag as mismatch if names are completely different people
 
 **Experience Consistency:**
 - Do job titles/companies mentioned in application answers match what's on the resume?
@@ -297,9 +305,17 @@ When marking as RESUME_UNAVAILABLE:
 ## 2. CROSS-REFERENCE VERIFICATION (CRITICAL)
 Compare information across ALL provided sources (resume, cover letter, application answers):
 
+**IMPORTANT EMAIL/CONTACT MATCHING RULES:**
+- ONLY compare resume contact info against what the candidate provided in their APPLICATION FORM
+- The input will clearly label "Candidate Email (as provided in application)" - use ONLY this for email matching
+- The "Account Email" is the login email and may legitimately differ from the application email - DO NOT flag this as a mismatch
+- Example: If application says "Candidate Email: john@personal.com" and resume shows "john@personal.com" → MATCH, even if account email is "john.doe@work.com"
+- Example: If application says "Candidate Email: jane@gmail.com" but resume shows "jane.doe@outlook.com" → MISMATCH (these are the values to compare)
+
 **Name Verification:**
-- Does the name on the resume match the applicant name provided?
-- Are there any discrepancies in how the name appears across documents?
+- Does the name on the resume match the "Candidate Name (as provided in application)"?
+- Minor variations are OK (e.g., "John Smith" vs "John M. Smith" vs "J. Smith")
+- Only flag as mismatch if names are completely different people
 
 **Experience Consistency:**
 - Do job titles/companies mentioned in application answers match what's on the resume?
