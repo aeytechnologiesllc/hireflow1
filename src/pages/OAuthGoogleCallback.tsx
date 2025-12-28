@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
+import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
 
 const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
 
@@ -85,10 +86,10 @@ export default function OAuthGoogleCallback() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-4 p-8">
         {status === "loading" && (
-          <>
-            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <div className="flex flex-col items-center gap-4">
+            <StaggeredBarsLoader size="lg" />
             <p className="text-lg text-muted-foreground">{message}</p>
-          </>
+          </div>
         )}
         {status === "success" && (
           <>

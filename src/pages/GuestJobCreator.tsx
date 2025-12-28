@@ -80,6 +80,7 @@ import { supabase } from "@/integrations/supabase/client";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
 import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
+import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
 
 interface GuestJobData {
   formData: {
@@ -430,7 +431,7 @@ export default function GuestJobCreator() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <StaggeredBarsLoader size="lg" />
       </div>
     );
   }
