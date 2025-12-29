@@ -26,13 +26,13 @@ function detectResumeUrl(
   resumeUrlField: string | null | undefined,
   parsedNotes: Record<string, any> | null | undefined
 ): string | null {
-  // Priority 1: Use canonical resume_url field if it exists
+  // Priority 1: Use canonical resume_url field if it exists (ALWAYS prefer this)
   if (resumeUrlField && typeof resumeUrlField === 'string' && resumeUrlField.trim()) {
     console.log('[detectResumeUrl] Using canonical resume_url field:', resumeUrlField);
     return resumeUrlField.trim();
   }
 
-  // Priority 2: Look for resume in applicationAnswers
+  // Priority 2: Look for resume in applicationAnswers (ONLY if question is resume-related)
   const answers = parsedNotes?.applicationAnswers;
   if (!answers || !Array.isArray(answers)) {
     console.log('[detectResumeUrl] No applicationAnswers found');
@@ -47,14 +47,8 @@ function detectResumeUrl(
     }
   }
 
-  // Second pass: If only one file URL exists, treat it as the resume
-  const fileUrlAnswers = answers.filter((a: any) => isFileUrl(a.answer));
-  if (fileUrlAnswers.length === 1) {
-    console.log('[detectResumeUrl] Found single file upload, treating as resume:', fileUrlAnswers[0].answer);
-    return fileUrlAnswers[0].answer;
-  }
-
-  // Third pass: Look for any answer that is a URL containing /resumes/ bucket
+  // Second pass: Look for any answer that is a URL containing /resumes/ bucket
+  // This is safe because the /resumes/ bucket is specifically for resumes
   for (const answer of answers) {
     if (answer.answer && typeof answer.answer === 'string' && 
         answer.answer.toLowerCase().includes('/resumes/')) {
@@ -63,7 +57,9 @@ function detectResumeUrl(
     }
   }
 
-  console.log('[detectResumeUrl] No resume URL found');
+  // REMOVED: The fallback that treats any single file as a resume
+  // This was causing internet speed screenshots to be treated as resumes
+  console.log('[detectResumeUrl] No resume URL found (strict mode - ignoring non-resume file uploads)');
   return null;
 }
 
@@ -275,9 +271,40 @@ serve(async (req) => {
 
     // Build content string from all available phase data
     const applicationAnswers = parsedNotes.applicationAnswers || [];
-    const applicationAnswersText = applicationAnswers.length > 0
-      ? applicationAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
+    
+    // CRITICAL FIX: Separate resume answers from custom file uploads
+    // This prevents AVA from confusing internet speed screenshots with resumes
+    const resumeAnswers: any[] = [];
+    const customFileAnswers: any[] = [];
+    const textAnswers: any[] = [];
+    
+    for (const a of applicationAnswers) {
+      if (isFileUrl(a.answer)) {
+        if (isResumeQuestion(a.question)) {
+          resumeAnswers.push(a);
+        } else {
+          customFileAnswers.push(a);
+        }
+      } else {
+        textAnswers.push(a);
+      }
+    }
+    
+    // Format text answers normally
+    const textAnswersText = textAnswers.length > 0
+      ? textAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
       : "Not provided";
+    
+    // Format custom file uploads with clear context so AVA doesn't analyze them as resumes
+    const customFilesText = customFileAnswers.length > 0
+      ? `\n\n=== CUSTOM FILE UPLOADS (NOT RESUMES - DO NOT ANALYZE AS RESUMES) ===
+These are supplementary files uploaded for specific questions. Evaluate them based on their stated purpose only.
+${customFileAnswers.map((a: any) => 
+  `Question: "${a.question}"
+File URL: ${a.answer}
+Purpose: This is a supplementary document for the above question. It is NOT a resume.`
+).join("\n\n")}`
+      : "";
 
     const job = application.jobs as any;
     
@@ -345,13 +372,16 @@ Experience Years: ${profile?.experience_years || "Not specified"}
 Bio: ${profile?.bio || "Not provided"}
 Location: ${profile?.location || "Not specified"}
 
-Application Answers:
-${applicationAnswersText}
+Application Answers (Text Responses Only):
+${textAnswersText}
+${customFilesText}
 
 Cover Letter:
 ${application.cover_letter || "Not provided"}
 
+=== RESUME (ONLY THIS IS THE CANDIDATE'S RESUME) ===
 Resume URL: ${detectedResumeUrl || "Not provided"}
+NOTE: Only the file above is the resume. Any files in "CUSTOM FILE UPLOADS" section are NOT resumes.
 `;
 
     // Add Typing Test results if available
@@ -481,12 +511,27 @@ ${interviewType} Interview with AVA Results:
       }
     }
     
-    // PRIORITY 2: Check for fileUploads (question-based resume uploads)
+    // PRIORITY 2: Check for fileUploads (ONLY resume-related question uploads)
+    // CRITICAL FIX: Only use fileUploads if the question is resume-related
     if (!resumeImageBase64 && parsedNotes.fileUploads) {
+      const answers = parsedNotes.applicationAnswers || [];
+      
       for (const questionId of Object.keys(parsedNotes.fileUploads)) {
+        // Find the corresponding question to check if it's resume-related
+        const matchingAnswer = answers.find((a: any) => 
+          a.questionId === questionId || a.id === questionId
+        );
+        
+        // Only use this file if the question is resume-related
+        const questionText = matchingAnswer?.question || "";
+        if (!isResumeQuestion(questionText)) {
+          console.log("[trigger-ava-analysis] Skipping non-resume fileUpload for question:", questionId, "question:", questionText);
+          continue;
+        }
+        
         const upload = parsedNotes.fileUploads[questionId];
         if (upload.imageUrls && Array.isArray(upload.imageUrls) && upload.imageUrls.length > 0) {
-          console.log("[trigger-ava-analysis] Found resume image in fileUploads for question:", questionId);
+          console.log("[trigger-ava-analysis] Found resume image in fileUploads for resume question:", questionId);
           
           try {
             const imageResponse = await fetch(upload.imageUrls[0]);

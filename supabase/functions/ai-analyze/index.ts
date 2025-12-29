@@ -44,6 +44,23 @@ First, determine if this is actually a resume/CV and if it belongs to the correc
   * INVALID_DOCUMENT: Content was extracted but is clearly NOT a resume at all (spam, random gibberish, unrelated file like a shopping list, blank document)
   * RESUME_UNAVAILABLE: Resume file could not be parsed (image-based PDF, scanned doc, designed resume)
 
+## IMPORTANT: DISTINGUISHING RESUME FROM CUSTOM FILE UPLOADS
+
+The application may include CUSTOM FILE UPLOADS that are NOT resumes. Examples:
+- Internet speed test screenshots
+- Home office photos
+- ID documents
+- Equipment photos
+- Portfolio samples
+
+These will be clearly marked in the content as "CUSTOM FILE UPLOADS (NOT RESUMES)".
+CRITICAL RULES:
+- DO NOT analyze these custom files as resumes
+- DO NOT penalize the candidate if these files are not resumes (that's expected!)
+- DO NOT say "the uploaded document is not a resume" for custom file uploads
+- ONLY analyze the file specifically marked in the "RESUME" section for resume evaluation
+- Evaluate custom file uploads ONLY based on their stated purpose (e.g., does the internet speed screenshot show adequate speed?)
+
 **WRONG_RESUME Examples (use this status when):**
 - Resume says "John Smith" but applicant name is "Jane Doe" → WRONG_RESUME
 - Resume is for "Software Engineer with 10 years Java experience" but job is "Nail Technician" → WRONG_RESUME  
