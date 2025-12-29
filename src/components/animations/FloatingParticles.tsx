@@ -9,23 +9,27 @@ interface FloatingParticlesProps {
 }
 
 export function FloatingParticles({ 
-  count = 20, 
+  count = 15, 
   colors = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--primary) / 0.5)"],
   className = "",
   intensity = "medium"
 }: FloatingParticlesProps) {
   const particles = useMemo(() => {
-    return Array.from({ length: count }, (_, i) => ({
+    // Reduce counts for performance
+    const actualCount = intensity === "subtle" ? Math.min(count, 8) : 
+                        intensity === "high" ? Math.min(count, 15) : 
+                        Math.min(count, 12);
+    
+    return Array.from({ length: actualCount }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: intensity === "subtle" ? 2 + Math.random() * 3 : 
-            intensity === "high" ? 4 + Math.random() * 8 : 
-            3 + Math.random() * 5,
+      size: intensity === "subtle" ? 2 + Math.random() * 2 : 
+            intensity === "high" ? 3 + Math.random() * 4 : 
+            2 + Math.random() * 3,
       color: colors[Math.floor(Math.random() * colors.length)],
-      duration: 4 + Math.random() * 4,
+      duration: 5 + Math.random() * 3,
       delay: Math.random() * 2,
-      blur: intensity === "subtle" ? 0 : Math.random() > 0.7 ? 1 : 0,
     }));
   }, [count, colors, intensity]);
 
@@ -41,21 +45,19 @@ export function FloatingParticles({
             width: particle.size,
             height: particle.size,
             background: particle.color,
-            filter: particle.blur ? `blur(${particle.blur}px)` : undefined,
-            boxShadow: `0 0 ${particle.size * 2}px ${particle.color}`,
+            willChange: "transform, opacity",
+            transform: "translateZ(0)",
           }}
-          initial={{ opacity: 0, scale: 0 }}
+          initial={{ opacity: 0 }}
           animate={{
-            opacity: [0, 0.8, 0.6, 0.8, 0],
-            scale: [0.5, 1, 0.8, 1, 0.5],
-            y: [0, -30, -20, -40, -60],
-            x: [0, 10, -5, 15, 0],
+            opacity: [0, 0.7, 0.5, 0.7, 0],
+            y: [0, -40, -30, -50, -70],
           }}
           transition={{
             duration: particle.duration,
             delay: particle.delay,
             repeat: Infinity,
-            ease: "easeInOut",
+            ease: "linear",
           }}
         />
       ))}
@@ -63,19 +65,20 @@ export function FloatingParticles({
   );
 }
 
-// Gradient orb variant for more premium feel
+// Gradient orb variant - optimized with fewer orbs and simpler animations
 export function GradientOrbs({ 
-  count = 5,
+  count = 2,
   className = ""
 }: { count?: number; className?: string }) {
   const orbs = useMemo(() => {
-    return Array.from({ length: count }, (_, i) => ({
+    // Cap at 2 orbs for performance
+    const actualCount = Math.min(count, 2);
+    return Array.from({ length: actualCount }, (_, i) => ({
       id: i,
-      x: 20 + Math.random() * 60,
-      y: 20 + Math.random() * 60,
-      size: 40 + Math.random() * 80,
-      duration: 6 + Math.random() * 4,
-      delay: Math.random() * 2,
+      x: 30 + i * 40,
+      y: 30 + i * 20,
+      size: 60 + i * 30,
+      duration: 8 + i * 2,
     }));
   }, [count]);
 
@@ -90,20 +93,18 @@ export function GradientOrbs({
             top: `${orb.y}%`,
             width: orb.size,
             height: orb.size,
-            background: `radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)`,
+            background: `radial-gradient(circle, hsl(var(--primary) / 0.25) 0%, transparent 70%)`,
+            willChange: "opacity",
+            transform: "translateZ(0)",
           }}
-          initial={{ opacity: 0, scale: 0.5 }}
+          initial={{ opacity: 0.3 }}
           animate={{
-            opacity: [0.3, 0.5, 0.3],
-            scale: [0.8, 1.2, 0.8],
-            x: [0, 20, -10, 20, 0],
-            y: [0, -15, 10, -20, 0],
+            opacity: [0.3, 0.45, 0.3],
           }}
           transition={{
             duration: orb.duration,
-            delay: orb.delay,
             repeat: Infinity,
-            ease: "easeInOut",
+            ease: "linear",
           }}
         />
       ))}
