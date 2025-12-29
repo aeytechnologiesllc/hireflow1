@@ -24,8 +24,13 @@ import {
   Upload,
   X,
   File,
-  Send
+  Send,
+  CalendarIcon
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
@@ -746,13 +751,37 @@ export default function ApplicationFormPhase() {
               )}
 
               {question.type === "date" && (
-                <Input
-                  type="date"
-                  value={answers[question.id] || ""}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
-                  max={new Date().toISOString().split('T')[0]}
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal h-10",
+                        !answers[question.id] && "text-muted-foreground",
+                        validationErrors[question.id] && "border-destructive"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {answers[question.id] 
+                        ? format(new Date(answers[question.id]), "PPP") 
+                        : "Select date"
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={answers[question.id] ? new Date(answers[question.id]) : undefined}
+                      onSelect={(date) => setAnswers(prev => ({ 
+                        ...prev, 
+                        [question.id]: date ? format(date, "yyyy-MM-dd") : "" 
+                      }))}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
               )}
               
               {question.type === "select" && question.options && (
