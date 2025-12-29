@@ -1,10 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import { ProcessingModeToggle } from "@/components/ProcessingModeToggle";
 import FirstJobTooltip from "@/components/FirstJobTooltip";
+import { LimitReachedDialog } from "@/components/subscription/LimitReachedDialog";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
 
 interface JobCardProps {
@@ -199,6 +201,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
 export default function Jobs() {
   const { role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
+  const { usage, limits, isWithinLimit } = useSubscription();
   const navigate = useNavigate();
   const isEmployer = role === "employer" || isTeamMember;
   const { data: jobs, isLoading, refetch: refetchJobs } = useEmployerJobs();
@@ -206,6 +209,9 @@ export default function Jobs() {
   const deleteJob = useDeleteJob();
   const createJob = useCreateJob();
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Limit dialog state
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
   
   // Mobile pull-to-refresh
   const isMobile = useIsMobile();
@@ -226,6 +232,15 @@ export default function Jobs() {
   const canCreateJobs = !isTeamMember || permissions?.canCreateJobs;
   const canDeleteJobs = !isTeamMember || permissions?.canDeleteJobs;
   const canEditJobs = !isTeamMember || permissions?.canCreateJobs; // Create permission implies edit
+
+  // Handle Create with Ava click - check limit first
+  const handleCreateJobClick = () => {
+    if (!isWithinLimit('jobs')) {
+      setShowLimitDialog(true);
+      return;
+    }
+    navigate("/jobs/create");
+  };
 
   const handleDeleteClick = (job: JobWithApplicationCount) => {
     setJobToDelete(job);
@@ -334,11 +349,9 @@ export default function Jobs() {
           >
             <Button 
               className="w-full sm:w-auto bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
-              asChild
+              onClick={handleCreateJobClick}
             >
-              <Link to="/jobs/create">
-                Create with Ava
-              </Link>
+              Create with Ava
             </Button>
           </motion.div>
         )}
@@ -436,11 +449,9 @@ export default function Jobs() {
                 >
                   <Button 
                     className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
-                    asChild
+                    onClick={handleCreateJobClick}
                   >
-                    <Link to="/jobs/create">
-                      Create with Ava
-                    </Link>
+                    Create with Ava
                   </Button>
                 </motion.div>
               )}
@@ -530,6 +541,15 @@ export default function Jobs() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Limit Reached Dialog */}
+      <LimitReachedDialog
+        open={showLimitDialog}
+        onOpenChange={setShowLimitDialog}
+        limitType="jobs"
+        currentCount={usage?.jobs_created}
+        limit={limits?.jobs}
+      />
     </motion.div>
   );
 }
