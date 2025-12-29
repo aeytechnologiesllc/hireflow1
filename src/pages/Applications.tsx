@@ -35,63 +35,16 @@ import {
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
-  offered: "bg-primary/20 text-primary",
-  hired: "bg-success/20 text-success",
-  rejected: "bg-destructive/20 text-destructive",
-};
-
-const statusLabels: Record<string, string> = {
-  pending: "Pending Review",
-  reviewing: "Under Review",
-  interview: "Interview Scheduled",
-  offered: "Offer Extended",
-  hired: "Hired",
-  rejected: "Not Selected",
-};
-
-// Map phase types to icons and action labels
-const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
-  application: { icon: FileText, label: "Complete Application", description: "Complete your application", route: "application" },
-  quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment", route: "quiz" },
-  typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test", route: "typing-test" },
-  video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
-  video_message: { icon: Video, label: "Record Video", description: "Record your video message", route: "video-intro" },
-  chat_simulation: { icon: MessageSquare, label: "Start Chat Sim", description: "Begin customer support simulation", route: "chat-simulation" },
-  chat_interview: { icon: MessageSquare, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
-  sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation", route: "sales-simulation" },
-  voice_interview: { icon: Video, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
-  portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio" },
-};
+import { 
+  getApplicationDisplayState, 
+  statusColors, 
+  statusLabels, 
+  phaseActionConfig 
+} from "@/utils/getApplicationDisplayState";
 
 interface ApplicationCardProps {
   application: ApplicationWithJob;
   onOpenBlueprint?: (applicationId: string) => void;
-}
-
-function getPhaseType(phase: string, workflowSteps?: any[]): string {
-  // Prefer explicit type from job workflow configuration when available
-  if (workflowSteps && Array.isArray(workflowSteps)) {
-    const step = workflowSteps.find((s: any) => s?.id === phase || s?.key === phase || s?.slug === phase);
-    if (step && typeof step.type === "string") {
-      return step.type;
-    }
-  }
-
-  // Fallback normalization for legacy/non-configured phases
-  if (phase === "typing_test") return "typing_test";
-  if (phase === "video_intro") return "video_intro";
-  if (phase === "chat_simulation") return "chat_simulation";
-  if (phase === "chat_interview") return "chat_interview";
-  if (phase === "sales_simulation") return "sales_simulation";
-  if (phase === "voice_interview") return "voice_interview";
-  if (phase === "portfolio_upload") return "portfolio_upload";
-  // Only treat as quiz if phase explicitly contains "quiz" - removed startsWith("step") which incorrectly caught voice_interview
-  if (phase.includes("quiz")) return "quiz";
-  return phase;
 }
  
 function ApplicationCard({ application, onDelete, onOpenBlueprint }: ApplicationCardProps & { onDelete: (id: string) => void }) {
@@ -99,56 +52,10 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
   const [isDeleting, setIsDeleting] = useState(false);
   const job = application.jobs;
   const phase = application.phase || "application";
-  const phaseType = getPhaseType(phase, (job as any)?.workflow_steps as any[]);
   
-  // Get interview status for this application
-  const latestInterview = application.latestInterview;
-  const hasScheduledInterview = latestInterview && latestInterview.status === "scheduled";
-  const interviewNeedsConfirmation = hasScheduledInterview && 
-    (!latestInterview.candidate_response || latestInterview.candidate_response === "pending");
-  const interviewRescheduleRequested = hasScheduledInterview && 
-    latestInterview.candidate_response === "reschedule_requested";
-  const interviewConfirmed = hasScheduledInterview && 
-    latestInterview.candidate_response === "confirmed";
-  
-  // Parse notes to check if phase has been submitted
-  let notes: Record<string, any> = {};
-  try {
-    notes = application.notes ? JSON.parse(application.notes as string) : {};
-  } catch {
-    // ignore
-  }
-  
-  // Check if the current phase has been completed/submitted
-  const hasPhaseData = (() => {
-    // Application phase: check for submitted application answers
-    if (phaseType === "application" || phase === "application") {
-      const answers = notes.applicationAnswers;
-      return Array.isArray(answers) && answers.length > 0;
-    }
-    if (phaseType === "quiz") {
-      const stepData = notes[phase];
-      return !!(stepData?.completedAt || notes.quizResult || notes.quiz?.completedAt);
-    }
-    if (phaseType === "typing_test") return !!notes.typingTestResult;
-    if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
-    if (phaseType === "video_message") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
-    if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;
-    if (phaseType === "chat_interview") return !!notes.chatInterviewResult;
-    if (phaseType === "sales_simulation") return !!notes.salesSimulationResult;
-    // Voice interview result is stored in a dedicated column, not notes JSON
-    if (phaseType === "voice_interview") return !!application.voice_interview_result;
-    // Portfolio upload: check for completed flag or portfolio URLs
-    if (phaseType === "portfolio_upload") return !!notes[phase]?.completed || !!notes[phase]?.portfolioUrls?.length || !!notes.portfolioResult;
-    return false;
-  })();
-  
-  // Determine states - "application" is NOT a waiting phase, it's a candidate action phase
-  // Only employer-controlled phases are waiting phases
-  const isWaitingPhase = ["review", "interview", "hired"].includes(phase);
-  const actionConfig = phaseActionConfig[phaseType];
-  const hasActionRequired = !isWaitingPhase && actionConfig && !hasPhaseData;
-  const isPendingReview = !isWaitingPhase && hasPhaseData && application.status !== "rejected" && application.status !== "hired";
+  // Use shared display state utility - SINGLE SOURCE OF TRUTH
+  const displayState = getApplicationDisplayState(application);
+  const actionConfig = phaseActionConfig[displayState.phaseType];
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -169,25 +76,23 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
     }
   };
 
-  const isRejected = application.status === "rejected";
-
   return (
     <Card 
       className={`bg-card border-border transition-all group relative overflow-hidden ${
-        isRejected
+        displayState.isRejected
           ? "border-destructive/30 opacity-75 cursor-default"
-          : hasActionRequired 
+          : displayState.showActionButton 
             ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5 cursor-pointer" 
             : "hover:border-primary/50 cursor-pointer"
       }`}
       onClick={() => {
-        if (!isRejected) {
+        if (!displayState.isRejected) {
           navigate(`/applications/${application.id}`);
         }
       }}
     >
       {/* Rejected stamp overlay */}
-      {isRejected && (
+      {displayState.isRejected && (
         <div className="absolute top-4 right-4 z-10 rotate-12 pointer-events-none">
           <div className="px-3 py-1.5 rounded border-2 border-destructive/60 bg-destructive/10 backdrop-blur-sm">
             <span className="text-destructive font-bold text-sm tracking-wider uppercase">
@@ -202,7 +107,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className={`text-lg font-semibold transition-colors ${isRejected ? "text-muted-foreground" : "text-foreground group-hover:text-primary"}`}>
+                <h3 className={`text-lg font-semibold transition-colors ${displayState.isRejected ? "text-muted-foreground" : "text-foreground group-hover:text-primary"}`}>
                   {job?.title || "Unknown Position"}
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
@@ -247,7 +152,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
 
               {/* Action Indicator - Clickable button to jump to phase */}
               <div className="flex items-center gap-3">
-                {hasActionRequired && actionConfig && (
+                {displayState.showActionButton && actionConfig && (
                   <Button
                     size="sm"
                     className="bg-primary text-primary-foreground gap-2 px-4 py-1.5 text-sm font-medium animate-pulse hover:bg-primary/90 transition-colors"
@@ -264,8 +169,8 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                       }
                     }}
                   >
-                    {phaseType === "voice_interview" ? (
-                      application.voice_interview_video_enabled !== false ? (
+                    {displayState.phaseType === "voice_interview" ? (
+                      displayState.voiceInterviewVideoEnabled ? (
                         <Video className="h-4 w-4" />
                       ) : (
                         <actionConfig.icon className="h-4 w-4" />
@@ -273,18 +178,16 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                     ) : (
                       <actionConfig.icon className="h-4 w-4" />
                     )}
-                    {phaseType === "voice_interview" 
-                      ? (application.voice_interview_video_enabled !== false ? "Start Video Interview" : "Start Voice Interview")
-                      : actionConfig.label}
+                    {displayState.actionLabel}
                   </Button>
                 )}
-                {isPendingReview && phaseType === "voice_interview" && (
+                {displayState.isVoiceInterviewComplete && (
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1.5 px-3 py-1">
                     <Mic className="h-3.5 w-3.5" />
                     Interview Complete - Under Review
                   </Badge>
                 )}
-                {isPendingReview && phaseType !== "voice_interview" && (
+                {displayState.isPendingReview && !displayState.isVoiceInterviewComplete && (
                   <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
                     <Clock className="h-3.5 w-3.5" />
                     Awaiting Review
@@ -292,19 +195,19 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 )}
                 
                 {/* Interview status badges - show when in interview phase */}
-                {isWaitingPhase && application.status === "interview" && interviewNeedsConfirmation && (
+                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewNeedsConfirmation && (
                   <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1 animate-pulse">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Interview Action Required
                   </Badge>
                 )}
-                {isWaitingPhase && application.status === "interview" && interviewRescheduleRequested && (
+                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewRescheduleRequested && (
                   <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
                     <Clock className="h-3.5 w-3.5" />
                     Reschedule Pending
                   </Badge>
                 )}
-                {isWaitingPhase && application.status === "interview" && interviewConfirmed && (
+                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewConfirmed && (
                   <Badge className="bg-success/20 text-success border-success/30 gap-1.5 px-3 py-1">
                     <Check className="h-3.5 w-3.5" />
                     Interview Confirmed
@@ -312,7 +215,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 )}
                 
                 {/* Employer reviewing - only show when not in interview status or no interview scheduled */}
-                {isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && application.status !== "interview" && (
+                {displayState.isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && application.status !== "interview" && (
                   <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
                     <Eye className="h-3.5 w-3.5" />
                     Employer Reviewing
@@ -320,7 +223,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 )}
                 
                 {/* Rejected - show unlock blueprint button */}
-                {isRejected && onOpenBlueprint && (
+                {displayState.isRejected && onOpenBlueprint && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -368,7 +271,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                   </AlertDialogContent>
                 </AlertDialog>
                 
-                {isRejected ? (
+                {displayState.isRejected ? (
                   <Lock className="h-5 w-5 text-muted-foreground" />
                 ) : (
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />

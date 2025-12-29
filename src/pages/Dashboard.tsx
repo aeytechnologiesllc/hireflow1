@@ -326,25 +326,35 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
   );
 }
 
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
-  offered: "bg-primary/20 text-primary",
-  hired: "bg-success/20 text-success",
-  rejected: "bg-destructive/20 text-destructive",
-};
+import { getApplicationDisplayState, statusColors } from "@/utils/getApplicationDisplayState";
 
 function ApplicationCard({ application, onOpenBlueprint }: { application: ApplicationWithJob; onOpenBlueprint?: (id: string) => void }) {
+  const navigate = useNavigate();
   const job = application.jobs;
-  const isRejected = application.status === "rejected";
+  const displayState = getApplicationDisplayState(application);
+  const phase = application.phase || "application";
 
   return (
-    <Card className="bg-card border-border">
+    <Card 
+      className={`bg-card border-border transition-all cursor-pointer ${
+        displayState.isRejected 
+          ? "border-destructive/30 opacity-75" 
+          : displayState.showActionButton 
+            ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
+            : "hover:border-primary/50"
+      }`}
+      onClick={() => {
+        if (!displayState.isRejected) {
+          navigate(`/applications/${application.id}`);
+        }
+      }}
+    >
       <CardContent className="p-3 md:p-4">
         <div className="flex items-start sm:items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h4 className="font-medium text-foreground text-sm md:text-base truncate">{job?.title || "Unknown Position"}</h4>
+            <h4 className={`font-medium text-sm md:text-base truncate ${displayState.isRejected ? "text-muted-foreground" : "text-foreground"}`}>
+              {job?.title || "Unknown Position"}
+            </h4>
             <div className="flex items-center gap-2 md:gap-3 mt-1 text-xs md:text-sm text-muted-foreground flex-wrap">
               {job?.location && (
                 <span className="flex items-center gap-1">
@@ -356,7 +366,27 @@ function ApplicationCard({ application, onOpenBlueprint }: { application: Applic
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {isRejected && onOpenBlueprint && (
+            {/* Action button when phase needs completion */}
+            {displayState.showActionButton && displayState.actionIcon && (
+              <Button
+                size="sm"
+                className="bg-primary text-primary-foreground gap-1.5 px-3 py-1 text-xs font-medium animate-pulse hover:bg-primary/90 h-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const stepId = phase;
+                  const route = displayState.actionRoute;
+                  if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
+                    navigate(`/applications/${application.id}/${route}/${stepId}`);
+                  } else {
+                    navigate(`/applications/${application.id}/${route}`);
+                  }
+                }}
+              >
+                <displayState.actionIcon className="h-3 w-3" />
+                {displayState.actionLabel}
+              </Button>
+            )}
+            {displayState.isRejected && onOpenBlueprint && (
               <Button
                 size="sm"
                 variant="outline"
@@ -370,9 +400,17 @@ function ApplicationCard({ application, onOpenBlueprint }: { application: Applic
                 Get Report
               </Button>
             )}
-            <Badge className={`${statusColors[application.status]} text-xs`}>
-              {application.status}
-            </Badge>
+            {/* Only show status badge when no action button and not rejected */}
+            {!displayState.showActionButton && !displayState.isRejected && (
+              <Badge className={`${displayState.statusColor} text-xs`}>
+                {displayState.statusLabel}
+              </Badge>
+            )}
+            {displayState.isRejected && (
+              <Badge className={`${displayState.statusColor} text-xs`}>
+                Not Selected
+              </Badge>
+            )}
           </div>
         </div>
       </CardContent>
