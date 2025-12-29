@@ -640,6 +640,8 @@ export default function QuizPhase() {
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      // Also invalidate the specific application detail query so UI updates when navigating back
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
       // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
       // The backend will calculate weighted score and decide pass/fail
