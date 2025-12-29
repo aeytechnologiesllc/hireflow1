@@ -899,6 +899,8 @@ export default function ApplicationFormPhase() {
             <Textarea
               value={coverLetter}
               onChange={(e) => setCoverLetter(e.target.value)}
+              onPaste={(e) => e.preventDefault()}
+              onCopy={(e) => e.preventDefault()}
               placeholder="Write a brief cover letter..."
               rows={6}
             />
