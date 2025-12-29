@@ -243,6 +243,50 @@ export default function CandidateApplicationWizard({
     // Pre-fill resume if available and not already set
     if (profile.resume_url && !resumeUrl && !hasFileQuestionInQuestions) {
       setResumeUrl(profile.resume_url);
+      
+      // CRITICAL: Convert profile resume PDF to images for AVA vision analysis
+      // Without this conversion, AVA cannot "see" the resume content
+      (async () => {
+        try {
+          console.log("[CandidateApplicationWizard] Converting profile resume to images...");
+          const response = await fetch(profile.resume_url);
+          const blob = await response.blob();
+          const file = new globalThis.File([blob], "profile-resume.pdf", { type: "application/pdf" });
+          
+          const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
+          const imageBase64s = await convertPdfFileToImages(file, 2);
+          
+          if (imageBase64s.length > 0) {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            
+            const imageUrls: string[] = [];
+            for (let i = 0; i < imageBase64s.length; i++) {
+              const imgBlob = base64ToBlob(imageBase64s[i], "image/png");
+              const imagePath = `${user.id}/profile-resume-${Date.now()}_page${i + 1}.png`;
+              
+              const { error: uploadError } = await supabase.storage
+                .from("resumes")
+                .upload(imagePath, imgBlob, { upsert: true });
+              
+              if (!uploadError) {
+                const { data: urlData } = supabase.storage
+                  .from("resumes")
+                  .getPublicUrl(imagePath);
+                imageUrls.push(urlData.publicUrl);
+              }
+            }
+            
+            if (imageUrls.length > 0) {
+              setResumeImageUrls(imageUrls);
+              console.log("[CandidateApplicationWizard] Profile resume converted:", imageUrls.length, "pages");
+            }
+          }
+        } catch (error) {
+          console.error("[CandidateApplicationWizard] Failed to convert profile resume:", error);
+          // Non-fatal - the resume URL is still available, just no vision analysis
+        }
+      })();
     }
   }, [profile, open, applicationQuestions]);
 
@@ -1221,7 +1265,7 @@ export default function CandidateApplicationWizard({
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Supports PDF, DOC, DOCX (max 10MB)
+                            Supports PDF only (max 10MB)
                           </p>
                         </div>
                       </div>

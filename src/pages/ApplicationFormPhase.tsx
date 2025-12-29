@@ -997,7 +997,7 @@ export default function ApplicationFormPhase() {
                       Click to upload or drag and drop your resume
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      PDF or Word document, max 10MB
+                      PDF only, max 10MB
                     </p>
                   </div>
                 )}
@@ -1005,7 +1005,7 @@ export default function ApplicationFormPhase() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,application/pdf"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
