@@ -6,6 +6,76 @@ if (!pdfjs.GlobalWorkerOptions.workerSrc) {
 }
 
 /**
+ * Converts a PDF File object to an array of base64-encoded PNG images.
+ * This is the PRIMARY method for converting PDFs before upload so the AI can analyze them.
+ * @param file - The PDF File object to convert
+ * @param maxPages - Maximum number of pages to convert (default: 2)
+ * @returns Array of base64-encoded PNG image data (without data URI prefix)
+ */
+export async function convertPdfFileToImages(file: File, maxPages: number = 2): Promise<string[]> {
+  try {
+    console.log("[pdfToImage] Converting PDF file to images:", file.name);
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const numPages = Math.min(doc.numPages, maxPages);
+    const images: string[] = [];
+    
+    const scale = 2.0; // Good quality for AI analysis
+    
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await doc.getPage(pageNum);
+      const viewport = page.getViewport({ scale });
+      
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      
+      if (!context) {
+        console.error("[pdfToImage] Failed to get canvas context for page", pageNum);
+        continue;
+      }
+      
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      await page.render({
+        canvasContext: context,
+        viewport,
+        canvas,
+      }).promise;
+      
+      const dataUrl = canvas.toDataURL("image/png");
+      const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+      images.push(base64Data);
+      
+      console.log("[pdfToImage] Converted page", pageNum, "to image, size:", base64Data.length);
+    }
+    
+    console.log("[pdfToImage] Successfully converted", images.length, "pages to images");
+    return images;
+  } catch (error) {
+    console.error("[pdfToImage] Failed to convert PDF file to images:", error);
+    return [];
+  }
+}
+
+/**
+ * Converts base64 image data to a Blob for uploading
+ * @param base64 - Base64-encoded image data (without data URI prefix)
+ * @param mimeType - The MIME type (default: image/png)
+ * @returns Blob object
+ */
+export function base64ToBlob(base64: string, mimeType: string = "image/png"): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
+/**
  * Converts the first page of a PDF to a base64-encoded PNG image.
  * Used as a fallback when text extraction fails (designed PDFs, scanned documents).
  * @param url - The URL of the PDF file

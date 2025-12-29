@@ -300,10 +300,9 @@ export default function CandidateApplicationWizard({
   }, []);
 
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    // Validate file type
-    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document");
+    // PDF only for file uploads
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
       return;
     }
 
@@ -332,6 +331,29 @@ export default function CandidateApplicationWizard({
       const { data: urlData } = supabase.storage
         .from("resumes")
         .getPublicUrl(fileName);
+
+      // Convert PDF to images for AI analysis
+      const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
+      const imageBase64s = await convertPdfFileToImages(file, 2);
+      const imageUrls: string[] = [];
+      
+      if (imageBase64s.length > 0) {
+        for (let i = 0; i < imageBase64s.length; i++) {
+          const blob = base64ToBlob(imageBase64s[i], "image/png");
+          const imagePath = `${user.id}/${questionId}-${Date.now()}_page${i + 1}.png`;
+          
+          const { error: imageUploadError } = await supabase.storage
+            .from("resumes")
+            .upload(imagePath, blob, { upsert: true });
+          
+          if (!imageUploadError) {
+            const { data: imageUrlData } = supabase.storage
+              .from("resumes")
+              .getPublicUrl(imagePath);
+            imageUrls.push(imageUrlData.publicUrl);
+          }
+        }
+      }
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
@@ -391,10 +413,9 @@ export default function CandidateApplicationWizard({
   };
 
   const handleFileSelect = async (file: File) => {
-    // Validate file type
-    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document");
+    // PDF only for resume uploads
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
       return;
     }
 
@@ -424,7 +445,31 @@ export default function CandidateApplicationWizard({
         .from("resumes")
         .getPublicUrl(fileName);
 
+      // Convert PDF to images for AI analysis
+      const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
+      const imageBase64s = await convertPdfFileToImages(file, 2);
+      const imageUrls: string[] = [];
+      
+      if (imageBase64s.length > 0) {
+        for (let i = 0; i < imageBase64s.length; i++) {
+          const blob = base64ToBlob(imageBase64s[i], "image/png");
+          const imagePath = `${user.id}/${Date.now()}_page${i + 1}.png`;
+          
+          const { error: imageUploadError } = await supabase.storage
+            .from("resumes")
+            .upload(imagePath, blob, { upsert: true });
+          
+          if (!imageUploadError) {
+            const { data: imageUrlData } = supabase.storage
+              .from("resumes")
+              .getPublicUrl(imagePath);
+            imageUrls.push(imageUrlData.publicUrl);
+          }
+        }
+      }
+
       setResumeUrl(urlData.publicUrl);
+      console.log("[CandidateApplicationWizard] Resume uploaded with", imageUrls.length, "image pages");
       toast.success("Resume uploaded successfully");
     } catch (error: any) {
       console.error("Upload error:", error);
