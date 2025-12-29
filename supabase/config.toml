@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.deduct-voice-minutes]
 verify_jwt = true
+
+[functions.check-applicant-limit]
+verify_jwt = false

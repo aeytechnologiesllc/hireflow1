@@ -7,10 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, ArrowRight, Copy, Check, Users, Shield, Briefcase, Link } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, Check, Users, Shield, Briefcase, Link, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -70,7 +71,9 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { usage, limits, isWithinLimit } = useSubscription();
   const { data: jobs } = useEmployerJobs();
+  const canAddMoreTeamMembers = isWithinLimit('teamMembers');
 
   const [inviteData, setInviteData] = useState<InviteData>({
     name: "",
@@ -105,6 +108,16 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
 
   const handleCreateInvite = async () => {
     if (!user) return;
+
+    // Check team member limit
+    if (!canAddMoreTeamMembers) {
+      toast({
+        title: "Team Member Limit Reached",
+        description: `You've reached your team member limit (${usage?.team_members_added ?? 0}/${limits?.teamMembers ?? 0}). Upgrade your plan to add more team members.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Validate required email
     if (!inviteData.email.trim()) {

@@ -108,6 +108,62 @@ serve(async (req) => {
       );
     }
 
+    // ========== AI ANALYSES LIMIT CHECK ==========
+    const employerId = (application.jobs as any)?.employer_id;
+    if (employerId) {
+      // Get employer's subscription
+      const { data: subscription } = await supabaseAdmin
+        .from("subscriptions")
+        .select("plan_type, status")
+        .eq("user_id", employerId)
+        .maybeSingle();
+
+      // Get plan limits
+      const planType = subscription?.plan_type || 'trial';
+      const aiAnalysesLimits: Record<string, number> = {
+        trial: 15,
+        growth: 100,
+        business: -1, // unlimited
+        enterprise: -1, // unlimited
+      };
+      const aiLimit = aiAnalysesLimits[planType] ?? 15;
+
+      // Only check if there's a limit (not unlimited)
+      if (aiLimit !== -1) {
+        // Count existing AI analyses for this employer's applications
+        const { data: employerJobs } = await supabaseAdmin
+          .from("jobs")
+          .select("id")
+          .eq("employer_id", employerId);
+
+        const jobIds = (employerJobs || []).map((j: any) => j.id);
+
+        if (jobIds.length > 0) {
+          const { count: analysisCount } = await supabaseAdmin
+            .from("applications")
+            .select("*", { count: "exact", head: true })
+            .in("job_id", jobIds)
+            .not("ai_score", "is", null);
+
+          const currentCount = analysisCount || 0;
+
+          if (currentCount >= aiLimit) {
+            console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
+            return new Response(
+              JSON.stringify({ 
+                error: "AI analysis limit reached", 
+                message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
+                limitReached: true 
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
+        }
+      }
+    }
+    // ========== END LIMIT CHECK ==========
+
     // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
     if (application.status === "rejected" && !force) {
       console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");

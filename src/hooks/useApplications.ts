@@ -187,6 +187,29 @@ export function useCreateApplication() {
 
   return useMutation({
     mutationFn: async (application: Omit<ApplicationInsert, "candidate_id">) => {
+      // Check if employer has reached applicant limit before creating application
+      const { data: job, error: jobError } = await supabase
+        .from("jobs")
+        .select("employer_id")
+        .eq("id", application.job_id)
+        .single();
+
+      if (jobError || !job) {
+        throw new Error("Job not found");
+      }
+
+      // Check employer's subscription limit
+      const { data: limitCheck, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
+        body: { employerId: job.employer_id, jobId: application.job_id },
+      });
+
+      if (limitError) {
+        console.error("Error checking applicant limit:", limitError);
+        // Continue anyway - don't block applications on limit check failures
+      } else if (limitCheck?.limitReached) {
+        throw new Error(limitCheck.message || "This employer has reached their applicant limit. Please try again later.");
+      }
+
       const { data, error } = await supabase
         .from("applications")
         .insert({ ...application, candidate_id: user!.id })
@@ -199,21 +222,21 @@ export function useCreateApplication() {
       (async () => {
         try {
           // Get job details for email content
-          const { data: job } = await supabase
+          const { data: jobDetails } = await supabase
             .from("jobs")
             .select("title, employer_id, profiles:employer_id(company_name)")
             .eq("id", application.job_id)
             .single();
 
-          if (job) {
-            const companyName = (job as any).profiles?.company_name;
+          if (jobDetails) {
+            const companyName = (jobDetails as any).profiles?.company_name;
             
             // Notify candidate their application was received
-            notifyApplicationReceived(user!.id, job.title, companyName);
+            notifyApplicationReceived(user!.id, jobDetails.title, companyName);
             
             // Notify employer about new application
             const candidateName = user?.user_metadata?.full_name || user?.email || "A candidate";
-            notifyNewApplication(job.employer_id, candidateName, job.title);
+            notifyNewApplication(jobDetails.employer_id, candidateName, jobDetails.title);
           }
         } catch (err) {
           console.error("Failed to send application email notifications:", err);
