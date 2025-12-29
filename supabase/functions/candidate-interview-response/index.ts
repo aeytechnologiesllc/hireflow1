@@ -168,9 +168,51 @@ Deno.serve(async (req) => {
       } else {
         console.log("Notification created for employer:", employerId);
       }
+
+      // Send email notification to employer when candidate requests reschedule
+      if (payload.action === "reschedule_requested") {
+        try {
+          // Format proposed times for email
+          const formattedTimes = payload.proposedTimes?.map(t => {
+            const date = new Date(t.datetime);
+            return date.toLocaleString("en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            });
+          }).join(", ") || "Not specified";
+
+          console.log("Sending reschedule email to employer:", employerId);
+          
+          const { error: emailError } = await supabaseAdmin.functions.invoke("send-notification-email", {
+            body: {
+              type: "reschedule_requested",
+              recipient_user_id: employerId,
+              data: {
+                candidate_name: candidateName,
+                job_title: jobTitle,
+                proposed_times: formattedTimes,
+                candidate_note: payload.candidateNote || undefined,
+              },
+            },
+          });
+
+          if (emailError) {
+            console.error("Email notification error:", emailError);
+          } else {
+            console.log("Reschedule email sent to employer");
+          }
+        } catch (emailErr) {
+          console.error("Failed to send reschedule email:", emailErr);
+          // Don't fail the request for email errors
+        }
+      }
     }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: true, 
       interview: updatedInterview,
       proposedTimesCount: payload.action === "reschedule_requested" ? payload.proposedTimes?.length : 0,

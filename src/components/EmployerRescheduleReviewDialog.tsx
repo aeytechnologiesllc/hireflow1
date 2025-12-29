@@ -100,6 +100,19 @@ export function EmployerRescheduleReviewDialog({
           message: `Your interview for ${jobTitle} has been rescheduled to a new time. Please confirm.`,
           link: `/applications`,
         });
+
+        // Send email notification to candidate
+        try {
+          const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+          await notifyInterviewRescheduled(
+            candidateId,
+            jobTitle,
+            format(parseISO(selectedTime), "EEEE, MMMM d, yyyy"),
+            format(parseISO(selectedTime), "h:mm a")
+          );
+        } catch (emailErr) {
+          console.error("Failed to send reschedule email:", emailErr);
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
@@ -140,6 +153,7 @@ export function EmployerRescheduleReviewDialog({
       // Create notification for candidate
       const candidateId = (interview?.applications as any)?.candidate_id;
       const jobTitle = (interview?.applications as any)?.jobs?.title || "Interview";
+      const scheduledAt = interview?.scheduled_at;
       
       if (candidateId) {
         await supabase.from("notifications").insert({
@@ -149,6 +163,21 @@ export function EmployerRescheduleReviewDialog({
           message: `The employer has kept the original interview time for ${jobTitle}. Please confirm your attendance.`,
           link: `/applications`,
         });
+
+        // Send email notification to candidate
+        if (scheduledAt) {
+          try {
+            const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+            await notifyInterviewRescheduled(
+              candidateId,
+              jobTitle,
+              format(parseISO(scheduledAt), "EEEE, MMMM d, yyyy"),
+              format(parseISO(scheduledAt), "h:mm a")
+            );
+          } catch (emailErr) {
+            console.error("Failed to send interview confirmation email:", emailErr);
+          }
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
