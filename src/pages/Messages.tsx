@@ -149,11 +149,14 @@ export default function Messages() {
     if (selectedEmployer?.employer_profile) {
       return selectedEmployer.employer_profile.company_name || selectedEmployer.employer_profile.full_name || selectedEmployer.employer_profile.email || "Employer";
     }
+    if (selectedCandidate?.candidate_profile) {
+      return selectedCandidate.candidate_profile.full_name || selectedCandidate.candidate_profile.email || "Candidate";
+    }
     return "Unknown";
   };
 
   const getContactEmail = () => {
-    return selectedConversation?.contact_profile?.email || selectedEmployer?.employer_profile?.email || "";
+    return selectedConversation?.contact_profile?.email || selectedEmployer?.employer_profile?.email || selectedCandidate?.candidate_profile?.email || "";
   };
 
   return (
@@ -367,7 +370,7 @@ export default function Messages() {
               )}
               <Avatar className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
                 <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
-                  {getInitials(selectedConversation?.contact_profile || selectedEmployer?.employer_profile)}
+                  {getInitials(selectedConversation?.contact_profile || selectedEmployer?.employer_profile || selectedCandidate?.candidate_profile)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -382,6 +385,12 @@ export default function Messages() {
                 <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
                   <Briefcase className="h-4 w-4" />
                   <span className="max-w-[120px] truncate">{selectedEmployer.job_title}</span>
+                </div>
+              )}
+              {selectedCandidate && !isMobile && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                  <Briefcase className="h-4 w-4" />
+                  <span className="max-w-[120px] truncate">{selectedCandidate.job_title}</span>
                 </div>
               )}
               <AlertDialog>
