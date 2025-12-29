@@ -1387,7 +1387,11 @@ export default function ApplicantDetails() {
         return parsedNotes.salesSimulationResult;
       }
       if (stepType === "voice_interview") {
-        return application?.voice_interview_result;
+        const result = application?.voice_interview_result as Record<string, unknown> | null;
+        if (result) {
+          return { ...result, score: result.overall_score ?? result.score };
+        }
+        return result;
       }
       return parsedNotes[stepId];
     };
