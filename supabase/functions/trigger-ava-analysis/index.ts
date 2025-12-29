@@ -622,6 +622,17 @@ ${interviewType} Interview with AVA Results:
       newScore = null;
     }
 
+    // Check if AI reported resume as unavailable - don't set resume_score in that case
+    const resumeUnavailable = analysisText.includes("RESUME_UNAVAILABLE") || 
+      analysisText.includes("Resume file could not be") ||
+      analysisText.includes("couldn't analyze the resume") ||
+      analysisText.includes("No resume was provided") ||
+      analysisText.includes("resume could not be processed");
+    
+    if (resumeUnavailable) {
+      console.log("[trigger-ava-analysis] Resume was unavailable/couldn't be processed - setting resume_score to null");
+    }
+
     // WEIGHTED SCORE CALCULATION: Combine resume score with phase performance
     // This ensures quiz/assessment performance compensates for resume weaknesses
     // Reuse quizData from line 243 (already defined above)
@@ -695,7 +706,8 @@ ${interviewType} Interview with AVA Results:
       .update({
         ai_analysis: analysisData?.analysis || null,
         ai_score: finalScore && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
-        resume_score: newScore && newScore >= 0 && newScore <= 100 ? newScore : null,
+        // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
+        resume_score: resumeUnavailable ? null : (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
       })
       .eq("id", applicationId);
 

@@ -48,6 +48,7 @@ import {
   Edit2,
   Trash2,
   Plus,
+  AlertTriangle,
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
@@ -2230,6 +2231,19 @@ export default function CreateJob() {
                       <SelectItem value="date">Date</SelectItem>
                     </SelectContent>
                   </Select>
+                  {editingQuestion.type === "file" && (
+                    <div className="mt-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-400">
+                          <p className="font-medium">Note: AVA will not score file uploads</p>
+                          <p className="text-amber-400/70 mt-1">
+                            Files uploaded here are for manual review only. Only the dedicated Resume field is analyzed and scored by AVA.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Required</Label>
