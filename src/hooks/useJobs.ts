@@ -168,6 +168,8 @@ export function useCreateJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      // CRITICAL: Invalidate subscription to update job count in usage limits
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
   });
 }
@@ -220,6 +222,8 @@ export function useDeleteJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      // CRITICAL: Invalidate subscription to update job count in usage limits
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
   });
 }
