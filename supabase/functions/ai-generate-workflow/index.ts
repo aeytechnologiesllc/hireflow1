@@ -267,6 +267,28 @@ IMPORTANT:
       }
     }
 
+    // Validate quiz questions - ensure each has a valid correct_answer
+    if (workflowData.quiz_questions && Array.isArray(workflowData.quiz_questions)) {
+      workflowData.quiz_questions = workflowData.quiz_questions.map((q: any, idx: number) => {
+        // Only validate questions with options (multiple choice, true/false)
+        if (q.options && Array.isArray(q.options) && q.options.length > 0) {
+          const correctAnswer = q.correct_answer;
+          
+          // Check if correct_answer matches any option (case-insensitive, trimmed)
+          const matchIndex = q.options.findIndex((opt: string) => 
+            String(opt).toLowerCase().trim() === String(correctAnswer || '').toLowerCase().trim()
+          );
+          
+          if (matchIndex === -1) {
+            // No valid match found - default to first option
+            console.warn(`Quiz question ${idx + 1} has invalid correct_answer "${correctAnswer}". Options: [${q.options.join(', ')}]. Defaulting to first option: "${q.options[0]}"`);
+            q.correct_answer = q.options[0];
+          }
+        }
+        return q;
+      });
+    }
+
     console.log("Generated workflow:", {
       application_questions: workflowData.application_questions?.length || 0,
       quiz_questions: workflowData.quiz_questions?.length || 0,

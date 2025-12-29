@@ -12,7 +12,8 @@ import {
   Keyboard,
   Video,
   Bot,
-  Upload
+  Upload,
+  AlertTriangle
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -55,6 +56,14 @@ const STEP_ICONS: Record<string, React.ElementType> = {
   chat_simulation: MessageSquare,
   sales_simulation: Bot,
   portfolio_upload: Upload,
+};
+
+// Helper to check if a quiz question has a valid correct answer
+const hasValidCorrectAnswer = (q: QuizQuestion): boolean => {
+  if (!q.options || q.options.length === 0) return true; // Non-option questions are fine
+  return q.options.some(opt => 
+    String(opt).toLowerCase().trim() === String(q.correct_answer || '').toLowerCase().trim()
+  );
 };
 
 export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkflowDialogProps) {
@@ -153,6 +162,12 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
                             {index + 1}. {q.question}
                           </p>
                           <div className="flex items-center gap-2 flex-shrink-0">
+                            {!hasValidCorrectAnswer(q) && (
+                              <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                No valid answer
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="text-xs">
                               {q.category}
                             </Badge>
