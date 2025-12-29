@@ -105,6 +105,36 @@ const formatTimeToAMPM = (time24: string): string => {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
 };
 
+// Validate meeting links for common video conferencing platforms
+const isValidMeetingLink = (url: string): boolean => {
+  if (!url || url.trim() === "") return false;
+  
+  try {
+    const parsedUrl = new URL(url.trim());
+    
+    // Check for valid meeting platform domains
+    const validDomains = [
+      "meet.google.com",
+      "zoom.us",
+      "us02web.zoom.us",
+      "us04web.zoom.us",
+      "us05web.zoom.us",
+      "us06web.zoom.us",
+      "teams.microsoft.com",
+      "whereby.com",
+      "webex.com",
+      "gotomeeting.com",
+    ];
+    
+    // Check if the hostname matches any valid domain
+    return validDomains.some(domain => 
+      parsedUrl.hostname === domain || parsedUrl.hostname.endsWith("." + domain)
+    );
+  } catch {
+    return false; // Invalid URL format
+  }
+};
+
 export default function InterviewSchedulingWizard({
   applicationId,
   candidateName,
@@ -130,6 +160,7 @@ export default function InterviewSchedulingWizard({
   const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [meetingLinkError, setMeetingLinkError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
@@ -417,6 +448,16 @@ export default function InterviewSchedulingWizard({
       case 1:
         return true;
       case 2:
+        // For video interviews: require either Google auto-generate OR a valid manual link
+        if (interviewType === "video") {
+          // Google connected with auto-generate enabled = valid
+          if (isGoogleConnected && generateMeetLink) {
+            return true;
+          }
+          // Otherwise, must have a valid manual meeting link
+          return isValidMeetingLink(manualMeetingLink);
+        }
+        // Non-video interviews don't need a meeting link
         return true;
       case 3:
         return true;
@@ -782,16 +823,35 @@ export default function InterviewSchedulingWizard({
                         {/* Manual Link */}
                         {(!isGoogleConnected || !generateMeetLink) && (
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">Meeting Link</Label>
+                            <Label className="text-sm font-medium">Meeting Link <span className="text-destructive">*</span></Label>
                             <div className="relative">
                               <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
                                 placeholder="https://meet.google.com/... or https://zoom.us/j/..."
                                 value={manualMeetingLink}
-                                onChange={(e) => setManualMeetingLink(e.target.value)}
-                                className="pl-10 bg-background"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setManualMeetingLink(value);
+                                  
+                                  // Validate and show error only if user has typed something
+                                  if (value && !isValidMeetingLink(value)) {
+                                    setMeetingLinkError("Please enter a valid Google Meet, Zoom, or Teams link");
+                                  } else {
+                                    setMeetingLinkError(null);
+                                  }
+                                }}
+                                className={cn(
+                                  "pl-10 bg-background",
+                                  meetingLinkError && "border-destructive focus-visible:ring-destructive"
+                                )}
                               />
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              Accepted: Google Meet, Zoom, Microsoft Teams, Webex, GoToMeeting
+                            </p>
+                            {meetingLinkError && (
+                              <p className="text-xs text-destructive">{meetingLinkError}</p>
+                            )}
                           </div>
                         )}
                       </>
