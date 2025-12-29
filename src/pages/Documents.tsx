@@ -7,6 +7,7 @@ import { useDocuments, DocumentWithApplication } from "@/hooks/useDocuments";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useDocumentRequests, useDeleteDocumentRequest, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ import { DocumentRequestWizard } from "@/components/documents/DocumentRequestWiz
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { DocumentRequestViewerDialog } from "@/components/documents/DocumentRequestViewerDialog";
+import { LimitReachedDialog } from "@/components/subscription/LimitReachedDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
@@ -66,6 +68,7 @@ const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => 
 export default function Documents() {
   const { user, role, isTeamMember } = useAuth();
   const { data: permissions } = useTeamMemberPermissions();
+  const { usage, limits, isWithinLimit } = useSubscription();
   const isEmployer = role === "employer";
   const canSendDocuments = !isTeamMember || permissions?.canSendDocuments;
   const { data: documents, isLoading } = useDocuments();
@@ -85,9 +88,28 @@ export default function Documents() {
   const [documentToDelete, setDocumentToDelete] = useState<DocumentWithApplication | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [preSelectedApplicationId, setPreSelectedApplicationId] = useState<string | undefined>(undefined);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle click on Create Document - check limit first
+  const handleCreateDocumentClick = () => {
+    if (!isWithinLimit('documents')) {
+      setShowLimitDialog(true);
+      return;
+    }
+    setWizardOpen(true);
+  };
+
+  // Handle click on Request Document - check limit first
+  const handleRequestDocumentClick = () => {
+    if (!isWithinLimit('documents')) {
+      setShowLimitDialog(true);
+      return;
+    }
+    setRequestWizardOpen(true);
+  };
 
   // Handle query params to auto-open wizard for a specific applicant
   useEffect(() => {
@@ -395,12 +417,12 @@ export default function Documents() {
         </div>
         {isEmployer && canSendDocuments && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setRequestWizardOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={handleRequestDocumentClick}>
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Request Document</span>
               <span className="sm:hidden">Request</span>
             </Button>
-            <Button size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={() => setWizardOpen(true)}>
+            <Button size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={handleCreateDocumentClick}>
               <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Create Document</span>
               <span className="sm:hidden">Create</span>
@@ -709,6 +731,14 @@ export default function Documents() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Limit Reached Dialog */}
+      <LimitReachedDialog
+        open={showLimitDialog}
+        onOpenChange={setShowLimitDialog}
+        limitType="documents"
+        currentCount={usage?.documents_sent}
+        limit={limits?.documents}
+      />
     </motion.div>
   );
 }

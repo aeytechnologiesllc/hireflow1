@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useJob } from "@/hooks/useJobs";
@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Sparkles,
   XCircle,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isPast } from "date-fns";
@@ -30,11 +31,40 @@ export default function JobDetails() {
   const { role, user } = useAuth();
   const { data: job, isLoading, error } = useJob(id);
   const [isStartingApplication, setIsStartingApplication] = useState(false);
+  const [applicantLimitReached, setApplicantLimitReached] = useState(false);
+  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
 
   const isEmployer = role === "employer";
   
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
+
+  // Check applicant limit when job loads
+  useEffect(() => {
+    const checkApplicantLimit = async () => {
+      if (!job || isEmployer) return;
+      
+      setIsCheckingLimit(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("check-applicant-limit", {
+          body: { employerId: job.employer_id, jobId: job.id },
+        });
+        
+        if (error) {
+          console.error("Error checking applicant limit:", error);
+          return;
+        }
+        
+        setApplicantLimitReached(data?.limitReached || false);
+      } catch (err) {
+        console.error("Failed to check applicant limit:", err);
+      } finally {
+        setIsCheckingLimit(false);
+      }
+    };
+
+    checkApplicantLimit();
+  }, [job, isEmployer]);
 
   const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
     if (!min && !max) return "Competitive Salary";
@@ -253,9 +283,13 @@ export default function JobDetails() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <Card className={`bg-card overflow-hidden ${isDeadlinePassed ? 'border-destructive/50' : 'border-primary/50'}`}>
+              <Card className={`bg-card overflow-hidden ${isDeadlinePassed || applicantLimitReached ? 'border-destructive/50' : 'border-primary/50'}`}>
                 <CardContent className="p-6 space-y-4">
-                  {isDeadlinePassed ? (
+                  {isCheckingLimit ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : isDeadlinePassed ? (
                     <>
                       <div className="text-center">
                         <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
@@ -277,6 +311,30 @@ export default function JobDetails() {
 
                       <p className="text-xs text-center text-muted-foreground">
                         This job is no longer accepting applications
+                      </p>
+                    </>
+                  ) : applicantLimitReached ? (
+                    <>
+                      <div className="text-center">
+                        <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                        <h3 className="text-lg font-semibold text-foreground">Not Accepting Applications</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          This employer is not currently accepting new applications
+                        </p>
+                      </div>
+                      
+                      <Button
+                        disabled
+                        size="lg"
+                        variant="outline"
+                        className="w-full h-14 text-lg font-semibold"
+                      >
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        Applications Paused
+                      </Button>
+
+                      <p className="text-xs text-center text-muted-foreground">
+                        Please check back later or contact the employer directly
                       </p>
                     </>
                   ) : (
