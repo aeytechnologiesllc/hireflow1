@@ -201,12 +201,15 @@ export function LimitReachedDialog({
               </Button>
             </div>
             <ul className="mt-3 space-y-1.5 text-sm">
-              {[
-                "Unlimited Jobs",
-                "Unlimited Applicants",
-                "Team Portal",
-                "Advanced Analytics",
-              ].map((f) => (
+            {[
+              "Unlimited Jobs",
+              "Unlimited Applicants",
+              "AVA Voice Assistant",
+              "Voice Interviews",
+              "30 Voice Minutes/mo",
+              "Team Portal",
+              "Advanced Analytics",
+            ].map((f) => (
                 <li key={f} className="flex items-center gap-2">
                   <Check className="h-3.5 w-3.5 text-primary" />
                   <span className="text-muted-foreground">{f}</span>
