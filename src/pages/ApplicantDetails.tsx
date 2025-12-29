@@ -182,6 +182,7 @@ export default function ApplicantDetails() {
   const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
   const [showReconsiderConfirmation, setShowReconsiderConfirmation] = useState(false);
   const [computedRestorePhase, setComputedRestorePhase] = useState<{ id: string; name: string; index: number }>({ id: "review", name: "Review", index: -1 });
+  const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const applicationRef = useRef<ApplicationDetails | null>(null);
   
@@ -2115,14 +2116,20 @@ export default function ApplicantDetails() {
             <div 
               className={`absolute top-3 z-20 ${
                 isAwaitingReview ? "animate-float-awaiting" : ""
-              }`}
+              } ${application?.profiles?.avatar_url ? "cursor-pointer" : ""}`}
               style={{ 
                 left: `${sliderPosition}%`,
                 transform: 'translateX(-50%)',
                 transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
+              onClick={() => {
+                if (application?.profiles?.avatar_url) {
+                  setShowAvatarLightbox(true);
+                }
+              }}
+              title={application?.profiles?.avatar_url ? "Click to view full photo" : undefined}
             >
-              <Avatar className={`h-8 w-8 md:h-10 md:w-10 ring-2 md:ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
+              <Avatar className={`h-8 w-8 md:h-10 md:w-10 ring-2 md:ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg ${application?.profiles?.avatar_url ? "hover:ring-primary transition-all" : ""}`}>
                 {application?.profiles?.avatar_url && (
                   <AvatarImage src={application.profiles.avatar_url} alt={application.profiles.full_name || "Candidate"} />
                 )}
@@ -3621,6 +3628,25 @@ export default function ApplicantDetails() {
             }
           }}
         />
+      )}
+
+      {/* Avatar Lightbox */}
+      {application?.profiles?.avatar_url && (
+        <Dialog open={showAvatarLightbox} onOpenChange={setShowAvatarLightbox}>
+          <DialogContent className="sm:max-w-md bg-card border-border p-2">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{application.profiles.full_name || "Candidate"}'s Photo</DialogTitle>
+              <DialogDescription>Full size profile photo</DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center justify-center">
+              <img
+                src={application.profiles.avatar_url}
+                alt={application.profiles.full_name || "Candidate"}
+                className="max-w-full max-h-[70vh] rounded-lg object-contain"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
