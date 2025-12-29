@@ -1715,7 +1715,7 @@ export default function ApplicantDetails() {
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Notes</TooltipContent>
+            <TooltipContent>Internal Notes</TooltipContent>
           </Tooltip>
           
           {canMessageCandidates && (
@@ -1729,7 +1729,7 @@ export default function ApplicantDetails() {
                   <MessageSquare className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Message Candidate</TooltipContent>
+              <TooltipContent>Messages</TooltipContent>
             </Tooltip>
           )}
           
