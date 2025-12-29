@@ -116,9 +116,11 @@ export default function CandidateApplicationWizard({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [questionFiles, setQuestionFiles] = useState<Record<string, File>>({});
   const [questionFileUrls, setQuestionFileUrls] = useState<Record<string, string>>({});
+  const [questionFileImageUrls, setQuestionFileImageUrls] = useState<Record<string, string[]>>({});
   const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
   const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
   const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [resumeImageUrls, setResumeImageUrls] = useState<string[]>([]);
 
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
@@ -250,10 +252,12 @@ export default function CandidateApplicationWizard({
     setPhoneCountryCodes({});
     setResumeFile(null);
     setResumeUrl("");
+    setResumeImageUrls([]);
     setCoverLetter("");
     setValidationErrors({});
     setQuestionFiles({});
     setQuestionFileUrls({});
+    setQuestionFileImageUrls({});
     setUploadingQuestions({});
     setDraggingQuestion(null);
   };
@@ -380,10 +384,21 @@ export default function CandidateApplicationWizard({
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       
-      // If this is a resume file question (type: file), also set resumeUrl for tracking
+      // Save the image URLs for AI analysis
+      if (imageUrls.length > 0) {
+        setQuestionFileImageUrls(prev => ({ ...prev, [questionId]: imageUrls }));
+      }
+      
+      // If this is a resume file question (type: file), also set resumeUrl and resumeImageUrls for tracking
       const question = applicationQuestions.find(q => q.id === questionId);
-      if (question?.type === "file" && (question.question?.toLowerCase().includes("resume") || questionId.toLowerCase().includes("resume"))) {
+      const questionText = (question?.question || questionId).toLowerCase();
+      const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
+      if (question?.type === "file" && isResumeQuestion) {
         setResumeUrl(urlData.publicUrl);
+        if (imageUrls.length > 0) {
+          setResumeImageUrls(imageUrls);
+          console.log("[CandidateApplicationWizard] Set resumeImageUrls from file question:", imageUrls.length, "pages");
+        }
       }
       
       toast.success("File uploaded successfully");
@@ -410,8 +425,11 @@ export default function CandidateApplicationWizard({
   const removeQuestionFile = (questionId: string) => {
     // Check if this is a resume file question
     const question = applicationQuestions.find(q => q.id === questionId);
-    if (question?.type === "file" && (question.question?.toLowerCase().includes("resume") || questionId.toLowerCase().includes("resume"))) {
+    const questionText = (question?.question || questionId).toLowerCase();
+    const isResumeQ = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
+    if (question?.type === "file" && isResumeQ) {
       setResumeUrl("");
+      setResumeImageUrls([]);
     }
     
     setQuestionFiles(prev => {
@@ -420,6 +438,11 @@ export default function CandidateApplicationWizard({
       return newFiles;
     });
     setQuestionFileUrls(prev => {
+      const newUrls = { ...prev };
+      delete newUrls[questionId];
+      return newUrls;
+    });
+    setQuestionFileImageUrls(prev => {
       const newUrls = { ...prev };
       delete newUrls[questionId];
       return newUrls;
@@ -491,7 +514,11 @@ export default function CandidateApplicationWizard({
       }
 
       setResumeUrl(urlData.publicUrl);
-      console.log("[CandidateApplicationWizard] Resume uploaded with", imageUrls.length, "image pages");
+      // CRITICAL: Save the image URLs so backend can use them for resume vision analysis
+      if (imageUrls.length > 0) {
+        setResumeImageUrls(imageUrls);
+        console.log("[CandidateApplicationWizard] Resume uploaded with", imageUrls.length, "image pages, saved to state");
+      }
       toast.success("Resume uploaded successfully");
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -512,6 +539,7 @@ export default function CandidateApplicationWizard({
   const removeFile = () => {
     setResumeFile(null);
     setResumeUrl("");
+    setResumeImageUrls([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -599,15 +627,57 @@ export default function CandidateApplicationWizard({
     setIsSubmitting(true);
 
     try {
-      // Prepare notes with application answers
+      // Prepare notes with application answers - include question IDs for backend matching
       const applicationAnswers = Object.entries(answers).map(([id, answer]) => {
         const question = applicationQuestions.find(q => q.id === id);
-        return { question: question?.question || id, answer };
+        return { 
+          id, // Include question ID for backend matching
+          question: question?.question || id, 
+          answer 
+        };
       });
       
-      const notes = applicationQuestions.length > 0
-        ? JSON.stringify({ applicationAnswers })
-        : null;
+      // Build fileUploads object for backend - maps questionId to file metadata
+      const fileUploads: Record<string, { url: string; imageUrls?: string[] }> = {};
+      for (const [questionId, fileUrl] of Object.entries(questionFileUrls)) {
+        fileUploads[questionId] = {
+          url: fileUrl,
+          imageUrls: questionFileImageUrls[questionId] || undefined,
+        };
+      }
+      
+      // Determine which image URLs to use for resume analysis
+      let finalResumeImageUrls = resumeImageUrls;
+      
+      // If no resume step images, check if a resume file question has images
+      if (finalResumeImageUrls.length === 0) {
+        for (const [questionId, fileData] of Object.entries(fileUploads)) {
+          const question = applicationQuestions.find(q => q.id === questionId);
+          if (question?.type === "file" && fileData.imageUrls?.length) {
+            const questionText = (question.question || questionId).toLowerCase();
+            const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
+            if (isResumeQuestion) {
+              finalResumeImageUrls = fileData.imageUrls;
+              console.log("[CandidateApplicationWizard] Using resume images from file question:", finalResumeImageUrls.length, "pages");
+              break;
+            }
+          }
+        }
+      }
+      
+      // Build notes with all necessary data for backend analysis
+      const notesObject: Record<string, any> = {
+        applicationAnswers,
+        resumeImageUrls: finalResumeImageUrls.length > 0 ? finalResumeImageUrls : undefined,
+        fileUploads: Object.keys(fileUploads).length > 0 ? fileUploads : undefined,
+      };
+      
+      const notes = JSON.stringify(notesObject);
+      console.log("[CandidateApplicationWizard] Submitting with notes:", { 
+        answersCount: applicationAnswers.length,
+        resumeImageUrlsCount: finalResumeImageUrls.length,
+        fileUploadsCount: Object.keys(fileUploads).length,
+      });
 
       // Detect resume URL: use state if set, otherwise look in file question answers
       let finalResumeUrl = resumeUrl || null;
