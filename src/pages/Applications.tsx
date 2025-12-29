@@ -126,7 +126,10 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
       const answers = notes.applicationAnswers;
       return Array.isArray(answers) && answers.length > 0;
     }
-    if (phaseType === "quiz") return !!notes.quizAnswers?.[phase] || !!notes.quizAnswers;
+    if (phaseType === "quiz") {
+      const stepData = notes[phase];
+      return !!(stepData?.completedAt || notes.quizResult || notes.quiz?.completedAt);
+    }
     if (phaseType === "typing_test") return !!notes.typingTestResult;
     if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
     if (phaseType === "video_message") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
