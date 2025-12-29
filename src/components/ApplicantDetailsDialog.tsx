@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   MapPin, Briefcase, Mail, Phone, Linkedin, 
   Globe, FileText, Sparkles, Loader2
@@ -90,6 +90,9 @@ export default function ApplicantDetailsDialog({
         <DialogHeader>
           <div className="flex items-center gap-4">
             <Avatar className="h-14 w-14">
+              {profile?.avatar_url && (
+                <AvatarImage src={profile.avatar_url} alt={profile.full_name || "Candidate"} />
+              )}
               <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
                 {initials}
               </AvatarFallback>

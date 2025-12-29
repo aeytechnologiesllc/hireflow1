@@ -99,10 +99,10 @@ export function ProfileCompletionCard() {
             {/* Content */}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground text-sm md:text-base">
-                Complete Your Profile
+                Stand Out to Employers
               </h3>
               <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
-                {percentage}% complete • A full profile helps you stand out to employers
+                {percentage}% complete • Employers can see your profile when reviewing applications
               </p>
               {missingFields.length > 0 && missingFields.length <= 4 && (
                 <p className="text-xs text-muted-foreground/70 mt-1 truncate">
@@ -115,7 +115,7 @@ export function ProfileCompletionCard() {
             {/* Action Button */}
             <Button size="sm" variant="secondary" className="shrink-0 gap-1" asChild>
               <Link to="/profile">
-                Complete
+                Complete Profile
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
