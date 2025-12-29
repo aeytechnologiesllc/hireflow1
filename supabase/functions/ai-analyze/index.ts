@@ -239,86 +239,48 @@ These bonuses reflect the candidate's ACTUAL DEMONSTRATED performance in assessm
 - Resume detected as LIKELY_AI_GENERATED with no redeeming assessment scores: MAX 65%
 - Scores 90%+ require: Strong assessment performance OR (named companies + specific achievements + authentic voice + strong job fit)
 
-REQUIRED OUTPUT FORMAT:
+REQUIRED OUTPUT FORMAT (for employer hiring report - clear, professional, decision-focused):
 ---
-**DOCUMENT VALIDATION**
-Status: [VALID_RESUME/SUSPICIOUS/WRONG_RESUME/INVALID_DOCUMENT/RESUME_UNAVAILABLE]
-Confidence: [0-100]%
-Notes: [explanation]
+**EXECUTIVE SUMMARY**
+[2-3 sentences answering: Is this candidate credible? Are there material concerns? Should they be interviewed? Be direct and confident.]
 
-**CROSS-REFERENCE VERIFICATION**
-Name Match: [MATCH/MISMATCH/CANNOT_VERIFY] - [details]
-Experience Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
-- [list specific matches or discrepancies found]
-Skills Consistency: [CONSISTENT/INCONSISTENT/PARTIALLY_CONSISTENT/CANNOT_VERIFY]
-- [list specific matches or discrepancies found]
-Timeline Consistency: [CONSISTENT/INCONSISTENT/CANNOT_VERIFY]
-Discrepancies Found: [list any conflicts between resume, cover letter, and application answers, or "None detected"]
-Cross-Reference Score: [0-100]%
+**RECOMMENDATION**
+Decision: [Highly Recommended/Recommended/Proceed with Caution/Not Recommended]
+Overall Score: [0-100]
+Key Reason: [One clear sentence explaining the primary factor driving this recommendation]
 
-**AI-GENERATED CONTENT DETECTION**
-Resume: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
-Cover Letter: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED/NOT_PROVIDED] - [evidence]
-Application Answers: [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - [evidence]
-Overall Authenticity: [AUTHENTIC/MIXED/LIKELY_AI_GENERATED]
-AI Detection Notes: [specific patterns or phrases that triggered concern]
+**PROFILE CREDIBILITY**
+Status: [Verified/Partially Verified/Unverified/Concerns Identified]
+- [1-2 sentences on whether resume and application information is consistent and authentic]
+- [If concerns exist, state them clearly once - do not repeat in other sections]
 
-**AUTHENTICITY ASSESSMENT**
-Status: [AUTHENTIC/QUESTIONABLE/LIKELY_FABRICATED/CANNOT_ASSESS]
-Confidence: [0-100]%
-Red Flags: [list any concerns or "None detected"]
+**SKILLS ASSESSMENT**
+Role Fit: [Strong Match/Good Match/Partial Match/Poor Match]
+Strengths:
+- [List 2-4 relevant skills or qualifications that match the role]
+Gaps:
+- [List any critical missing skills, or "None significant" if not applicable]
+Transferable Skills: [1-2 sentences on adjacent experience that adds value]
 
-**SCORING BREAKDOWN** (MANDATORY - SHOW YOUR MATH)
-Base Score: 65
+**EXPERIENCE OVERVIEW**
+Years of Relevant Experience: [number or "Entry-level candidate"]
+Key Achievements:
+- [2-3 bullet points of notable accomplishments with specifics where available]
+Career Progression: [Advancing/Steady/Early Career/Unclear]
 
-CRITICAL RED FLAG CHECK:
-- Company names present in work experience? [YES/NO] - If NO: -20 and MAX 60%
-- AI-generated content detected? [AUTHENTIC/POSSIBLY_AI_ASSISTED/LIKELY_AI_GENERATED] - If LIKELY: MAX 55%
-- Specific quantifiable achievements present? [YES/NO] - If NO and no company names: MAX 45%
+**CANDIDATE PROFILE**
+Communication Style: [1 sentence description]
+Work Style: [1 sentence description]
+Notable Traits: [list 3-4 professional characteristics]
 
-Penalties Applied (list EACH with points):
-- [penalty description]: -[points] → Running total: [X]
-- [penalty description]: -[points] → Running total: [X]
-(Continue for ALL penalties)
+**CONCERNS & RED FLAGS**
+[List any material issues that should inform the hiring decision. Be specific but state each concern only once. If no concerns, write "No significant concerns identified."]
 
-Bonuses Applied (list EACH with points):
-- [bonus description]: +[points] → Running total: [X]
-(Continue for ALL bonuses)
+**INTERVIEW RECOMMENDATION**
+[1-2 sentences: Should this candidate advance to interview? What topics should be explored?]
 
-Pre-Cap Calculated Score: [show the math: 65 + bonuses - penalties = X]
-Score Cap Applied: [if any cap triggered, show: "Capped from X to Y because: reason"]
-FINAL CALCULATED SCORE: [must match the math above, between 0-100]
-
-**PERSONALITY PROFILE**
-Communication Style: [description]
-Key Traits: [list 3-5 inferred personality traits]
-Work Style: [description]
-Leadership Potential: [Low/Medium/High]
-
-**SKILLS MATCH**
-Required Skills: [list from job]
-Direct Matches: [exact skill matches found]
-Adjacent/Transferable Skills: [related skills that show potential - e.g., "Java experience suggests Python aptitude", "Customer service shows communication skills"]
-Missing Critical Skills: [only list truly critical gaps that can't be learned quickly]
-Learning Indicators: [certifications, courses, projects, enthusiasm showing growth mindset]
-Match Rate: [0-100]% - account for transferable skills, not just exact matches
-Potential Score (for entry-level only): [0-50] - based on learning indicators, enthusiasm, trainability
-
-**EXPERIENCE SUMMARY**
-Years Relevant Experience: [number or "Unknown - based on application data"]
-Key Achievements: [bullet points]
-Career Trajectory: [Ascending/Stable/Declining/Unclear]
-
-**OVERALL ASSESSMENT**
-Overall Score: [MUST MATCH FINAL CALCULATED SCORE ABOVE]
-Verification Score: [0-100] (based on cross-reference and authenticity checks)
-Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
-Key Strengths: [bullet points]
-Areas of Concern: [bullet points]
-Summary: [2-3 sentences including any verification concerns and scoring rationale]
-
-**SCORE EXPLANATION** (MANDATORY - 1-2 sentences)
-[Explain in plain language WHY this candidate received this score. Be specific about the primary factors that raised or lowered the score. Example: "Score is 45% because the resume contained no company names, only generic job duties without achievements, and skills did not match the job requirements." or "Score is 85% because the candidate has 5 years at named companies with quantifiable achievements that align well with the role."]
+**BOTTOM LINE**
+[One confident, clear sentence summarizing whether to proceed with this candidate and why.]
 ---
 
 Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%.`,
