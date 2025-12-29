@@ -48,7 +48,8 @@ export function MilestoneAnimation({
     }
   }, [autoHide, autoHideDelay, onComplete]);
 
-  const particleCount = intensity === "subtle" ? 10 : intensity === "major" ? 30 : 20;
+  // Reduced particle counts for smoother performance
+  const particleCount = intensity === "subtle" ? 6 : intensity === "major" ? 15 : 10;
   const showOrbs = intensity !== "subtle";
   const orbMode = orbModeByType[type];
   const orbSize = intensity === "major" ? 160 : 140;
@@ -64,7 +65,7 @@ export function MilestoneAnimation({
           transition={{ duration: 0.3 }}
         >
           {/* Background effects */}
-          {showOrbs && <GradientOrbs count={4} />}
+          {showOrbs && <GradientOrbs count={2} />}
           <FloatingParticles 
             count={particleCount} 
             intensity={intensity === "major" ? "high" : intensity} 

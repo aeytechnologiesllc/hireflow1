@@ -16,14 +16,14 @@ const modeConfig = {
     glowColor: "rgba(16, 185, 129, 0.4)",
     accentColor: "rgba(251, 191, 36, 0.6)",
     icon: Check,
-    pulseIntensity: 1.15,
+    pulseIntensity: 1.1,
   },
   celebration: {
     gradient: "from-amber-400 via-yellow-400 to-orange-400",
     glowColor: "rgba(251, 191, 36, 0.5)",
     accentColor: "rgba(245, 158, 11, 0.7)",
     icon: Trophy,
-    pulseIntensity: 1.2,
+    pulseIntensity: 1.12,
   },
   processing: {
     gradient: "from-violet-400 via-purple-400 to-indigo-400",
@@ -56,43 +56,49 @@ export function PremiumOrb({
   return (
     <div 
       className={`relative ${className}`}
-      style={{ width: size, height: size }}
+      style={{ 
+        width: size, 
+        height: size,
+        willChange: "transform",
+        transform: "translateZ(0)",
+      }}
     >
-      {/* Outer glow */}
+      {/* Outer glow - simplified, no blur filter */}
       <motion.div
-        className="absolute inset-0 rounded-full blur-3xl"
+        className="absolute inset-0 rounded-full"
         style={{
-          background: config.glowColor,
-          transform: "scale(1.8)",
+          background: `radial-gradient(circle, ${config.glowColor} 0%, transparent 70%)`,
+          transform: "scale(2)",
+          willChange: "opacity",
         }}
         animate={{
-          opacity: [0.3, 0.6, 0.3],
-          scale: [1.6, 2, 1.6],
+          opacity: [0.4, 0.7, 0.4],
         }}
         transition={{
-          duration: mode === "empathy" ? 4 : 2.5,
+          duration: mode === "empathy" ? 4 : 3,
           repeat: Infinity,
-          ease: "easeInOut",
+          ease: "linear",
         }}
       />
 
-      {/* Concentric rings for success/celebration */}
+      {/* Concentric rings - reduced from 3 to 2 */}
       {isIntense && (
         <>
-          {[0, 1, 2].map((i) => (
+          {[0, 1].map((i) => (
             <motion.div
               key={i}
               className="absolute inset-0 rounded-full"
               style={{
                 border: `2px solid ${config.accentColor}`,
+                willChange: "transform, opacity",
               }}
-              initial={{ scale: 0.5, opacity: 0.8 }}
-              animate={{ scale: 2.5, opacity: 0 }}
+              initial={{ scale: 0.5, opacity: 0.7 }}
+              animate={{ scale: 2.2, opacity: 0 }}
               transition={{
-                duration: 2.5,
+                duration: 2.8,
                 repeat: Infinity,
-                delay: i * 0.5,
-                ease: "easeOut",
+                delay: i * 0.7,
+                ease: "linear",
               }}
             />
           ))}
@@ -103,15 +109,16 @@ export function PremiumOrb({
       {mode === "processing" && (
         <motion.div
           className="absolute inset-0"
+          style={{ willChange: "transform" }}
           animate={{ rotate: 360 }}
           transition={{
-            duration: 8,
+            duration: 10,
             repeat: Infinity,
             ease: "linear",
           }}
         >
-          {[0, 1, 2, 3].map((i) => (
-            <motion.div
+          {[0, 1, 2].map((i) => (
+            <div
               key={i}
               className="absolute w-2 h-2 rounded-full bg-primary/60"
               style={{
@@ -119,16 +126,7 @@ export function PremiumOrb({
                 left: "50%",
                 marginTop: -4,
                 marginLeft: -4,
-                transform: `rotate(${i * 90}deg) translateX(${size * 0.55}px)`,
-              }}
-              animate={{
-                scale: [0.8, 1.2, 0.8],
-                opacity: [0.4, 1, 0.4],
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                delay: i * 0.2,
+                transform: `rotate(${i * 120}deg) translateX(${size * 0.55}px)`,
               }}
             />
           ))}
@@ -139,25 +137,28 @@ export function PremiumOrb({
       <motion.div
         className={`absolute inset-0 rounded-full bg-gradient-to-br ${config.gradient} shadow-2xl`}
         style={{
-          boxShadow: `0 0 60px ${config.glowColor}, inset 0 -10px 30px rgba(0,0,0,0.2)`,
+          boxShadow: `0 0 40px ${config.glowColor}, inset 0 -8px 20px rgba(0,0,0,0.2)`,
+          willChange: "transform",
         }}
         animate={{
           scale: [1, config.pulseIntensity, 1],
         }}
         transition={{
-          duration: mode === "empathy" ? 4 : 2,
+          duration: mode === "empathy" ? 4 : 2.5,
           repeat: Infinity,
-          ease: "easeInOut",
+          ease: "linear",
         }}
       >
-        {/* Inner highlight */}
+        {/* Inner highlight - static, no animation */}
         <div 
-          className="absolute top-[15%] left-[20%] w-[30%] h-[20%] rounded-full bg-white/40 blur-sm"
+          className="absolute top-[15%] left-[20%] w-[30%] h-[20%] rounded-full bg-white/40"
+          style={{ filter: "blur(4px)" }}
         />
         
-        {/* Secondary highlight */}
+        {/* Secondary highlight - static */}
         <div 
-          className="absolute top-[25%] left-[25%] w-[15%] h-[10%] rounded-full bg-white/60 blur-[2px]"
+          className="absolute top-[25%] left-[25%] w-[15%] h-[10%] rounded-full bg-white/60"
+          style={{ filter: "blur(2px)" }}
         />
       </motion.div>
 
@@ -176,13 +177,13 @@ export function PremiumOrb({
         >
           <motion.div
             animate={mode === "celebration" ? {
-              rotate: [0, -5, 5, -5, 0],
-              y: [0, -3, 0],
+              rotate: [0, -3, 3, -3, 0],
+              y: [0, -2, 0],
             } : {}}
             transition={{
-              duration: 1.5,
+              duration: 2,
               repeat: Infinity,
-              ease: "easeInOut",
+              ease: "linear",
             }}
           >
             <Icon 
@@ -194,28 +195,27 @@ export function PremiumOrb({
         </motion.div>
       )}
 
-      {/* Rising sparkles for celebration */}
+      {/* Rising sparkles - reduced from 8 to 4 */}
       {mode === "celebration" && (
         <div className="absolute inset-0 overflow-visible pointer-events-none">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
               className="absolute w-1.5 h-1.5 rounded-full bg-amber-300"
               style={{
-                left: `${20 + Math.random() * 60}%`,
+                left: `${25 + i * 15}%`,
                 bottom: "20%",
+                willChange: "transform, opacity",
               }}
               animate={{
-                y: [-20, -100 - Math.random() * 50],
-                x: [0, (Math.random() - 0.5) * 40],
+                y: [-20, -80],
                 opacity: [0, 1, 0],
-                scale: [0, 1, 0.5],
               }}
               transition={{
-                duration: 1.5 + Math.random() * 0.5,
+                duration: 2,
                 repeat: Infinity,
-                delay: i * 0.2,
-                ease: "easeOut",
+                delay: i * 0.4,
+                ease: "linear",
               }}
             />
           ))}
