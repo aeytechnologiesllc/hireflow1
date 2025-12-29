@@ -383,6 +383,14 @@ export default function CandidateApplicationDetail() {
     }
   }, [candidateInterview]);
 
+  // Redirect rejected candidates back to applications list (lock access)
+  useEffect(() => {
+    if (application?.status === "rejected" && role === "candidate") {
+      toast.info("This application is closed. View your feedback from the applications list.");
+      navigate("/applications");
+    }
+  }, [application?.status, role, navigate]);
+
 
   // Build phases from workflow
   const phases = (() => {

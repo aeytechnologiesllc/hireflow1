@@ -170,14 +170,18 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
 
   return (
     <Card 
-      className={`bg-card border-border transition-all cursor-pointer group relative overflow-hidden ${
+      className={`bg-card border-border transition-all group relative overflow-hidden ${
         isRejected
-          ? "border-destructive/30 opacity-90"
+          ? "border-destructive/30 opacity-75 cursor-default"
           : hasActionRequired 
-            ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
-            : "hover:border-primary/50"
+            ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5 cursor-pointer" 
+            : "hover:border-primary/50 cursor-pointer"
       }`}
-      onClick={() => navigate(`/applications/${application.id}`)}
+      onClick={() => {
+        if (!isRejected) {
+          navigate(`/applications/${application.id}`);
+        }
+      }}
     >
       {/* Rejected stamp overlay */}
       {isRejected && (
@@ -195,7 +199,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className={`text-lg font-semibold group-hover:text-primary transition-colors ${isRejected ? "text-muted-foreground" : "text-foreground"}`}>
+                <h3 className={`text-lg font-semibold transition-colors ${isRejected ? "text-muted-foreground" : "text-foreground group-hover:text-primary"}`}>
                   {job?.title || "Unknown Position"}
                 </h3>
                 <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
@@ -361,7 +365,11 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                   </AlertDialogContent>
                 </AlertDialog>
                 
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                {isRejected ? (
+                  <Lock className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                )}
               </div>
             </div>
           </div>
