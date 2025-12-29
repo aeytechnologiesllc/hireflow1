@@ -51,14 +51,16 @@ async function dataUrlToBytes(dataUrl: string): Promise<Uint8Array> {
 }
 
 /**
- * Burn signatures into an uploaded PDF and add a certificate of completion page
+ * Burn signatures into an uploaded PDF and optionally add a certificate of completion page
  * Also adds a professional footer to each page
+ * @param includeCertificatePage - If false, only signatures are burned without the certificate page (default: true)
  */
 export async function burnSignaturesIntoPdf(
   originalPdfBytes: ArrayBuffer,
   candidateSignature: SignatureOverlay | null,
   employerSignature: SignatureOverlay | null,
-  certificateData: CertificateData
+  certificateData: CertificateData,
+  includeCertificatePage: boolean = true
 ): Promise<Uint8Array> {
   // Load the original PDF
   const pdfDoc = await PDFDocument.load(originalPdfBytes, { ignoreEncryption: true });
@@ -142,9 +144,9 @@ export async function burnSignaturesIntoPdf(
           y: infoY - 9,
           size: 6,
           font: helvetica,
-          color: rgb(0.5, 0.5, 0.5),
-        });
-      }
+      color: rgb(0.5, 0.5, 0.5),
+    });
+  } // End of includeCertificatePage block
     } catch (error) {
       console.error('Error overlaying signature:', error);
     }
@@ -158,11 +160,12 @@ export async function burnSignaturesIntoPdf(
     await overlaySignature(employerSignature);
   }
 
-  // Add Certificate of Completion page
-  const certPage = pdfDoc.addPage([612, 792]); // Letter size
-  const { width: certWidth, height: certHeight } = certPage.getSize();
-  const margin = 50;
-  let y = certHeight - margin;
+  // Only add Certificate of Completion page if requested
+  if (includeCertificatePage) {
+    const certPage = pdfDoc.addPage([612, 792]); // Letter size
+    const { width: certWidth, height: certHeight } = certPage.getSize();
+    const margin = 50;
+    let y = certHeight - margin;
 
   // Header with green accent line
   certPage.drawRectangle({
@@ -432,6 +435,7 @@ export async function burnSignaturesIntoPdf(
     font: helvetica,
     color: rgb(0.5, 0.5, 0.5),
   });
+  } // End of includeCertificatePage block
 
   // Save and return
   return pdfDoc.save();
