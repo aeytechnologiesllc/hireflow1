@@ -679,20 +679,28 @@ Provide:
 Be constructive and provide actionable feedback.`,
 
   "interview": `You are an expert interviewer and hiring consultant.
-Based on the job description and candidate profile provided, generate relevant interview questions.
+Based on the job description and candidate profile provided, generate 8 unique, tailored interview questions.
 
-Generate:
-1. 3 Technical/Skills-based questions
-2. 2 Behavioral questions (STAR format prompts)
-3. 2 Culture fit questions
-4. 1 Problem-solving scenario
+CRITICAL: Generate DIFFERENT questions each time you're asked. Be creative and approach from varied angles - never repeat standard generic questions. Use the specific job details and candidate background to craft unique questions.
 
-For each question, provide:
-- The question itself
-- What it assesses
-- What to look for in a good answer
+Generate questions in these categories:
+1. 3 Technical/Skills-based questions (highly specific to the role requirements)
+2. 2 Behavioral questions (STAR format prompts about specific scenarios)
+3. 2 Culture fit questions (tailored to the company/role context)
+4. 1 Problem-solving scenario (role-specific challenge)
 
-Make questions specific to the role and candidate background.`,
+FORMAT (MUST FOLLOW EXACTLY - DO NOT DEVIATE):
+**Question:** [Write the full question text on a single line - be specific and creative]
+- **What it assesses:** [Skills being evaluated - write 15-30 words on a single line]
+- **What to look for in a good answer:** [Write 30-50 words of detailed, actionable criteria for evaluating responses. MUST be complete sentences. DO NOT end with colons or incomplete phrases like "The candidate should:" - always finish the thought with specific evaluation criteria]
+
+IMPORTANT RULES:
+- Each "What to look for in a good answer" MUST be a complete, actionable description (minimum 30 words)
+- NEVER use bullet points or line breaks within any section - keep each section on ONE LINE
+- NEVER end with incomplete phrases like "should:" or "look for:" - always complete the sentence
+- Tailor every question to the specific job title, requirements, and candidate background provided
+- Be creative - avoid overused questions like "Tell me about yourself" or "What's your greatest weakness"
+- Each question must assess different aspects of the candidate's fit for this specific role`,
 
   "phase": `You are an expert at evaluating candidate progress through hiring phases.
 Analyze the candidate's current status and performance in the hiring process.
@@ -847,6 +855,8 @@ Your skill match analysis should be based on what the candidate stated in their 
         model: "google/gemini-2.5-flash",
         messages,
         max_tokens: 4000,
+        // Add temperature for interview questions to ensure variety on regeneration
+        ...(type === "interview" && { temperature: 0.95 }),
       }),
     });
 

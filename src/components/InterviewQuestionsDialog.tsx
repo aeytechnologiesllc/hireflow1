@@ -73,10 +73,20 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
       lookFor = lookForMatch[1].trim();
     }
     
+    // Validate "What to Look For" is complete - not ending with colon/incomplete phrase and has sufficient content
+    const incompleteEndings = [':', 'should', 'should:', 'include:', 'for:', 'like:', 'such as:'];
+    const lookForLower = lookFor.toLowerCase();
+    const isIncomplete = incompleteEndings.some(ending => lookForLower.endsWith(ending)) || lookFor.length < 25;
+    
+    if (isIncomplete && lookFor.length > 0) {
+      // The response was truncated or incomplete - append meaningful completion
+      lookFor = lookFor.replace(/:$/, '') + ' demonstrate relevant experience through specific examples, articulate clear reasoning, and show understanding of best practices for the role.';
+    }
+    
     questions.push({
       question: questionText,
       assesses: assesses || 'Evaluates candidate skills and experience relevant to the role',
-      lookFor: lookFor || 'Clear, specific examples with measurable outcomes',
+      lookFor: lookFor || 'Candidate should provide specific examples with measurable outcomes, demonstrate clear understanding of the concept, and articulate their approach with confidence and clarity.',
     });
   }
   
