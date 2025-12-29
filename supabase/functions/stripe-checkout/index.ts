@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Stripe price IDs
+// Stripe price IDs (Enterprise removed - merged into Business)
 const STRIPE_PRICES = {
   growth: {
     monthly: "price_1SeWKzJoMc2msNl4m1z9SDUL",
@@ -16,10 +16,6 @@ const STRIPE_PRICES = {
   business: {
     monthly: "price_1SeWL7JoMc2msNl4380r2cSi",
     yearly: "price_1SeWL9JoMc2msNl4NNQVohgY",
-  },
-  enterprise: {
-    monthly: "price_1Seep4JoMc2msNl4dFDhzixB",
-    yearly: "price_1Seep5JoMc2msNl4pS3Pm2hQ",
   },
 };
 

@@ -48,9 +48,9 @@ serve(async (req) => {
           const packSize = session.metadata?.pack_size;
           const minutes = parseInt(session.metadata?.minutes || "0", 10);
           
-          // Calculate expiration date (6 months from now)
+          // Calculate expiration date (1 month from now - monthly reset)
           const expiresAt = new Date();
-          expiresAt.setMonth(expiresAt.getMonth() + 6);
+          expiresAt.setMonth(expiresAt.getMonth() + 1);
 
           // Insert voice credits
           const { error: creditsError } = await supabaseAdmin.from("voice_credits").insert({
@@ -91,19 +91,19 @@ serve(async (req) => {
             currency: subscription.items.data[0]?.price?.currency?.toUpperCase(),
           }, { onConflict: 'user_id' });
 
-          // If upgrading to Enterprise, grant initial 150 minutes
-          if (planType === 'enterprise') {
+          // If upgrading to Business or Enterprise, grant initial 30 minutes
+          if (planType === 'business' || planType === 'enterprise') {
             const expiresAt = new Date();
-            expiresAt.setMonth(expiresAt.getMonth() + 6);
+            expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month expiry for monthly reset
 
             await supabaseAdmin.from("voice_credits").insert({
               user_id: userId,
               source: 'subscription',
-              minutes_granted: 150,
-              minutes_remaining: 150,
+              minutes_granted: 30,
+              minutes_remaining: 30,
               expires_at: expiresAt.toISOString(),
             });
-            console.log("Initial Enterprise voice credits granted for user:", userId);
+            console.log("Initial Business voice credits (30 min) granted for user:", userId);
           }
 
           console.log("Subscription activated for user:", userId);
@@ -112,25 +112,25 @@ serve(async (req) => {
       }
 
       case "invoice.paid": {
-        // Handle subscription renewal - grant new monthly credits for Enterprise
+        // Handle subscription renewal - grant new monthly credits for Business/Enterprise
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription && invoice.billing_reason === 'subscription_cycle') {
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
           const userId = subscription.metadata?.user_id;
           const planType = subscription.metadata?.plan_type;
 
-          if (userId && planType === 'enterprise') {
+          if (userId && (planType === 'business' || planType === 'enterprise')) {
             const expiresAt = new Date();
-            expiresAt.setMonth(expiresAt.getMonth() + 6);
+            expiresAt.setMonth(expiresAt.getMonth() + 1); // Monthly reset
 
             await supabaseAdmin.from("voice_credits").insert({
               user_id: userId,
               source: 'subscription',
-              minutes_granted: 150,
-              minutes_remaining: 150,
+              minutes_granted: 30,
+              minutes_remaining: 30,
               expires_at: expiresAt.toISOString(),
             });
-            console.log("Monthly Enterprise voice credits granted for user:", userId);
+            console.log("Monthly Business voice credits (30 min) granted for user:", userId);
           }
         }
         break;
@@ -149,13 +149,16 @@ serve(async (req) => {
             .eq("user_id", userId)
             .single();
 
-          // Check if downgrading from Enterprise
-          if (currentSub?.plan_type === 'enterprise' && newPlanType !== 'enterprise') {
-            // Void all voice credits on downgrade
+          // Check if downgrading from Business or Enterprise to Growth/Trial
+          const hadVoice = ['business', 'enterprise'].includes(currentSub?.plan_type);
+          const hasVoice = ['business', 'enterprise'].includes(newPlanType);
+          
+          if (hadVoice && !hasVoice) {
+            // Void all voice credits on downgrade from voice plan
             await supabaseAdmin.from("voice_credits").update({
               status: 'voided',
             }).eq('user_id', userId).eq('status', 'active');
-            console.log("Voice credits voided due to Enterprise downgrade for user:", userId);
+            console.log("Voice credits voided due to plan downgrade for user:", userId);
           }
 
           await supabaseAdmin.from("subscriptions").update({

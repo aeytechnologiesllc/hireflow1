@@ -49,15 +49,15 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    // Verify user has Enterprise subscription
+    // Verify user has Business or Enterprise subscription
     const { data: subscription } = await supabaseClient
       .from("subscriptions")
       .select("plan_type, status")
       .eq("user_id", user.id)
       .single();
 
-    if (!subscription || subscription.plan_type !== 'enterprise' || subscription.status !== 'active') {
-      throw new Error("Voice credits require an active Enterprise subscription");
+    if (!subscription || !['business', 'enterprise'].includes(subscription.plan_type) || subscription.status !== 'active') {
+      throw new Error("Voice credits require an active Business subscription");
     }
 
     // Get pack configuration

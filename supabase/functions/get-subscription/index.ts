@@ -142,10 +142,10 @@ serve(async (req) => {
       0
     );
 
-    // AUTO-PROVISION: If Enterprise user has no active credits, provision monthly allocation
-    const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
-    if (isEnterprise && totalVoiceMinutes <= 0) {
-      console.log("Enterprise user has no active voice credits - auto-provisioning monthly allocation");
+    // AUTO-PROVISION: If Business or Enterprise user has no active credits, provision monthly allocation
+    const hasVoicePlan = ['business', 'enterprise'].includes(subscription?.plan_type) && subscription?.status === 'active';
+    if (hasVoicePlan && totalVoiceMinutes <= 0) {
+      console.log("Business/Enterprise user has no active voice credits - auto-provisioning monthly allocation");
       
       // Mark any expired credits as expired (cleanup)
       await supabaseAdmin
@@ -155,7 +155,7 @@ serve(async (req) => {
         .eq("status", "active")
         .lt("expires_at", new Date().toISOString());
       
-      // Create new monthly credit bucket (150 minutes, expires in 30 days)
+      // Create new monthly credit bucket (30 minutes, expires in 30 days)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
       
@@ -164,14 +164,14 @@ serve(async (req) => {
         .insert({
           user_id: user.id,
           source: 'subscription',
-          minutes_granted: 150,
-          minutes_remaining: 150,
+          minutes_granted: 30,
+          minutes_remaining: 30,
           expires_at: expiresAt.toISOString(),
           status: 'active',
         });
       
       if (!insertError) {
-        console.log("Auto-provisioned 150 voice minutes for Enterprise user");
+        console.log("Auto-provisioned 30 voice minutes for Business/Enterprise user");
         
         // Re-fetch credits after provisioning
         const { data: refreshedCredits } = await supabaseAdmin
@@ -339,20 +339,6 @@ serve(async (req) => {
 function getPlanLimits(planType: string) {
   switch (planType) {
     case 'enterprise':
-      return {
-        jobs: -1,
-        applicants: -1,
-        documents: -1,
-        teamMembers: -1,
-        aiAnalyses: -1,
-        voiceMinutes: 150, // Changed from 500 to 150
-        hasAdvancedAnalytics: true,
-        hasTeamPortal: true,
-        hasDocuments: true,
-        hasPrioritySupport: true,
-        hasVoiceAssistant: true,
-        hasVoiceInterviews: true,
-      };
     case 'business':
       return {
         jobs: -1,
@@ -360,13 +346,13 @@ function getPlanLimits(planType: string) {
         documents: -1,
         teamMembers: -1,
         aiAnalyses: -1,
-        voiceMinutes: 0,
+        voiceMinutes: 30,
         hasAdvancedAnalytics: true,
         hasTeamPortal: true,
         hasDocuments: true,
         hasPrioritySupport: true,
-        hasVoiceAssistant: false,
-        hasVoiceInterviews: false,
+        hasVoiceAssistant: true,
+        hasVoiceInterviews: true,
       };
     case 'growth':
       return {
@@ -385,7 +371,7 @@ function getPlanLimits(planType: string) {
       };
     default: // trial - LIMITED to encourage upgrades
       return {
-        jobs: 2,
+        jobs: 1,
         applicants: 15,
         documents: 10,
         teamMembers: 0,

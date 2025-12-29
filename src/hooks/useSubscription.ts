@@ -83,7 +83,7 @@ export function useSubscription() {
   });
 
   const createCheckoutSession = useMutation({
-    mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business' | 'enterprise'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
+    mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
       const { data, error } = await supabase.functions.invoke('stripe-checkout', {
         body: {
           planType,
@@ -232,28 +232,28 @@ export function useSubscription() {
 
   const hasVoiceAccess = () => {
     if (!data?.subscription) return false;
-    const isEnterprise = data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active';
+    const hasVoicePlan = ['business', 'enterprise'].includes(data.subscription.plan_type) && data.subscription.status === 'active';
     const isTrial = data.subscription.status === 'trialing';
     const voiceMinutesRemaining = getVoiceMinutesRemaining();
-    return (isEnterprise || isTrial) && voiceMinutesRemaining > 0;
+    return (hasVoicePlan || isTrial) && voiceMinutesRemaining > 0;
   };
 
   const getVoiceAccessState = (): 'full' | 'trial' | 'trial_exhausted' | 'exhausted' | 'locked' | 'expired' => {
     if (!data?.subscription) return 'locked';
     if (data.subscription.status === 'expired') return 'expired';
     
-    const isEnterprise = data.subscription.plan_type === 'enterprise' && data.subscription.status === 'active';
+    const hasVoicePlan = ['business', 'enterprise'].includes(data.subscription.plan_type) && data.subscription.status === 'active';
     const isTrial = data.subscription.status === 'trialing';
     const voiceMinutesRemaining = getVoiceMinutesRemaining();
     
-    if (isEnterprise) {
+    if (hasVoicePlan) {
       return voiceMinutesRemaining > 0 ? 'full' : 'exhausted';
     }
     if (isTrial) {
       // Trial users: never show "exhausted" amber state - show trial_exhausted which displays premium orb
       return voiceMinutesRemaining > 0 ? 'trial' : 'trial_exhausted';
     }
-    return 'locked'; // Growth/Business
+    return 'locked'; // Growth
   };
 
   // Low balance warning (show when <= 15 minutes)
