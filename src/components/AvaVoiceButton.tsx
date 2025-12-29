@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Lock, Clock, Sparkles } from "lucide-react";
+import { Loader2, Lock, Clock, Sparkles, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -16,13 +16,14 @@ import { pulsingGlow } from "@/lib/animations";
 const FIRST_USE_KEY = 'ava_has_used_assistant';
 
 export default function AvaVoiceButton() {
-  const { subscription, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession } = useSubscription();
+  const { subscription, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession, purchaseVoiceCredits } = useSubscription();
   const pricing = usePricing();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [purchasingPack, setPurchasingPack] = useState<string | null>(null);
   
   // First-use detection
   const [isFirstUse, setIsFirstUse] = useState(() => {
@@ -216,6 +217,21 @@ export default function AvaVoiceButton() {
     }
   };
 
+  const handlePurchasePack = async (packSize: 'small' | 'medium' | 'large') => {
+    setPurchasingPack(packSize);
+    try {
+      const result = await purchaseVoiceCredits.mutateAsync({ packSize });
+      if (result?.url) {
+        window.open(result.url, '_blank');
+      }
+    } catch (err) {
+      toast.error('Failed to start checkout');
+    } finally {
+      setPurchasingPack(null);
+      setShowUpgradeDialog(false);
+    }
+  };
+
   const formatMinutes = (minutes: number) => {
     const mins = Math.floor(minutes);
     const secs = Math.round((minutes - mins) * 60);
@@ -304,6 +320,7 @@ export default function AvaVoiceButton() {
   };
 
   const businessPrice = pricing.business.monthlyFormatted;
+  const isBusinessUser = subscription?.plan_type === 'business' || subscription?.plan_type === 'enterprise';
 
   // Determine glow animation based on state
   const getGlowAnimation = () => {
@@ -422,55 +439,118 @@ export default function AvaVoiceButton() {
               )}
             </DialogTitle>
             <DialogDescription>
-              {voiceAccessState === 'exhausted'
-                ? "Your voice minutes have run out. Purchase more credits or upgrade your plan."
+              {voiceAccessState === 'exhausted' && isBusinessUser
+                ? "Your voice minutes have run out. Purchase additional voice credit packs to continue."
+                : voiceAccessState === 'exhausted'
+                ? "Your voice minutes have run out. Upgrade to Business to purchase more credits."
                 : voiceAccessState === 'trial_exhausted'
-                ? "You've used your 5-minute trial. Upgrade to Enterprise to continue using AVA Voice Assistant."
-                : "Get access to AVA Voice Assistant with the Enterprise plan."}
+                ? "You've used your 5-minute trial. Upgrade to Business to continue using AVA Voice Assistant."
+                : "Get access to AVA Voice Assistant with the Business plan."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-              <h4 className="font-semibold text-lg mb-2">Business Plan</h4>
-              <p className="text-2xl font-bold text-primary mb-3">
-                {businessPrice}
-                <span className="text-sm font-normal text-muted-foreground">/month</span>
-              </p>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  30 Voice Minutes/month
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  AVA Voice Assistant for hiring queries
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  Voice Interviews with candidates
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  Buy additional voice credit packs
-                </li>
-              </ul>
-            </div>
+            {/* Show purchase options for Business users who are exhausted */}
+            {isBusinessUser && voiceAccessState === 'exhausted' ? (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Purchase additional voice minutes to continue using AVA Voice.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePurchasePack('small')}
+                    disabled={!!purchasingPack}
+                    className="flex flex-col h-auto py-3 gap-1"
+                  >
+                    {purchasingPack === 'small' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="font-semibold">60 min</span>
+                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.small.priceFormatted}</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePurchasePack('medium')}
+                    disabled={!!purchasingPack}
+                    className="flex flex-col h-auto py-3 gap-1 border-primary/50"
+                  >
+                    {purchasingPack === 'medium' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="font-semibold">180 min</span>
+                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.medium.priceFormatted}</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePurchasePack('large')}
+                    disabled={!!purchasingPack}
+                    className="flex flex-col h-auto py-3 gap-1"
+                  >
+                    {purchasingPack === 'large' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="font-semibold">500 min</span>
+                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.large.priceFormatted}</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-center text-muted-foreground">
+                  Voice credits expire after 1 month
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <h4 className="font-semibold text-lg mb-2">Business Plan</h4>
+                  <p className="text-2xl font-bold text-primary mb-3">
+                    {businessPrice}
+                    <span className="text-sm font-normal text-muted-foreground">/month</span>
+                  </p>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      30 Voice Minutes/month
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      AVA Voice Assistant for hiring queries
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Voice Interviews with candidates
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Buy additional voice credit packs
+                    </li>
+                  </ul>
+                </div>
 
-            <Button
-              onClick={handleUpgrade}
-              disabled={isUpgrading}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-            >
-              {isUpgrading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Processing...
-                </>
-              ) : (
-                "Upgrade to Business"
-              )}
-            </Button>
+                <Button
+                  onClick={handleUpgrade}
+                  disabled={isUpgrading}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                >
+                  {isUpgrading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Upgrade to Business"
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
