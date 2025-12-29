@@ -71,9 +71,9 @@ function getScoreLabel(score: number): string {
 }
 
 function getRecommendation(score: number): string {
-  if (score >= 80) return 'STRONGLY RECOMMEND';
-  if (score >= 60) return 'RECOMMEND WITH CONSIDERATION';
-  if (score >= 40) return 'CONSIDER WITH CAUTION';
+  if (score >= 80) return 'HIGHLY RECOMMENDED';
+  if (score >= 60) return 'RECOMMENDED';
+  if (score >= 40) return 'PROCEED WITH CAUTION';
   return 'NOT RECOMMENDED';
 }
 
@@ -216,7 +216,7 @@ serve(async (req) => {
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text('Comprehensive Candidate Assessment Report', margin, 35);
+    doc.text('Candidate Hiring Report', margin, 35);
     
     doc.setFontSize(8);
     doc.text('CONFIDENTIAL - EMPLOYER USE ONLY', margin, 45);
@@ -381,7 +381,7 @@ serve(async (req) => {
     pageNum++;
     y = margin;
 
-    addSectionHeader('Phase-by-Phase Results');
+    addSectionHeader('Assessment Results');
 
     // Application Answers
     if (notes.applicationAnswers?.length > 0) {
@@ -426,7 +426,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Skills Assessment Quiz', margin, y);
+      doc.text('Skills Assessment', margin, y);
       y += 8;
       
       const quizScore = quizData.score || 0;
@@ -444,7 +444,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Typing Proficiency Test', margin, y);
+      doc.text('Typing Proficiency', margin, y);
       y += 8;
       
       drawTableRow('Metric', 'Result', true);
@@ -462,7 +462,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Chat Interview', margin, y);
+      doc.text('Conversational Assessment', margin, y);
       y += 8;
       
       const chatScore = notes.chatInterviewResult.overallScore || notes.chatInterviewResult.score || 0;
@@ -480,7 +480,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Customer Service Simulation', margin, y);
+      doc.text('Customer Service Evaluation', margin, y);
       y += 8;
       
       const chatScore = notes.chatSimulationResult.overallScore || 0;
@@ -498,7 +498,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Sales Meeting Simulation', margin, y);
+      doc.text('Sales Performance Evaluation', margin, y);
       y += 8;
       
       const salesScore = notes.salesSimulationResult.overallScore || 0;
@@ -554,7 +554,7 @@ serve(async (req) => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-        doc.text('Soft Skills Assessment', margin, y);
+        doc.text('Interpersonal Skills', margin, y);
         y += 8;
         
         drawTableRow('Skill', 'Score', true);
@@ -571,7 +571,7 @@ serve(async (req) => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-        doc.text('Areas of Concern', margin, y);
+        doc.text('Points to Explore', margin, y);
         y += 8;
         
         doc.setFont('helvetica', 'normal');
@@ -594,7 +594,7 @@ serve(async (req) => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-        doc.text('Interview Highlights', margin, y);
+        doc.text('Notable Responses', margin, y);
         y += 8;
         
         doc.setFont('helvetica', 'normal');
@@ -619,7 +619,7 @@ serve(async (req) => {
     pageNum++;
     y = margin;
 
-    addSectionHeader('Decision Summary');
+    addSectionHeader('Hiring Recommendation');
 
     // Recommendation box
     doc.setDrawColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
@@ -640,7 +640,7 @@ serve(async (req) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-    doc.text('Key Decision Factors', margin, y);
+    doc.text('Performance Summary', margin, y);
     y += 8;
 
     drawTableRow('Factor', 'Result', true);
@@ -679,7 +679,7 @@ serve(async (req) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
-      doc.text('Suggested Follow-up Questions', margin, y);
+      doc.text('Recommended Interview Topics', margin, y);
       y += 8;
       
       doc.setFont('helvetica', 'normal');
