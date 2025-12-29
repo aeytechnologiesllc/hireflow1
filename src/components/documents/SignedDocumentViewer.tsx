@@ -207,8 +207,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     if (document?.candidate_signature_data) {
       try {
         const parsed = JSON.parse(document.candidate_signature_data);
-        if (parsed.signatures?.recipient) {
-          setCandidateSignature(parsed.signatures.recipient);
+        // Check multiple possible keys for candidate signature (different formats)
+        const candidateSig = parsed.signatures?.recipient 
+          || parsed.signatures?.candidate_signature 
+          || parsed.signatures?.positioned_signature;
+        if (candidateSig) {
+          setCandidateSignature(candidateSig);
         }
       } catch (e) {
         console.error("Error parsing candidate signature:", e);
@@ -217,8 +221,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     if (document?.employer_signature_data) {
       try {
         const parsed = JSON.parse(document.employer_signature_data);
-        if (parsed.signatures?.employer) {
-          setEmployerSignature(parsed.signatures.employer);
+        // Check multiple possible keys for employer signature (different formats)
+        const employerSig = parsed.signatures?.employer 
+          || parsed.signatures?.employer_signature
+          || parsed.signatures?.positioned_signature;
+        if (employerSig) {
+          setEmployerSignature(employerSig);
         }
       } catch (e) {
         console.error("Error parsing employer signature:", e);
