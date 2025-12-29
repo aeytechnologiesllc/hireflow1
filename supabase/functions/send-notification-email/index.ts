@@ -9,11 +9,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Production base URL - uses APP_BASE_URL env variable
+// Production base URL - uses APP_BASE_URL env variable with defensive protocol validation
 const getAppBaseUrl = (): string => {
-  const appBaseUrl = Deno.env.get("APP_BASE_URL");
+  let appBaseUrl = Deno.env.get("APP_BASE_URL");
   if (appBaseUrl) {
-    return appBaseUrl.replace(/\/$/, ''); // Remove trailing slash if present
+    // Remove trailing slash if present
+    appBaseUrl = appBaseUrl.replace(/\/$/, '');
+    // Defensive: ensure protocol is present (auto-prepend https:// if missing)
+    if (!appBaseUrl.startsWith('http://') && !appBaseUrl.startsWith('https://')) {
+      console.warn(`[send-notification-email] APP_BASE_URL missing protocol, auto-prepending https:// to: ${appBaseUrl}`);
+      appBaseUrl = `https://${appBaseUrl}`;
+    }
+    return appBaseUrl;
   }
   // Fallback to production domain
   return "https://hireflownow.com";
