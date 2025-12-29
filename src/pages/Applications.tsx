@@ -55,6 +55,7 @@ const statusLabels: Record<string, string> = {
 
 // Map phase types to icons and action labels
 const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
+  application: { icon: FileText, label: "Complete Application", description: "Complete your application", route: "application" },
   quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment", route: "quiz" },
   typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test", route: "typing-test" },
   video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
@@ -63,7 +64,7 @@ const phaseActionConfig: Record<string, { icon: React.ElementType; label: string
   chat_interview: { icon: MessageSquare, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
   sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation", route: "sales-simulation" },
   voice_interview: { icon: Video, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
-  portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio-upload" },
+  portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio" },
 };
 
 interface ApplicationCardProps {
@@ -120,19 +121,28 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
   
   // Check if the current phase has been completed/submitted
   const hasPhaseData = (() => {
+    // Application phase: check for submitted application answers
+    if (phaseType === "application" || phase === "application") {
+      const answers = notes.applicationAnswers;
+      return Array.isArray(answers) && answers.length > 0;
+    }
     if (phaseType === "quiz") return !!notes.quizAnswers?.[phase] || !!notes.quizAnswers;
     if (phaseType === "typing_test") return !!notes.typingTestResult;
-    if (phaseType === "video_intro") return !!notes.videoIntroUrl;
+    if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
+    if (phaseType === "video_message") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
     if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;
     if (phaseType === "chat_interview") return !!notes.chatInterviewResult;
     if (phaseType === "sales_simulation") return !!notes.salesSimulationResult;
     // Voice interview result is stored in a dedicated column, not notes JSON
     if (phaseType === "voice_interview") return !!application.voice_interview_result;
+    // Portfolio upload: check for completed flag or portfolio URLs
+    if (phaseType === "portfolio_upload") return !!notes[phase]?.completed || !!notes[phase]?.portfolioUrls?.length || !!notes.portfolioResult;
     return false;
   })();
   
-  // Determine states
-  const isWaitingPhase = ["application", "review", "interview", "hired"].includes(phase);
+  // Determine states - "application" is NOT a waiting phase, it's a candidate action phase
+  // Only employer-controlled phases are waiting phases
+  const isWaitingPhase = ["review", "interview", "hired"].includes(phase);
   const actionConfig = phaseActionConfig[phaseType];
   const hasActionRequired = !isWaitingPhase && actionConfig && !hasPhaseData;
   const isPendingReview = !isWaitingPhase && hasPhaseData && application.status !== "rejected" && application.status !== "hired";
@@ -239,7 +249,8 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                       // Build the route based on phase type
                       const stepId = phase; // Use the actual phase ID for step-based routes
                       const route = actionConfig.route;
-                      if (["quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio-upload"].includes(route)) {
+                      // All phase routes use the stepId pattern
+                      if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
                         navigate(`/applications/${application.id}/${route}/${stepId}`);
                       } else {
                         navigate(`/applications/${application.id}/${route}`);
