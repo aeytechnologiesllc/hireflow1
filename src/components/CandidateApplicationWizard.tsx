@@ -47,7 +47,7 @@ interface CandidateApplicationWizardProps {
 interface ApplicationQuestion {
   id: string;
   question: string;
-  type: "text" | "textarea" | "select" | "email" | "phone" | "file";
+  type: "text" | "textarea" | "select" | "email" | "phone" | "file" | "date";
   required: boolean;
   options?: string[];
 }
@@ -932,6 +932,14 @@ export default function CandidateApplicationWizard({
                           <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
                         )}
                       </div>
+                    ) : question.type === "date" ? (
+                      <Input
+                        type="date"
+                        value={answers[question.id] || ""}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                        max={new Date().toISOString().split('T')[0]}
+                        className={validationErrors[question.id] ? "border-destructive" : ""}
+                      />
                     ) : question.type === "file" ? (
                       <div className="space-y-2">
                         {/* Hidden file input */}
