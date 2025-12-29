@@ -482,19 +482,74 @@ function generateFullSummary(
     }
   }
   
-  // ============= Build concise 3-4 line summary =============
+  // ============= Build concise summary with interpretive clarity =============
   const summaryLines: string[] = [];
   
-  // Line 1: Signal status
+  // Identify top strength and concern first (needed for interpretation)
+  let topStrength: string | null = null;
+  let strengthLabel: string | null = null;
+  if (voiceScore !== null && voiceScore >= 70) {
+    topStrength = `${voiceScore}/100`;
+    strengthLabel = 'interview performance';
+  } else if (quizScore !== null && quizScore >= 70) {
+    topStrength = `${quizScore}%`;
+    strengthLabel = 'skills assessment';
+  } else if (chatSimScore !== null && chatSimScore >= 70) {
+    topStrength = `${chatSimScore}/100`;
+    strengthLabel = 'customer handling';
+  } else if (typingWpm !== null && typingWpm >= 50) {
+    topStrength = `${typingWpm} WPM`;
+    strengthLabel = 'typing proficiency';
+  } else if (portfolioScore !== null && portfolioScore >= 70) {
+    topStrength = `${portfolioScore}/100`;
+    strengthLabel = 'portfolio';
+  }
+  
+  let topConcern: string | null = null;
+  let concernLabel: string | null = null;
+  if (hasNameMismatch || hasResumeIssue) {
+    topConcern = 'verification needed';
+    concernLabel = 'application details';
+  } else if (quizScore !== null && quizScore < 50) {
+    topConcern = `${quizScore}%`;
+    concernLabel = 'skills assessment';
+  } else if (voiceScore !== null && voiceScore < 50) {
+    topConcern = `${voiceScore}/100`;
+    concernLabel = 'interview performance';
+  } else if (noMatchingSkills) {
+    topConcern = 'gaps identified';
+    concernLabel = 'required skills';
+  } else if (typingWpm !== null && typingWpm < 40) {
+    topConcern = `${typingWpm} WPM`;
+    concernLabel = 'typing speed';
+  }
+  
+  // Line 1: Signal status with interpretive context
   if (finalScoreNum !== null) {
     if (finalScoreNum >= 80) {
       summaryLines.push(`Strong signal (${finalScoreNum}/100). Recommended to proceed.`);
     } else if (finalScoreNum >= 60) {
-      summaryLines.push(`Positive signal (${finalScoreNum}/100). Review noted items before proceeding.`);
+      // Add interpretive sentence for "Consider" range
+      if (topStrength && topConcern) {
+        summaryLines.push(`Positive signal (${finalScoreNum}/100), though ${concernLabel} (${topConcern}) offsets ${strengthLabel} (${topStrength}).`);
+      } else if (topConcern) {
+        summaryLines.push(`Positive signal (${finalScoreNum}/100), limited by ${concernLabel} (${topConcern}).`);
+      } else {
+        summaryLines.push(`Positive signal (${finalScoreNum}/100). Review completed phases before proceeding.`);
+      }
     } else if (finalScoreNum >= 40) {
-      summaryLines.push(`Mixed signal (${finalScoreNum}/100). Concerns identified.`);
+      // Add interpretive sentence for "Mixed" range
+      if (topConcern) {
+        summaryLines.push(`Mixed signal (${finalScoreNum}/100). ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) is the primary factor.`);
+      } else {
+        summaryLines.push(`Mixed signal (${finalScoreNum}/100). Multiple areas below expectations.`);
+      }
     } else {
-      summaryLines.push(`Weak signal (${finalScoreNum}/100). Not recommended.`);
+      if (topConcern) {
+        summaryLines.push(`Weak signal (${finalScoreNum}/100). ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) indicates low readiness.`);
+      } else {
+        summaryLines.push(`Weak signal (${finalScoreNum}/100). Not recommended.`);
+      }
     }
   } else if (phaseResults.length > 0) {
     summaryLines.push(`${phaseResults.length} phase${phaseResults.length !== 1 ? 's' : ''} completed. Assessment in progress.`);
@@ -502,42 +557,7 @@ function generateFullSummary(
     summaryLines.push(`Assessment in progress.`);
   }
   
-  // Line 2: Top strength (pick best one)
-  let topStrength: string | null = null;
-  if (voiceScore !== null && voiceScore >= 70) {
-    topStrength = `Interview: ${voiceScore}/100`;
-  } else if (quizScore !== null && quizScore >= 70) {
-    topStrength = `Skills: ${quizScore}%`;
-  } else if (chatSimScore !== null && chatSimScore >= 70) {
-    topStrength = `Customer handling: ${chatSimScore}/100`;
-  } else if (typingWpm !== null && typingWpm >= 50) {
-    topStrength = `Typing: ${typingWpm} WPM`;
-  } else if (portfolioScore !== null && portfolioScore >= 70) {
-    topStrength = `Portfolio: ${portfolioScore}/100`;
-  }
-  
-  // Line 3: Top concern (pick most important)
-  let topConcern: string | null = null;
-  if (hasNameMismatch || hasResumeIssue) {
-    topConcern = `Verify application details`;
-  } else if (quizScore !== null && quizScore < 50) {
-    topConcern = `Skills assessment: ${quizScore}%`;
-  } else if (voiceScore !== null && voiceScore < 50) {
-    topConcern = `Interview performance: ${voiceScore}/100`;
-  } else if (noMatchingSkills) {
-    topConcern = `Required skills not demonstrated`;
-  }
-  
-  // Combine strengths and concerns into one line
-  if (topStrength && topConcern) {
-    summaryLines.push(`Standout: ${topStrength}. Attention: ${topConcern}.`);
-  } else if (topStrength) {
-    summaryLines.push(`Standout: ${topStrength}.`);
-  } else if (topConcern) {
-    summaryLines.push(`Attention: ${topConcern}.`);
-  }
-  
-  // Return compact summary (max 3-4 lines)
+  // Return compact summary
   if (summaryLines.length > 0) {
     return summaryLines.join(' ');
   }
