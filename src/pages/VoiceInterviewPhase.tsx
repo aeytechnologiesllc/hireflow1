@@ -240,6 +240,7 @@ export default function VoiceInterviewPhase() {
     error: voiceError,
     audioLevels,
     connectionQuality,
+    hasReceivedFirstAudio,
     connect,
     disconnect,
     sendTextMessage,
@@ -685,6 +686,38 @@ Duration: ${formatTime(elapsedSeconds)}
       ) : (
         /* Active interview UI */
         <div className="space-y-4 relative">
+          {/* Connecting to Ava Overlay - shows until first audio is received */}
+          <AnimatePresence>
+            {isConnected && !hasReceivedFirstAudio && !showCompletionScreen && !isEndingInterview && !isUserEndingInterview && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-background/95 z-50 flex flex-col items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-center space-y-4"
+                >
+                  <div className="relative mx-auto w-20 h-20">
+                    <Loader2 className="h-20 w-20 animate-spin text-primary/30" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <AvaAvatar expression="neutral" size="md" />
+                    </div>
+                  </div>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Connecting to Ava...
+                  </h2>
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                    Please wait while Ava prepares to start your interview.
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
           {/* Wrapping Up Interview Overlay - shows immediately when user clicks End OR when Ava triggers end */}
           <AnimatePresence>
             {(isEndingInterview || isUserEndingInterview) && !showCompletionScreen && (

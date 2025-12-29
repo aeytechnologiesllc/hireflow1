@@ -41,12 +41,13 @@ interface AvaVoiceState {
   audioLevels: number[]; // 5 values for audio bars visualization
   connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
   voiceNameUsed: string | null; // Voice returned by backend session creation
+  hasReceivedFirstAudio: boolean; // True when first audio delta is received - used for loading state
 }
 
 const MAX_RECONNECT_ATTEMPTS = 3;
-const STUCK_TIMEOUT_MS = 30000; // 30 seconds
+const STUCK_TIMEOUT_MS = 45000; // 45 seconds - give Ava more time to respond
 const SILENCE_CHECK_INTERVAL_MS = 1000; // Check silence every second
-const SILENCE_NUDGE_THRESHOLD_S = 10; // Nudge Ava after 10 seconds of candidate silence
+const SILENCE_NUDGE_THRESHOLD_S = 20; // Nudge Ava after 20 seconds of candidate silence (increased from 10)
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
   const { toast } = useToast();
@@ -63,6 +64,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     audioLevels: [8, 8, 8, 8, 8],
     connectionQuality: 'unknown',
     voiceNameUsed: null,
+    hasReceivedFirstAudio: false,
   });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -564,13 +566,15 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       
       // Trigger AVA to start speaking first (both interview and assistant mode)
       // In assistant mode, she'll greet contextually based on current page
+      // Use 1.5s delay for better audio stability and synchronization
       setTimeout(() => {
         if (dcRef.current?.readyState === 'open') {
           console.log('Triggering AVA to greet first, mode:', optionsRef.current.mode);
           dcRef.current.send(JSON.stringify({ type: 'response.create' }));
-          startProcessingTimeout();
+          // Don't start processing timeout immediately - wait for first audio
+          // This prevents premature "taking too long" alerts on connection
         }
-      }, 500); // Small delay to ensure connection is stable
+      }, 1500); // Increased delay from 500ms to 1.5s for connection stability
     });
 
     dcRef.current.addEventListener('message', async (e) => {
@@ -613,12 +617,13 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           }
           // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
           // This ensures the UI shows "Speaking" not "Thinking"
-          console.log('[AvaVoice] Audio delta received - setting isSpeaking=true, isProcessing=false');
+          // Also mark hasReceivedFirstAudio so the loading overlay can hide
+          console.log('[AvaVoice] Audio delta received - setting isSpeaking=true, isProcessing=false, hasReceivedFirstAudio=true');
           setState(s => {
-            if (s.isProcessing || !s.isSpeaking) {
-              console.log('[AvaVoice] State transition: isProcessing', s.isProcessing, '-> false, isSpeaking', s.isSpeaking, '-> true');
+            if (s.isProcessing || !s.isSpeaking || !s.hasReceivedFirstAudio) {
+              console.log('[AvaVoice] State transition: isProcessing', s.isProcessing, '-> false, isSpeaking', s.isSpeaking, '-> true, hasReceivedFirstAudio -> true');
             }
-            return { ...s, isSpeaking: true, isProcessing: false, isStuck: false };
+            return { ...s, isSpeaking: true, isProcessing: false, isStuck: false, hasReceivedFirstAudio: true };
           });
           break;
 
@@ -967,6 +972,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       audioLevels: [8, 8, 8, 8, 8],
       connectionQuality: 'unknown',
       voiceNameUsed: null,
+      hasReceivedFirstAudio: false,
     });
   }, [clearProcessingTimeout, clearSilenceTimer, cleanupConnection]);
 

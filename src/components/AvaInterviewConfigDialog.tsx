@@ -48,19 +48,11 @@ const LANGUAGE_OPTIONS = [
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
   { value: "de", label: "German" },
-  { value: "pt", label: "Portuguese" },
   { value: "hi", label: "Hindi" },
   { value: "ur", label: "Urdu" },
-  { value: "ar", label: "Arabic" },
   { value: "zh", label: "Mandarin" },
   { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "vi", label: "Vietnamese" },
   { value: "it", label: "Italian" },
-  { value: "nl", label: "Dutch" },
-  { value: "ru", label: "Russian" },
-  { value: "tr", label: "Turkish" },
-  { value: "pl", label: "Polish" },
 ];
 
 const STEPS = [
