@@ -17,7 +17,6 @@ import {
   Briefcase,
   Clock,
   Mic,
-  Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import VoiceCreditsSection from "./VoiceCreditsSection";
@@ -38,7 +37,7 @@ export default function SubscriptionSettings() {
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
-  const handleUpgrade = async (planType: "growth" | "business" | "enterprise") => {
+  const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
       const { url } = await createCheckoutSession.mutateAsync({ 
@@ -84,7 +83,7 @@ export default function SubscriptionSettings() {
   return (
     <div className="space-y-6">
       {/* Premium Upgrade Section - FIRST */}
-      {(!isPaid || subscription?.plan_type === "growth" || subscription?.plan_type === "business") && (
+      {(!isPaid || subscription?.plan_type === "growth") && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -136,7 +135,7 @@ export default function SubscriptionSettings() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 gap-4">
               {/* Growth Plan */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -175,7 +174,7 @@ export default function SubscriptionSettings() {
                       </li>
                     ))}
                   </ul>
-                  {subscription?.plan_type !== "growth" && !["business", "enterprise"].includes(subscription?.plan_type || "") && (
+                  {subscription?.plan_type !== "growth" && subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
                     <Button
                       className="w-full bg-card border border-primary/50 text-foreground hover:bg-card/80"
                       onClick={() => handleUpgrade("growth")}
@@ -187,28 +186,28 @@ export default function SubscriptionSettings() {
                 </div>
               </motion.div>
 
-              {/* Business Plan */}
+              {/* Business Plan - Now with Voice Features */}
               <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
                 whileHover={{ scale: 1.02 }}
                 className={`p-5 rounded-xl border relative ${
-                  subscription?.plan_type === "business"
-                    ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
-                    : "border-primary/50 bg-gradient-to-b from-primary/10 to-transparent shadow-[0_0_25px_rgba(16,185,129,0.2)]"
+                  subscription?.plan_type === "business" || subscription?.plan_type === "enterprise"
+                    ? "border-purple-500/50 bg-purple-500/5 shadow-[0_0_20px_rgba(168,85,247,0.15)]"
+                    : "border-purple-500/30 bg-gradient-to-b from-purple-500/10 to-transparent shadow-[0_0_25px_rgba(168,85,247,0.2)]"
                 }`}
               >
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-primary to-teal-400 text-primary-foreground text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                    <Crown className="h-3 w-3" /> Popular
+                  <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                    <Mic className="h-3 w-3" /> AVA Voice
                   </span>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-foreground">Business</h4>
-                    {subscription?.plan_type === "business" && (
-                      <Badge className="bg-primary/20 text-primary border-primary/30">Current</Badge>
+                    {(subscription?.plan_type === "business" || subscription?.plan_type === "enterprise") && (
+                      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">Current</Badge>
                     )}
                   </div>
                   <div className="flex items-baseline">
@@ -221,81 +220,21 @@ export default function SubscriptionSettings() {
                     <p className="text-xs text-muted-foreground">Billed {pricing.business.yearlyFormatted}/year</p>
                   )}
                   <ul className="space-y-2 text-sm">
-                    {["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics"].map((feature) => (
-                      <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
-                    <Button
-                      className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90 text-primary-foreground"
-                      onClick={() => handleUpgrade("business")}
-                      disabled={loading !== null}
-                    >
-                      {loading === "business" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                        <><Sparkles className="h-4 w-4" />{subscription?.plan_type === "growth" ? "Upgrade" : "Subscribe"}</>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Enterprise Plan */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                whileHover={{ scale: 1.02 }}
-                className={`p-5 rounded-xl border relative ${
-                  subscription?.plan_type === "enterprise"
-                    ? "border-purple-500/50 bg-purple-500/5 shadow-[0_0_20px_rgba(168,85,247,0.15)]"
-                    : "border-purple-500/30 bg-gradient-to-b from-purple-500/10 to-transparent hover:shadow-[0_0_25px_rgba(168,85,247,0.2)]"
-                }`}
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                    <Zap className="h-3 w-3" /> Ava Voice
-                  </span>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-foreground">Enterprise</h4>
-                    {subscription?.plan_type === "enterprise" && (
-                      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">Current</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-baseline">
-                    <span className="text-2xl font-bold text-foreground">
-                      {billingInterval === "monthly" ? pricing.enterprise.monthlyFormatted : pricing.enterprise.yearlyMonthly}
-                    </span>
-                    <span className="text-muted-foreground ml-1 text-sm">/mo</span>
-                  </div>
-                  {billingInterval === "yearly" && (
-                    <p className="text-xs text-muted-foreground">Billed {pricing.enterprise.yearlyFormatted}/year</p>
-                  )}
-                  <ul className="space-y-2 text-sm">
-                    {[
-                      "Everything in Business",
-                      "AVA Voice Assistant",
-                      "Voice Interviews",
-                      "150 Voice Minutes/mo",
-                    ].map((feature) => (
+                    {["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "AVA Voice Assistant", "Voice Interviews", "30 Voice Minutes/mo"].map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-purple-400 flex-shrink-0" />
                         <span className="text-muted-foreground">{feature}</span>
                       </li>
                     ))}
                   </ul>
-                  {subscription?.plan_type !== "enterprise" && (
+                  {subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
                     <Button
                       className="w-full gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
-                      onClick={() => handleUpgrade("enterprise")}
+                      onClick={() => handleUpgrade("business")}
                       disabled={loading !== null}
                     >
-                      {loading === "enterprise" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                        <><Mic className="h-4 w-4" />Upgrade</>
+                      {loading === "business" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                        <><Mic className="h-4 w-4" />{subscription?.plan_type === "growth" ? "Upgrade" : "Subscribe"}</>
                       )}
                     </Button>
                   )}
@@ -346,11 +285,11 @@ export default function SubscriptionSettings() {
                 <div className="mt-3 p-3 rounded-lg bg-muted/30 border border-border">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your trial includes:</p>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary" className="text-xs">2 Active Jobs</Badge>
+                    <Badge variant="secondary" className="text-xs">1 Active Job</Badge>
                     <Badge variant="secondary" className="text-xs">15 Applicants</Badge>
                     <Badge variant="secondary" className="text-xs">10 Documents</Badge>
                     <Badge variant="secondary" className="text-xs">15 Voice Minutes</Badge>
-                    <Badge variant="secondary" className="text-xs">Unlimited AI Screening</Badge>
+                    <Badge variant="secondary" className="text-xs">15 AI Analyses</Badge>
                   </div>
                 </div>
               )}
@@ -375,7 +314,7 @@ export default function SubscriptionSettings() {
           )}
         </div>
       </div>
-      {/* Voice Credits Section - For Enterprise users */}
+      {/* Voice Credits Section - For Business users */}
       <VoiceCreditsSection />
 
       {/* Usage Stats */}
@@ -402,7 +341,7 @@ export default function SubscriptionSettings() {
           />
           <UsageStat
             icon={BarChart3}
-            label="Ava Analyses"
+            label="AI Analyses"
             current={usage.ai_analyses_used}
             limit={limits.aiAnalyses}
           />
@@ -424,7 +363,7 @@ function UsageStat({
   current,
   limit,
 }: {
-  icon: React.ElementType;
+  icon: typeof Briefcase;
   label: string;
   current: number;
   limit: number;
@@ -434,23 +373,23 @@ function UsageStat({
   const isNearLimit = !isUnlimited && percentage >= 80;
 
   return (
-    <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border">
-      <div className="flex items-center gap-2">
+    <div className="p-4 rounded-lg bg-muted/30 border border-border">
+      <div className="flex items-center gap-2 mb-2">
         <Icon className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={`text-2xl font-bold ${isNearLimit ? "text-warning" : "text-foreground"}`}>
+        <span className={`text-xl font-bold ${isNearLimit ? "text-amber-400" : "text-foreground"}`}>
           {current}
         </span>
-        <span className="text-muted-foreground text-sm">
+        <span className="text-sm text-muted-foreground">
           / {isUnlimited ? "∞" : limit}
         </span>
       </div>
       {!isUnlimited && (
-        <Progress 
-          value={percentage} 
-          className={`h-1 ${isNearLimit ? "bg-warning/20" : "bg-muted"}`}
+        <Progress
+          value={percentage}
+          className={`h-1.5 mt-2 ${isNearLimit ? "[&>div]:bg-amber-400" : "[&>div]:bg-primary"}`}
         />
       )}
     </div>

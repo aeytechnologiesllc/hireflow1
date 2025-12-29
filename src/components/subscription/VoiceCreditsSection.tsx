@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Mic, Clock, AlertTriangle, Package } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -13,14 +12,14 @@ export default function VoiceCreditsSection() {
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
+  const hasVoicePlan = ['business', 'enterprise'].includes(subscription?.plan_type || '') && subscription?.status === 'active';
   const isTrialing = subscription?.status === 'trialing';
   
-  // Show for enterprise users and trial users (who have voice credits)
-  if (!isEnterprise) return null;
+  // Show for Business/Enterprise users and trial users (who have voice credits)
+  if (!hasVoicePlan && !isTrialing) return null;
   
-  // Don't show if no voice credits available
-  if (voiceCredits.totalMinutesAvailable <= 0 && !isEnterprise) return null;
+  // Don't show if no voice credits available and not on a voice plan
+  if (voiceCredits.totalMinutesAvailable <= 0 && !hasVoicePlan) return null;
 
   const handlePurchase = async (packSize: 'small' | 'medium' | 'large') => {
     setLoading(packSize);
@@ -79,8 +78,8 @@ export default function VoiceCreditsSection() {
         </motion.div>
       )}
 
-      {/* Credits breakdown - only show for Enterprise, simplified for trial */}
-      {isEnterprise && voiceCredits.credits.length > 0 && (
+      {/* Credits breakdown - only show for Business/Enterprise users */}
+      {hasVoicePlan && voiceCredits.credits.length > 0 && (
         <div className="mb-4 space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Credit Packs</p>
           {voiceCredits.credits.map((credit) => (
@@ -103,8 +102,8 @@ export default function VoiceCreditsSection() {
         </div>
       )}
 
-      {/* Purchase options - only show for Enterprise users */}
-      {isEnterprise && (
+      {/* Purchase options - only show for Business/Enterprise users */}
+      {hasVoicePlan && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Buy More Minutes</p>
           <div className="grid grid-cols-3 gap-2">
@@ -132,7 +131,7 @@ export default function VoiceCreditsSection() {
             })}
           </div>
           <p className="text-xs text-center text-muted-foreground mt-2">
-            Credits roll over and expire 6 months after purchase
+            All voice minutes reset at the end of each billing cycle
           </p>
         </div>
       )}
@@ -140,9 +139,9 @@ export default function VoiceCreditsSection() {
       {/* Trial user message */}
       {isTrialing && (
         <div className="text-center space-y-1">
-          <p className="text-sm text-foreground">3 voice interviews included with your trial</p>
+          <p className="text-sm text-foreground">15 voice minutes included with your trial</p>
           <p className="text-xs text-muted-foreground">
-            Upgrade to Enterprise for unlimited voice minutes
+            Upgrade to Business for 30 voice minutes/month + ability to purchase more
           </p>
         </div>
       )}
