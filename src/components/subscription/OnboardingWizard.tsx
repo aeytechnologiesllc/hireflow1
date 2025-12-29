@@ -140,17 +140,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       price: billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly,
       period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.business.yearlyFormatted,
-      features: ["Unlimited Jobs", "Unlimited Applicants", "Voice Interviews", "Team Portal", "Advanced Analytics"],
+      features: ["Unlimited Jobs", "Unlimited Applicants", "AVA Voice Assistant", "Voice Interviews", "30 Voice Minutes/mo", "Team Portal", "Advanced Analytics"],
       popular: true,
-      premium: false,
-    },
-    {
-      name: "Enterprise",
-      price: billingInterval === "monthly" ? pricing.enterprise.monthlyFormatted : pricing.enterprise.yearlyMonthly,
-      period: billingInterval === "monthly" ? "/month" : "/mo",
-      yearlyTotal: pricing.enterprise.yearlyFormatted,
-      features: ["Everything in Business", "Voice Credits Included", "Priority Support", "Custom Integrations", "Dedicated Account Manager"],
-      popular: false,
       premium: true,
     },
   ];

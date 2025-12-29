@@ -1398,15 +1398,9 @@ function Scene9CTA() {
     {
       name: "Business",
       price: pricing.business.monthly,
-      features: ["Unlimited Jobs", "Team Portal", "Documents"],
-      color: "from-primary to-accent",
+      features: ["Unlimited Jobs", "AVA Voice", "30 Voice Mins/mo", "Team Portal"],
+      color: "from-purple-500 to-pink-500",
       popular: true
-    },
-    {
-      name: "Enterprise",
-      price: pricing.enterprise?.monthly || `${pricing.symbol}99`,
-      features: ["AVA Voice", "500 Voice Mins", "Priority Support"],
-      color: "from-purple-500 to-pink-500"
     },
   ];
 
