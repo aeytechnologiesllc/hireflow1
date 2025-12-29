@@ -118,6 +118,29 @@ Rate authenticity: AUTHENTIC, QUESTIONABLE, or LIKELY_FABRICATED
 - Achievements and quantifiable results
 - Red flags (employment gaps, job hopping, demotions)
 
+**IMPORTANT - TRANSFERABLE SKILLS RECOGNITION:**
+When evaluating skill match, do NOT only look for exact keyword matches. Consider:
+- **Adjacent Skills**: Programming in one language suggests ability to learn another (Java → Python = partial credit). Customer service experience suggests communication skills.
+- **Transferable Skills**: Project management, problem-solving, analytical thinking, communication, leadership, organization - these transfer across roles
+- **Industry Experience**: Experience in related industry (even different role) shows familiarity with domain
+- **Learning Indicators**: Certifications, bootcamps, personal projects, coursework, or stated willingness to learn
+- **Soft Skills**: Customer-facing experience → communication skills, Sales → negotiation/persuasion, Management → leadership
+
+**FOR ENTRY-LEVEL/INTERN/JUNIOR POSITIONS:**
+- Do NOT expect candidates to have all required skills - that's the point of entry-level roles
+- Look for: curiosity, learning ability, relevant coursework, personal projects, enthusiasm, eagerness to grow
+- Weight POTENTIAL and trainability higher than current skill inventory
+- A candidate with 50% of skills but strong learning indicators should score higher than one with 60% skills but no growth mindset
+- Career changers with transferable skills and genuine interest deserve fair consideration
+- If job title contains "Intern", "Junior", "Entry", "Trainee", or "Associate" → apply lenient skill matching
+
+**SKILL MISMATCH PENALTIES (be proportional):**
+- Completely different field with NO transferable skills AND no learning indicators: -15
+- Different field BUT has some transferable skills (problem-solving, analytical, tech-adjacent): -5 to -10
+- Has some relevant skills but missing key ones: -5
+- Missing "nice-to-have" skills only: No penalty
+- Entry-level/intern role with missing skills but good potential indicators: Reduce penalty by 50%
+
 ## 6. PERSONALITY INDICATORS
 Based on writing style, word choices, and presentation:
 - Communication style (formal/casual, concise/verbose)
@@ -127,6 +150,16 @@ Based on writing style, word choices, and presentation:
 
 ## 7. JOB FIT ASSESSMENT
 Evaluate match with job requirements provided in context.
+
+**FOR INTERN/ENTRY-LEVEL/JUNIOR POSITIONS - POTENTIAL SCORE:**
+Calculate a "Potential Score" alongside skill match:
+- Personal projects or GitHub presence: +10
+- Relevant coursework, bootcamp, or self-learning: +5 to +10
+- Enthusiasm shown in cover letter or application: +5
+- Career transition with clear motivation and effort: +5
+- Quick learner indicators (varied experience, certifications, rapid skill acquisition): +5
+- Volunteer work or extracurriculars showing relevant skills: +5
+This Potential Score can offset up to 20 points of skill gap penalties for entry-level roles.
 
 ## 8. SCORING GUIDELINES (BE FAIR BUT THOROUGH)
 
@@ -248,9 +281,13 @@ Work Style: [description]
 Leadership Potential: [Low/Medium/High]
 
 **SKILLS MATCH**
-Matching Skills: [list]
-Missing Skills: [list]
-Match Rate: [0-100]%
+Required Skills: [list from job]
+Direct Matches: [exact skill matches found]
+Adjacent/Transferable Skills: [related skills that show potential - e.g., "Java experience suggests Python aptitude", "Customer service shows communication skills"]
+Missing Critical Skills: [only list truly critical gaps that can't be learned quickly]
+Learning Indicators: [certifications, courses, projects, enthusiasm showing growth mindset]
+Match Rate: [0-100]% - account for transferable skills, not just exact matches
+Potential Score (for entry-level only): [0-50] - based on learning indicators, enthusiasm, trainability
 
 **EXPERIENCE SUMMARY**
 Years Relevant Experience: [number or "Unknown - based on application data"]
@@ -378,6 +415,29 @@ Note: If resume text unavailable, base this on other application data or mark as
 - Red flags (employment gaps, job hopping, demotions)
 Note: If resume unavailable, extract what you can from cover letter and application answers
 
+**IMPORTANT - TRANSFERABLE SKILLS RECOGNITION:**
+When evaluating skill match, do NOT only look for exact keyword matches. Consider:
+- **Adjacent Skills**: Programming in one language suggests ability to learn another (Java → Python = partial credit). Customer service experience suggests communication skills.
+- **Transferable Skills**: Project management, problem-solving, analytical thinking, communication, leadership, organization - these transfer across roles
+- **Industry Experience**: Experience in related industry (even different role) shows familiarity with domain
+- **Learning Indicators**: Certifications, bootcamps, personal projects, coursework, or stated willingness to learn
+- **Soft Skills**: Customer-facing experience → communication skills, Sales → negotiation/persuasion, Management → leadership
+
+**FOR ENTRY-LEVEL/INTERN/JUNIOR POSITIONS:**
+- Do NOT expect candidates to have all required skills - that's the point of entry-level roles
+- Look for: curiosity, learning ability, relevant coursework, personal projects, enthusiasm, eagerness to grow
+- Weight POTENTIAL and trainability higher than current skill inventory
+- A candidate with 50% of skills but strong learning indicators should score higher than one with 60% skills but no growth mindset
+- Career changers with transferable skills and genuine interest deserve fair consideration
+- If job title contains "Intern", "Junior", "Entry", "Trainee", or "Associate" → apply lenient skill matching
+
+**SKILL MISMATCH PENALTIES (be proportional):**
+- Completely different field with NO transferable skills AND no learning indicators: -15
+- Different field BUT has some transferable skills (problem-solving, analytical, tech-adjacent): -5 to -10
+- Has some relevant skills but missing key ones: -5
+- Missing "nice-to-have" skills only: No penalty
+- Entry-level/intern role with missing skills but good potential indicators: Reduce penalty by 50%
+
 ## 6. PERSONALITY INDICATORS
 Based on writing style, word choices, and presentation:
 - Communication style (formal/casual, concise/verbose)
@@ -388,6 +448,16 @@ Based on writing style, word choices, and presentation:
 
 ## 7. JOB FIT ASSESSMENT
 Evaluate match with job requirements provided in context.
+
+**FOR INTERN/ENTRY-LEVEL/JUNIOR POSITIONS - POTENTIAL SCORE:**
+Calculate a "Potential Score" alongside skill match:
+- Personal projects or GitHub presence: +10
+- Relevant coursework, bootcamp, or self-learning: +5 to +10
+- Enthusiasm shown in cover letter or application: +5
+- Career transition with clear motivation and effort: +5
+- Quick learner indicators (varied experience, certifications, rapid skill acquisition): +5
+- Volunteer work or extracurriculars showing relevant skills: +5
+This Potential Score can offset up to 20 points of skill gap penalties for entry-level roles.
 
 ## 8. SCORING GUIDELINES (BE FAIR BUT THOROUGH)
 
@@ -533,9 +603,13 @@ Work Style: [description]
 Leadership Potential: [Low/Medium/High]
 
 **SKILLS MATCH**
-Matching Skills: [list]
-Missing Skills: [list]
-Match Rate: [0-100]%
+Required Skills: [list from job]
+Direct Matches: [exact skill matches found]
+Adjacent/Transferable Skills: [related skills that show potential - e.g., "Java experience suggests Python aptitude", "Customer service shows communication skills"]
+Missing Critical Skills: [only list truly critical gaps that can't be learned quickly]
+Learning Indicators: [certifications, courses, projects, enthusiasm showing growth mindset]
+Match Rate: [0-100]% - account for transferable skills, not just exact matches
+Potential Score (for entry-level only): [0-50] - based on learning indicators, enthusiasm, trainability
 
 **EXPERIENCE SUMMARY**
 Years Relevant Experience: [number or "Unknown - based on application data"]
