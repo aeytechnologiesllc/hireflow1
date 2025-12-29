@@ -39,7 +39,8 @@ export default function VoiceInterviewPhase() {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [language, setLanguage] = useState("en");
   const [duration, setDuration] = useState(10);
-  const [videoEnabled, setVideoEnabled] = useState(true);
+  // Video is always enabled - audio-only option removed
+  const videoEnabled = true;
   const [messages, setMessages] = useState<Message[]>([]);
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
@@ -201,7 +202,7 @@ export default function VoiceInterviewPhase() {
       if (employerId) {
         // Email notification
         import("@/utils/emailNotifications").then(({ notifyPhaseCompleted }) => {
-          notifyPhaseCompleted(employerId, candidateName, videoEnabled ? "AIVA Video Interview" : "AIVA Voice Interview", job?.title || "Position").catch(console.error);
+          notifyPhaseCompleted(employerId, candidateName, "AIVA Video Interview", job?.title || "Position").catch(console.error);
         });
 
         // In-app notification
@@ -209,7 +210,7 @@ export default function VoiceInterviewPhase() {
           user_id: employerId,
           type: "application" as const,
           title: "AIVA Interview Completed",
-          message: `${candidateName} has completed their ${videoEnabled ? "video" : "voice"} interview for ${job?.title || "a position"}. View the recording and scores.`,
+          message: `${candidateName} has completed their video interview for ${job?.title || "a position"}. View the recording and scores.`,
           link: `/applicants?applicationId=${applicationId}`,
           is_read: false,
         }).then(({ error: notifError }) => {
@@ -401,7 +402,7 @@ export default function VoiceInterviewPhase() {
       setCandidateName(candidateProfile?.full_name || "Candidate");
       setLanguage(app.voice_interview_language || "en");
       setDuration(app.voice_interview_duration || 10);
-      setVideoEnabled(app.voice_interview_video_enabled !== false); // Default to true if not set
+      // Video is always enabled now - ignore the database field
     } catch (error) {
       console.error("Error loading application:", error);
       toast.error("Failed to load interview data");
@@ -447,7 +448,7 @@ export default function VoiceInterviewPhase() {
       return `[${time}] ${m.role === 'user' ? 'Candidate' : 'Ava'}: ${m.content}`;
     }).join('\n\n');
 
-    const header = `${videoEnabled ? 'Video' : 'Voice'} Interview Transcript
+    const header = `Video Interview Transcript
 Date: ${new Date().toLocaleDateString()}
 Position: ${job?.title || 'Unknown'}
 Company: ${job?.company_name || 'Unknown'}
