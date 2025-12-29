@@ -77,6 +77,107 @@ function getRecommendation(score: number): string {
   return 'NOT RECOMMENDED';
 }
 
+function getInterviewRecommendation(score: number): string {
+  if (score >= 80) return 'Yes - Strong candidate for interview';
+  if (score >= 60) return 'Yes - With considerations noted below';
+  if (score >= 40) return 'Optional - Review concerns before proceeding';
+  return 'No - Does not meet minimum requirements';
+}
+
+function getRiskLevel(score: number, concerns: string[]): string {
+  if (score >= 80 && concerns.length === 0) return 'Low';
+  if (score >= 60 && concerns.length <= 2) return 'Low';
+  if (score >= 40 || concerns.length <= 3) return 'Moderate';
+  return 'Elevated';
+}
+
+function extractStrengths(notes: Record<string, any>, voiceResult: Record<string, any> | null, score: number): string[] {
+  const strengths: string[] = [];
+  
+  // Quiz performance
+  const quizData = notes.quiz || notes.quizResult;
+  if (quizData?.score >= 80) {
+    strengths.push(`Strong skills assessment performance (${quizData.score}%)`);
+  } else if (quizData?.passed) {
+    strengths.push('Passed skills assessment');
+  }
+  
+  // Typing test
+  if (notes.typingTestResult?.wpm >= 60 && notes.typingTestResult?.accuracy >= 95) {
+    strengths.push(`Excellent typing proficiency (${notes.typingTestResult.wpm} WPM, ${notes.typingTestResult.accuracy}% accuracy)`);
+  } else if (notes.typingTestResult?.passed) {
+    strengths.push('Meets typing requirements');
+  }
+  
+  // Voice interview
+  if (voiceResult && voiceResult.overall_score >= 70) {
+    strengths.push(`Strong interview performance (${voiceResult.overall_score}%)`);
+  }
+  
+  // Sales/Chat simulation
+  if (notes.salesSimulationResult?.wouldBuy) {
+    strengths.push('Demonstrated effective sales approach');
+  }
+  if (notes.chatSimulationResult?.overallScore >= 70) {
+    strengths.push('Strong customer service capabilities');
+  }
+  
+  // Overall score based strength
+  if (score >= 80) {
+    strengths.push('Overall profile exceeds expectations');
+  } else if (score >= 60) {
+    strengths.push('Meets core job requirements');
+  }
+  
+  return strengths.slice(0, 3);
+}
+
+function extractConcerns(notes: Record<string, any>, voiceResult: Record<string, any> | null, score: number): string[] {
+  const concerns: string[] = [];
+  
+  // Quiz performance concerns
+  const quizData = notes.quiz || notes.quizResult;
+  if (quizData && !quizData.passed) {
+    concerns.push(`Skills assessment below passing threshold (${quizData.score || 0}%)`);
+  }
+  
+  // Typing test concerns
+  if (notes.typingTestResult && !notes.typingTestResult.passed) {
+    concerns.push('Typing proficiency below requirements');
+  }
+  
+  // Voice interview concerns
+  if (voiceResult && voiceResult.concerns && voiceResult.concerns.length > 0) {
+    concerns.push(voiceResult.concerns[0]);
+  }
+  
+  // Low overall score
+  if (score < 40) {
+    concerns.push('Overall assessment indicates significant gaps');
+  } else if (score < 60) {
+    concerns.push('Profile requires additional verification');
+  }
+  
+  return concerns.slice(0, 3);
+}
+
+function getNextStepRecommendation(notes: Record<string, any>, voiceResult: Record<string, any> | null, concerns: string[]): string {
+  if (concerns.length === 0) {
+    return 'Proceed to interview to confirm cultural fit and role expectations.';
+  }
+  
+  const quizData = notes.quiz || notes.quizResult;
+  if (quizData && !quizData.passed) {
+    return 'Interview should focus on validating core skills and assessing practical knowledge.';
+  }
+  
+  if (voiceResult?.concerns?.length > 0) {
+    return 'Interview should explore areas flagged during initial screening and clarify experience claims.';
+  }
+  
+  return 'Interview should focus on addressing noted concerns and verifying qualifications.';
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { 
     year: 'numeric', 
@@ -320,10 +421,149 @@ serve(async (req) => {
 
     addFooter();
 
-    // ============= PAGE 2: EXECUTIVE SUMMARY =============
+    // ============= PAGE 2: HIRING SNAPSHOT =============
     doc.addPage();
     pageNum++;
     y = margin;
+
+    // Extract data for snapshot
+    const strengths = extractStrengths(notes, voiceResult, overallScore);
+    const concerns = extractConcerns(notes, voiceResult, overallScore);
+    const riskLevel = getRiskLevel(overallScore, concerns);
+    const interviewRec = getInterviewRecommendation(overallScore);
+    const nextStep = getNextStepRecommendation(notes, voiceResult, concerns);
+
+    addSectionHeader('Hiring Snapshot (Quick Review)');
+
+    // Interview Recommendation Box
+    doc.setDrawColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.setLineWidth(0.8);
+    doc.setFillColor(COLORS.subtleGray.r, COLORS.subtleGray.g, COLORS.subtleGray.b);
+    doc.rect(margin, y, contentW, 18, 'FD');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    doc.text('INTERVIEW RECOMMENDATION', margin + 4, y + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(interviewRec, margin + 4, y + 14);
+    y += 25;
+
+    // Candidate Credibility
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.text('Candidate Credibility', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    const credibilityText = overallScore >= 60 
+      ? 'Profile information appears consistent and verified based on available data.'
+      : 'Profile requires additional verification during interview process.';
+    doc.text(credibilityText, margin, y);
+    y += 12;
+
+    // Top Strengths
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.text('Top Strengths', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    
+    if (strengths.length > 0) {
+      for (const strength of strengths) {
+        const lines = wrapText(doc, `[+] ${strength}`, contentW - 5);
+        for (const l of lines) {
+          doc.text(l, margin, y);
+          y += 4.5;
+        }
+      }
+    } else {
+      doc.text('[+] Completed application process', margin, y);
+      y += 4.5;
+    }
+    y += 8;
+
+    // Primary Concerns
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.text('Points to Explore', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    
+    if (concerns.length > 0) {
+      for (const concern of concerns) {
+        const lines = wrapText(doc, `- ${concern}`, contentW - 5);
+        for (const l of lines) {
+          doc.text(l, margin, y);
+          y += 4.5;
+        }
+      }
+    } else {
+      doc.text('- No significant concerns identified', margin, y);
+      y += 4.5;
+    }
+    y += 8;
+
+    // Risk Level
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.text('Risk Assessment', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    doc.text(`Risk Level: ${riskLevel}`, margin, y);
+    y += 12;
+
+    // Recommended Next Step
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+    doc.text('Recommended Next Step', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
+    const nextStepLines = wrapText(doc, nextStep, contentW);
+    for (const l of nextStepLines) {
+      doc.text(l, margin, y);
+      y += 4.5;
+    }
+    y += 15;
+
+    // How to Use This Report
+    doc.setDrawColor(COLORS.lightGray.r, COLORS.lightGray.g, COLORS.lightGray.b);
+    doc.setLineWidth(0.3);
+    doc.rect(margin, y, contentW, 28);
+    y += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.mediumGray.r, COLORS.mediumGray.g, COLORS.mediumGray.b);
+    doc.text('How to Use This Report', margin + 4, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const howToUseText = 'This report is designed to support, not replace, the interview process. Scores indicate readiness for the role based on available data. Final hiring decisions should incorporate interview performance, team fit, and business needs.';
+    const howToLines = wrapText(doc, howToUseText, contentW - 8);
+    for (const l of howToLines) {
+      doc.text(l, margin + 4, y);
+      y += 4;
+    }
+
+    addFooter();
+
+    // Note: This is now page 3 due to Hiring Snapshot insertion
+    // Executive Summary follows the Hiring Snapshot
 
     addSectionHeader('Executive Summary');
 
@@ -376,12 +616,12 @@ serve(async (req) => {
 
     addFooter();
 
-    // ============= PAGE 3+: PHASE RESULTS =============
+    // ============= ASSESSMENT RESULTS (Observed Performance) =============
     doc.addPage();
     pageNum++;
     y = margin;
 
-    addSectionHeader('Assessment Results');
+    addSectionHeader('Assessment Results (Observed Performance)');
 
     // Application Answers
     if (notes.applicationAnswers?.length > 0) {
@@ -614,12 +854,12 @@ serve(async (req) => {
       addFooter();
     }
 
-    // ============= FINAL PAGE: DECISION SUMMARY =============
+    // ============= FINAL PAGE: HIRING RECOMMENDATION =============
     doc.addPage();
     pageNum++;
     y = margin;
 
-    addSectionHeader('Hiring Recommendation');
+    addSectionHeader('Hiring Recommendation (Final Assessment)');
 
     // Recommendation box
     doc.setDrawColor(COLORS.darkGray.r, COLORS.darkGray.g, COLORS.darkGray.b);
