@@ -180,6 +180,7 @@ export default function ApplicantDetails() {
   const [showRejectAnimation, setShowRejectAnimation] = useState(false);
   const [showInterviewQuestionsDialog, setShowInterviewQuestionsDialog] = useState(false);
   const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
+  const [showHireConfirmation, setShowHireConfirmation] = useState(false);
   const [showReconsiderConfirmation, setShowReconsiderConfirmation] = useState(false);
   const [computedRestorePhase, setComputedRestorePhase] = useState<{ id: string; name: string; index: number }>({ id: "review", name: "Review", index: -1 });
   const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
@@ -1154,6 +1155,71 @@ export default function ApplicantDetails() {
     }
   };
 
+  const handleHire = async () => {
+    if (!application || !user) return;
+    try {
+      // Close the confirmation dialog
+      setShowHireConfirmation(false);
+      
+      // Find the hired phase
+      const hiredPhaseIndex = phases.findIndex(p => p.type === "hired");
+      const hiredPhase = phases[hiredPhaseIndex];
+      
+      // Track skipped phases between current phase and hired
+      let updatedNotes = { ...parsedNotes };
+      const skippedPhaseIds = phases.slice(effectivePhaseIndex + 1, hiredPhaseIndex)
+        .filter(p => p.type !== "review" && p.type !== "journey_start")
+        .map(p => p.id);
+      
+      if (skippedPhaseIds.length > 0) {
+        updatedNotes.employerSkippedPhases = [
+          ...(updatedNotes.employerSkippedPhases || []),
+          ...skippedPhaseIds.filter(id => !updatedNotes.employerSkippedPhases?.includes(id)),
+        ];
+      }
+      
+      // DELETE all interviews for this application (cleanup)
+      const { error: interviewError } = await supabase
+        .from("interviews")
+        .delete()
+        .eq("application_id", application.id);
+      
+      if (interviewError) {
+        console.error("Failed to delete interviews:", interviewError);
+      }
+      
+      // Update application to hired status
+      await updateApplication.mutateAsync({
+        id: application.id,
+        phase: hiredPhase?.id || "hired",
+        status: "hired",
+        notes: JSON.stringify(updatedNotes),
+      });
+      
+      // Invalidate all related queries
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["interviews", "all-scheduled", id] });
+      queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
+      
+      // Create notification for candidate
+      await supabase.from("notifications").insert({
+        user_id: application.candidate_id,
+        type: "status_update" as const,
+        title: "Congratulations! You're Hired!",
+        message: `Great news! You've been hired for ${application.jobs?.title || "this position"}!`,
+        link: `/applications/${application.id}`,
+      });
+      
+      toast.success("Candidate hired successfully!");
+      
+      // Show document prompt for sending offer letter
+      setShowHiringDocumentPrompt(true);
+    } catch (error) {
+      toast.error("Failed to hire candidate");
+    }
+  };
+
   // Calculate the first incomplete phase for smart restoration
   const calculateRestorePhase = () => {
     // Skip "journey_start" (index 0) - it's just the start marker
@@ -1492,6 +1558,7 @@ export default function ApplicantDetails() {
   const isAutoPilot = job?.processing_mode === "auto";
   const passingScore = job?.passing_score || 60;
   const isRejected = application.status === "rejected";
+  const isHired = application.status === "hired";
   
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
@@ -1983,8 +2050,19 @@ export default function ApplicantDetails() {
                   View Only
                 </Badge>
               )}
-              {/* Desktop: Visible subtle red Reject button */}
-              {canManagePipeline && !isRejected && (
+              {/* Desktop: Visible Hire and Reject buttons */}
+              {canManagePipeline && !isRejected && !isHired && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHireConfirmation(true)}
+                  className="hidden md:flex gap-1.5 h-8 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/50"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Hire
+                </Button>
+              )}
+              {canManagePipeline && !isRejected && !isHired && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1995,8 +2073,8 @@ export default function ApplicantDetails() {
                   Reject
                 </Button>
               )}
-              {/* Mobile: Dropdown with Reject option */}
-              {canManagePipeline && !isRejected && (
+              {/* Mobile: Dropdown with Hire and Reject options */}
+              {canManagePipeline && !isRejected && !isHired && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden">
@@ -2004,6 +2082,13 @@ export default function ApplicantDetails() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => setShowHireConfirmation(true)}
+                      className="gap-2 text-emerald-600 focus:text-emerald-600"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Hire Candidate
+                    </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={() => setShowRejectConfirmation(true)}
                       className="gap-2 text-destructive focus:text-destructive"
@@ -3289,6 +3374,47 @@ export default function ApplicantDetails() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Reject Candidate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hire Candidate Confirmation Dialog */}
+      <AlertDialog open={showHireConfirmation} onOpenChange={setShowHireConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle className="h-5 w-5" />
+              Hire {applicantDisplayName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Are you sure you want to hire <strong>{applicantDisplayName}</strong> for the position of <strong>{job?.title}</strong>?
+              </p>
+              {effectivePhaseIndex < phases.length - 1 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2">
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                    <FastForward className="h-4 w-4" />
+                    Remaining workflow phases will be skipped
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    This candidate will be marked as hired immediately.
+                  </p>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                The candidate will be notified of this great news! You'll be prompted to send hiring documents (offer letter, contract, etc.) after confirmation.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleHire}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Hire Candidate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
