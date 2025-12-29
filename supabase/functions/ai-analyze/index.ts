@@ -68,8 +68,23 @@ Compare information across ALL provided sources (resume, cover letter, applicati
 
 **Name Verification:**
 - Does the name on the resume match the "Candidate Name (as provided in application)"?
-- Minor variations are OK (e.g., "John Smith" vs "John M. Smith" vs "J. Smith")
-- Only flag as mismatch if names are completely different people
+- Be LENIENT and SMART about name matching. Consider these as MATCHING (not mismatches):
+  - **Case differences**: "john smith" = "John Smith" = "JOHN SMITH" (ALWAYS ignore case)
+  - **Common nickname variations**: Zach/Zack/Zachary, Mike/Michael, Bob/Robert, Bill/William, 
+    Joe/Joseph, Tom/Thomas, Alex/Alexander, Nick/Nicholas, Chris/Christopher, 
+    Dan/Daniel, Matt/Matthew, Steve/Steven/Stephen, Kate/Katherine/Katie, Liz/Elizabeth,
+    Jim/James, Dick/Richard, Tony/Anthony, Vince/Vincent, Ed/Edward/Eddie, Sam/Samuel, etc.
+  - **Phonetic similarity**: Steven/Stephen, Caitlin/Kaitlyn, Sean/Shawn, Erik/Eric, Jon/John, Sara/Sarah
+  - **OCR/typo errors**: Minor spelling differences like missing letters, transposed letters,
+    or common character confusions (l/1/I, O/0, rn/m) - these are scanning artifacts, not fraud
+  - **Middle names**: "John Smith" = "John Michael Smith" = "John M. Smith" = "J. Michael Smith"
+  - **Suffixes/prefixes**: "John Smith" = "John Smith Jr." = "Dr. John Smith" = "John Smith III"
+  - **Hyphenation/spacing**: "Smith-Jones" = "Smith Jones" = "SmithJones"
+  - **Accent marks**: "José" = "Jose", "María" = "Maria"
+- ONLY flag as a mismatch if the names are COMPLETELY different people 
+  (e.g., "John Smith" vs "Maria Garcia" - obviously different first AND last names)
+- If first OR last name matches and the other is similar/close, it's NOT a mismatch
+- When in doubt, assume it's the same person with a typo/variation - benefit of the doubt
 
 **Experience Consistency:**
 - Do job titles/companies mentioned in application answers match what's on the resume?
@@ -361,8 +376,23 @@ Compare information across ALL provided sources (resume, cover letter, applicati
 
 **Name Verification:**
 - Does the name on the resume match the "Candidate Name (as provided in application)"?
-- Minor variations are OK (e.g., "John Smith" vs "John M. Smith" vs "J. Smith")
-- Only flag as mismatch if names are completely different people
+- Be LENIENT and SMART about name matching. Consider these as MATCHING (not mismatches):
+  - **Case differences**: "john smith" = "John Smith" = "JOHN SMITH" (ALWAYS ignore case)
+  - **Common nickname variations**: Zach/Zack/Zachary, Mike/Michael, Bob/Robert, Bill/William, 
+    Joe/Joseph, Tom/Thomas, Alex/Alexander, Nick/Nicholas, Chris/Christopher, 
+    Dan/Daniel, Matt/Matthew, Steve/Steven/Stephen, Kate/Katherine/Katie, Liz/Elizabeth,
+    Jim/James, Dick/Richard, Tony/Anthony, Vince/Vincent, Ed/Edward/Eddie, Sam/Samuel, etc.
+  - **Phonetic similarity**: Steven/Stephen, Caitlin/Kaitlyn, Sean/Shawn, Erik/Eric, Jon/John, Sara/Sarah
+  - **OCR/typo errors**: Minor spelling differences like missing letters, transposed letters,
+    or common character confusions (l/1/I, O/0, rn/m) - these are scanning artifacts, not fraud
+  - **Middle names**: "John Smith" = "John Michael Smith" = "John M. Smith" = "J. Michael Smith"
+  - **Suffixes/prefixes**: "John Smith" = "John Smith Jr." = "Dr. John Smith" = "John Smith III"
+  - **Hyphenation/spacing**: "Smith-Jones" = "Smith Jones" = "SmithJones"
+  - **Accent marks**: "José" = "Jose", "María" = "Maria"
+- ONLY flag as a mismatch if the names are COMPLETELY different people 
+  (e.g., "John Smith" vs "Maria Garcia" - obviously different first AND last names)
+- If first OR last name matches and the other is similar/close, it's NOT a mismatch
+- When in doubt, assume it's the same person with a typo/variation - benefit of the doubt
 
 **Experience Consistency:**
 - Do job titles/companies mentioned in application answers match what's on the resume?
