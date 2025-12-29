@@ -278,12 +278,16 @@ export function CandidateStatusScreen({
     
     setIsConfirming(true);
     try {
-      const { error } = await supabase.functions.invoke("candidate-interview-response", {
+      const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
         body: {
-          type: "confirm",
+          action: "confirm",
           interviewId,
         },
       });
+      
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to confirm interview");
+      }
       
       if (error) throw error;
       
