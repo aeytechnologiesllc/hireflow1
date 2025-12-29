@@ -1403,9 +1403,33 @@ export function CondensedAIAnalysis({
     return parsed.fullSummary;
   }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
   
+  // Count completed phases for subtitle
+  const completedPhasesCount = useMemo(() => {
+    let count = 0;
+    if (!applicationNotes) return 0;
+    if (applicationNotes.applicationAnswers?.length) count++;
+    if (applicationNotes.quizResult) count++;
+    if (applicationNotes.typingTestResult) count++;
+    if (applicationNotes.chatSimulationResult) count++;
+    if (applicationNotes.chatInterviewResult) count++;
+    if (applicationNotes.salesSimulationResult) count++;
+    if (applicationNotes.portfolioResult) count++;
+    if (applicationNotes.videoIntroUrl) count++;
+    if (voiceInterviewResult) count++;
+    return count;
+  }, [applicationNotes, voiceInterviewResult]);
+  
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Executive Summary Card */}
+      {/* Current Hiring Signal Header */}
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold text-foreground">Current Hiring Signal</h3>
+        <p className="text-xs text-muted-foreground">
+          Based on {completedPhasesCount > 0 ? `${completedPhasesCount} completed evaluation phase${completedPhasesCount !== 1 ? 's' : ''}` : 'evaluation phases to date'}
+        </p>
+      </div>
+      
+      {/* Signal Summary Card */}
       <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
@@ -1413,7 +1437,7 @@ export function CondensedAIAnalysis({
               <div className="flex items-center gap-2 mb-2">
                 {verdictIcon}
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Verdict</span>
+                  <span className="text-xs font-medium text-muted-foreground">Status</span>
                   <span className={cn("text-base font-semibold", verdictColor)}>
                     {verdictText}
                   </span>
