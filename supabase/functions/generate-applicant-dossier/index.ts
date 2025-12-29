@@ -107,14 +107,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch application with related data
+    // Fetch application with job data (separate query for profile to avoid FK issues)
     const { data: application, error: appError } = await supabase
       .from('applications')
-      .select(`
-        *,
-        jobs (*),
-        profiles:candidate_id (*)
-      `)
+      .select(`*, jobs (*)`)
       .eq('id', applicationId)
       .single();
 
@@ -126,7 +122,25 @@ serve(async (req) => {
       );
     }
 
-    const profile = application.profiles;
+    console.log('[Dossier] Application found, candidate_id:', application.candidate_id);
+
+    // Fetch candidate profile separately using user_id
+    let profile = null;
+    if (application.candidate_id) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', application.candidate_id)
+        .single();
+      
+      if (profileError) {
+        console.error('[Dossier] Error fetching profile (continuing without it):', profileError);
+      } else {
+        profile = profileData;
+        console.log('[Dossier] Profile found:', profile?.full_name);
+      }
+    }
+
     const job = application.jobs;
     const notes = parseNotes(application.notes);
     const voiceResult = application.voice_interview_result as Record<string, any> | null;
