@@ -270,8 +270,9 @@ export default function CreateJob() {
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
-  const { limits } = useSubscription();
+  const { limits, usage, isWithinLimit } = useSubscription();
   const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
+  const canCreateMoreJobs = isEditMode || isWithinLimit('jobs');
   
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -658,6 +659,12 @@ export default function CreateJob() {
   const handleSubmit = async (status: "draft" | "published") => {
     if (!formData.title || !formData.description) {
       toast.error("Please fill in the title and description");
+      return;
+    }
+
+    // Check job limit (only when creating a new job, not editing)
+    if (!isEditMode && !isWithinLimit('jobs')) {
+      toast.error(`You've reached your job limit (${usage?.jobs_created ?? 0}/${limits?.jobs ?? 0}). Upgrade your plan to create more jobs.`);
       return;
     }
 
@@ -2175,7 +2182,7 @@ export default function CreateJob() {
               </Button>
               <Button
                 onClick={() => handleSubmit("published")}
-                disabled={isSubmitting || !formData.title || !formData.description}
+                disabled={isSubmitting || !formData.title || !formData.description || !canCreateMoreJobs}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
