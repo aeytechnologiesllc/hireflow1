@@ -90,6 +90,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const silenceTimerRef = useRef<number | null>(null);
   const candidateSilenceStartRef = useRef<number | null>(null);
   const silenceNudgeCountRef = useRef(0); // Track how many times we've nudged
+  
+  // Track when Ava is actively generating a response (between response.created and response.done)
+  // This prevents silence detection from triggering while Ava is still speaking
+  const isResponseActiveRef = useRef(false);
 
   // Keep options ref updated
   useEffect(() => {
@@ -122,19 +126,31 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     candidateSilenceStartRef.current = null;
   }, []);
 
-  // Start silence detection - called when Ava finishes speaking
+  // Start silence detection - called when Ava finishes speaking (response.done, NOT response.audio.done)
   const startSilenceDetection = useCallback(() => {
     // Only for interview mode
     if (optionsRef.current.mode !== 'interview') return;
     if (isInterviewEndedRef.current) return;
     
+    // CRITICAL: Don't start silence detection if Ava is still generating a response
+    if (isResponseActiveRef.current) {
+      console.log('[AvaVoice] Skipping silence detection - response still active');
+      return;
+    }
+    
     clearSilenceTimer();
     candidateSilenceStartRef.current = Date.now();
-    console.log('[AvaVoice] Starting silence detection timer');
+    console.log('[AvaVoice] Starting silence detection timer (response complete)');
     
     silenceTimerRef.current = window.setInterval(() => {
       if (!candidateSilenceStartRef.current || isInterviewEndedRef.current) {
         clearSilenceTimer();
+        return;
+      }
+      
+      // CRITICAL: Don't nudge if Ava is currently generating/speaking
+      if (isResponseActiveRef.current) {
+        console.log('[AvaVoice] Silence check skipped - response active');
         return;
       }
       
@@ -563,6 +579,25 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       lastActivityRef.current = Date.now();
 
       switch (event.type) {
+        case 'response.created':
+          // Response generation started - mark as active to prevent silence detection
+          isResponseActiveRef.current = true;
+          clearSilenceTimer(); // Don't check for silence while Ava is generating
+          console.log('[AvaVoice] Response started - silence detection paused');
+          break;
+          
+        case 'response.done':
+          // Full response complete - now safe to start silence detection
+          isResponseActiveRef.current = false;
+          console.log('[AvaVoice] Response complete - starting silence detection');
+          // Small delay to ensure audio playback has finished
+          setTimeout(() => {
+            if (!isInterviewEndedRef.current) {
+              startSilenceDetection();
+            }
+          }, 500);
+          break;
+          
         case 'response.audio.delta':
           // Clear stuck timeout - Ava is responding
           clearProcessingTimeout();
@@ -588,12 +623,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           break;
 
         case 'response.audio.done':
-          // Short buffer for WebRTC audio playback to finish (snappier transitions)
-          console.log('Audio done event received, setting isSpeaking false after buffer');
+          // Audio chunk done - but DON'T start silence detection here!
+          // Wait for response.done which fires after the complete response
+          console.log('[AvaVoice] Audio done event received, setting isSpeaking false after buffer');
           setTimeout(() => {
             setState(s => ({ ...s, isSpeaking: false }));
-            // Start silence detection when Ava finishes speaking
-            startSilenceDetection();
+            // NOTE: Silence detection is NOT started here anymore - moved to response.done
           }, 300);
           break;
 
@@ -646,9 +681,13 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   console.log('Interview ending, waiting for Ava to finish speaking...');
                   isInterviewEndedRef.current = true;
                   clearProcessingTimeout();
+                  clearSilenceTimer(); // Stop all silence detection immediately
+                  
+                  // IMMEDIATELY stop listening to prevent any more user input
+                  isResponseActiveRef.current = true; // Prevent any silence nudges
                   
                   // IMMEDIATELY signal that we're ending - show overlay to user
-                  setState(s => ({ ...s, isEndingInterview: true }));
+                  setState(s => ({ ...s, isEndingInterview: true, isListening: false }));
                   
                   // CRITICAL: Deduct voice minutes NOW before cleanup
                   // This ensures minutes are deducted even if user navigates away
@@ -911,6 +950,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
     
     clearProcessingTimeout();
+    clearSilenceTimer(); // Stop silence detection on disconnect
+    isResponseActiveRef.current = false; // Reset response tracking
     cleanupConnection();
 
     setState({
@@ -927,19 +968,22 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       connectionQuality: 'unknown',
       voiceNameUsed: null,
     });
-  }, [clearProcessingTimeout, cleanupConnection]);
+  }, [clearProcessingTimeout, clearSilenceTimer, cleanupConnection]);
 
   // Manual retry connection
   const retryConnection = useCallback(async () => {
     console.log('Manual retry connection requested');
     reconnectAttemptsRef.current = 0;
     isInterviewEndedRef.current = false;
+    isResponseActiveRef.current = false;
+    silenceNudgeCountRef.current = 0;
     setState(s => ({ ...s, isStuck: false, error: null, reconnectAttempts: 0 }));
     
+    clearSilenceTimer();
     cleanupConnection();
     await new Promise(resolve => setTimeout(resolve, 1000));
     await connect();
-  }, [cleanupConnection, connect]);
+  }, [cleanupConnection, clearSilenceTimer, connect]);
 
   // Nudge Ava when she seems stuck
   const nudgeAva = useCallback(() => {
