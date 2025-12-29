@@ -201,7 +201,7 @@ export default function AvaVoiceButton() {
     setIsUpgrading(true);
     try {
       const result = await createCheckoutSession.mutateAsync({
-        planType: 'enterprise',
+        planType: 'business',
         countryCode: pricing.countryCode,
         interval: 'monthly',
       });
@@ -303,7 +303,7 @@ export default function AvaVoiceButton() {
     return null;
   };
 
-  const enterprisePrice = pricing.enterprise.monthlyFormatted;
+  const businessPrice = pricing.business.monthlyFormatted;
 
   // Determine glow animation based on state
   const getGlowAnimation = () => {
@@ -432,15 +432,15 @@ export default function AvaVoiceButton() {
 
           <div className="space-y-4 py-4">
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-              <h4 className="font-semibold text-lg mb-2">Enterprise Plan</h4>
+              <h4 className="font-semibold text-lg mb-2">Business Plan</h4>
               <p className="text-2xl font-bold text-primary mb-3">
-                {enterprisePrice}
+                {businessPrice}
                 <span className="text-sm font-normal text-muted-foreground">/month</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  500 Voice Minutes/month
+                  30 Voice Minutes/month
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -452,7 +452,7 @@ export default function AvaVoiceButton() {
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  All Business features included
+                  Buy additional voice credit packs
                 </li>
               </ul>
             </div>
@@ -468,7 +468,7 @@ export default function AvaVoiceButton() {
                   Processing...
                 </>
               ) : (
-                "Upgrade to Enterprise"
+                "Upgrade to Business"
               )}
             </Button>
           </div>
