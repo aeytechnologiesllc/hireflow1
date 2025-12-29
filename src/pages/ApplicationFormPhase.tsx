@@ -793,6 +793,9 @@ export default function ApplicationFormPhase() {
                         ...prev, 
                         [question.id]: date ? format(date, "yyyy-MM-dd") : "" 
                       }))}
+                      captionLayout="dropdown"
+                      fromYear={1920}
+                      toYear={new Date().getFullYear()}
                       disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                       initialFocus
                       className="pointer-events-auto"
