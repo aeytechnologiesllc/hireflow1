@@ -304,9 +304,19 @@ export default function CandidateApplicationWizard({
   }, []);
 
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    // PDF only for file uploads
-    if (file.type !== "application/pdf") {
-      toast.error("Please upload a PDF file");
+    // Accept PDFs, Word docs, and images
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp"
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PDF, Word document, or image file");
       return;
     }
 
@@ -336,27 +346,35 @@ export default function CandidateApplicationWizard({
         .from("resumes")
         .getPublicUrl(fileName);
 
-      // Convert PDF to images for AI analysis
-      const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
-      const imageBase64s = await convertPdfFileToImages(file, 2);
-      const imageUrls: string[] = [];
-      
-      if (imageBase64s.length > 0) {
-        for (let i = 0; i < imageBase64s.length; i++) {
-          const blob = base64ToBlob(imageBase64s[i], "image/png");
-          const imagePath = `${user.id}/${questionId}-${Date.now()}_page${i + 1}.png`;
-          
-          const { error: imageUploadError } = await supabase.storage
-            .from("resumes")
-            .upload(imagePath, blob, { upsert: true });
-          
-          if (!imageUploadError) {
-            const { data: imageUrlData } = supabase.storage
+      const isPdf = file.type === "application/pdf";
+      const isImage = file.type.startsWith("image/");
+      let imageUrls: string[] = [];
+
+      if (isPdf) {
+        // Convert PDF to images for AI analysis
+        const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
+        const imageBase64s = await convertPdfFileToImages(file, 2);
+        
+        if (imageBase64s.length > 0) {
+          for (let i = 0; i < imageBase64s.length; i++) {
+            const blob = base64ToBlob(imageBase64s[i], "image/png");
+            const imagePath = `${user.id}/${questionId}-${Date.now()}_page${i + 1}.png`;
+            
+            const { error: imageUploadError } = await supabase.storage
               .from("resumes")
-              .getPublicUrl(imagePath);
-            imageUrls.push(imageUrlData.publicUrl);
+              .upload(imagePath, blob, { upsert: true });
+            
+            if (!imageUploadError) {
+              const { data: imageUrlData } = supabase.storage
+                .from("resumes")
+                .getPublicUrl(imagePath);
+              imageUrls.push(imageUrlData.publicUrl);
+            }
           }
         }
+      } else if (isImage) {
+        // For images, the uploaded file IS the image for AI analysis
+        imageUrls = [urlData.publicUrl];
       }
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
@@ -977,7 +995,7 @@ export default function CandidateApplicationWizard({
                         <input
                           ref={(el) => { questionFileInputRefs.current[question.id] = el; }}
                           type="file"
-                          accept=".pdf,.doc,.docx"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp"
                           onChange={(e) => handleQuestionFileInputChange(e, question.id)}
                           className="hidden"
                         />
@@ -1014,7 +1032,7 @@ export default function CandidateApplicationWizard({
                                 </p>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                Supports PDF, DOC, DOCX (max 10MB)
+                                PDF, DOC, or images (PNG, JPG) • max 10MB
                               </p>
                             </div>
                           </div>

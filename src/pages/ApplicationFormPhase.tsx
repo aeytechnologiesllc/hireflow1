@@ -351,11 +351,21 @@ export default function ApplicationFormPhase() {
     }
   };
 
-  // Question file upload handlers - PDF only, with image conversion
+  // Question file upload handlers - supports PDFs, docs, and images
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    // PDF only for file uploads
-    if (file.type !== "application/pdf") {
-      toast.error("Please upload a PDF file");
+    // Accept PDFs, Word docs, and images
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp"
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a PDF, Word document, or image file");
       return;
     }
 
@@ -371,7 +381,7 @@ export default function ApplicationFormPhase() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user?.id}/${Date.now()}_${questionId}.${fileExt}`;
       
-      // Upload original PDF
+      // Upload original file
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(fileName, file, { upsert: true });
@@ -382,27 +392,36 @@ export default function ApplicationFormPhase() {
         .from("resumes")
         .getPublicUrl(fileName);
 
-      // Convert PDF to images for AI analysis
-      console.log("[ApplicationFormPhase] Converting question file PDF to images...");
-      const imageBase64s = await convertPdfFileToImages(file, 2);
-      const imageUrls: string[] = [];
-      
-      if (imageBase64s.length > 0) {
-        for (let i = 0; i < imageBase64s.length; i++) {
-          const blob = base64ToBlob(imageBase64s[i], "image/png");
-          const imagePath = `${user?.id}/${Date.now()}_${questionId}_page${i + 1}.png`;
-          
-          const { error: imageUploadError } = await supabase.storage
-            .from("resumes")
-            .upload(imagePath, blob, { upsert: true });
-          
-          if (!imageUploadError) {
-            const { data: imageUrlData } = supabase.storage
+      const isPdf = file.type === "application/pdf";
+      const isImage = file.type.startsWith("image/");
+      let imageUrls: string[] = [];
+
+      if (isPdf) {
+        // Convert PDF to images for AI analysis
+        console.log("[ApplicationFormPhase] Converting question file PDF to images...");
+        const imageBase64s = await convertPdfFileToImages(file, 2);
+        
+        if (imageBase64s.length > 0) {
+          for (let i = 0; i < imageBase64s.length; i++) {
+            const blob = base64ToBlob(imageBase64s[i], "image/png");
+            const imagePath = `${user?.id}/${Date.now()}_${questionId}_page${i + 1}.png`;
+            
+            const { error: imageUploadError } = await supabase.storage
               .from("resumes")
-              .getPublicUrl(imagePath);
-            imageUrls.push(imageUrlData.publicUrl);
+              .upload(imagePath, blob, { upsert: true });
+            
+            if (!imageUploadError) {
+              const { data: imageUrlData } = supabase.storage
+                .from("resumes")
+                .getPublicUrl(imagePath);
+              imageUrls.push(imageUrlData.publicUrl);
+            }
           }
         }
+      } else if (isImage) {
+        // For images, the uploaded file IS the image for AI analysis
+        imageUrls = [urlData.publicUrl];
+        console.log("[ApplicationFormPhase] Image uploaded directly for AI analysis");
       }
 
       // Store image URLs for this question in notes
@@ -898,7 +917,7 @@ export default function ApplicationFormPhase() {
                       onClick={() => {
                         const input = document.createElement("input");
                         input.type = "file";
-                        input.accept = ".pdf,.doc,.docx";
+                        input.accept = ".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp";
                         input.onchange = (e) => {
                           const file = (e.target as HTMLInputElement).files?.[0];
                           if (file) handleQuestionFileSelect(file, question.id);
@@ -909,6 +928,9 @@ export default function ApplicationFormPhase() {
                       <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         Click to upload or drag and drop
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PDF, DOC, or images (PNG, JPG)
                       </p>
                     </div>
                   )}
