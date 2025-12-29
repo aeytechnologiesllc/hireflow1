@@ -48,7 +48,7 @@ export default function TrialExpiredOverlay() {
       price: billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly,
       period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.business.yearlyFormatted,
-      features: ["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "Priority Support"],
+      features: ["Unlimited Jobs", "Unlimited Applicants", "AVA Voice Assistant", "Voice Interviews", "30 Voice Minutes/mo", "Team Portal", "Advanced Analytics"],
       popular: true,
     },
   ];
