@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Clock, Globe, Mic, Video, ChevronLeft, ChevronRight, Check, AlertCircle, Volume2 } from "lucide-react";
+import { Clock, Globe, Mic, Video, ChevronLeft, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -66,7 +66,6 @@ const LANGUAGE_OPTIONS = [
 const STEPS = [
   { id: 1, title: "Duration", icon: Clock },
   { id: 2, title: "Language", icon: Globe },
-  { id: 3, title: "Recording", icon: Video },
 ];
 
 export function AvaInterviewConfigDialog({
@@ -81,7 +80,8 @@ export function AvaInterviewConfigDialog({
   const [selectedDuration, setSelectedDuration] = useState(10);
   const [selectedLanguage, setSelectedLanguage] = useState(language.toLowerCase().substring(0, 2) || "en");
   const [languageRule, setLanguageRule] = useState<'hard' | 'soft'>('soft');
-  const [videoEnabled, setVideoEnabled] = useState(true);
+  // Video is always enabled - audio-only option removed
+  const videoEnabled = true;
 
   const hasInsufficientMinutes = voiceMinutesRemaining !== undefined && voiceMinutesRemaining < selectedDuration && voiceMinutesRemaining > 0;
   const hasNoMinutes = voiceMinutesRemaining !== undefined && voiceMinutesRemaining <= 0;
@@ -104,7 +104,7 @@ export function AvaInterviewConfigDialog({
     onOpenChange(false);
   };
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 3));
+  const nextStep = () => setStep((s) => Math.min(s + 1, 2));
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
   const getLanguageLabel = (code: string) => {
@@ -350,73 +350,11 @@ export function AvaInterviewConfigDialog({
               </div>
             )}
 
-            {/* Step 3: Recording Type */}
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    <Video className="h-4 w-4 text-muted-foreground" />
-                    Recording Type
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    Choose what gets recorded during the interview. Ava only analyzes voice, but video lets you review body language.
-                  </p>
-                </div>
-
-                <RadioGroup
-                  value={videoEnabled ? "video" : "audio"}
-                  onValueChange={(v) => setVideoEnabled(v === "video")}
-                  className="space-y-3"
-                >
-                  <div
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border transition-all cursor-pointer",
-                      videoEnabled
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    )}
-                    onClick={() => setVideoEnabled(true)}
-                  >
-                    <RadioGroupItem value="video" id="video" className="mt-0.5" />
-                    <div className="space-y-1 flex-1">
-                      <Label htmlFor="video" className="font-medium cursor-pointer flex items-center gap-2">
-                        <Video className="h-4 w-4 text-primary" />
-                        Video Interview
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Records candidate's webcam and audio. Watch the full video playback after the interview to review body language and presentation.
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">Recommended</Badge>
-                  </div>
-                  <div
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border transition-all cursor-pointer",
-                      !videoEnabled
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    )}
-                    onClick={() => setVideoEnabled(false)}
-                  >
-                    <RadioGroupItem value="audio" id="audio" className="mt-0.5" />
-                    <div className="space-y-1 flex-1">
-                      <Label htmlFor="audio" className="font-medium cursor-pointer flex items-center gap-2">
-                        <Volume2 className="h-4 w-4 text-muted-foreground" />
-                        Audio Only
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Records only audio. No video capture. Smaller file sizes and faster processing. Candidate won't need camera access.
-                      </p>
-                    </div>
-                  </div>
-                </RadioGroup>
-              </div>
-            )}
           </motion.div>
         </AnimatePresence>
 
-        {/* Summary (shown on step 3) */}
-        {step === 3 && (
+        {/* Summary (shown on step 2) */}
+        {step === 2 && (
           <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-2">
             <h4 className="text-xs font-medium text-muted-foreground">Configuration Summary</h4>
             <div className="flex flex-wrap gap-2">
@@ -432,8 +370,8 @@ export function AvaInterviewConfigDialog({
                 </span>
               </Badge>
               <Badge variant="secondary" className="gap-1">
-                {videoEnabled ? <Video className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-                {videoEnabled ? 'Video' : 'Audio only'}
+                <Video className="h-3 w-3" />
+                Video Interview
               </Badge>
             </div>
             {/* Voice minutes remaining after interview */}
@@ -467,7 +405,7 @@ export function AvaInterviewConfigDialog({
             </Button>
           )}
           <div className="flex-1" />
-          {step < 3 ? (
+          {step < 2 ? (
             <Button 
               onClick={nextStep} 
               disabled={hasNoMinutes}
