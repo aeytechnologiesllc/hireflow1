@@ -124,8 +124,9 @@ Generate ${config.questionCount} essential application questions including:
 - Full Name (id: "q1", type: "text", required: true)
 - Email Address (id: "q2", type: "email", required: true)
 - Phone Number (id: "q3", type: "phone", required: true)
-- Current/Most Recent Job Title (id: "q4", type: "text", required: true)
-- Years of Experience (id: "q5", type: "text", required: true)
+- Date of Birth (id: "q4", type: "date", required: true)
+- Current/Most Recent Job Title (id: "q5", type: "text", required: true)
+- Years of Experience (id: "q6", type: "text", required: true)
 - Upload Resume (id: "qResume", type: "file", required: ${require_resume !== false})
 
 ${difficulty === 'medium' || difficulty === 'hard' || difficulty === 'intense' ? `
