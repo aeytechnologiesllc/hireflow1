@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
+import { TeamMemberLimitDialog } from "@/components/subscription/TeamMemberLimitDialog";
 
 interface TeamInviteWizardProps {
   open: boolean;
@@ -69,6 +70,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   const [isLoading, setIsLoading] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const { usage, limits, isWithinLimit } = useSubscription();
@@ -111,11 +113,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
 
     // Check team member limit
     if (!canAddMoreTeamMembers) {
-      toast({
-        title: "Team Member Limit Reached",
-        description: `You've reached your team member limit (${usage?.team_members_added ?? 0}/${limits?.teamMembers ?? 0}). Upgrade your plan to add more team members.`,
-        variant: "destructive",
-      });
+      setShowLimitDialog(true);
       return;
     }
 
@@ -599,6 +597,13 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
           </div>
         )}
       </DialogContent>
+
+      <TeamMemberLimitDialog
+        open={showLimitDialog}
+        onOpenChange={setShowLimitDialog}
+        currentCount={usage?.team_members_added ?? 0}
+        limit={limits?.teamMembers ?? 0}
+      />
     </Dialog>
   );
 }
