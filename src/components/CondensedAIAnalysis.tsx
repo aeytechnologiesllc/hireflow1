@@ -804,7 +804,7 @@ function getPhaseLabel(phaseType: PhaseType): string {
     case "sales_simulation":
       return "Sales Simulation";
     case "voice_interview":
-      return "Voice Interview";
+      return "Video Interview";
     case "resume":
       return "Resume";
     default:
@@ -1162,19 +1162,45 @@ function PhaseBasedAnalysis({
       });
     }
 
-    // Voice interview - detailed Ava narrative
+    // Video interview - detailed Ava narrative with ALL premium fields
     if (voiceInterviewResult) {
       const score = voiceInterviewResult.overall_score || voiceInterviewResult.overallScore;
       const phaseType: PhaseType = "voice_interview";
       const baseFacts = score
-        ? `The candidate completed a voice interview and scored ${score}/100.`
-        : "The candidate completed a voice interview.";
+        ? `The candidate completed a video interview and scored ${score}/100.`
+        : "The candidate completed a video interview.";
 
-      // Build voiceData from stored result
+      // Pass the FULL voiceInterviewResult as voiceData to preserve all premium fields
+      // This includes: executive_summary, recommendation, credibility_rating, score breakdowns,
+      // soft_skills, communication_metrics, strengths, concerns, inconsistencies,
+      // question_analysis, notable_quotes, suggested_followups, etc.
       const voiceData: VoiceInterviewPhaseData = {
         overall_score: voiceInterviewResult.overall_score,
         overallScore: voiceInterviewResult.overallScore,
         summary: voiceInterviewResult.summary,
+        executive_summary: voiceInterviewResult.executive_summary,
+        recommendation: voiceInterviewResult.recommendation,
+        credibility_rating: voiceInterviewResult.credibility_rating,
+        // Score breakdown
+        communication_score: voiceInterviewResult.communication_score,
+        technical_score: voiceInterviewResult.technical_score,
+        culture_fit_score: voiceInterviewResult.culture_fit_score,
+        problem_solving_score: voiceInterviewResult.problem_solving_score,
+        adaptability_score: voiceInterviewResult.adaptability_score,
+        leadership_potential_score: voiceInterviewResult.leadership_potential_score,
+        // Soft skills
+        soft_skills: voiceInterviewResult.soft_skills,
+        // Communication metrics
+        communication_metrics: voiceInterviewResult.communication_metrics,
+        // Lists
+        strengths: voiceInterviewResult.strengths,
+        concerns: voiceInterviewResult.concerns,
+        inconsistencies: voiceInterviewResult.inconsistencies,
+        // Questions & quotes
+        question_analysis: voiceInterviewResult.question_analysis,
+        notable_quotes: voiceInterviewResult.notable_quotes,
+        suggested_followups: voiceInterviewResult.suggested_followups,
+        // Legacy
         questions: voiceInterviewResult.questions,
         transcript: voiceInterviewResult.transcript,
         duration: voiceInterviewResult.duration,
