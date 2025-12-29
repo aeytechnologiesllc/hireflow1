@@ -482,94 +482,67 @@ function generateFullSummary(
     }
   }
   
-  // ============= Opening - Decision-oriented signal =============
+  // ============= Build concise 3-4 line summary =============
+  const summaryLines: string[] = [];
+  
+  // Line 1: Signal status
   if (finalScoreNum !== null) {
     if (finalScoreNum >= 80) {
-      paragraphs.push(`Strong candidate for ${jobTitle}. Assessment results indicate readiness to proceed.`);
+      summaryLines.push(`Strong signal (${finalScoreNum}/100). Recommended to proceed.`);
     } else if (finalScoreNum >= 60) {
-      paragraphs.push(`Qualified candidate for ${jobTitle}. Some areas require further evaluation.`);
+      summaryLines.push(`Positive signal (${finalScoreNum}/100). Review noted items before proceeding.`);
     } else if (finalScoreNum >= 40) {
-      paragraphs.push(`Candidate shows gaps for ${jobTitle}. Review concerns before proceeding.`);
+      summaryLines.push(`Mixed signal (${finalScoreNum}/100). Concerns identified.`);
     } else {
-      paragraphs.push(`Significant concerns identified for ${jobTitle}. Not recommended to proceed.`);
+      summaryLines.push(`Weak signal (${finalScoreNum}/100). Not recommended.`);
     }
   } else if (phaseResults.length > 0) {
-    paragraphs.push(`Candidate completed ${phaseResults.length} assessment${phaseResults.length !== 1 ? 's' : ''} for ${jobTitle}.`);
+    summaryLines.push(`${phaseResults.length} phase${phaseResults.length !== 1 ? 's' : ''} completed. Assessment in progress.`);
   } else {
-    paragraphs.push(`Application in early stages. Additional assessments pending.`);
+    summaryLines.push(`Assessment in progress.`);
   }
   
-  // ============= Key Strengths (bullet format) =============
-  const strengthPoints: string[] = [];
-  
-  if (quizScore !== null && quizScore >= 70) {
-    strengthPoints.push(`Skills assessment: ${quizScore}% (solid knowledge base)`);
-  }
-  if (typingWpm !== null && typingWpm >= 50) {
-    strengthPoints.push(`Typing proficiency: ${typingWpm} WPM`);
-  }
-  if (chatSimScore !== null && chatSimScore >= 70) {
-    strengthPoints.push(`Customer handling: ${chatSimScore}/100`);
-  }
+  // Line 2: Top strength (pick best one)
+  let topStrength: string | null = null;
   if (voiceScore !== null && voiceScore >= 70) {
-    strengthPoints.push(`Interview performance: ${voiceScore}/100`);
-  }
-  if (portfolioScore !== null && portfolioScore >= 70) {
-    strengthPoints.push(`Portfolio quality: ${portfolioScore}/100`);
-  }
-  
-  if (strengthPoints.length > 0) {
-    paragraphs.push(`**Strengths:** ${strengthPoints.slice(0, 3).join(' | ')}`);
-  }
-  
-  // ============= Concerns (consolidated, stated once) =============
-  const concernPoints: string[] = [];
-  
-  if (quizScore !== null && quizScore < 50) {
-    concernPoints.push(`Skills assessment below threshold (${quizScore}%)`);
-  }
-  if (typingWpm !== null && typingWpm < 40) {
-    concernPoints.push(`Typing speed below requirements (${typingWpm} WPM)`);
-  }
-  if (chatSimScore !== null && chatSimScore < 50) {
-    concernPoints.push(`Customer handling needs development`);
-  }
-  if (voiceScore !== null && voiceScore < 50) {
-    concernPoints.push(`Interview revealed communication gaps`);
-  }
-  if (noMatchingSkills) {
-    concernPoints.push(`Required skills not demonstrated`);
+    topStrength = `Interview: ${voiceScore}/100`;
+  } else if (quizScore !== null && quizScore >= 70) {
+    topStrength = `Skills: ${quizScore}%`;
+  } else if (chatSimScore !== null && chatSimScore >= 70) {
+    topStrength = `Customer handling: ${chatSimScore}/100`;
+  } else if (typingWpm !== null && typingWpm >= 50) {
+    topStrength = `Typing: ${typingWpm} WPM`;
+  } else if (portfolioScore !== null && portfolioScore >= 70) {
+    topStrength = `Portfolio: ${portfolioScore}/100`;
   }
   
-  // Red flags (stated once, not repeated)
-  if (hasNameMismatch) {
-    concernPoints.push(`Resume/application name discrepancy requires verification`);
-  }
-  if (hasResumeIssue) {
-    concernPoints.push(`Document authenticity requires review`);
-  }
-  
-  if (concernPoints.length > 0) {
-    paragraphs.push(`**Points to Address:** ${concernPoints.slice(0, 3).join(' | ')}`);
-  }
-  
-  // ============= Closing - Clear recommendation =============
-  if (finalScoreNum !== null) {
-    if (finalScoreNum >= 75) {
-      paragraphs.push(`**Recommendation:** Proceed to interview. Score: ${finalScoreNum}/100.`);
-    } else if (finalScoreNum >= 50) {
-      paragraphs.push(`**Recommendation:** Consider with noted concerns. Score: ${finalScoreNum}/100.`);
-    } else {
-      paragraphs.push(`**Recommendation:** Do not proceed. Score: ${finalScoreNum}/100.`);
-    }
+  // Line 3: Top concern (pick most important)
+  let topConcern: string | null = null;
+  if (hasNameMismatch || hasResumeIssue) {
+    topConcern = `Verify application details`;
+  } else if (quizScore !== null && quizScore < 50) {
+    topConcern = `Skills assessment: ${quizScore}%`;
+  } else if (voiceScore !== null && voiceScore < 50) {
+    topConcern = `Interview performance: ${voiceScore}/100`;
+  } else if (noMatchingSkills) {
+    topConcern = `Required skills not demonstrated`;
   }
   
-  // Return structured summary
-  if (paragraphs.length > 0) {
-    return paragraphs.join('\n\n');
+  // Combine strengths and concerns into one line
+  if (topStrength && topConcern) {
+    summaryLines.push(`Standout: ${topStrength}. Attention: ${topConcern}.`);
+  } else if (topStrength) {
+    summaryLines.push(`Standout: ${topStrength}.`);
+  } else if (topConcern) {
+    summaryLines.push(`Attention: ${topConcern}.`);
   }
   
-  return "Assessment in progress. Results will appear as phases complete.";
+  // Return compact summary (max 3-4 lines)
+  if (summaryLines.length > 0) {
+    return summaryLines.join(' ');
+  }
+  
+  return "Assessment in progress.";
 }
 
 // ============= Parsing Logic =============
@@ -1403,30 +1376,13 @@ export function CondensedAIAnalysis({
     return parsed.fullSummary;
   }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
   
-  // Count completed phases for subtitle
-  const completedPhasesCount = useMemo(() => {
-    let count = 0;
-    if (!applicationNotes) return 0;
-    if (applicationNotes.applicationAnswers?.length) count++;
-    if (applicationNotes.quizResult) count++;
-    if (applicationNotes.typingTestResult) count++;
-    if (applicationNotes.chatSimulationResult) count++;
-    if (applicationNotes.chatInterviewResult) count++;
-    if (applicationNotes.salesSimulationResult) count++;
-    if (applicationNotes.portfolioResult) count++;
-    if (applicationNotes.videoIntroUrl) count++;
-    if (voiceInterviewResult) count++;
-    return count;
-  }, [applicationNotes, voiceInterviewResult]);
   
   return (
     <div className={cn("space-y-4", className)}>
       {/* Current Hiring Signal Header */}
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <h3 className="text-lg font-semibold text-foreground">Current Hiring Signal</h3>
-        <p className="text-xs text-muted-foreground">
-          Based on {completedPhasesCount > 0 ? `${completedPhasesCount} completed evaluation phase${completedPhasesCount !== 1 ? 's' : ''}` : 'evaluation phases to date'}
-        </p>
+        <p className="text-xs text-muted-foreground">Based on completed evaluation phases</p>
       </div>
       
       {/* Signal Summary Card */}
