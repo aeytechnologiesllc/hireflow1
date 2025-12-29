@@ -708,13 +708,16 @@ export default function CandidateApplicationWizard({
     setIsSubmitting(true);
 
     try {
-      // Prepare notes with application answers - include question IDs for backend matching
+      // Prepare notes with application answers - NORMALIZED SCHEMA for backend matching
+      // Schema: { questionId, question, answer, type } - SINGLE SOURCE OF TRUTH
       const applicationAnswers = Object.entries(answers).map(([id, answer]) => {
         const question = applicationQuestions.find(q => q.id === id);
         return { 
-          id, // Include question ID for backend matching
+          questionId: id, // Canonical ID field (backend uses this for matching)
+          id, // Legacy compat - keep both for now
           question: question?.question || id, 
-          answer 
+          answer,
+          type: question?.type || "text", // Include type for file/resume detection
         };
       });
       
@@ -760,10 +763,14 @@ export default function CandidateApplicationWizard({
         fileUploadsCount: Object.keys(fileUploads).length,
       });
 
-      // Detect resume URL: use state if set, otherwise look in file question answers
+      // Detect resume URL: SINGLE SOURCE OF TRUTH logic
+      // Priority 1: resumeUrl state (dedicated resume step)
+      // Priority 2: file question answers (resume file-question)
+      // Priority 3: applicationAnswers with file URLs
       let finalResumeUrl = resumeUrl || null;
+      
       if (!finalResumeUrl) {
-        // Look for resume in file question answers
+        // Look for resume in file question uploads (questionFileUrls)
         for (const [questionId, fileUrl] of Object.entries(questionFileUrls)) {
           const question = applicationQuestions.find(q => q.id === questionId);
           if (question?.type === "file") {
@@ -772,12 +779,30 @@ export default function CandidateApplicationWizard({
             // If it's a resume question OR it's the only file question, use it
             if (isResumeQuestion || applicationQuestions.filter(q => q.type === "file").length === 1) {
               finalResumeUrl = fileUrl;
-              console.log("[CandidateApplicationWizard] Detected resume from file question:", fileUrl);
+              console.log("[CandidateApplicationWizard] Detected resume from questionFileUrls:", fileUrl);
               break;
             }
           }
         }
       }
+      
+      // Priority 3: Check answers object for resume file URLs
+      if (!finalResumeUrl) {
+        for (const [questionId, answer] of Object.entries(answers)) {
+          const question = applicationQuestions.find(q => q.id === questionId);
+          if (question?.type === "file" && typeof answer === "string" && answer.startsWith("http")) {
+            const questionText = (question.question || questionId).toLowerCase();
+            const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
+            if (isResumeQuestion) {
+              finalResumeUrl = answer;
+              console.log("[CandidateApplicationWizard] Detected resume from answers:", answer);
+              break;
+            }
+          }
+        }
+      }
+      
+      console.log("[CandidateApplicationWizard] Final resume URL for submission:", finalResumeUrl || "NULL");
 
       // Determine if autopilot mode
       const isAutoMode = job.processing_mode === "auto";

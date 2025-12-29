@@ -63,6 +63,7 @@ import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import { useAutoTriggerAvaAnalysis } from "@/hooks/useAutoTriggerAvaAnalysis";
 import { useSubscription } from "@/hooks/useSubscription";
+import { repairResumeForAnalysis } from "@/utils/repairResumeForAnalysis";
 
 interface WorkflowStep {
   id: string;
@@ -152,6 +153,7 @@ export default function ApplicantDetails() {
   const [sliderPosition, setSliderPosition] = useState(0);
   const [isAwaitingReview, setIsAwaitingReview] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRepairingResume, setIsRepairingResume] = useState(false);
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [activeBadgeDialog, setActiveBadgeDialog] = useState<string | null>(null);
@@ -1379,6 +1381,41 @@ export default function ApplicantDetails() {
     }
   };
 
+  // Repair resume data for applications missing resumeImageUrls
+  // This allows re-analysis of old applications that were submitted before the fix
+  const handleRepairResumeAndReanalyze = async () => {
+    if (!application) return;
+    
+    setIsRepairingResume(true);
+    
+    try {
+      console.log("[handleRepairResumeAndReanalyze] Starting repair for application:", application.id);
+      
+      const result = await repairResumeForAnalysis(application.id);
+      
+      if (!result.success) {
+        toast.error("Failed to repair resume", { description: result.error });
+        setIsRepairingResume(false);
+        return;
+      }
+      
+      toast.success("Resume converted successfully!", {
+        description: `${result.imageUrls?.length || 0} page(s) prepared for analysis`
+      });
+      
+      // Invalidate to get the updated notes
+      await queryClient.invalidateQueries({ queryKey: ["application", id] });
+      
+      // Now run the analysis
+      setIsRepairingResume(false);
+      await handleReanalyze();
+    } catch (error) {
+      console.error("[handleRepairResumeAndReanalyze] Error:", error);
+      toast.error("Failed to repair and reanalyze resume");
+      setIsRepairingResume(false);
+    }
+  };
+
   // Update the ref so the AVA event listener can access it
   useEffect(() => {
     handleReanalyzeRef.current = handleReanalyze;
@@ -2467,6 +2504,37 @@ export default function ApplicantDetails() {
                 rejectedByType={application.rejected_by_type}
                 isAnalyzing={isAnalyzing}
               />
+              
+              {/* Resume Repair Button - Show when resume exists but wasn't analyzed */}
+              {resumeUrl && !application.resume_score && !parsedNotes.resumeImageUrls?.length && !isRejected && (
+                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-200">Resume wasn't analyzed</p>
+                        <p className="text-xs text-amber-200/70">
+                          This application was submitted before resume image conversion was enabled.
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleRepairResumeAndReanalyze}
+                      disabled={isRepairingResume || isAnalyzing}
+                      className="shrink-0 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                    >
+                      {isRepairingResume ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      Repair & Re-analyze
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
