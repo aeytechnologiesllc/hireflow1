@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Camera, Loader2, Upload, FileText, X, CheckCircle2 } from "lucide-react";
+import { Camera, Loader2, Upload, FileText, X, CheckCircle2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileCompleteness } from "@/components/ProfileCompleteness";
@@ -212,6 +212,18 @@ export default function Profile() {
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Visibility Notice - Candidates Only */}
+      {!isEmployer && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Eye className="h-4 w-4 text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Your profile is visible to employers</span> when they review your job applications. Keep it complete and up-to-date!
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -280,7 +292,7 @@ export default function Profile() {
           <CardHeader>
             <CardTitle className="text-lg">Default Resume</CardTitle>
             <CardDescription>
-              Upload your resume to auto-fill applications
+              Employers will see this resume when reviewing your applications. Keep it updated!
             </CardDescription>
           </CardHeader>
           <CardContent>

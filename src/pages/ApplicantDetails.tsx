@@ -12,7 +12,7 @@ import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
@@ -2123,6 +2123,9 @@ export default function ApplicantDetails() {
               }}
             >
               <Avatar className={`h-8 w-8 md:h-10 md:w-10 ring-2 md:ring-4 ${isAwaitingReview ? "ring-warning/50" : "ring-primary/30"} shadow-lg`}>
+                {application?.profiles?.avatar_url && (
+                  <AvatarImage src={application.profiles.avatar_url} alt={application.profiles.full_name || "Candidate"} />
+                )}
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs md:text-sm">
                   {initials}
                 </AvatarFallback>
