@@ -160,8 +160,7 @@ export default function ApplicantDetails() {
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
-  const [showResetPhaseDialog, setShowResetPhaseDialog] = useState(false);
-  const [phaseToReset, setPhaseToReset] = useState<{ id: string; title: string; type: string } | null>(null);
+  // Allow Redo functionality removed - employers should reject candidates who need to restart
   const [showSalesAnalysisDialog, setShowSalesAnalysisDialog] = useState(false);
   const [salesAnalysisData, setSalesAnalysisData] = useState<any>(null);
   const [showAvaInterviewConfig, setShowAvaInterviewConfig] = useState(false);
@@ -1100,127 +1099,7 @@ export default function ApplicantDetails() {
     }
   };
 
-  // Reset a single phase without affecting others
-  const handleResetSinglePhase = async () => {
-    if (!application || !phaseToReset) return;
-    
-    try {
-      let updatedNotes = { ...parsedNotes };
-      const phaseId = phaseToReset.id;
-      const phaseType = phaseToReset.type;
-      
-      // Clear step ID data
-      delete updatedNotes[phaseId];
-      
-      // Clear specific phase data based on type
-      if (phaseType === "typing_test") {
-        delete updatedNotes.typingTestResult;
-      }
-      if (phaseType === "chat_simulation") {
-        delete updatedNotes.chatSimulationResult;
-      }
-      if (phaseType === "chat_interview") {
-        delete updatedNotes.chatInterviewResult;
-      }
-      if (phaseType === "sales_simulation") {
-        delete updatedNotes.salesSimulationResult;
-      }
-      if (phaseType === "quiz") {
-        // Delete all possible quiz data formats
-        delete updatedNotes.quiz;
-        delete updatedNotes.quizResult;
-        if (updatedNotes.quizAnswers) {
-          delete updatedNotes.quizAnswers[phaseId];
-          delete updatedNotes.quizAnswers['quiz'];
-          if (Object.keys(updatedNotes.quizAnswers).length === 0) {
-            delete updatedNotes.quizAnswers;
-          }
-        }
-      }
-      if (phaseType === "video_intro" || phaseType === "video_message") {
-        delete updatedNotes.videoIntroUrl;
-        delete updatedNotes.videoIntroResult;
-      }
-      if (phaseType === "portfolio_upload") {
-        // Already deleted via updatedNotes[phaseId] above, but also clear global key
-        delete updatedNotes.portfolioResult;
-      }
-      if (phaseType === "voice_interview") {
-        // Voice interview result is stored separately
-      }
-      if (phaseType === "application") {
-        // Clear application-specific data
-        delete updatedNotes.applicationAnswers;
-      }
-      
-      // Remove from employer-skipped list if it was there
-      if (updatedNotes.employerSkippedPhases) {
-        updatedNotes.employerSkippedPhases = updatedNotes.employerSkippedPhases.filter(
-          (id: string) => id !== phaseId
-        );
-        if (updatedNotes.employerSkippedPhases.length === 0) {
-          delete updatedNotes.employerSkippedPhases;
-        }
-      }
-      
-      // Build update payload - clear AI analysis so it re-triggers after redo
-      const updatePayload: any = {
-        id: application.id,
-        notes: JSON.stringify(updatedNotes),
-        phase_ai_analysis: null, // Clear phase analysis
-        ai_analysis: null, // Clear so re-analysis happens fresh after phase redo
-        ai_score: null, // Clear so new score is calculated after phase redo
-      };
-      
-      // Clear voice interview result and recording if resetting that phase
-      if (phaseType === "voice_interview") {
-        updatePayload.voice_interview_result = null;
-        updatePayload.voice_interview_recording_url = null;
-      }
-      
-      // Clear application data if resetting application phase
-      if (phaseType === "application") {
-        updatePayload.resume_url = null;
-        updatePayload.cover_letter = null;
-      }
-      
-      await updateApplication.mutateAsync(updatePayload);
-      
-      // Create notification for candidate
-      await supabase.from("notifications").insert({
-        user_id: application.candidate_id,
-        type: "status_update",
-        title: "Phase Reset",
-        message: `You can now re-submit your ${phaseToReset.title}. Please complete it again.`,
-        link: `/applications/${application.id}`,
-      });
-      
-      // Invalidate ALL application-related queries to ensure candidates see the reset immediately
-      // This is critical for proper resubmission flow
-      queryClient.invalidateQueries({ queryKey: ["application", id] });
-      queryClient.invalidateQueries({ queryKey: ["application-form", id] });
-      queryClient.invalidateQueries({ queryKey: ["quiz-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["typing-test-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["chat-simulation-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["sales-simulation-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["portfolio-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["video-intro-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["voice-interview-application", id] });
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
-      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-      
-      console.log("[ApplicantDetails] Phase reset - invalidated all application query keys for", id);
-      toast.success(`${phaseToReset.title} has been reset. Candidate can now re-submit.`);
-      
-      setShowResetPhaseDialog(false);
-      setPhaseToReset(null);
-      setActiveBadgeDialog(null);
-    } catch (error) {
-      console.error("Error resetting phase:", error);
-      toast.error("Failed to reset phase");
-    }
-  };
+  // Allow Redo functionality removed - employers should reject candidates who need to restart
 
   const handleReject = async () => {
     if (!application || !user) return;
@@ -3307,26 +3186,7 @@ export default function ApplicantDetails() {
                   )}
                 </ScrollArea>
                 
-                {/* Reset Phase Button - Only show if data exists and user can manage pipeline */}
-                {dialogData.content && canManagePipeline && badge && !["resume"].includes(badge.id) && (
-                  <DialogFooter className="mt-4 pt-4 border-t border-border">
-                    <Button
-                      variant="outline"
-                      className="gap-2 text-warning border-warning/50 hover:bg-warning/10"
-                      onClick={() => {
-                        setPhaseToReset({
-                          id: badge.id,
-                          title: dialogData.title,
-                          type: badge.type,
-                        });
-                        setShowResetPhaseDialog(true);
-                      }}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Allow Redo
-                    </Button>
-                  </DialogFooter>
-                )}
+                {/* Allow Redo button removed - employers should reject candidates who need to restart */}
               </>
             );
           })()}
@@ -3373,39 +3233,7 @@ export default function ApplicantDetails() {
         }}
       />
 
-      {/* Single Phase Reset Confirmation Dialog */}
-      <AlertDialog open={showResetPhaseDialog} onOpenChange={setShowResetPhaseDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-warning" />
-              Allow Candidate to Redo {phaseToReset?.title}?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                This will clear the candidate's submitted data for <strong>{phaseToReset?.title}</strong> and allow them to re-submit.
-              </p>
-              <p className="text-muted-foreground">
-                The candidate will be notified that they can redo this phase. Other phases will not be affected.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowResetPhaseDialog(false);
-              setPhaseToReset(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleResetSinglePhase} 
-              className="bg-warning text-warning-foreground hover:bg-warning/90"
-            >
-              Allow Redo
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Allow Redo dialog removed - employers should reject candidates who need to restart */}
 
       {/* Reject Candidate Confirmation Dialog */}
       <AlertDialog open={showRejectConfirmation} onOpenChange={setShowRejectConfirmation}>
