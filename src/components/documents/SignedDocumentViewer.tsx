@@ -185,7 +185,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         const base64Content = document.file_url.split(",")[1];
         const jsonString = atob(base64Content);
         const parsed = JSON.parse(jsonString) as DocumentData;
-        setDocumentData(parsed);
+        
+        // Check if this is an uploaded PDF (has uploadedFileUrl in the parsed data)
+        if (parsed.uploadedFileUrl) {
+          setDocumentData(parsed);
+        } else {
+          setDocumentData(parsed);
+        }
       } else if (document.file_url.startsWith("data:text/plain;base64,")) {
         const base64Content = document.file_url.split(",")[1];
         const content = atob(base64Content);
@@ -403,12 +409,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       auditEntriesCount: auditLogs.length,
     };
 
-    // Burn signatures into PDF
+    // Burn signatures into PDF (without certificate - user can download that separately)
     const signedPdfBytes = await burnSignaturesIntoPdf(
       originalPdfBytes,
       candidateOverlay,
       employerOverlay,
-      certData
+      certData,
+      false // Don't include certificate page in signed PDF download
     );
 
     // Download the signed PDF
@@ -422,7 +429,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
     toast({
       title: "Download Complete",
-      description: "Signed PDF with embedded certificate downloaded.",
+      description: "Signed PDF downloaded.",
     });
   };
 
@@ -546,6 +553,22 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   const renderDocumentWithSignatures = () => {
+    // Handle uploaded PDFs with positioned signatures
+    if (documentData?.uploadedFileUrl) {
+      return (
+        <div className="space-y-4">
+          <iframe 
+            src={documentData.uploadedFileUrl} 
+            className="w-full h-[500px] border border-border rounded-lg bg-background"
+            title="Signed Document"
+          />
+          <p className="text-sm text-muted-foreground text-center">
+            Signatures have been applied to this document. Download the signed PDF to view the final version.
+          </p>
+        </div>
+      );
+    }
+
     if (!documentData?.content) return <span className="text-muted-foreground">Loading document...</span>;
 
     const content = documentData.content;
