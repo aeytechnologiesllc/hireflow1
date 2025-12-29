@@ -10,9 +10,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Sparkles, Copy, Check, Target, CheckCircle, HelpCircle } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Loader2, Sparkles, Copy, Check, ChevronDown, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 
 interface InterviewQuestionsDialogProps {
@@ -26,6 +32,27 @@ interface ParsedQuestion {
   question: string;
   assesses: string;
   lookFor: string;
+  category?: string;
+}
+
+// Categorize questions based on content
+function categorizeQuestion(question: string): string {
+  const q = question.toLowerCase();
+  
+  if (q.includes('sales') || q.includes('quota') || q.includes('close') || q.includes('prospect') || q.includes('pipeline')) {
+    return 'Core Sales Fundamentals';
+  }
+  if (q.includes('adapt') || q.includes('challenge') || q.includes('difficult') || q.includes('change') || q.includes('obstacle') || q.includes('failure')) {
+    return 'Adaptability & Judgment';
+  }
+  if (q.includes('team') || q.includes('culture') || q.includes('why') || q.includes('fit') || q.includes('collaborate') || q.includes('manager')) {
+    return 'Team & Role Fit';
+  }
+  if (q.includes('pressure') || q.includes('compete') || q.includes('deadline') || q.includes('stress') || q.includes('conflict')) {
+    return 'Competitive Pressure Scenario';
+  }
+  
+  return 'General Assessment';
 }
 
 // Parse AI-generated markdown into structured questions
@@ -87,11 +114,109 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
       question: questionText,
       assesses: assesses || 'Evaluates candidate skills and experience relevant to the role',
       lookFor: lookFor || 'Candidate should provide specific examples with measurable outcomes, demonstrate clear understanding of the concept, and articulate their approach with confidence and clarity.',
+      category: categorizeQuestion(questionText),
     });
   }
   
   console.log('[InterviewQuestions] Parsed questions count:', questions.length);
   return questions;
+}
+
+// Group questions by category
+function groupQuestionsByCategory(questions: ParsedQuestion[]): Record<string, ParsedQuestion[]> {
+  const groups: Record<string, ParsedQuestion[]> = {};
+  
+  const categoryOrder = [
+    'Core Sales Fundamentals',
+    'Adaptability & Judgment',
+    'Team & Role Fit',
+    'Competitive Pressure Scenario',
+    'General Assessment',
+  ];
+  
+  // Initialize groups in order
+  categoryOrder.forEach(cat => {
+    groups[cat] = [];
+  });
+  
+  // Distribute questions
+  questions.forEach(q => {
+    const cat = q.category || 'General Assessment';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(q);
+  });
+  
+  // Remove empty categories
+  Object.keys(groups).forEach(key => {
+    if (groups[key].length === 0) delete groups[key];
+  });
+  
+  return groups;
+}
+
+// Question card with collapsible assessment guidance
+function QuestionCard({ 
+  question, 
+  index, 
+  onCopy, 
+  isCopied 
+}: { 
+  question: ParsedQuestion; 
+  index: number; 
+  onCopy: () => void; 
+  isCopied: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <Card className="bg-secondary/20 border-border overflow-hidden">
+      <CardHeader className="bg-primary/5 py-3 px-4 border-b border-border">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-primary font-semibold text-xs">{index}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="font-medium text-foreground text-sm leading-relaxed">
+              {question.question}
+            </h4>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground flex-shrink-0"
+            onClick={onCopy}
+          >
+            {isCopied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger className="w-full px-4 py-2 flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors border-b border-border/50">
+          <span>Assessment guidance</span>
+          <ChevronDown className={cn(
+            "h-3.5 w-3.5 transition-transform",
+            isExpanded && "rotate-180"
+          )} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="p-4 pt-3 space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Assesses</p>
+              <p className="text-sm text-foreground/80 leading-relaxed">{question.assesses}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Look for</p>
+              <p className="text-sm text-foreground/80 leading-relaxed">{question.lookFor}</p>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
 }
 
 export default function InterviewQuestionsDialog({
@@ -152,15 +277,20 @@ export default function InterviewQuestionsDialog({
     if (!rawQuestions) return [];
     return parseQuestionsFromMarkdown(rawQuestions);
   }, [rawQuestions]);
+  
+  // Group questions by category
+  const groupedQuestions = useMemo(() => {
+    return groupQuestionsByCategory(parsedQuestions);
+  }, [parsedQuestions]);
 
   const handleCopy = async (text: string, index: number) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
-      toast.success("Question copied to clipboard");
+      toast.success("Question copied");
     } catch (err) {
-      toast.error("Failed to copy to clipboard");
+      toast.error("Failed to copy");
     }
   };
 
@@ -170,15 +300,15 @@ export default function InterviewQuestionsDialog({
         .map((q, i) => `${i + 1}. ${q.question}`)
         .join('\n\n');
       await navigator.clipboard.writeText(allQuestions);
-      toast.success("All questions copied to clipboard");
+      toast.success("All questions copied");
     } catch (err) {
-      toast.error("Failed to copy to clipboard");
+      toast.error("Failed to copy");
     }
   };
 
   const handleGenerate = async () => {
     if (!interview?.id) {
-      toast.error("No interview scheduled. Please schedule an interview first.");
+      toast.error("No interview scheduled");
       return;
     }
 
@@ -255,13 +385,13 @@ export default function InterviewQuestionsDialog({
           throw updateError;
         }
 
-        toast.success(`${parsed.length} interview questions generated and saved`);
+        toast.success(`${parsed.length} questions generated`);
         
         onQuestionsGenerated?.(questionsToSave);
       }
     } catch (error: any) {
       console.error("[InterviewQuestions] Generation error:", error);
-      toast.error(error.message || "Failed to generate interview questions");
+      toast.error(error.message || "Failed to generate questions");
     } finally {
       setIsGenerating(false);
       // Keep isRegeneratingRef true briefly to prevent immediate sync overwrite
@@ -270,6 +400,9 @@ export default function InterviewQuestionsDialog({
       }, 1000);
     }
   };
+  
+  // Track global question index for numbering
+  let globalIndex = 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,59 +410,43 @@ export default function InterviewQuestionsDialog({
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            AI Interview Questions
+            Interview Questions
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Tailored interview questions for {profile?.full_name || "this candidate"} - {job?.title || "position"}
+            {profile?.full_name || "Candidate"} — {job?.title || "Position"}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 min-h-[200px] max-h-[65vh] pr-4 overflow-y-auto">
           {parsedQuestions.length > 0 ? (
-            <div className="space-y-4">
-              {parsedQuestions.map((q, index) => (
-                <Card key={index} className="bg-secondary/20 border-border overflow-hidden">
-                  <CardHeader className="bg-primary/5 py-3 px-4 border-b border-border">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-primary font-semibold text-sm">{index + 1}</span>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-foreground text-sm leading-relaxed">
-                          {q.question}
-                        </h4>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground flex-shrink-0"
-                        onClick={() => handleCopy(q.question, index)}
-                      >
-                        {copiedIndex === index ? (
-                          <Check className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex gap-3">
-                      <Target className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-blue-500 mb-1">What it Assesses</p>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{q.assesses}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-green-500 mb-1">What to Look For</p>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{q.lookFor}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            <div className="space-y-5">
+              {/* Usage guidance */}
+              <p className="text-xs text-muted-foreground italic">
+                Select 4–6 questions based on interview length and candidate profile.
+              </p>
+              
+              {/* Grouped questions */}
+              {Object.entries(groupedQuestions).map(([category, questions]) => (
+                <div key={category} className="space-y-3">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {category}
+                  </h3>
+                  <div className="space-y-3">
+                    {questions.map((q) => {
+                      globalIndex++;
+                      const currentIndex = globalIndex;
+                      return (
+                        <QuestionCard
+                          key={currentIndex}
+                          question={q}
+                          index={currentIndex}
+                          onCopy={() => handleCopy(q.question, currentIndex)}
+                          isCopied={copiedIndex === currentIndex}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
@@ -338,8 +455,8 @@ export default function InterviewQuestionsDialog({
                 <HelpCircle className="h-8 w-8 text-primary/50" />
               </div>
               <h3 className="text-lg font-medium text-foreground mb-2">Generate Interview Questions</h3>
-              <p className="text-muted-foreground max-w-sm mx-auto">
-                Create tailored questions based on the job requirements and candidate profile to conduct an effective interview.
+              <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+                Create tailored questions based on the job and candidate profile.
               </p>
             </div>
           )}
@@ -347,15 +464,15 @@ export default function InterviewQuestionsDialog({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {parsedQuestions.length > 0 && (
-            <Button variant="outline" onClick={handleCopyAll} className="sm:mr-auto gap-2">
-              <Copy className="h-4 w-4" />
-              Copy All Questions
+            <Button variant="outline" size="sm" onClick={handleCopyAll} className="sm:mr-auto gap-2">
+              <Copy className="h-3.5 w-3.5" />
+              Copy All
             </Button>
           )}
-          <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
-            {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
-            <Sparkles className="h-4 w-4" />
-            {parsedQuestions.length > 0 ? "Regenerate" : "Generate Questions"}
+          <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="gap-2">
+            {isGenerating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <Sparkles className="h-3.5 w-3.5" />
+            {parsedQuestions.length > 0 ? "Regenerate" : "Generate"}
           </Button>
         </DialogFooter>
       </DialogContent>
