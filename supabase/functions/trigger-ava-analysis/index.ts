@@ -118,16 +118,62 @@ serve(async (req) => {
     }
 
     // RACE CONDITION FIX: Skip if analysis was just completed recently (within 10 seconds)
-    // This prevents duplicate parallel calls from overwriting each other
+    // BUT: Allow re-analysis if NEW phase data exists that wasn't previously analyzed
     if (!force && application.ai_analysis && application.ai_score !== null) {
       const lastUpdated = new Date(application.updated_at).getTime();
       const now = Date.now();
-      if (now - lastUpdated < 10000) { // Within 10 seconds
-        console.log("[trigger-ava-analysis] Analysis was just completed, skipping duplicate call");
+      
+      // Parse notes to detect what phases have data BEFORE the general parsing below
+      let tempNotes: Record<string, any> = {};
+      try {
+        tempNotes = application.notes ? JSON.parse(application.notes) : {};
+      } catch { tempNotes = {}; }
+      
+      // Check if there's NEW phase data that might not be in the current analysis
+      const hasQuizData = !!(tempNotes.quizResult || tempNotes.quiz);
+      const hasVoiceData = !!application.voice_interview_result;
+      const hasSalesData = !!tempNotes.salesSimulationResult;
+      const hasChatSimData = !!tempNotes.chatSimulationResult;
+      const hasChatIntData = !!tempNotes.chatInterviewResult;
+      const hasTypingData = !!tempNotes.typingTestResult;
+      const hasPortfolioData = !!tempNotes.portfolioResult;
+      
+      // Check what the existing analysis already covers
+      const analysisText = application.ai_analysis || "";
+      const analysisIncludesQuiz = analysisText.includes("Quiz Performance") || analysisText.includes("quiz score");
+      const analysisIncludesVoice = analysisText.includes("Voice Interview") || analysisText.includes("voice interview");
+      const analysisIncludesSales = analysisText.includes("Sales Simulation");
+      const analysisIncludesChatSim = analysisText.includes("Chat Simulation");
+      const analysisIncludesChatInt = analysisText.includes("Chat Interview");
+      const analysisIncludesTyping = analysisText.includes("Typing Test");
+      const analysisIncludesPortfolio = analysisText.includes("Portfolio");
+      
+      const hasNewData = (hasQuizData && !analysisIncludesQuiz) || 
+                         (hasVoiceData && !analysisIncludesVoice) ||
+                         (hasSalesData && !analysisIncludesSales) ||
+                         (hasChatSimData && !analysisIncludesChatSim) ||
+                         (hasChatIntData && !analysisIncludesChatInt) ||
+                         (hasTypingData && !analysisIncludesTyping) ||
+                         (hasPortfolioData && !analysisIncludesPortfolio);
+      
+      if (now - lastUpdated < 10000 && !hasNewData) {
+        console.log("[trigger-ava-analysis] Analysis was just completed, no new phase data, skipping");
         return new Response(
           JSON.stringify({ success: true, message: "Analysis already present", skipped: true, score: application.ai_score }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+      
+      if (hasNewData) {
+        console.log("[trigger-ava-analysis] New phase data detected, re-analyzing:", { 
+          hasQuizData, analysisIncludesQuiz, 
+          hasVoiceData, analysisIncludesVoice,
+          hasSalesData, analysisIncludesSales,
+          hasChatSimData, analysisIncludesChatSim,
+          hasChatIntData, analysisIncludesChatInt,
+          hasTypingData, analysisIncludesTyping,
+          hasPortfolioData, analysisIncludesPortfolio
+        });
       }
     }
 
