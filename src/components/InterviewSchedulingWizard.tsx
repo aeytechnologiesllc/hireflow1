@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview } from "@/hooks/useInterviews";
 import { useUpdateApplication } from "@/hooks/useApplications";
@@ -97,6 +97,27 @@ const timeSlots = [
   { value: "19:30", label: "7:30 PM" },
   { value: "20:00", label: "8:00 PM" },
 ];
+
+// Memoized time slot button for performance
+const TimeSlotButton = memo(({ 
+  slot, 
+  isSelected, 
+  onSelect 
+}: { 
+  slot: { value: string; label: string }; 
+  isSelected: boolean; 
+  onSelect: (value: string) => void;
+}) => (
+  <Button
+    type="button"
+    variant={isSelected ? "default" : "outline"}
+    size="sm"
+    className="w-full"
+    onClick={() => onSelect(slot.value)}
+  >
+    {slot.label}
+  </Button>
+));
 
 const formatTimeToAMPM = (time24: string): string => {
   const [hours, minutes] = time24.split(":").map(Number);
@@ -484,8 +505,10 @@ export default function InterviewSchedulingWizard({
         {/* Success View */}
         {showSuccess ? (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{ willChange: "transform, opacity" }}
             className="p-8 text-center w-full overflow-hidden"
           >
             <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center">
@@ -601,7 +624,7 @@ export default function InterviewSchedulingWizard({
               {/* Progress Bar */}
               <div className="flex gap-2">
                 {steps.map((step, index) => (
-                  <div
+            <motion.div
                     key={step.id}
                     className={cn(
                       "h-1.5 flex-1 rounded-full transition-colors",
@@ -617,14 +640,16 @@ export default function InterviewSchedulingWizard({
               className="p-6 overflow-y-auto max-h-[60vh] touch-pan-y"
               {...(isMobile ? swipeProps : {})}
             >
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait" initial={false}>
                 {/* Step 1: Calendar */}
                 {currentStep === 0 && (
                   <motion.div
                     key="calendar"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                     className="space-y-6"
                   >
                     <div className="grid md:grid-cols-2 gap-6">
@@ -645,16 +670,12 @@ export default function InterviewSchedulingWizard({
                         <Label className="text-sm font-medium">Select Time</Label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-2">
                           {timeSlots.map((slot) => (
-                            <Button
+                            <TimeSlotButton
                               key={slot.value}
-                              type="button"
-                              variant={selectedTime === slot.value ? "default" : "outline"}
-                              size="sm"
-                              className="w-full"
-                              onClick={() => setSelectedTime(slot.value)}
-                            >
-                              {slot.label}
-                            </Button>
+                              slot={slot}
+                              isSelected={selectedTime === slot.value}
+                              onSelect={setSelectedTime}
+                            />
                           ))}
                         </div>
                       </div>
@@ -677,9 +698,11 @@ export default function InterviewSchedulingWizard({
                 {currentStep === 1 && (
                   <motion.div
                     key="details"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                     className="space-y-6"
                   >
                     <div className="grid md:grid-cols-2 gap-4">
@@ -745,9 +768,11 @@ export default function InterviewSchedulingWizard({
                 {currentStep === 2 && (
                   <motion.div
                     key="meeting"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                     className="space-y-6"
                   >
                     {interviewType === "video" && (
@@ -870,9 +895,11 @@ export default function InterviewSchedulingWizard({
                 {currentStep === 3 && (
                   <motion.div
                     key="review"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                     className="space-y-6"
                   >
                     <div className="rounded-xl border border-border overflow-hidden">
