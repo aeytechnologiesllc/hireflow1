@@ -641,14 +641,21 @@ ${interviewType} Interview with AVA Results:
     }
 
     // Check if AI reported resume as unavailable - don't set resume_score in that case
-    const resumeUnavailable = analysisText.includes("RESUME_UNAVAILABLE") || 
+    // HARD GATE: Also check if we actually had resume images to analyze
+    const hadResumeImages = !!resumeImageBase64;
+    const resumeUnavailable = !hadResumeImages || 
+      analysisText.includes("RESUME_UNAVAILABLE") || 
       analysisText.includes("Resume file could not be") ||
       analysisText.includes("couldn't analyze the resume") ||
       analysisText.includes("No resume was provided") ||
       analysisText.includes("resume could not be processed");
     
     if (resumeUnavailable) {
-      console.log("[trigger-ava-analysis] Resume was unavailable/couldn't be processed - setting resume_score to null");
+      console.log("[trigger-ava-analysis] Resume was unavailable/couldn't be processed - setting resume_score to null", {
+        hadResumeImages,
+        hasResumeUrl: !!detectedResumeUrl,
+        hasResumeImageUrls: !!parsedNotes.resumeImageUrls?.length,
+      });
     }
 
     // WEIGHTED SCORE CALCULATION: Combine resume score with phase performance
