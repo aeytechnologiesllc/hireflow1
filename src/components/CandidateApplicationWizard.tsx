@@ -240,9 +240,27 @@ export default function CandidateApplicationWizard({
       setPrefilledFields(prefilled);
     }
     
-    // Pre-fill resume if available and not already set
-    if (profile.resume_url && !resumeUrl && !hasFileQuestionInQuestions) {
-      setResumeUrl(profile.resume_url);
+    // Pre-fill resume if available
+    // CRITICAL: This runs EVEN when there are file questions in the application
+    // We need to convert the profile resume to images for AVA vision analysis
+    if (profile.resume_url && !resumeUrl) {
+      // Find if there's a resume file question we should populate
+      const resumeFileQuestion = applicationQuestions.find(q => {
+        if (q.type !== "file") return false;
+        const qText = q.question.toLowerCase();
+        return ['resume', 'cv', 'curriculum'].some(kw => qText.includes(kw));
+      });
+      
+      // Set the resume URL in the appropriate place
+      if (resumeFileQuestion && !questionFileUrls[resumeFileQuestion.id]) {
+        // There's a resume file question - populate it with profile resume
+        setQuestionFileUrls(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
+        setAnswers(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
+        console.log("[CandidateApplicationWizard] Pre-filling resume file question with profile resume");
+      } else if (!hasFileQuestionInQuestions) {
+        // No file questions - use the dedicated resume step
+        setResumeUrl(profile.resume_url);
+      }
       
       // CRITICAL: Convert profile resume PDF to images for AVA vision analysis
       // Without this conversion, AVA cannot "see" the resume content
@@ -279,6 +297,10 @@ export default function CandidateApplicationWizard({
             
             if (imageUrls.length > 0) {
               setResumeImageUrls(imageUrls);
+              // Also set for the file question if applicable
+              if (resumeFileQuestion) {
+                setQuestionFileImageUrls(prev => ({ ...prev, [resumeFileQuestion.id]: imageUrls }));
+              }
               console.log("[CandidateApplicationWizard] Profile resume converted:", imageUrls.length, "pages");
             }
           }
@@ -288,7 +310,7 @@ export default function CandidateApplicationWizard({
         }
       })();
     }
-  }, [profile, open, applicationQuestions]);
+  }, [profile, open, applicationQuestions, questionFileUrls]);
 
   const resetWizard = () => {
     setCurrentStep(0);
@@ -352,20 +374,35 @@ export default function CandidateApplicationWizard({
   }, []);
 
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    // Accept PDFs, Word docs, and images
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "image/png",
-      "image/jpeg",
-      "image/gif",
-      "image/webp"
-    ];
+    // Check if this is a resume question - if so, enforce PDF only
+    const question = applicationQuestions.find(q => q.id === questionId);
+    const questionText = (question?.question || questionId).toLowerCase();
+    const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
     
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF, Word document, or image file");
-      return;
+    if (isResumeQuestion && question?.type === "file") {
+      // Resume questions: PDF ONLY for AI vision analysis
+      if (file.type !== "application/pdf") {
+        toast.error("Resume must be a PDF file", {
+          description: "AVA requires PDF format to analyze your resume"
+        });
+        return;
+      }
+    } else {
+      // Non-resume file questions: Accept PDFs, Word docs, and images
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp"
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Please upload a PDF, Word document, or image file");
+        return;
+      }
     }
 
     // Validate file size (max 10MB)

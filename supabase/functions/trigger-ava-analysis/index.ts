@@ -248,10 +248,16 @@ serve(async (req) => {
       parsedNotes = {};
     }
 
-    // Log what data we have for debugging
+    // Log what data we have for debugging - CRITICAL for resume troubleshooting
     console.log("[trigger-ava-analysis] Data inventory:", {
       hasResumeUrl: !!application.resume_url,
+      resumeUrl: application.resume_url || "NULL",
+      hasResumeImageUrls: !!parsedNotes.resumeImageUrls?.length,
+      resumeImageUrlsCount: parsedNotes.resumeImageUrls?.length || 0,
+      hasFileUploads: !!parsedNotes.fileUploads && Object.keys(parsedNotes.fileUploads).length > 0,
+      fileUploadQuestionIds: parsedNotes.fileUploads ? Object.keys(parsedNotes.fileUploads) : [],
       hasApplicationAnswers: !!parsedNotes.applicationAnswers?.length,
+      applicationAnswersCount: parsedNotes.applicationAnswers?.length || 0,
       hasCoverLetter: !!application.cover_letter,
       hasTypingTest: !!parsedNotes.typingTestResult,
       hasQuiz: !!(parsedNotes.quizResult || parsedNotes.quiz),
@@ -264,6 +270,18 @@ serve(async (req) => {
       existingAiAnalysis: !!application.ai_analysis,
       existingAiScore: application.ai_score,
     });
+    
+    // Log fileUploads details to debug resume detection
+    if (parsedNotes.fileUploads) {
+      for (const [qId, upload] of Object.entries(parsedNotes.fileUploads)) {
+        const u = upload as any;
+        console.log(`[trigger-ava-analysis] FileUpload[${qId}]:`, {
+          url: u.url?.substring(0, 60) + "...",
+          hasImageUrls: !!u.imageUrls?.length,
+          imageUrlsCount: u.imageUrls?.length || 0,
+        });
+      }
+    }
 
     // Detect resume URL from canonical field OR application answers
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
