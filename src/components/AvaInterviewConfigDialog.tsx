@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Clock, Globe, Mic, Video, ChevronLeft, ChevronRight, Check, AlertCircle } from "lucide-react";
+import { Clock, Globe, Mic, Video, ChevronLeft, ChevronRight, Check, AlertCircle, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -68,6 +69,7 @@ export function AvaInterviewConfigDialog({
   language = "en",
   voiceMinutesRemaining,
 }: AvaInterviewConfigDialogProps) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedDuration, setSelectedDuration] = useState(10);
   const [selectedLanguage, setSelectedLanguage] = useState(language.toLowerCase().substring(0, 2) || "en");
@@ -204,8 +206,20 @@ export function AvaInterviewConfigDialog({
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>No voice minutes available</AlertTitle>
-                    <AlertDescription>
-                      Purchase additional voice credits or upgrade your plan to continue scheduling Ava interviews.
+                    <AlertDescription className="space-y-2">
+                      <p>Purchase additional voice credits or upgrade your plan to continue scheduling Ava interviews.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          onOpenChange(false);
+                          navigate('/settings?tab=subscription');
+                        }}
+                        className="gap-1.5 mt-1"
+                      >
+                        <ShoppingCart className="h-3.5 w-3.5" />
+                        Purchase Voice Credits
+                      </Button>
                     </AlertDescription>
                   </Alert>
                 )}
