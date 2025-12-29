@@ -917,17 +917,22 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
       }
     }
     
-    // Executive summary - integrate naturally
+    // Executive summary - show FULL summary for premium video interview analysis (no truncation)
     if (data.executive_summary && data.executive_summary.length > 10) {
-      const summaryPreview = data.executive_summary.length > 200 
-        ? data.executive_summary.substring(0, 200) + "..." 
-        : data.executive_summary;
-      paragraphs.push(summaryPreview);
+      paragraphs.push(`**Executive Summary:** ${data.executive_summary}`);
     } else if (data.summary && data.summary.length > 10) {
-      const summaryPreview = data.summary.length > 200 
-        ? data.summary.substring(0, 200) + "..." 
-        : data.summary;
-      paragraphs.push(summaryPreview);
+      paragraphs.push(`**Summary:** ${data.summary}`);
+    }
+    
+    // Suggested follow-ups - valuable for next interview round
+    if (data.suggested_followups && data.suggested_followups.length > 0) {
+      const followups = data.suggested_followups.slice(0, 3);
+      const followupList = followups.map((f, i) => {
+        const question = f.question || (typeof f === 'string' ? f : '');
+        const reason = f.reason ? ` (${f.reason})` : '';
+        return `${i + 1}. "${question}"${reason}`;
+      }).join('\n');
+      paragraphs.push(`**Suggested Follow-up Questions for Next Round:**\n${followupList}`);
     }
     
     // Duration - casual mention at end
