@@ -53,12 +53,18 @@ export function GlobalNotificationToasts() {
 
           // Show toast with action if link exists
           if (notification.link) {
+            const targetLink = notification.link;
+            
+            const handleViewClick = () => {
+              navigate(targetLink);
+            };
+            
             if (toastType === "info") {
               toast.info(notification.title, {
                 description: notification.message,
                 action: {
                   label: "View",
-                  onClick: () => navigate(notification.link!),
+                  onClick: handleViewClick,
                 },
                 duration: 8000,
               });
@@ -67,7 +73,7 @@ export function GlobalNotificationToasts() {
                 description: notification.message,
                 action: {
                   label: "View",
-                  onClick: () => navigate(notification.link!),
+                  onClick: handleViewClick,
                 },
                 duration: 8000,
               });
