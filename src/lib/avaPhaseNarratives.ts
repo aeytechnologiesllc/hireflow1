@@ -132,12 +132,53 @@ export interface VoiceInterviewPhaseData {
   overall_score?: number;
   overallScore?: number;
   summary?: string;
-  questions?: Array<{
+  executive_summary?: string;
+  recommendation?: string;
+  credibility_rating?: string;
+  
+  // Score breakdown
+  communication_score?: number;
+  technical_score?: number;
+  culture_fit_score?: number;
+  problem_solving_score?: number;
+  adaptability_score?: number;
+  leadership_potential_score?: number;
+  
+  // Soft skills
+  soft_skills?: {
+    empathy?: number;
+    confidence?: number;
+    articulation?: number;
+    active_listening?: number;
+    enthusiasm?: number;
+    professionalism?: number;
+  };
+  
+  // Communication metrics
+  communication_metrics?: {
+    avg_response_time_seconds?: number;
+    clarity_score?: number;
+    filler_word_frequency?: string;
+  };
+  
+  // Lists
+  strengths?: string[];
+  concerns?: string[];
+  inconsistencies?: Array<{ claim: string; evidence: string; severity?: string }>;
+  
+  // Questions & quotes
+  question_analysis?: Array<{
     question: string;
-    answer?: string;
+    response_quality?: string;
     score?: number;
-    feedback?: string;
+    notable_quote?: string;
+    key_points?: string[];
   }>;
+  notable_quotes?: Array<{ quote: string; context?: string; sentiment?: string }>;
+  suggested_followups?: Array<{ question: string; reason?: string; priority?: string }>;
+  
+  // Legacy
+  questions?: Array<{ question: string; answer?: string; score?: number; feedback?: string }>;
   transcript?: Array<{ role: string; content: string }>;
   duration?: number;
 }
@@ -675,22 +716,172 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
   
   if (data) {
     const score = data.overall_score || data.overallScore;
+    const recommendation = data.recommendation;
+    const credibility = data.credibility_rating;
     
-    // Natural opening based on score
+    // Natural opening based on score + recommendation
     if (score !== undefined) {
-      if (score >= 80) {
-        paragraphs.push(`The voice interview went really well${roleContext}. They came across confident and articulate, scoring ${score} out of 100.`);
-      } else if (score >= 60) {
-        paragraphs.push(`The voice interview was decent${roleContext}—they scored ${score} out of 100. Solid, but not outstanding.`);
+      if (score >= 85) {
+        paragraphs.push(`The voice interview went exceptionally well${roleContext}—they scored ${score} out of 100. Came across as confident, articulate, and genuinely engaged throughout.`);
+      } else if (score >= 70) {
+        paragraphs.push(`The voice interview was solid${roleContext}, scoring ${score} out of 100. Good communication with some standout moments.`);
+      } else if (score >= 50) {
+        paragraphs.push(`The voice interview${roleContext} was mixed—${score} out of 100. They showed potential but need development in their communication skills.`);
       } else {
-        paragraphs.push(`The voice interview${roleContext} revealed some areas for development. They scored ${score} out of 100, which suggests they'd need coaching on their communication skills.`);
+        paragraphs.push(`The voice interview${roleContext} revealed significant areas for development. They scored ${score} out of 100, which suggests they'd need significant coaching.`);
       }
     } else {
       paragraphs.push(`They completed the voice interview${roleContext}.`);
     }
     
-    // Question-by-question analysis if available - natural flow
-    if (data.questions && data.questions.length > 0) {
+    // Credibility assessment - important trust signal
+    if (credibility) {
+      if (credibility.toLowerCase() === 'high') {
+        paragraphs.push(`Their credibility rating is high—their answers were consistent and verifiable, no red flags there.`);
+      } else if (credibility.toLowerCase() === 'medium') {
+        paragraphs.push(`Credibility rating is medium—most answers checked out, but a few things might be worth verifying.`);
+      } else if (credibility.toLowerCase() === 'low') {
+        paragraphs.push(`I'd flag that their credibility rating is low—there were some inconsistencies in their responses that warrant scrutiny.`);
+      }
+    }
+    
+    // Score breakdown - woven into narrative naturally (like chat interview)
+    const scoreInsights: string[] = [];
+    if (data.communication_score !== undefined) {
+      if (data.communication_score >= 80) scoreInsights.push("communicated exceptionally well");
+      else if (data.communication_score >= 60) scoreInsights.push("communicated adequately");
+      else scoreInsights.push("struggled with clear communication");
+    }
+    if (data.technical_score !== undefined) {
+      if (data.technical_score >= 80) scoreInsights.push("demonstrated strong technical understanding");
+      else if (data.technical_score >= 60) scoreInsights.push("showed decent technical knowledge");
+      else scoreInsights.push("had gaps in technical understanding");
+    }
+    if (data.culture_fit_score !== undefined) {
+      if (data.culture_fit_score >= 80) scoreInsights.push("seemed like a great culture fit");
+      else if (data.culture_fit_score < 50) scoreInsights.push("may not align with team culture");
+    }
+    if (data.problem_solving_score !== undefined) {
+      if (data.problem_solving_score >= 80) scoreInsights.push("approached problems thoughtfully");
+      else if (data.problem_solving_score < 50) scoreInsights.push("needs development in problem-solving");
+    }
+    if (data.adaptability_score !== undefined && data.adaptability_score >= 80) {
+      scoreInsights.push("showed good adaptability");
+    }
+    if (data.leadership_potential_score !== undefined && data.leadership_potential_score >= 80) {
+      scoreInsights.push("demonstrated leadership potential");
+    }
+    
+    if (scoreInsights.length > 0) {
+      if (scoreInsights.length === 1) {
+        paragraphs.push(`Notably, they ${scoreInsights[0]}.`);
+      } else {
+        const lastInsight = scoreInsights.pop();
+        paragraphs.push(`Breaking it down: they ${scoreInsights.join(", ")}, and ${lastInsight}.`);
+      }
+    }
+    
+    // Soft skills analysis - like chat simulation rubrics
+    if (data.soft_skills) {
+      const softSkillInsights: string[] = [];
+      const ss = data.soft_skills;
+      
+      if (ss.confidence !== undefined && ss.confidence >= 80) {
+        softSkillInsights.push("projected confidence");
+      }
+      if (ss.articulation !== undefined && ss.articulation >= 80) {
+        softSkillInsights.push("articulated thoughts clearly");
+      }
+      if (ss.empathy !== undefined && ss.empathy >= 80) {
+        softSkillInsights.push("showed strong empathy");
+      }
+      if (ss.enthusiasm !== undefined && ss.enthusiasm >= 80) {
+        softSkillInsights.push("came across as genuinely enthusiastic");
+      }
+      if (ss.professionalism !== undefined && ss.professionalism >= 80) {
+        softSkillInsights.push("maintained a professional tone");
+      }
+      if (ss.active_listening !== undefined && ss.active_listening >= 80) {
+        softSkillInsights.push("listened attentively");
+      }
+      
+      // Also mention weak areas
+      if (ss.confidence !== undefined && ss.confidence < 50) {
+        softSkillInsights.push("seemed unsure of themselves");
+      }
+      if (ss.enthusiasm !== undefined && ss.enthusiasm < 50) {
+        softSkillInsights.push("didn't show much enthusiasm");
+      }
+      
+      if (softSkillInsights.length > 0) {
+        if (softSkillInsights.length <= 2) {
+          paragraphs.push(`On the soft skills front: they ${softSkillInsights.join(" and ")}.`);
+        } else {
+          const last = softSkillInsights.pop();
+          paragraphs.push(`Soft skills breakdown: they ${softSkillInsights.join(", ")}, and ${last}.`);
+        }
+      }
+    }
+    
+    // Communication metrics - natural mention
+    if (data.communication_metrics) {
+      const cm = data.communication_metrics;
+      const metricNotes: string[] = [];
+      
+      if (cm.avg_response_time_seconds !== undefined) {
+        if (cm.avg_response_time_seconds < 3) {
+          metricNotes.push("responded quickly—maybe too quickly");
+        } else if (cm.avg_response_time_seconds > 10) {
+          metricNotes.push("took their time to think before responding");
+        }
+      }
+      if (cm.clarity_score !== undefined) {
+        if (cm.clarity_score >= 80) metricNotes.push("spoke with good clarity");
+        else if (cm.clarity_score < 50) metricNotes.push("could be clearer in their delivery");
+      }
+      if (cm.filler_word_frequency && cm.filler_word_frequency.toLowerCase() === 'high') {
+        metricNotes.push("used a lot of filler words (um, like, you know)");
+      }
+      
+      if (metricNotes.length > 0) {
+        paragraphs.push(`Communication-wise, they ${metricNotes.join(" and ")}.`);
+      }
+    }
+    
+    // Strengths - conversational (like chat interview)
+    if (data.strengths && data.strengths.length > 0) {
+      const strengthsList = data.strengths.slice(0, 3).map(s => s.toLowerCase());
+      paragraphs.push(`What stood out: ${strengthsList.join(", ")}.`);
+    }
+    
+    // Concerns - natural (like sales simulation)
+    if (data.concerns && data.concerns.length > 0) {
+      const concernsList = data.concerns.slice(0, 3).map(c => c.toLowerCase());
+      paragraphs.push(`Areas of concern: ${concernsList.join(", ")}.`);
+    }
+    
+    // Red flags / Inconsistencies - important credibility signal
+    if (data.inconsistencies && data.inconsistencies.length > 0) {
+      const topIssue = data.inconsistencies[0];
+      if (topIssue.severity === 'high' || topIssue.severity === 'major') {
+        paragraphs.push(`One red flag: they claimed "${topIssue.claim}" but ${topIssue.evidence}—definitely worth probing.`);
+      } else {
+        paragraphs.push(`Minor inconsistency noted: their claim about "${topIssue.claim}" didn't quite match up with ${topIssue.evidence}.`);
+      }
+    }
+    
+    // Notable quotes - adds color
+    if (data.notable_quotes && data.notable_quotes.length > 0) {
+      const topQuote = data.notable_quotes[0];
+      if (topQuote.sentiment === 'positive' || !topQuote.sentiment) {
+        paragraphs.push(`One quote that stood out: "${topQuote.quote}"${topQuote.context ? ` (when discussing ${topQuote.context})` : ''}.`);
+      } else if (topQuote.sentiment === 'concerning') {
+        paragraphs.push(`Something that raised an eyebrow: "${topQuote.quote}".`);
+      }
+    }
+    
+    // Question analysis fallback (legacy format)
+    if (!data.strengths && !data.soft_skills && data.questions && data.questions.length > 0) {
       const strongAnswers = data.questions.filter(q => q.score && q.score >= 80);
       const weakAnswers = data.questions.filter(q => q.score && q.score < 60);
       
@@ -701,32 +892,65 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
         const weakTopic = weakAnswers[0].question.length > 40 
           ? weakAnswers[0].question.substring(0, 40) + "..." 
           : weakAnswers[0].question;
-        paragraphs.push(`They shined when talking about "${strongTopic}" but struggled with "${weakTopic}"—worth probing in a follow-up conversation.`);
+        paragraphs.push(`They shined when talking about "${strongTopic}" but struggled with "${weakTopic}"—worth probing in a follow-up.`);
       } else if (strongAnswers.length > 0) {
-        paragraphs.push(`They gave particularly strong answers throughout, especially on topics like their experience and motivation.`);
+        paragraphs.push(`They gave particularly strong answers throughout.`);
       } else if (weakAnswers.length > 0) {
-        const weakTopic = weakAnswers[0].question.length > 40 
-          ? weakAnswers[0].question.substring(0, 40) + "..." 
-          : weakAnswers[0].question;
-        paragraphs.push(`They struggled with questions like "${weakTopic}"—you might want to dig deeper there if you meet with them.`);
+        paragraphs.push(`They struggled with several questions—something to explore further.`);
       }
     }
     
-    // Summary insight - integrate naturally
-    if (data.summary && data.summary.length > 10) {
-      const summaryPreview = data.summary.length > 180 
-        ? data.summary.substring(0, 180) + "..." 
+    // Question analysis (new format)
+    if (data.question_analysis && data.question_analysis.length > 0) {
+      const excellent = data.question_analysis.filter(q => q.response_quality === 'excellent' || (q.score && q.score >= 85));
+      const poor = data.question_analysis.filter(q => q.response_quality === 'poor' || (q.score && q.score < 50));
+      
+      if (excellent.length > 0) {
+        const bestQ = excellent[0];
+        const topic = bestQ.question.length > 35 ? bestQ.question.substring(0, 35) + "..." : bestQ.question;
+        paragraphs.push(`They really nailed the question about "${topic}"${bestQ.notable_quote ? ` with a memorable response` : ''}.`);
+      }
+      if (poor.length > 0) {
+        const worstQ = poor[0];
+        const topic = worstQ.question.length > 35 ? worstQ.question.substring(0, 35) + "..." : worstQ.question;
+        paragraphs.push(`They struggled with "${topic}"—definitely probe this in a live conversation.`);
+      }
+    }
+    
+    // Executive summary - integrate naturally
+    if (data.executive_summary && data.executive_summary.length > 10) {
+      const summaryPreview = data.executive_summary.length > 200 
+        ? data.executive_summary.substring(0, 200) + "..." 
+        : data.executive_summary;
+      paragraphs.push(summaryPreview);
+    } else if (data.summary && data.summary.length > 10) {
+      const summaryPreview = data.summary.length > 200 
+        ? data.summary.substring(0, 200) + "..." 
         : data.summary;
       paragraphs.push(summaryPreview);
     }
     
-    // Duration - casual mention
+    // Duration - casual mention at end
     if (data.duration) {
       const minutes = Math.round(data.duration / 60);
       if (minutes > 10) {
-        paragraphs.push(`They took their time with it—about ${minutes} minutes total.`);
+        paragraphs.push(`They were engaged for about ${minutes} minutes—took their time with it.`);
       } else if (minutes < 3) {
-        paragraphs.push(`It was a quick interview, just ${minutes} minute${minutes !== 1 ? 's' : ''}—might indicate they rushed through it.`);
+        paragraphs.push(`Interview was just ${minutes} minute${minutes !== 1 ? 's' : ''}—pretty brief, might indicate they rushed.`);
+      }
+    }
+    
+    // Recommendation - natural closing (like sales simulation)
+    if (recommendation) {
+      const rec = recommendation.toLowerCase().replace(/_/g, ' ');
+      if (rec.includes('strong') && rec.includes('recommend')) {
+        paragraphs.push(`Based on this interview, I'd strongly recommend moving forward with them.`);
+      } else if (rec.includes('recommend') || rec.includes('proceed') || rec.includes('advance')) {
+        paragraphs.push(`Overall, I think they warrant further consideration.`);
+      } else if (rec.includes('not recommend') || rec.includes('pass') || rec.includes('reject')) {
+        paragraphs.push(`Based on this interview, I'd have concerns about moving forward.`);
+      } else if (rec.includes('maybe') || rec.includes('consider')) {
+        paragraphs.push(`This one's a judgment call—they've got potential but also some gaps.`);
       }
     }
     
@@ -736,7 +960,9 @@ function buildVoiceInterviewNarrative(input: AvaPhaseNarrativeInput): string {
 
   let narrative = paragraphs.join("\n\n");
   if (wasRejected) {
-    narrative = narrative.replace(/went really well/gi, "was completed");
+    narrative = narrative.replace(/went exceptionally well/gi, "was completed")
+                        .replace(/strongly recommend moving forward/gi, "interview completed")
+                        .replace(/warrant further consideration/gi, "completed their interview");
   }
   return narrative;
 }
