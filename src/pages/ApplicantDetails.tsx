@@ -1733,7 +1733,7 @@ export default function ApplicantDetails() {
             </Tooltip>
           )}
           
-          {canScheduleInterviews && (
+          {canScheduleInterviews && !scheduledInterview && (
             <Button 
               onClick={handleScheduleInterviewClick}
               size="sm"
