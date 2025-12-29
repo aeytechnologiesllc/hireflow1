@@ -103,6 +103,7 @@ export default function ApplicationFormPhase() {
   const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
   const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
   const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [usingProfileResume, setUsingProfileResume] = useState(false);
 
   // Evaluation screen state
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
@@ -172,10 +173,16 @@ export default function ApplicationFormPhase() {
   const [hasPrefilledFromProfile, setHasPrefilledFromProfile] = useState(false);
   
   useEffect(() => {
-    if (!profile || questions.length === 0 || hasPrefilledFromProfile || alreadySubmitted) return;
+    if (!profile || hasPrefilledFromProfile || alreadySubmitted) return;
     
     const prefilled: Record<string, string> = {};
     const prefilledCountryCodes: Record<string, string> = {};
+    const prefilledFileUrls: Record<string, string> = {};
+    
+    // Pre-fill resume from profile if available and not already uploaded
+    if (profile.resume_url && !application?.resume_url && !resumeFile) {
+      setUsingProfileResume(true);
+    }
     
     questions.forEach(q => {
       const questionLower = q.question.toLowerCase();
@@ -226,6 +233,12 @@ export default function ApplicationFormPhase() {
       if (questionLower.includes("portfolio") && profile.portfolio_url) {
         prefilled[q.id] = profile.portfolio_url;
       }
+      
+      // Pre-fill file questions (resume) from profile
+      if (q.type === "file" && questionLower.includes("resume") && profile.resume_url && !questionFileUrls[q.id]) {
+        prefilledFileUrls[q.id] = profile.resume_url;
+        prefilled[q.id] = profile.resume_url;
+      }
     });
     
     if (Object.keys(prefilled).length > 0) {
@@ -233,9 +246,12 @@ export default function ApplicationFormPhase() {
       if (Object.keys(prefilledCountryCodes).length > 0) {
         setPhoneCountryCodes(prev => ({ ...prefilledCountryCodes, ...prev }));
       }
+      if (Object.keys(prefilledFileUrls).length > 0) {
+        setQuestionFileUrls(prev => ({ ...prefilledFileUrls, ...prev }));
+      }
       setHasPrefilledFromProfile(true);
     }
-  }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted]);
+  }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted, application?.resume_url, resumeFile, questionFileUrls]);
 
   // File upload handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -446,8 +462,9 @@ export default function ApplicationFormPhase() {
 
     // Validate resume if required and not already uploaded
     // Skip this check if there's a file-type question (it handles the resume)
+    // Also skip if using profile resume
     const hasFileQuestion = questions.some(q => q.type === "file");
-    if (requiresResume && !hasFileQuestion && !resumeFile && !application?.resume_url) {
+    if (requiresResume && !hasFileQuestion && !resumeFile && !application?.resume_url && !usingProfileResume) {
       errors.resume = "Please upload your resume";
     }
 
@@ -847,6 +864,31 @@ export default function ApplicationFormPhase() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+                  ) : questionFileUrls[question.id] ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <File className="h-5 w-5 text-primary" />
+                      <span className="text-sm text-muted-foreground">Using resume from your profile</span>
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => {
+                          setQuestionFileUrls(prev => {
+                            const newUrls = { ...prev };
+                            delete newUrls[question.id];
+                            return newUrls;
+                          });
+                          setAnswers(prev => {
+                            const newAnswers = { ...prev };
+                            delete newAnswers[question.id];
+                            return newAnswers;
+                          });
+                        }}
+                      >
+                        Upload different
+                      </Button>
+                    </div>
                   ) : (
                     <div
                       className="cursor-pointer"
@@ -900,6 +942,25 @@ export default function ApplicationFormPhase() {
                     <File className="h-5 w-5 text-primary" />
                     <span className="text-sm">{resumeFile?.name || "Resume uploaded"}</span>
                     <CheckCircle className="h-4 w-4 text-success" />
+                  </div>
+                ) : usingProfileResume && profile?.resume_url ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <File className="h-5 w-5 text-primary" />
+                      <span className="text-sm text-muted-foreground">Using resume from your profile</span>
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        setUsingProfileResume(false);
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      Upload different resume
+                    </Button>
                   </div>
                 ) : (
                   <div

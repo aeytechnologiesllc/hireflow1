@@ -292,7 +292,7 @@ export default function Profile() {
           <CardHeader>
             <CardTitle className="text-lg">Default Resume</CardTitle>
             <CardDescription>
-              Employers will see this resume when reviewing your applications. Keep it updated!
+              This resume will be used to pre-fill job applications. You can always upload a different resume for specific applications.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -468,7 +468,7 @@ export default function Profile() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-lg">Professional Information</CardTitle>
-            <CardDescription>Showcase your experience and skills</CardDescription>
+            <CardDescription>This information is visible to employers and will pre-fill matching fields in job applications.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
