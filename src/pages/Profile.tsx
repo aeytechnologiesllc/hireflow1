@@ -117,10 +117,9 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
-    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document");
+    // PDF only for resume uploads
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
       return;
     }
 
@@ -288,7 +287,7 @@ export default function Profile() {
             <input
               ref={resumeInputRef}
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               className="hidden"
               onChange={handleResumeUpload}
             />

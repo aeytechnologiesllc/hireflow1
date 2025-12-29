@@ -31,6 +31,7 @@ import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
+import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 
 interface ApplicationQuestion {
   id: string;
@@ -252,9 +253,9 @@ export default function ApplicationFormPhase() {
   }, []);
 
   const handleFileSelect = async (file: File) => {
-    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document");
+    // PDF only for resume uploads
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
       return;
     }
 
@@ -270,6 +271,7 @@ export default function ApplicationFormPhase() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
       
+      // Upload original PDF
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(fileName, file, { upsert: true });
@@ -280,12 +282,44 @@ export default function ApplicationFormPhase() {
         .from("resumes")
         .getPublicUrl(fileName);
 
-      // Update application with resume URL
+      // Convert PDF to images for AI analysis (PRIMARY method)
+      console.log("[ApplicationFormPhase] Converting PDF to images for AI analysis...");
+      const imageBase64s = await convertPdfFileToImages(file, 2);
+      const imageUrls: string[] = [];
+      
+      if (imageBase64s.length > 0) {
+        for (let i = 0; i < imageBase64s.length; i++) {
+          const blob = base64ToBlob(imageBase64s[i], "image/png");
+          const imagePath = `${user?.id}/${Date.now()}_page${i + 1}.png`;
+          
+          const { error: imageUploadError } = await supabase.storage
+            .from("resumes")
+            .upload(imagePath, blob, { upsert: true });
+          
+          if (!imageUploadError) {
+            const { data: imageUrlData } = supabase.storage
+              .from("resumes")
+              .getPublicUrl(imagePath);
+            imageUrls.push(imageUrlData.publicUrl);
+            console.log("[ApplicationFormPhase] Uploaded resume image page", i + 1);
+          }
+        }
+      }
+      
+      // Update application with resume URL and image URLs in notes
+      const currentNotes = notes || {};
+      const updatedNotes = {
+        ...currentNotes,
+        resumeImageUrls: imageUrls,
+      };
+      
       await updateApplication.mutateAsync({
         id: id!,
         resume_url: urlData.publicUrl,
+        notes: JSON.stringify(updatedNotes),
       });
 
+      console.log("[ApplicationFormPhase] Resume uploaded with", imageUrls.length, "image pages");
       toast.success("Resume uploaded successfully");
     } catch (error) {
       console.error("Error uploading resume:", error);
@@ -296,11 +330,11 @@ export default function ApplicationFormPhase() {
     }
   };
 
-  // Question file upload handlers
+  // Question file upload handlers - PDF only, with image conversion
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document");
+    // PDF only for file uploads
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
       return;
     }
 
@@ -316,6 +350,7 @@ export default function ApplicationFormPhase() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user?.id}/${Date.now()}_${questionId}.${fileExt}`;
       
+      // Upload original PDF
       const { error: uploadError } = await supabase.storage
         .from("resumes")
         .upload(fileName, file, { upsert: true });
@@ -326,8 +361,57 @@ export default function ApplicationFormPhase() {
         .from("resumes")
         .getPublicUrl(fileName);
 
+      // Convert PDF to images for AI analysis
+      console.log("[ApplicationFormPhase] Converting question file PDF to images...");
+      const imageBase64s = await convertPdfFileToImages(file, 2);
+      const imageUrls: string[] = [];
+      
+      if (imageBase64s.length > 0) {
+        for (let i = 0; i < imageBase64s.length; i++) {
+          const blob = base64ToBlob(imageBase64s[i], "image/png");
+          const imagePath = `${user?.id}/${Date.now()}_${questionId}_page${i + 1}.png`;
+          
+          const { error: imageUploadError } = await supabase.storage
+            .from("resumes")
+            .upload(imagePath, blob, { upsert: true });
+          
+          if (!imageUploadError) {
+            const { data: imageUrlData } = supabase.storage
+              .from("resumes")
+              .getPublicUrl(imagePath);
+            imageUrls.push(imageUrlData.publicUrl);
+          }
+        }
+      }
+
+      // Store image URLs for this question in notes
+      const currentNotes = notes || {};
+      const fileUploads = currentNotes.fileUploads || {};
+      fileUploads[questionId] = {
+        fileUrl: urlData.publicUrl,
+        imageUrls: imageUrls,
+      };
+      
+      // Check if this is a resume-related question
+      const question = questions.find(q => q.id === questionId);
+      const isResumeQuestion = question?.question?.toLowerCase().includes("resume") || 
+                               questionId.toLowerCase().includes("resume");
+      
+      const updatedNotes = {
+        ...currentNotes,
+        fileUploads,
+        // If this is a resume question, also store in resumeImageUrls
+        ...(isResumeQuestion && imageUrls.length > 0 ? { resumeImageUrls: imageUrls } : {}),
+      };
+      
+      await updateApplication.mutateAsync({
+        id: id!,
+        notes: JSON.stringify(updatedNotes),
+      });
+
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      console.log("[ApplicationFormPhase] Question file uploaded with", imageUrls.length, "image pages");
       toast.success("File uploaded successfully");
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -468,8 +552,12 @@ export default function ApplicationFormPhase() {
         
         if (autopilotError) {
           console.error("[ApplicationFormPhase] Autopilot backend error:", autopilotError);
-          toast.error("Failed to process application");
-          setEvaluationState(null);
+          // Don't block submission - show warning instead of error
+          toast.warning("Application submitted. Analysis is still processing...", {
+            description: "Check back shortly for results.",
+          });
+          queryClient.invalidateQueries({ queryKey: ["applications"] });
+          navigate(`/applications/${id}`);
           return;
         }
         
