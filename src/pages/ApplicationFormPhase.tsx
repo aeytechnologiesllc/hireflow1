@@ -81,6 +81,13 @@ const formatPhoneNumber = (value: string) => {
   return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
 };
 
+// Helper to detect resume-related file questions
+const isResumeQuestion = (question: { id: string; question: string; type: string }) => {
+  if (question.type !== "file") return false;
+  const text = (question.question + " " + question.id).toLowerCase();
+  return text.includes("resume") || text.includes("cv") || text.includes("curriculum");
+};
+
 export default function ApplicationFormPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
@@ -790,8 +797,16 @@ export default function ApplicationFormPhase() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Application Questions */}
-          {questions.map((question) => (
+          {/* Application Questions - filter out resume questions when requiresResume is true */}
+          {questions
+            .filter((question) => {
+              // Skip resume-type file questions when job already requires resume via dedicated section
+              if (requiresResume && isResumeQuestion(question)) {
+                return false;
+              }
+              return true;
+            })
+            .map((question) => (
             <div key={question.id} className="space-y-2">
               <Label className="text-foreground">
                 {question.question}
