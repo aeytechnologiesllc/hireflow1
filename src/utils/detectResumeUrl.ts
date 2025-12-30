@@ -80,12 +80,8 @@ export function detectResumeUrl(
     }
   }
 
-  // Second pass: If only one file URL exists, treat it as the resume
-  const fileUrlAnswers = answers.filter(a => isFileUrl(a.answer));
-  if (fileUrlAnswers.length === 1) {
-    console.log('[detectResumeUrl] Found single file upload, treating as resume:', fileUrlAnswers[0].answer);
-    return fileUrlAnswers[0].answer;
-  }
+  // REMOVED: The old "single file = resume" fallback was incorrect.
+  // Non-resume file uploads (like "proof of internet speed") should NOT be treated as resumes.
 
   // Third pass: Look for any answer that is a URL containing /resumes/ bucket
   for (const answer of answers) {

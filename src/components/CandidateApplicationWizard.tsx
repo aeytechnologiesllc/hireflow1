@@ -795,8 +795,9 @@ export default function CandidateApplicationWizard({
           if (question?.type === "file") {
             const questionText = (question.question || questionId).toLowerCase();
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
-            // If it's a resume question OR it's the only file question, use it
-            if (isResumeQuestion || applicationQuestions.filter(q => q.type === "file").length === 1) {
+            // ONLY use this as resume if the question explicitly asks for resume/cv
+            // REMOVED: the "only file question" fallback - it incorrectly treated other uploads as resumes
+            if (isResumeQuestion) {
               finalResumeUrl = fileUrl;
               console.log("[CandidateApplicationWizard] Detected resume from questionFileUrls:", fileUrl);
               break;
