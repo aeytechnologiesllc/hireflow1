@@ -32,19 +32,22 @@ export function StaggeredBarsLoader({ size = "md", className = "" }: StaggeredBa
         <motion.div
           key={index}
           className="rounded-sm"
+          layout={false}
           style={{
             width: config.barWidth,
             backgroundColor: barColors[index],
             originY: 0.5,
+            willChange: "transform",
+            transform: "translateZ(0)",
           }}
           animate={{
             scaleY: [0.2, 1, 0.2],
           }}
           transition={{
-            duration: 0.8,
+            duration: 1.0,
             repeat: Infinity,
-            ease: "easeInOut",
-            delay: index * 0.1,
+            ease: [0.45, 0.05, 0.55, 0.95],
+            delay: index * 0.08,
           }}
           initial={{ scaleY: 0.2, height: config.height }}
         />
