@@ -508,8 +508,8 @@ function generateFullSummary(
   let topConcern: string | null = null;
   let concernLabel: string | null = null;
   if (hasNameMismatch || hasResumeIssue) {
-    topConcern = 'verification needed';
-    concernLabel = 'application details';
+    topConcern = 'inconsistency detected';
+    concernLabel = 'submitted information';
   } else if (quizScore !== null && quizScore < 50) {
     topConcern = `${quizScore}%`;
     concernLabel = 'skills assessment';
