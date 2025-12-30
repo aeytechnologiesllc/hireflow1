@@ -937,21 +937,47 @@ function PhaseBasedAnalysis({
     }
 
     // Portfolio - detailed Ava narrative
-    if (applicationNotes.portfolioResult) {
-      const portfolio = applicationNotes.portfolioResult;
-      const score = portfolio.score;
+    // Find portfolio data from step-based storage (e.g., step1, step2) or legacy portfolioResult
+    let portfolioData: any = applicationNotes.portfolioResult;
+    if (!portfolioData) {
+      // Search through notes for portfolio_upload type steps
+      for (const key of Object.keys(applicationNotes)) {
+        const stepData = applicationNotes[key];
+        if (stepData && typeof stepData === 'object' && stepData.type === 'portfolio_upload' && stepData.completed) {
+          portfolioData = {
+            score: stepData.aiAnalysis?.score,
+            feedback: stepData.aiAnalysis?.summary,
+            analysis: stepData.aiAnalysis?.summary,
+            portfolioUrls: stepData.files?.map((f: any) => f.url),
+            aiAnalysis: stepData.aiAnalysis, // Include full analysis for detail view
+          };
+          break;
+        }
+      }
+    }
+    
+    if (portfolioData) {
+      const score = portfolioData.score || portfolioData.aiAnalysis?.score;
+      const aiAnalysis = portfolioData.aiAnalysis;
       const baseFacts = score
-        ? `The candidate submitted a portfolio scored at ${score}/100.`
+        ? `The candidate submitted a portfolio scored at ${score}/100.${aiAnalysis?.summary ? ` ${aiAnalysis.summary}` : ''}`
         : "The candidate submitted a portfolio.";
       const phaseType: PhaseType = "portfolio";
 
-      // Build portfolioData from stored result
-      const portfolioData: PortfolioPhaseData = {
-        score: portfolio.score,
-        feedback: portfolio.feedback,
-        analysis: portfolio.analysis,
-        portfolioUrls: portfolio.portfolioUrls,
-        fileCount: portfolio.portfolioUrls?.length,
+      // Build portfolioData from stored result with enhanced AI analysis data
+      const portfolioPhaseData: PortfolioPhaseData = {
+        score: score,
+        feedback: portfolioData.feedback || aiAnalysis?.summary,
+        analysis: portfolioData.analysis || aiAnalysis?.summary,
+        portfolioUrls: portfolioData.portfolioUrls,
+        fileCount: portfolioData.portfolioUrls?.length,
+        // Include detailed analysis breakdown if available
+        strengths: aiAnalysis?.strengths,
+        improvements: aiAnalysis?.improvements || aiAnalysis?.penaltiesApplied,
+        authenticity: aiAnalysis?.authenticity,
+        relevance: aiAnalysis?.relevance,
+        quality: aiAnalysis?.quality,
+        creativity: aiAnalysis?.creativity,
       };
 
       phases.push({
@@ -968,7 +994,7 @@ function PhaseBasedAnalysis({
           rawSections,
           analysisAvailable: hasAIAnalysis,
           wasRejected,
-          portfolioData,
+          portfolioData: portfolioPhaseData,
         }),
       });
     }

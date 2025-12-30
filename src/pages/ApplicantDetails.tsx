@@ -1517,13 +1517,20 @@ export default function ApplicantDetails() {
       workflowSteps.forEach(step => {
         const stepData = getStepData(step.id, step.type);
         const hasStepData = !!stepData;
+        
+        // For portfolio_upload, extract score from aiAnalysis if available
+        let stepScore = stepData?.score;
+        if (step.type === "portfolio_upload" && stepData?.aiAnalysis?.score) {
+          stepScore = stepData.aiAnalysis.score;
+        }
+        
         badges.push({
           id: step.id,
           title: step.title.length > 15 ? step.title.substring(0, 12) + "..." : step.title,
           type: step.type,
           hasData: hasStepData,
           isSkipped: isPhaseSkipped({ id: step.id, type: step.type }) && !hasStepData,
-          score: stepData?.score,
+          score: stepScore,
           icon: stepTypeIcons[step.type] || ClipboardList,
         });
       });
