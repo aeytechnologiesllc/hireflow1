@@ -121,7 +121,7 @@ export default function CandidateApplicationWizard({
   const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
   const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [resumeImageUrls, setResumeImageUrls] = useState<string[]>([]);
-
+  const [resumeConversionStatus, setResumeConversionStatus] = useState<"idle" | "converting" | "ready" | "failed">("idle");
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
@@ -241,30 +241,32 @@ export default function CandidateApplicationWizard({
     }
     
     // Pre-fill resume if available
-    // CRITICAL: This runs EVEN when there are file questions in the application
-    // We need to convert the profile resume to images for AVA vision analysis
+    // CRITICAL: Always set resumeUrl for the dedicated resume step when job requires it
+    // This ensures the resume is ALWAYS available regardless of other file questions
     if (profile.resume_url && !resumeUrl) {
-      // Find if there's a resume file question we should populate
+      // Always set the dedicated resume step URL when job requires resume
+      if (requiresResume) {
+        setResumeUrl(profile.resume_url);
+        console.log("[CandidateApplicationWizard] Pre-filling resume from profile for dedicated resume step");
+      }
+      
+      // ALSO populate any resume file question if it exists (for backwards compat)
       const resumeFileQuestion = applicationQuestions.find(q => {
         if (q.type !== "file") return false;
         const qText = q.question.toLowerCase();
         return ['resume', 'cv', 'curriculum'].some(kw => qText.includes(kw));
       });
       
-      // Set the resume URL in the appropriate place
       if (resumeFileQuestion && !questionFileUrls[resumeFileQuestion.id]) {
-        // There's a resume file question - populate it with profile resume
         setQuestionFileUrls(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
         setAnswers(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
         console.log("[CandidateApplicationWizard] Pre-filling resume file question with profile resume");
-      } else if (!hasFileQuestionInQuestions) {
-        // No file questions - use the dedicated resume step
-        setResumeUrl(profile.resume_url);
       }
       
       // CRITICAL: Convert profile resume PDF to images for AVA vision analysis
       // Without this conversion, AVA cannot "see" the resume content
       (async () => {
+        setResumeConversionStatus("converting");
         try {
           console.log("[CandidateApplicationWizard] Converting profile resume to images...");
           const response = await fetch(profile.resume_url);
@@ -276,7 +278,10 @@ export default function CandidateApplicationWizard({
           
           if (imageBase64s.length > 0) {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) {
+              setResumeConversionStatus("failed");
+              return;
+            }
             
             const imageUrls: string[] = [];
             for (let i = 0; i < imageBase64s.length; i++) {
@@ -301,12 +306,17 @@ export default function CandidateApplicationWizard({
               if (resumeFileQuestion) {
                 setQuestionFileImageUrls(prev => ({ ...prev, [resumeFileQuestion.id]: imageUrls }));
               }
+              setResumeConversionStatus("ready");
               console.log("[CandidateApplicationWizard] Profile resume converted:", imageUrls.length, "pages");
+            } else {
+              setResumeConversionStatus("failed");
             }
+          } else {
+            setResumeConversionStatus("failed");
           }
         } catch (error) {
           console.error("[CandidateApplicationWizard] Failed to convert profile resume:", error);
-          // Non-fatal - the resume URL is still available, just no vision analysis
+          setResumeConversionStatus("failed");
         }
       })();
     }
@@ -319,6 +329,7 @@ export default function CandidateApplicationWizard({
     setResumeFile(null);
     setResumeUrl("");
     setResumeImageUrls([]);
+    setResumeConversionStatus("idle");
     setCoverLetter("");
     setValidationErrors({});
     setQuestionFiles({});
@@ -672,8 +683,10 @@ export default function CandidateApplicationWizard({
         const noUploadsInProgress = !Object.values(uploadingQuestions).some(v => v);
         return hasRequiredAnswers && hasNoErrors && noUploadsInProgress;
       case "resume":
-        // Resume is required if job requires it AND there's no file question in application questions
-        if (requiresResume && !hasFileQuestionInQuestions && !resumeUrl.trim()) return false;
+        // Resume is required if job requires it - ALWAYS enforce, regardless of file questions
+        if (requiresResume && !resumeUrl.trim()) return false;
+        // Block if resume is still being converted/prepared
+        if (resumeConversionStatus === "converting") return false;
         return !isUploading;
       case "review":
         return true;
@@ -702,6 +715,12 @@ export default function CandidateApplicationWizard({
     if (isDeadlinePassed) {
       toast.error("The application deadline for this job has passed");
       onOpenChange(false);
+      return;
+    }
+    
+    // Block submission if resume is still being prepared
+    if (resumeConversionStatus === "converting" && requiresResume) {
+      toast.error("Please wait for your resume to finish processing");
       return;
     }
     
@@ -1278,8 +1297,8 @@ export default function CandidateApplicationWizard({
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {/* Only show resume upload if there's no file-type question in application questions */}
-                {!hasFileQuestionInQuestions && (
+                {/* Always show resume upload when job requires it - not conditional on file questions */}
+                {requiresResume && (
                   <div className="space-y-3">
                     <Label className="text-base">
                       Resume
@@ -1290,13 +1309,60 @@ export default function CandidateApplicationWizard({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.doc,.docx"
+                      accept=".pdf,application/pdf"
                       onChange={handleFileInputChange}
                       className="hidden"
                     />
 
-                    {/* Drag & Drop Zone */}
-                    {!resumeFile ? (
+                    {/* Profile Resume Indicator - show when resumeUrl is set but no file was uploaded */}
+                    {!resumeFile && resumeUrl && (
+                      <div className="border border-border rounded-xl p-4 bg-muted/20">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                            <User className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground truncate">Resume from Profile</p>
+                            <p className="text-sm text-muted-foreground">
+                              {resumeConversionStatus === "converting" ? (
+                                <span className="flex items-center gap-1">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Preparing for analysis...
+                                </span>
+                              ) : resumeConversionStatus === "ready" ? (
+                                <span className="text-green-500">Ready for analysis</span>
+                              ) : resumeConversionStatus === "failed" ? (
+                                <span className="text-amber-500">Analysis prep failed - will still be submitted</span>
+                              ) : (
+                                "Using your saved resume"
+                              )}
+                            </p>
+                          </div>
+                          {resumeConversionStatus === "converting" ? (
+                            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                          ) : resumeConversionStatus === "ready" ? (
+                            <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setResumeUrl("");
+                              setResumeImageUrls([]);
+                              setResumeConversionStatus("idle");
+                            }}
+                            className="shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Drag & Drop Zone - only show when no resume at all */}
+                    {!resumeFile && !resumeUrl && (
                       <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
@@ -1331,7 +1397,10 @@ export default function CandidateApplicationWizard({
                           </p>
                         </div>
                       </div>
-                    ) : (
+                    )}
+                    
+                    {/* Uploaded File Display */}
+                    {resumeFile && (
                       <div className="border border-border rounded-xl p-4 bg-muted/20">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
