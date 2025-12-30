@@ -23,7 +23,7 @@ import {
   FileText,
   Upload,
   X,
-  File,
+  File as FileIcon,
   Send,
   CalendarIcon
 } from "lucide-react";
@@ -428,7 +428,7 @@ export default function ApplicationFormPhase() {
       const currentNotes = notes || {};
       const fileUploads = currentNotes.fileUploads || {};
       fileUploads[questionId] = {
-        fileUrl: urlData.publicUrl,
+        url: urlData.publicUrl,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
         imageUrls: imageUrls,
       };
       
@@ -480,10 +480,16 @@ export default function ApplicationFormPhase() {
     });
 
     // Validate resume if required and not already uploaded
-    // Skip this check if there's a file-type question (it handles the resume)
-    // Also skip if using profile resume
-    const hasFileQuestion = questions.some(q => q.type === "file");
-    if (requiresResume && !hasFileQuestion && !resumeFile && !application?.resume_url && !usingProfileResume) {
+    // FIXED: No longer skip this check just because there's a file-type question
+    // The resume upload is separate from other file questions (like internet speed screenshots)
+    // Check if there's a resume-specific file question that has been answered
+    const resumeFileQuestion = questions.find(q => 
+      q.type === "file" && 
+      (q.question.toLowerCase().includes("resume") || q.id.toLowerCase().includes("resume"))
+    );
+    const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
+    
+    if (requiresResume && !resumeFile && !application?.resume_url && !usingProfileResume && !hasResumeFromFileQuestion) {
       errors.resume = "Please upload your resume";
     }
 
@@ -498,6 +504,57 @@ export default function ApplicationFormPhase() {
     setEvaluationState("evaluating");
 
     try {
+      // CRITICAL FIX: If using profile resume, we MUST convert it to images before submission
+      // This ensures the backend has resumeImageUrls available for AI analysis
+      let finalResumeUrl = application.resume_url;
+      let finalResumeImageUrls: string[] = notes.resumeImageUrls || [];
+      
+      if (usingProfileResume && profile?.resume_url && !notes.resumeImageUrls?.length) {
+        console.log("[ApplicationFormPhase] Profile resume needs conversion before submit...");
+        toast.info("Preparing your resume for analysis...");
+        
+        try {
+          // Fetch the PDF from profile
+          const response = await fetch(profile.resume_url);
+          if (!response.ok) throw new Error("Failed to fetch profile resume");
+          const blob = await response.blob();
+          const file = new File([blob], "profile-resume.pdf", { type: "application/pdf" });
+          
+          // Convert PDF to images
+          const imageBase64s = await convertPdfFileToImages(file, 2);
+          
+          if (imageBase64s.length === 0) {
+            throw new Error("Could not extract pages from resume PDF");
+          }
+          
+          // Upload images
+          for (let i = 0; i < imageBase64s.length; i++) {
+            const imageBlob = base64ToBlob(imageBase64s[i], "image/png");
+            const imagePath = `${user?.id}/${Date.now()}_profile_page${i + 1}.png`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from("resumes")
+              .upload(imagePath, imageBlob, { upsert: true });
+            
+            if (!uploadError) {
+              const { data: imageUrlData } = supabase.storage
+                .from("resumes")
+                .getPublicUrl(imagePath);
+              finalResumeImageUrls.push(imageUrlData.publicUrl);
+            }
+          }
+          
+          finalResumeUrl = profile.resume_url;
+          console.log("[ApplicationFormPhase] Profile resume converted:", finalResumeImageUrls.length, "images");
+        } catch (conversionError) {
+          console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
+          toast.error("Could not process your resume. Please upload a new PDF.");
+          setIsSubmitting(false);
+          setEvaluationState(null);
+          return;
+        }
+      }
+      
       // Format answers for storage
       const applicationAnswers = questions.map(q => ({
         questionId: q.id,
@@ -508,18 +565,20 @@ export default function ApplicationFormPhase() {
         type: q.type,
       }));
 
-      // Update notes with application answers
+      // Update notes with application answers AND resume image URLs
       const updatedNotes = {
         ...notes,
         applicationAnswers,
+        ...(finalResumeImageUrls.length > 0 ? { resumeImageUrls: finalResumeImageUrls } : {}),
       };
 
-      // Update application
+      // Update application with resume URL if using profile resume
       await updateApplication.mutateAsync({
         id: id!,
         notes: JSON.stringify(updatedNotes),
         cover_letter: coverLetter || application.cover_letter,
         status: "pending",
+        ...(finalResumeUrl && !application.resume_url ? { resume_url: finalResumeUrl } : {}),
       });
 
       // Get workflow steps to find next phase - build full phases list
@@ -859,7 +918,7 @@ export default function ApplicationFormPhase() {
                     </div>
                   ) : questionFiles[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
-                      <File className="h-5 w-5 text-primary" />
+                      <FileIcon className="h-5 w-5 text-primary" />
                       <span className="text-sm">{questionFiles[question.id].name}</span>
                       <Button
                         variant="ghost"
@@ -888,7 +947,7 @@ export default function ApplicationFormPhase() {
                     </div>
                   ) : questionFileUrls[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
-                      <File className="h-5 w-5 text-primary" />
+                      <FileIcon className="h-5 w-5 text-primary" />
                       <span className="text-sm text-muted-foreground">Using resume from your profile</span>
                       <CheckCircle className="h-4 w-4 text-primary" />
                       <Button
@@ -943,8 +1002,9 @@ export default function ApplicationFormPhase() {
             </div>
           ))}
 
-          {/* Resume Upload - only if no questions have file type */}
-          {requiresResume && !questions.some(q => q.type === "file") && (
+          {/* Resume Upload - FIXED: Always show when resume required, even if there are file questions */}
+          {/* Other file questions (like internet speed screenshots) are separate from resume */}
+          {requiresResume && (
             <div className="space-y-2">
               <Label className="text-foreground">
                 Resume <span className="text-destructive">*</span>
@@ -964,14 +1024,14 @@ export default function ApplicationFormPhase() {
                   </div>
                 ) : resumeFile || application.resume_url ? (
                   <div className="flex items-center justify-center gap-2">
-                    <File className="h-5 w-5 text-primary" />
+                    <FileIcon className="h-5 w-5 text-primary" />
                     <span className="text-sm">{resumeFile?.name || "Resume uploaded"}</span>
                     <CheckCircle className="h-4 w-4 text-success" />
                   </div>
                 ) : usingProfileResume && profile?.resume_url ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="flex items-center gap-2">
-                      <File className="h-5 w-5 text-primary" />
+                      <FileIcon className="h-5 w-5 text-primary" />
                       <span className="text-sm text-muted-foreground">Using resume from your profile</span>
                       <CheckCircle className="h-4 w-4 text-primary" />
                     </div>
