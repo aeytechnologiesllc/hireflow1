@@ -57,7 +57,7 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
           className="absolute z-50 bottom-full mb-3 left-1/2 -translate-x-1/2"
         >
           {/* Premium dark glass-morphism tooltip */}
-          <div className="relative bg-[hsl(220,15%,8%)]/95 backdrop-blur-xl text-white px-5 py-4 rounded-2xl shadow-2xl max-w-[320px] border border-emerald-500/20">
+          <div className="relative bg-[hsl(220,15%,8%)]/95 backdrop-blur-xl text-white px-5 py-4 rounded-2xl shadow-2xl min-w-[280px] max-w-[320px] w-max border border-emerald-500/20">
             {/* Subtle glow effect */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
             
