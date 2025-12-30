@@ -591,7 +591,7 @@ export default function SalesSimulationPhase() {
       if (isAutoMode) {
         try {
           const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: { applicationId: id!, autopilotDecision: true },
+            body: { applicationId: id!, autopilotDecision: true, currentPhaseId: stepId },
           });
           // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
           if (analysisResult?.decision === "rejected") {
