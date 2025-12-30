@@ -286,6 +286,24 @@ serve(async (req) => {
     // Detect resume URL from canonical field OR application answers
     const detectedResumeUrl = detectResumeUrl(application.resume_url, parsedNotes);
     console.log("[trigger-ava-analysis] Detected resume URL:", detectedResumeUrl);
+    
+    // CRITICAL BACKFILL: If resume_url is null but we detected one from answers, update the application
+    // This ensures future analyses and the employer dashboard show the correct resume
+    if (!application.resume_url && detectedResumeUrl) {
+      console.log("[trigger-ava-analysis] BACKFILLING applications.resume_url from detected value...");
+      const { error: backfillError } = await supabaseAdmin
+        .from("applications")
+        .update({ resume_url: detectedResumeUrl })
+        .eq("id", applicationId);
+      
+      if (backfillError) {
+        console.error("[trigger-ava-analysis] Failed to backfill resume_url:", backfillError.message);
+      } else {
+        console.log("[trigger-ava-analysis] Successfully backfilled resume_url");
+        // Update local reference for this analysis
+        application.resume_url = detectedResumeUrl;
+      }
+    }
 
     // Build content string from all available phase data
     const applicationAnswers = parsedNotes.applicationAnswers || [];
