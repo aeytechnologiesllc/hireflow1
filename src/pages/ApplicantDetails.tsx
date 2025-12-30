@@ -1739,7 +1739,7 @@ export default function ApplicantDetails() {
             </Tooltip>
           )}
           
-          {canScheduleInterviews && !scheduledInterview && (
+          {canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
             <Button 
               onClick={handleScheduleInterviewClick}
               size="sm"
