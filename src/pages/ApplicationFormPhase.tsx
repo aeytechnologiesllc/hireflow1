@@ -562,8 +562,18 @@ export default function ApplicationFormPhase() {
   const validateForm = () => {
     const errors: Record<string, string> = {};
 
-    // Validate required questions
-    questions.forEach(q => {
+    // IMPORTANT: Only validate questions that are VISIBLE to the user
+    // The UI filters out resume-type file questions when requiresResume is true,
+    // so we must use the same filter here to avoid validating hidden fields
+    const visibleQuestions = questions.filter((question) => {
+      if (requiresResume && isResumeQuestion(question)) {
+        return false;
+      }
+      return true;
+    });
+
+    // Validate required questions (only visible ones)
+    visibleQuestions.forEach(q => {
       if (q.required && !answers[q.id]?.trim()) {
         errors[q.id] = "This field is required";
       }
