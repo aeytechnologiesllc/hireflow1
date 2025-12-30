@@ -26,7 +26,8 @@ import {
   File as FileIcon,
   Send,
   CalendarIcon,
-  ShieldAlert
+  ShieldAlert,
+  Eye
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -1077,12 +1078,31 @@ export default function ApplicationFormPhase() {
                   ) : questionFiles[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
                       <FileIcon className="h-5 w-5 text-primary" />
-                      <span className="text-sm">{questionFiles[question.id].name}</span>
+                      <span className="text-sm truncate max-w-[200px]">{questionFiles[question.id].name}</span>
+                      <CheckCircle className="h-4 w-4 text-success" />
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const file = questionFiles[question.id];
+                          if (file) {
+                            const url = URL.createObjectURL(file);
+                            window.open(url, '_blank');
+                          }
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setQuestionFiles(prev => {
                             const newFiles = { ...prev };
                             delete newFiles[question.id];
@@ -1106,13 +1126,29 @@ export default function ApplicationFormPhase() {
                   ) : questionFileUrls[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
                       <FileIcon className="h-5 w-5 text-primary" />
-                      <span className="text-sm text-muted-foreground">Using resume from your profile</span>
-                      <CheckCircle className="h-4 w-4 text-primary" />
+                      <span className="text-sm truncate max-w-[200px]">
+                        {decodeURIComponent(questionFileUrls[question.id]?.split('/').pop() || 'File uploaded')}
+                      </span>
+                      <CheckCircle className="h-4 w-4 text-success" />
                       <Button
+                        type="button"
                         variant="ghost"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => {
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(questionFileUrls[question.id], '_blank');
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setQuestionFileUrls(prev => {
                             const newUrls = { ...prev };
                             delete newUrls[question.id];
@@ -1125,7 +1161,7 @@ export default function ApplicationFormPhase() {
                           });
                         }}
                       >
-                        Upload different
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : (
@@ -1183,26 +1219,62 @@ export default function ApplicationFormPhase() {
                 ) : resumeFile ? (
                   <div className="flex items-center justify-center gap-2">
                     <FileIcon className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{resumeFile.name}</span>
+                    <span className="text-sm truncate max-w-[200px]">{resumeFile.name}</span>
                     <CheckCircle className="h-4 w-4 text-success" />
-                  </div>
-                ) : usingProfileResume && profile?.resume_url ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileIcon className="h-5 w-5 text-primary" />
-                      <span className="text-sm text-muted-foreground">Using resume from your profile</span>
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                    </div>
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => {
-                        setUsingProfileResume(false);
-                        fileInputRef.current?.click();
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const url = URL.createObjectURL(resumeFile);
+                        window.open(url, '_blank');
                       }}
                     >
-                      Upload different resume
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setResumeFile(null);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : usingProfileResume && profile?.resume_url ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <FileIcon className="h-5 w-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">Using resume from your profile</span>
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(profile.resume_url, '_blank');
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUsingProfileResume(false);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ) : (
