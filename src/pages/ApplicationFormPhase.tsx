@@ -589,7 +589,26 @@ export default function ApplicationFormPhase() {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm() || !application) return;
+    console.log("[ApplicationFormPhase] Submit clicked", {
+      applicationId: id,
+      stepId,
+      hasApplication: !!application,
+      isSubmitting,
+      isUploading,
+      uploadingQuestions: Object.values(uploadingQuestions).some(Boolean),
+      violationsCount: violations.length,
+    });
+
+    if (!application) {
+      toast.error("Application not loaded yet. Please refresh and try again.");
+      return;
+    }
+
+    const isValid = validateForm();
+    if (!isValid) {
+      toast.error("Please fix the highlighted fields before submitting.");
+      return;
+    }
 
     setIsSubmitting(true);
     setEvaluationState("evaluating");
