@@ -120,6 +120,13 @@ export interface PortfolioPhaseData {
   portfolioUrls?: string[];
   fileCount?: number;
   analysis?: string;
+  // Extended AI analysis properties
+  strengths?: string[];
+  improvements?: string[];
+  authenticity?: number;
+  relevance?: number;
+  quality?: number;
+  creativity?: number;
 }
 
 export interface VideoPhaseData {

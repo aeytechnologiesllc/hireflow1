@@ -848,7 +848,28 @@ ${interviewType} Interview with AVA Results:
     const quizScore = quizData?.score || quizData?.percentage || null;
     const typingTest = parsedNotes.typingTestResult;
     const voiceResult = application.voice_interview_result as any;
-    const portfolioResult = parsedNotes.portfolioResult;
+    
+    // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
+    let portfolioScore: number | null = null;
+    // Reuse workflowSteps from line 510 (already defined above)
+    for (const step of workflowSteps) {
+      if (step.type === 'portfolio_upload') {
+        const stepData = parsedNotes[step.id];
+        if (stepData?.aiAnalysis?.score) {
+          portfolioScore = stepData.aiAnalysis.score;
+          console.log("[trigger-ava-analysis] Found portfolio score from step", step.id, ":", portfolioScore);
+          break;
+        }
+      }
+    }
+    // Fallback to legacy portfolioResult format
+    if (portfolioScore === null) {
+      const legacyResult = parsedNotes.portfolioResult;
+      portfolioScore = legacyResult?.aiAnalysis?.score || legacyResult?.score || null;
+      if (portfolioScore) {
+        console.log("[trigger-ava-analysis] Found portfolio score from legacy portfolioResult:", portfolioScore);
+      }
+    }
     
     let finalScore: number | null = newScore;
     
@@ -871,9 +892,8 @@ ${interviewType} Interview with AVA Results:
         console.log("[trigger-ava-analysis] Including voice interview score:", voiceResult.overall_score);
       }
       
-      // Portfolio (10% weight if available)
-      const portfolioScore = portfolioResult?.aiAnalysis?.score || portfolioResult?.score;
-      if (portfolioScore) {
+      // Portfolio (10% weight if available) - uses portfolioScore extracted above
+      if (portfolioScore !== null) {
         weightedTotal += portfolioScore * 0.1;
         weightSum += 0.1;
         console.log("[trigger-ava-analysis] Including portfolio score:", portfolioScore);
