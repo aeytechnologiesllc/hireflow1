@@ -76,17 +76,20 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
     }
   };
 
+  // Determine if tile should be locked (no navigation)
+  const isLocked = displayState.isRejected || displayState.isPendingReview || displayState.isWaitingPhase;
+
   return (
     <Card 
       className={`bg-card border-border transition-all group relative overflow-hidden ${
-        displayState.isRejected
-          ? "border-destructive/30 opacity-75 cursor-default"
+        isLocked
+          ? "border-border/50 opacity-80 cursor-default"
           : displayState.showActionButton 
             ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5 cursor-pointer" 
             : "hover:border-primary/50 cursor-pointer"
       }`}
       onClick={() => {
-        if (!displayState.isRejected) {
+        if (!isLocked) {
           navigate(`/applications/${application.id}`);
         }
       }}
