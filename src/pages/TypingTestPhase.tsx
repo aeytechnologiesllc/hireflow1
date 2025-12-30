@@ -18,7 +18,8 @@ import {
   CheckCircle,
   Loader2,
   Play,
-  RotateCcw
+  RotateCcw,
+  ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
@@ -61,6 +62,12 @@ interface ApplicationDetails {
   } | null;
 }
 
+interface AntiCheatViolation {
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
+  timestamp: string;
+  details?: string;
+}
+
 export default function TypingTestPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
@@ -79,7 +86,7 @@ export default function TypingTestPhase() {
     score: number;
     passed: boolean;
   } | null>(null);
-  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
   // Evaluation screen state for autopilot mode
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
@@ -89,6 +96,62 @@ export default function TypingTestPhase() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const typedTextRef = useRef<string>("");
   const startTimeRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Anti-cheating: Record violation
+  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
+    const violation: AntiCheatViolation = {
+      type,
+      timestamp: new Date().toISOString(),
+      details,
+    };
+    setViolations(prev => [...prev, violation]);
+    console.log('[TypingTestPhase] Violation recorded:', violation);
+  }, []);
+
+  // Anti-cheating: Prevent copy
+  const handleCopy = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('copy_attempt', 'Copy attempted');
+    toast.warning("Copying is disabled during the typing test", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent paste
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('paste_attempt', 'Paste attempted');
+    toast.warning("Pasting is disabled during the typing test", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent cut
+  const handleCut = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('cut_attempt', 'Cut attempted');
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent right-click
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    recordViolation('right_click', 'Right-click attempted');
+    toast.warning("Right-click is disabled during the typing test", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Block keyboard shortcuts
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
+      toast.warning("Keyboard shortcuts are disabled during the typing test", {
+        icon: <ShieldAlert className="h-4 w-4" />,
+      });
+    }
+  }, [recordViolation]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
@@ -168,23 +231,24 @@ export default function TypingTestPhase() {
     };
   }, [testState]);
 
-  // Detect tab switching during test
+  // Detect tab switching during test - record as violation
   useEffect(() => {
     if (testState !== "testing") return;
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setTabSwitchCount((prev) => prev + 1);
+        recordViolation('tab_switch', 'User switched to another tab or window');
       } else {
-        toast.warning("Please stay on this tab during the test. Tab switches are recorded.", {
+        toast.warning("Tab switch detected! This activity has been recorded.", {
           duration: 3000,
+          icon: <ShieldAlert className="h-4 w-4" />,
         });
       }
     };
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [testState]);
+  }, [testState, recordViolation]);
 
   const startTest = useCallback(() => {
     setTestState("testing");
@@ -284,6 +348,7 @@ export default function TypingTestPhase() {
       const existingNotes = parseApplicationNotes(application.notes);
       
       // Add typing test results (include requiredWpm for proper assessment)
+      const tabSwitchViolations = violations.filter(v => v.type === 'tab_switch').length;
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -293,7 +358,8 @@ export default function TypingTestPhase() {
           score: results.score,
           passed: results.passed,
           requiredWpm: requiredWpm,
-          tabSwitches: tabSwitchCount,
+          tabSwitches: tabSwitchViolations,
+          violations: violations,
           completedAt: new Date().toISOString(),
         },
         typingTestResult: {
@@ -302,7 +368,8 @@ export default function TypingTestPhase() {
           score: results.score,
           passed: results.passed,
           requiredWpm: requiredWpm,
-          tabSwitches: tabSwitchCount,
+          tabSwitches: tabSwitchViolations,
+          violations: violations,
         },
       };
 
@@ -502,7 +569,7 @@ export default function TypingTestPhase() {
     setTimeLeft(60);
     setResults(null);
     setStartTime(null);
-    setTabSwitchCount(0);
+    setViolations([]);
     const randomIndex = Math.floor(Math.random() * typingTexts.length);
     setTargetText(typingTexts[randomIndex]);
   };
@@ -585,7 +652,23 @@ export default function TypingTestPhase() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div 
+      ref={containerRef}
+      className="space-y-6 max-w-4xl mx-auto select-none"
+      onCopy={handleCopy}
+      onPaste={handlePaste}
+      onCut={handleCut}
+      onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
+    >
+      {/* Anti-cheat indicator */}
+      {violations.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
+          <ShieldAlert className="h-4 w-4" />
+          <span>{violations.length} violation(s) recorded</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button 
@@ -695,13 +778,11 @@ export default function TypingTestPhase() {
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
-                onContextMenu={(e) => e.preventDefault()}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  toast.warning("Paste is disabled during the typing test");
-                }}
-                onCopy={(e) => e.preventDefault()}
-                onCut={(e) => e.preventDefault()}
+                onContextMenu={handleContextMenu}
+                onPaste={handlePaste}
+                onCopy={handleCopy}
+                onCut={handleCut}
+                onKeyDown={handleKeyDown}
               />
 
               <div className="flex justify-end">

@@ -56,7 +56,7 @@ interface ApplicationDetails {
 }
 
 interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click';
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
   timestamp: string;
   details?: string;
 }
@@ -282,6 +282,17 @@ export default function QuizPhase() {
     toast.warning("Right-click is disabled during the quiz", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
+  }, [recordViolation]);
+
+  // Anti-cheating: Block keyboard shortcuts
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'p', 's'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
+      toast.warning("Keyboard shortcuts are disabled during the quiz", {
+        icon: <ShieldAlert className="h-4 w-4" />,
+      });
+    }
   }, [recordViolation]);
 
   // Use stable questions for rendering
@@ -861,6 +872,7 @@ export default function QuizPhase() {
       onPaste={handlePaste}
       onCut={handleCut}
       onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
     >
       {/* Anti-cheat indicator */}
       {violations.length > 0 && (
