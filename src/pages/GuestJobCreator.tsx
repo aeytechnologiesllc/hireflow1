@@ -81,6 +81,8 @@ import hireflowLogo from "@/assets/hireflow-logo.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
 import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
 import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface GuestJobData {
   formData: {
@@ -110,6 +112,28 @@ interface GuestJobData {
   passingScore: number;
   createdAt: number;
 }
+
+// Workflow phase warning threshold
+const PHASE_WARNING_THRESHOLD = 4;
+
+// Helper to estimate candidate completion time
+const getEstimatedCompletionTime = (
+  steps: any[], 
+  quizCount: number
+): number => {
+  const timeMap: Record<string, number> = {
+    typing_test: 5,
+    video_message: 5,
+    chat_simulation: 10,
+    sales_simulation: 10,
+    portfolio_upload: 5,
+    chat_interview: 15,
+    voice_interview: 15,
+  };
+  const quizTime = Math.ceil(quizCount * 0.5); // 30 sec per question
+  const stepsTime = steps.reduce((acc, s) => acc + (timeMap[s.type] || 5), 0);
+  return quizTime + stepsTime + 5; // +5 for application form base
+};
 
 // Step type info for workflow steps
 const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean }> = {
@@ -196,6 +220,9 @@ export default function GuestJobCreator() {
   } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
   
+  // Phase warning dismissed state
+  const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
+
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -1512,7 +1539,34 @@ export default function GuestJobCreator() {
                           </DropdownMenu>
                         </div>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-4">
+                        {/* Phase warning banner */}
+                        {workflowSteps.length >= PHASE_WARNING_THRESHOLD && !phaseWarningDismissed && (
+                          <Alert className="border-amber-500/30 bg-amber-500/10">
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            <AlertTitle className="text-amber-200">You've added {workflowSteps.length} workflow steps</AlertTitle>
+                            <AlertDescription className="text-amber-200/80">
+                              <p className="mb-2">
+                                Long application processes can lead to candidate drop-off. Consider keeping your workflow to 3-4 steps for the best completion rates.
+                              </p>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Clock className="h-4 w-4" />
+                                  <span>Est. candidate time: ~{getEstimatedCompletionTime(workflowSteps, quizQuestions.length)} minutes</span>
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
+                                  onClick={() => setPhaseWarningDismissed(true)}
+                                >
+                                  Got it
+                                </Button>
+                              </div>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        
                         {workflowSteps.length === 0 ? (
                           <div className="text-center py-8 text-muted-foreground">
                             <p className="text-sm">No additional steps added yet.</p>
