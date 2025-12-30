@@ -596,15 +596,19 @@ function buildTypingNarrative(input: AvaPhaseNarrativeInput): string {
       paragraphs.push(`**Result:** ${wpm} WPM with ${accuracy}% accuracy${roleContext}.`);
     }
     
-    // Speed context
-    if (wpm >= 70) {
-      paragraphs.push(`**Speed Assessment:** Above average. Suitable for high-volume typing work.`);
-    } else if (wpm >= 50) {
-      paragraphs.push(`**Speed Assessment:** Average range. Adequate for moderate typing needs.`);
-    } else if (wpm >= 35) {
-      paragraphs.push(`**Speed Assessment:** Below average. May limit productivity in typing-intensive roles.`);
+    // Speed assessment based on effective score (respects job's requiredWpm)
+    const effectiveRequiredWpm = requiredWpm || 35;
+    const speedPercent = Math.round((wpm / effectiveRequiredWpm) * 100);
+    const effectiveScore = Math.round(speedPercent * (accuracy / 100));
+    
+    if (effectiveScore >= 80) {
+      paragraphs.push(`**Speed Assessment:** Strong performance. Well-suited for typing-intensive work.`);
+    } else if (effectiveScore >= 60) {
+      paragraphs.push(`**Speed Assessment:** Adequate performance. Meets standard typing requirements.`);
+    } else if (effectiveScore >= 40) {
+      paragraphs.push(`**Speed Assessment:** Below expectations. May need improvement for typing-heavy roles.`);
     } else {
-      paragraphs.push(`**Speed Assessment:** Significantly below typical requirements.`);
+      paragraphs.push(`**Speed Assessment:** Needs improvement. Speed and accuracy both require development.`);
     }
     
     // Accuracy insight

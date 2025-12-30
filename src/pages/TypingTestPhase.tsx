@@ -283,7 +283,7 @@ export default function TypingTestPhase() {
       // Parse existing notes or start fresh
       const existingNotes = parseApplicationNotes(application.notes);
       
-      // Add typing test results
+      // Add typing test results (include requiredWpm for proper assessment)
       const updatedNotes = {
         ...existingNotes,
         [stepId!]: {
@@ -292,6 +292,7 @@ export default function TypingTestPhase() {
           accuracy: results.accuracy,
           score: results.score,
           passed: results.passed,
+          requiredWpm: requiredWpm,
           tabSwitches: tabSwitchCount,
           completedAt: new Date().toISOString(),
         },
@@ -300,6 +301,7 @@ export default function TypingTestPhase() {
           accuracy: results.accuracy,
           score: results.score,
           passed: results.passed,
+          requiredWpm: requiredWpm,
           tabSwitches: tabSwitchCount,
         },
       };

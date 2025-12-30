@@ -420,13 +420,17 @@ Resume URL: ${detectedResumeUrl || "Not provided"}
 NOTE: Only the file above is the resume. Any files in "CUSTOM FILE UPLOADS" section are NOT resumes.
 `;
 
-    // Add Typing Test results if available
+    // Add Typing Test results if available (include requiredWpm for context)
     if (parsedNotes.typingTestResult) {
+      const typingRequiredWpm = parsedNotes.typingTestResult.requiredWpm || job?.required_wpm || 35;
+      const meetsRequirement = parsedNotes.typingTestResult.wpm >= typingRequiredWpm;
       content += `
 Typing Test Results:
 - Speed: ${parsedNotes.typingTestResult.wpm} WPM
+- Required: ${typingRequiredWpm} WPM
 - Accuracy: ${parsedNotes.typingTestResult.accuracy}%
 - Score: ${parsedNotes.typingTestResult.score || 'N/A'}
+- Performance: ${meetsRequirement ? 'Meets requirement' : 'Below requirement'}
 `;
     }
 
