@@ -23,6 +23,8 @@ import {
   Sparkles,
   Loader2,
   AlertTriangle,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
@@ -177,6 +179,29 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 >
                   {job.job_code}
                 </button>
+              </div>
+            )}
+
+            {/* Application Deadline */}
+            {job.application_deadline && (
+              <div className="flex items-center gap-2 text-sm">
+                {new Date(job.application_deadline) < new Date() ? (
+                  <>
+                    <Clock className="h-4 w-4 text-destructive" />
+                    <span className="text-destructive font-medium">Applications Closed</span>
+                    <span className="text-muted-foreground text-xs">
+                      (Deadline: {format(new Date(job.application_deadline), "MMM d, yyyy")})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="h-4 w-4 text-amber-500" />
+                    <span className="text-muted-foreground">Deadline:</span>
+                    <span className="font-medium text-amber-500">
+                      {format(new Date(job.application_deadline), "MMM d, yyyy")}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
