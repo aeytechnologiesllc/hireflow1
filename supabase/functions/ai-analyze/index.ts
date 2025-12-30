@@ -212,6 +212,29 @@ These bonuses reflect the candidate's ACTUAL DEMONSTRATED performance in assessm
 - Chat simulation score 80+: +10 points
 - Sales simulation score 80+: +10 points
 
+**CRITICAL - PHASE PERFORMANCE PENALTIES (APPLY AFTER BONUSES):**
+Poor phase performance should significantly impact the overall score:
+- Quiz score 0-29%: -20 points (critical failure)
+- Quiz score 30-49%: -10 points (below expectations)
+- Quiz score 50-59%: -5 points (marginal)
+- Typing test below required WPM: -10 points
+- Typing test with < 85% accuracy: -5 points
+- Chat simulation score 0-29%: -15 points (critical failure in customer handling)
+- Chat simulation score 30-49%: -10 points (poor customer handling)
+- Chat simulation score 50-59%: -5 points (marginal customer handling)
+- Sales simulation score 0-29%: -15 points (critical failure in sales)
+- Sales simulation score 30-49%: -10 points (poor sales performance)
+- Sales simulation score 50-59%: -5 points (marginal sales performance)
+- Voice/Video interview score 0-29%: -20 points (critical failure)
+- Voice/Video interview score 30-49%: -10 points (below expectations)
+- Portfolio score 0-29%: -10 points (poor portfolio quality)
+- Portfolio score 30-49%: -5 points (marginal portfolio quality)
+
+**MAXIMUM SCORE CAPS BASED ON PHASE FAILURES:**
+- Any phase score 0-10%: MAX overall score 50% (severe failure shows lack of effort or capability)
+- Any required phase score below 50%: MAX overall score 65%
+- Multiple phase scores below 50%: MAX overall score 55%
+
 **MINIMUM SCORE FLOORS (IMPORTANT):**
 - Candidate who scored 100% on quiz CANNOT score below 60 overall
 - Candidate who scored 80%+ on quiz CANNOT score below 50 overall
@@ -486,6 +509,29 @@ These bonuses reflect the candidate's ACTUAL DEMONSTRATED performance in assessm
 - Voice/Video interview score 60-79: +10 points
 - Chat simulation score 80+: +10 points
 - Sales simulation score 80+: +10 points
+
+**CRITICAL - PHASE PERFORMANCE PENALTIES (APPLY AFTER BONUSES):**
+Poor phase performance should significantly impact the overall score:
+- Quiz score 0-29%: -20 points (critical failure)
+- Quiz score 30-49%: -10 points (below expectations)
+- Quiz score 50-59%: -5 points (marginal)
+- Typing test below required WPM: -10 points
+- Typing test with < 85% accuracy: -5 points
+- Chat simulation score 0-29%: -15 points (critical failure in customer handling)
+- Chat simulation score 30-49%: -10 points (poor customer handling)
+- Chat simulation score 50-59%: -5 points (marginal customer handling)
+- Sales simulation score 0-29%: -15 points (critical failure in sales)
+- Sales simulation score 30-49%: -10 points (poor sales performance)
+- Sales simulation score 50-59%: -5 points (marginal sales performance)
+- Voice/Video interview score 0-29%: -20 points (critical failure)
+- Voice/Video interview score 30-49%: -10 points (below expectations)
+- Portfolio score 0-29%: -10 points (poor portfolio quality)
+- Portfolio score 30-49%: -5 points (marginal portfolio quality)
+
+**MAXIMUM SCORE CAPS BASED ON PHASE FAILURES:**
+- Any phase score 0-10%: MAX overall score 50% (severe failure shows lack of effort or capability)
+- Any required phase score below 50%: MAX overall score 65%
+- Multiple phase scores below 50%: MAX overall score 55%
 
 **MINIMUM SCORE FLOORS (IMPORTANT):**
 - Candidate who scored 100% on quiz CANNOT score below 60 overall
