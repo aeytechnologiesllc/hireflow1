@@ -571,16 +571,23 @@ export default function ApplicationFormPhase() {
     });
 
     // Validate resume if required and not already uploaded
-    // FIXED: No longer skip this check just because there's a file-type question
-    // The resume upload is separate from other file questions (like internet speed screenshots)
+    // FIXED: Only accept application.resume_url if it looks like an actual resume (PDF in resumes bucket)
+    // This prevents non-resume uploads (like "proof of internet speed") from bypassing resume validation
+    const hasValidApplicationResume = application?.resume_url && 
+      application.resume_url.includes('.pdf') && 
+      application.resume_url.includes('/resumes/');
+    
     // Check if there's a resume-specific file question that has been answered
     const resumeFileQuestion = questions.find(q => 
       q.type === "file" && 
-      (q.question.toLowerCase().includes("resume") || q.id.toLowerCase().includes("resume"))
+      (q.question.toLowerCase().includes("resume") || 
+       q.question.toLowerCase().includes("cv") || 
+       q.question.toLowerCase().includes("curriculum") ||
+       q.id.toLowerCase().includes("resume"))
     );
     const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
     
-    if (requiresResume && !resumeFile && !application?.resume_url && !usingProfileResume && !hasResumeFromFileQuestion) {
+    if (requiresResume && !resumeFile && !hasValidApplicationResume && !usingProfileResume && !hasResumeFromFileQuestion) {
       errors.resume = "Please upload your resume";
     }
 
@@ -607,6 +614,15 @@ export default function ApplicationFormPhase() {
     const isValid = validateForm();
     if (!isValid) {
       toast.error("Please fix the highlighted fields before submitting.");
+      // Scroll to first error field
+      setTimeout(() => {
+        const firstErrorKey = Object.keys(validationErrors)[0] || 'resume';
+        const errorElement = document.querySelector(`[data-field="${firstErrorKey}"]`) || 
+                            document.querySelector('.border-destructive');
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
       return;
     }
 
@@ -922,7 +938,7 @@ export default function ApplicationFormPhase() {
               return true;
             })
             .map((question) => (
-            <div key={question.id} className="space-y-2">
+            <div key={question.id} className="space-y-2" data-field={question.id}>
               <Label className="text-foreground">
                 {question.question}
                 {question.required && <span className="text-destructive ml-1">*</span>}
@@ -1147,7 +1163,7 @@ export default function ApplicationFormPhase() {
           {/* Resume Upload - FIXED: Always show when resume required, even if there are file questions */}
           {/* Other file questions (like internet speed screenshots) are separate from resume */}
           {requiresResume && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="resume">
               <Label className="text-foreground">
                 Resume <span className="text-destructive">*</span>
               </Label>
@@ -1164,10 +1180,10 @@ export default function ApplicationFormPhase() {
                     <Loader2 className="h-5 w-5 animate-spin" />
                     Uploading...
                   </div>
-                ) : resumeFile || application.resume_url ? (
+                ) : resumeFile ? (
                   <div className="flex items-center justify-center gap-2">
                     <FileIcon className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{resumeFile?.name || "Resume uploaded"}</span>
+                    <span className="text-sm">{resumeFile.name}</span>
                     <CheckCircle className="h-4 w-4 text-success" />
                   </div>
                 ) : usingProfileResume && profile?.resume_url ? (
