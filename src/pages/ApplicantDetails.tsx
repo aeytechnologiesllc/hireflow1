@@ -2799,15 +2799,15 @@ export default function ApplicantDetails() {
                             <div className="space-y-4">
                               <div className="grid grid-cols-3 gap-3">
                                 <div className="p-3 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-xl font-bold text-primary">{dialogData.content.evaluation.score || dialogData.content.score || "N/A"}</p>
+                                  <p className="text-xl font-bold text-primary">{dialogData.content.evaluation.score ?? dialogData.content.score ?? "N/A"}</p>
                                   <p className="text-xs text-muted-foreground">Overall</p>
                                 </div>
                                 <div className="p-3 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.empathy || "N/A"}%</p>
+                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.empathy ?? "N/A"}%</p>
                                   <p className="text-xs text-muted-foreground">Empathy</p>
                                 </div>
                                 <div className="p-3 bg-muted/50 rounded-lg text-center">
-                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.problemSolving || "N/A"}%</p>
+                                  <p className="text-xl font-bold text-foreground">{dialogData.content.evaluation.problemSolving ?? "N/A"}%</p>
                                   <p className="text-xs text-muted-foreground">Problem Solving</p>
                                 </div>
                               </div>

@@ -209,11 +209,173 @@ serve(async (req) => {
                          (hasPortfolioData && !analysisIncludesPortfolio);
       
       if (now - lastUpdated < 10000 && !hasNewData) {
-        console.log("[trigger-ava-analysis] Analysis was just completed, no new phase data, skipping");
-        return new Response(
-          JSON.stringify({ success: true, message: "Analysis already present", skipped: true, score: application.ai_score }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // If autopilotDecision is requested, we still need to run pass/fail logic
+        // using existing score - don't skip completely
+        if (!autopilotDecision) {
+          console.log("[trigger-ava-analysis] Analysis was just completed, no new phase data, skipping");
+          return new Response(
+            JSON.stringify({ success: true, message: "Analysis already present", skipped: true, score: application.ai_score }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          console.log("[trigger-ava-analysis] Analysis exists but autopilotDecision requested - will evaluate pass/fail with existing score:", application.ai_score);
+          
+          // Run autopilot decision with existing score
+          const existingScore = application.ai_score;
+          const jobData = application.jobs as any;
+          const passingScore = (jobData?.passing_score as number) || 60;
+          const workflowSteps = (jobData?.workflow_steps as any[]) || [];
+          const quizQuestions = jobData?.quiz_questions as any[] | undefined;
+          const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+          
+          console.log("[trigger-ava-analysis] Autopilot decision with existing score:", existingScore, "passingScore:", passingScore);
+          
+          if (existingScore !== null && existingScore >= passingScore) {
+            // PASSED - determine next phase and advance
+            let nextPhaseId = "application";
+            let nextPhaseTitle = "Application";
+            
+            // SAFETY GATE: Filter out voice_interview from auto-advance targets
+            const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
+            
+            if (currentPhaseId === "application") {
+              if (hasQuizQuestions) {
+                nextPhaseId = "quiz";
+                nextPhaseTitle = "Quiz";
+              } else if (nonVoiceSteps.length > 0) {
+                nextPhaseId = nonVoiceSteps[0].id;
+                nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
+              } else {
+                // Only voice_interview steps exist - cannot auto-advance
+                console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    message: "Analysis exists, awaiting employer configuration for Ava interview",
+                    score: existingScore,
+                    decision: "needs_employer_approval",
+                    reason: "Next phase is Ava Interview which requires employer configuration",
+                  }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+            } else if (currentPhaseId === "quiz") {
+              if (nonVoiceSteps.length > 0) {
+                nextPhaseId = nonVoiceSteps[0].id;
+                nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
+              } else {
+                console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    message: "Analysis exists, awaiting employer configuration for Ava interview",
+                    score: existingScore,
+                    decision: "needs_employer_approval",
+                  }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+            } else {
+              // Find current step and advance to next non-voice step
+              const currentIndex = workflowSteps.findIndex((s: any) => s.id === currentPhaseId);
+              const remainingSteps = workflowSteps.slice(currentIndex + 1).filter((s: any) => s.type !== 'voice_interview');
+              if (remainingSteps.length > 0) {
+                nextPhaseId = remainingSteps[0].id;
+                nextPhaseTitle = remainingSteps[0].title || remainingSteps[0].type;
+              } else {
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    message: "Analysis exists, awaiting employer configuration for Ava interview",
+                    score: existingScore,
+                    decision: "needs_employer_approval",
+                  }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+            }
+            
+            // Advance to next phase
+            const { error: advanceError } = await supabaseAdmin
+              .from("applications")
+              .update({ phase: nextPhaseId })
+              .eq("id", applicationId);
+            
+            if (advanceError) {
+              console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
+            } else {
+              console.log("[trigger-ava-analysis] Advanced candidate to:", nextPhaseId);
+            }
+            
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                message: "Autopilot advanced candidate",
+                score: existingScore,
+                decision: "advanced",
+                nextPhase: nextPhaseId,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          } else {
+            // FAILED - reject the application
+            const rejectReason = `Overall Ava score of ${existingScore || 0}% is below the passing threshold of ${passingScore}%.`;
+            
+            console.log("[trigger-ava-analysis] Autopilot FAILED with existing score: rejecting application, score=", existingScore);
+            
+            const { error: rejectError } = await supabaseAdmin
+              .from("applications")
+              .update({
+                status: "rejected",
+                rejected_by_type: "ava",
+                phase_ai_analysis: rejectReason,
+              })
+              .eq("id", applicationId);
+            
+            if (rejectError) {
+              console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
+            }
+            
+            // Send rejection notification email to candidate
+            try {
+              const jobTitle = jobData?.title || "this position";
+              
+              const { data: employerProfile } = await supabaseAdmin
+                .from("profiles")
+                .select("company_name")
+                .eq("user_id", jobData?.employer_id)
+                .single();
+              
+              const companyName = employerProfile?.company_name || undefined;
+              
+              await supabaseAdmin.functions.invoke("send-notification-email", {
+                body: {
+                  type: "status_rejected",
+                  recipientUserId: application.candidate_id,
+                  data: {
+                    job_title: jobTitle,
+                    company_name: companyName,
+                  },
+                },
+              });
+              
+              console.log("[trigger-ava-analysis] Sent rejection email to candidate");
+            } catch (emailError) {
+              console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
+            }
+            
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                message: "Autopilot rejected candidate (existing score)",
+                score: existingScore,
+                decision: "rejected",
+                reason: rejectReason,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
       }
       
       if (hasNewData) {
