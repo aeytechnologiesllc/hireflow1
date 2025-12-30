@@ -435,7 +435,7 @@ export default function PortfolioUploadPhase() {
         // Trigger AVA analysis and WAIT for backend decision
         try {
           const { data: analysisResult, error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: { applicationId: id!, autopilotDecision: true },
+            body: { applicationId: id!, autopilotDecision: true, currentPhaseId: stepId },
           });
           
           if (analysisError) {

@@ -626,6 +626,7 @@ export default function ChatSimulationPhase() {
             body: { 
               applicationId: id!,
               autopilotDecision: true,
+              currentPhaseId: stepId,
             },
           });
           

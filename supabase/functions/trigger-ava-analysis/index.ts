@@ -893,6 +893,84 @@ ${interviewType} Interview with AVA Results:
               { headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+        } else {
+          // Handle workflow step phases (typing_test, chat_simulation, sales_simulation, etc.)
+          // Find current step index in workflow
+          const currentStepIndex = workflowSteps.findIndex((s: any) => s.id === currentPhaseId);
+          
+          console.log("[trigger-ava-analysis] Handling workflow step phase:", currentPhaseId, "at index:", currentStepIndex);
+          
+          if (currentStepIndex !== -1) {
+            // Find next step in workflow (non-voice steps only for auto-advance)
+            let nextStepIndex = currentStepIndex + 1;
+            
+            // Skip to next non-voice step, or stop if next is voice_interview
+            while (nextStepIndex < workflowSteps.length) {
+              const nextStep = workflowSteps[nextStepIndex];
+              
+              if (nextStep.type === 'voice_interview') {
+                // voice_interview requires employer to configure - notify and stop
+                console.log("[trigger-ava-analysis] Next step is voice_interview - requires employer configuration");
+                
+                try {
+                  const candidateName = profile?.full_name || profile?.email || "A candidate";
+                  const jobTitle = job?.title || "your job posting";
+                  
+                  await supabaseAdmin.from("notifications").insert({
+                    user_id: job.employer_id,
+                    type: "interview",
+                    title: "Candidate Ready for AIVA Interview",
+                    message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
+                    link: `/applicants/${applicationId}`,
+                    is_read: false,
+                  });
+                  
+                  await supabaseAdmin.functions.invoke("send-notification-email", {
+                    body: {
+                      type: "interview_ready",
+                      recipient_user_id: job.employer_id,
+                      data: {
+                        candidate_name: candidateName,
+                        job_title: jobTitle,
+                        score: finalScore?.toString(),
+                      },
+                    },
+                  });
+                } catch (notifyError) {
+                  console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
+                }
+                
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    score: finalScore,
+                    decision: "needs_employer_approval",
+                    reason: "Next phase is Ava Interview which requires employer configuration",
+                  }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              
+              // Found a valid non-voice step
+              nextPhaseId = nextStep.id;
+              nextPhaseTitle = nextStep.title || nextStep.type;
+              console.log("[trigger-ava-analysis] Next workflow step found:", nextPhaseId, nextPhaseTitle);
+              break;
+            }
+            
+            // If we've exhausted all workflow steps, candidate has completed everything
+            if (nextStepIndex >= workflowSteps.length) {
+              nextPhaseId = "review";
+              nextPhaseTitle = "Review";
+              console.log("[trigger-ava-analysis] All workflow steps completed, advancing to review");
+            }
+          } else {
+            // Phase ID not found in workflow - might be a special phase, log and continue
+            console.log("[trigger-ava-analysis] Phase not found in workflow steps:", currentPhaseId);
+            // Keep the current phase
+            nextPhaseId = currentPhaseId;
+            nextPhaseTitle = currentPhaseId;
+          }
         }
         
         console.log("[trigger-ava-analysis] Autopilot PASSED: advancing to phase:", nextPhaseId);
