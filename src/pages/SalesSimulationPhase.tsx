@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 
 interface Message {
   id: string;
@@ -375,6 +376,8 @@ export default function SalesSimulationPhase() {
       toast.error(error instanceof Error ? error.message : "Failed to get prospect response");
     } finally {
       setIsTyping(false);
+      // Auto-focus the input after prospect responds
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
@@ -482,6 +485,8 @@ export default function SalesSimulationPhase() {
       toast.error(error instanceof Error ? error.message : "Failed to start simulation");
     } finally {
       setIsTyping(false);
+      // Auto-focus the input after initial prospect message
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
@@ -713,10 +718,13 @@ export default function SalesSimulationPhase() {
           Back to Application
         </Button>
         
-        <Badge className="bg-green-500/20 text-green-500 border-green-500/30 gap-1">
-          <TrendingUp className="h-4 w-4" />
-          Sales Conversation
-        </Badge>
+        <div className="flex items-center gap-3">
+          <ConnectionStatusIndicator />
+          <Badge className="bg-green-500/20 text-green-500 border-green-500/30 gap-1">
+            <TrendingUp className="h-4 w-4" />
+            Sales Conversation
+          </Badge>
+        </div>
       </div>
 
       {/* Main Card */}

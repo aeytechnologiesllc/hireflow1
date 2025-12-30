@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 
 interface Message {
@@ -375,6 +376,8 @@ export default function ChatSimulationPhase() {
       toast.error(error instanceof Error ? error.message : "Failed to get customer response");
     } finally {
       setIsTyping(false);
+      // Auto-focus the input after customer responds
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
@@ -480,6 +483,8 @@ export default function ChatSimulationPhase() {
       toast.error(error instanceof Error ? error.message : "Failed to start simulation");
     } finally {
       setIsTyping(false);
+      // Auto-focus the input after initial customer message
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
@@ -763,10 +768,13 @@ export default function ChatSimulationPhase() {
           Back to Application
         </Button>
         
-        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-          <MessageSquare className="h-4 w-4" />
-          Chat Simulation
-        </Badge>
+        <div className="flex items-center gap-3">
+          <ConnectionStatusIndicator />
+          <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
+            <MessageSquare className="h-4 w-4" />
+            Chat Simulation
+          </Badge>
+        </div>
       </div>
 
       {/* Main Card */}

@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 
 interface Message {
@@ -836,10 +837,13 @@ export default function ChatInterviewPhase() {
           Back to Application
         </Button>
         
-        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-          <Users className="h-4 w-4" />
-          Professional Interview
-        </Badge>
+        <div className="flex items-center gap-3">
+          <ConnectionStatusIndicator />
+          <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
+            <Users className="h-4 w-4" />
+            Professional Interview
+          </Badge>
+        </div>
       </div>
 
       {/* Main Card */}
