@@ -594,7 +594,7 @@ export default function ApplicationFormPhase() {
     }
 
     setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   };
 
   const handleSubmit = async () => {
@@ -613,16 +613,20 @@ export default function ApplicationFormPhase() {
       return;
     }
 
-    const isValid = validateForm();
-    if (!isValid) {
-      toast.error("Please fix the highlighted fields before submitting.");
-      // Scroll to first error field
+    const errors = validateForm();
+    const errorFields = Object.keys(errors);
+    if (errorFields.length > 0) {
+      const firstError = errors[errorFields[0]];
+      toast.error(`Please fix: ${firstError}`);
+      // Scroll to first error field using the fresh errors object
       setTimeout(() => {
-        const firstErrorKey = Object.keys(validationErrors)[0] || 'resume';
+        const firstErrorKey = errorFields[0];
         const errorElement = document.querySelector(`[data-field="${firstErrorKey}"]`) || 
                             document.querySelector('.border-destructive');
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const input = errorElement.querySelector('input, textarea, select');
+          if (input) (input as HTMLElement).focus();
         }
       }, 100);
       return;
