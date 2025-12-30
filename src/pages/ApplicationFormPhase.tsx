@@ -856,12 +856,8 @@ export default function ApplicationFormPhase() {
   return (
     <div 
       ref={formContainerRef}
-      className="space-y-6 max-w-3xl mx-auto select-none"
-      onCopy={handleCopy}
-      onPaste={handlePaste}
-      onCut={handleCut}
+      className="space-y-6 max-w-3xl mx-auto"
       onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
     >
       {/* Anti-cheat indicator */}
       {violations.length > 0 && (
@@ -919,6 +915,9 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
                   className={validationErrors[question.id] ? "border-destructive" : ""}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCut={handleCut}
                 />
               )}
               
@@ -929,6 +928,9 @@ export default function ApplicationFormPhase() {
                   placeholder="Your answer"
                   rows={4}
                   className={validationErrors[question.id] ? "border-destructive" : ""}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCut={handleCut}
                 />
               )}
               
@@ -939,6 +941,9 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="email@example.com"
                   className={validationErrors[question.id] ? "border-destructive" : ""}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCut={handleCut}
                 />
               )}
               
@@ -956,6 +961,9 @@ export default function ApplicationFormPhase() {
                     }))}
                     placeholder="123-456-7890"
                     className={`flex-1 ${validationErrors[question.id] ? "border-destructive" : ""}`}
+                    onCopy={handleCopy}
+                    onPaste={handlePaste}
+                    onCut={handleCut}
                   />
                 </div>
               )}
