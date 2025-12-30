@@ -795,6 +795,100 @@ export default function CreateJob() {
     setQuizQuestions(newQuestions);
   };
 
+  const addNewQuizQuestion = () => {
+    const newQuestion: QuizQuestion = {
+      id: `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: "multiple_choice",
+      question: "",
+      options: ["", "", "", ""],
+      correct_answer: "",
+      time_limit_seconds: 30,
+      category: "General",
+    };
+    setEditingQuizQuestion(newQuestion);
+  };
+
+  const saveQuizQuestion = () => {
+    if (!editingQuizQuestion) return;
+    
+    // Validate
+    if (!editingQuizQuestion.question.trim()) {
+      toast.error("Please enter a question");
+      return;
+    }
+    
+    const validOptions = editingQuizQuestion.options?.filter(opt => opt.trim()) || [];
+    if (validOptions.length < 2) {
+      toast.error("Please enter at least 2 options");
+      return;
+    }
+    
+    if (!editingQuizQuestion.correct_answer || !validOptions.includes(editingQuizQuestion.correct_answer)) {
+      toast.error("Please select a correct answer");
+      return;
+    }
+    
+    // Clean up the question - only keep non-empty options
+    const cleanedQuestion: QuizQuestion = {
+      ...editingQuizQuestion,
+      options: validOptions,
+    };
+    
+    // Check if it's an existing question or new
+    const existingIndex = quizQuestions.findIndex(q => q.id === editingQuizQuestion.id);
+    if (existingIndex >= 0) {
+      setQuizQuestions(prev => prev.map(q => q.id === cleanedQuestion.id ? cleanedQuestion : q));
+      toast.success("Quiz question updated");
+    } else {
+      setQuizQuestions(prev => [...prev, cleanedQuestion]);
+      toast.success("Quiz question added");
+    }
+    
+    setEditingQuizQuestion(null);
+  };
+
+  const updateQuizQuestionOption = (index: number, value: string) => {
+    if (!editingQuizQuestion) return;
+    const newOptions = [...(editingQuizQuestion.options || [])];
+    newOptions[index] = value;
+    setEditingQuizQuestion({ ...editingQuizQuestion, options: newOptions });
+  };
+
+  const addQuizQuestionOption = () => {
+    if (!editingQuizQuestion) return;
+    const currentOptions = editingQuizQuestion.options || [];
+    if (currentOptions.length >= 6) {
+      toast.error("Maximum 6 options allowed");
+      return;
+    }
+    setEditingQuizQuestion({
+      ...editingQuizQuestion,
+      options: [...currentOptions, ""],
+    });
+  };
+
+  const removeQuizQuestionOption = (index: number) => {
+    if (!editingQuizQuestion) return;
+    const currentOptions = editingQuizQuestion.options || [];
+    if (currentOptions.length <= 2) {
+      toast.error("Minimum 2 options required");
+      return;
+    }
+    const removedOption = currentOptions[index];
+    const newOptions = currentOptions.filter((_, i) => i !== index);
+    
+    // If we removed the correct answer, clear it
+    const newCorrectAnswer = editingQuizQuestion.correct_answer === removedOption 
+      ? "" 
+      : editingQuizQuestion.correct_answer;
+    
+    setEditingQuizQuestion({
+      ...editingQuizQuestion,
+      options: newOptions,
+      correct_answer: newCorrectAnswer,
+    });
+  };
+
   // Workflow step management
   const deleteStep = (id: string) => {
     setWorkflowSteps(prev => prev.filter(s => s.id !== id));
@@ -1788,16 +1882,26 @@ export default function CreateJob() {
                   {/* Quiz Questions */}
                   <Card className="bg-card border-border">
                     <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                          <Clock className="h-4 w-4 text-amber-500" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                            <Clock className="h-4 w-4 text-amber-500" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
+                            <CardDescription>
+                              {quizQuestions.length} questions • ~{Math.ceil(quizQuestions.reduce((acc, q) => acc + q.time_limit_seconds, 0) / 60)} min total
+                            </CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
-                          <CardDescription>
-                            {quizQuestions.length} questions • Candidates answer under time pressure
-                          </CardDescription>
-                        </div>
+                        <Button
+                          size="sm"
+                          onClick={addNewQuizQuestion}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Question
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -1844,7 +1948,15 @@ export default function CreateJob() {
                                     ))}
                                   </div>
                                 )}
-                                <div className="flex items-center justify-end pt-2">
+                                <div className="flex items-center justify-end gap-2 pt-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEditingQuizQuestion(q)}
+                                  >
+                                    <Edit2 className="h-4 w-4 mr-1" />
+                                    Edit
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -2250,7 +2362,7 @@ export default function CreateJob() {
         </div>
       </div>
 
-      {/* Edit Question Dialog */}
+      {/* Edit Application Question Dialog */}
       <Dialog open={!!editingQuestion} onOpenChange={() => setEditingQuestion(null)}>
         <DialogContent>
           <DialogHeader>
@@ -2334,6 +2446,148 @@ export default function CreateJob() {
               }
             }}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Quiz Question Dialog */}
+      <Dialog open={!!editingQuizQuestion} onOpenChange={() => setEditingQuizQuestion(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              {quizQuestions.some(q => q.id === editingQuizQuestion?.id) ? "Edit" : "Add"} Quiz Question
+            </DialogTitle>
+          </DialogHeader>
+          {editingQuizQuestion && (
+            <div className="space-y-5">
+              {/* Question Text */}
+              <div className="space-y-2">
+                <Label>Question</Label>
+                <Textarea
+                  value={editingQuizQuestion.question}
+                  onChange={(e) => setEditingQuizQuestion({ ...editingQuizQuestion, question: e.target.value })}
+                  placeholder="Enter your question here..."
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              {/* Category and Time Limit */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Input
+                    value={editingQuizQuestion.category}
+                    onChange={(e) => setEditingQuizQuestion({ ...editingQuizQuestion, category: e.target.value })}
+                    placeholder="e.g., Technical Skills"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center justify-between">
+                    <span>Time Limit</span>
+                    <span className="text-amber-500 font-bold">{editingQuizQuestion.time_limit_seconds}s</span>
+                  </Label>
+                  <Slider
+                    value={[editingQuizQuestion.time_limit_seconds]}
+                    onValueChange={([value]) => setEditingQuizQuestion({ ...editingQuizQuestion, time_limit_seconds: value })}
+                    min={10}
+                    max={120}
+                    step={5}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>10s</span>
+                    <span>60s</span>
+                    <span>120s</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Answer Options */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Answer Options (click to mark correct)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addQuizQuestionOption}
+                    disabled={(editingQuizQuestion.options?.length || 0) >= 6}
+                    className="gap-1 h-7"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Option
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  {editingQuizQuestion.options?.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (option.trim()) {
+                            setEditingQuizQuestion({ ...editingQuizQuestion, correct_answer: option });
+                          }
+                        }}
+                        className={cn(
+                          "h-10 w-10 rounded-lg flex items-center justify-center shrink-0 transition-all border-2",
+                          editingQuizQuestion.correct_answer === option && option.trim()
+                            ? "bg-green-500/20 border-green-500 text-green-400"
+                            : "bg-secondary/50 border-border hover:border-primary/50"
+                        )}
+                      >
+                        {editingQuizQuestion.correct_answer === option && option.trim() ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <span className="text-xs font-medium">{String.fromCharCode(65 + index)}</span>
+                        )}
+                      </button>
+                      <Input
+                        value={option}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const oldValue = option;
+                          updateQuizQuestionOption(index, newValue);
+                          // If this was the correct answer, update it
+                          if (editingQuizQuestion.correct_answer === oldValue) {
+                            setEditingQuizQuestion(prev => prev ? { ...prev, correct_answer: newValue, options: prev.options?.map((o, i) => i === index ? newValue : o) } : null);
+                          }
+                        }}
+                        placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                        className={cn(
+                          "flex-1",
+                          editingQuizQuestion.correct_answer === option && option.trim() && "border-green-500/50"
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeQuizQuestionOption(index)}
+                        disabled={(editingQuizQuestion.options?.length || 0) <= 2}
+                        className="text-destructive shrink-0 h-10 w-10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {editingQuizQuestion.correct_answer && (
+                  <p className="text-xs text-green-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Correct answer: {editingQuizQuestion.correct_answer}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingQuizQuestion(null)}>Cancel</Button>
+            <Button onClick={saveQuizQuestion}>
+              {quizQuestions.some(q => q.id === editingQuizQuestion?.id) ? "Save Changes" : "Add Question"}
             </Button>
           </DialogFooter>
         </DialogContent>
