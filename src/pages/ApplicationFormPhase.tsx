@@ -25,7 +25,8 @@ import {
   X,
   File as FileIcon,
   Send,
-  CalendarIcon
+  CalendarIcon,
+  ShieldAlert
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -37,6 +38,12 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
+
+interface AntiCheatViolation {
+  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
+  timestamp: string;
+  details?: string;
+}
 
 interface ApplicationQuestion {
   id: string;
@@ -116,6 +123,65 @@ export default function ApplicationFormPhase() {
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   const [aiScore, setAiScore] = useState<number | null>(null);
+  
+  // Anti-cheating state
+  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
+  const formContainerRef = useRef<HTMLDivElement>(null);
+
+  // Anti-cheating: Record violation
+  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
+    const violation: AntiCheatViolation = {
+      type,
+      timestamp: new Date().toISOString(),
+      details,
+    };
+    setViolations(prev => [...prev, violation]);
+    console.log('[ApplicationFormPhase] Violation recorded:', violation);
+  }, []);
+
+  // Anti-cheating: Prevent copy
+  const handleCopy = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('copy_attempt', 'Copy attempted');
+    toast.warning("Copying is disabled during the application", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent paste
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('paste_attempt', 'Paste attempted');
+    toast.warning("Pasting is disabled during the application", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent cut
+  const handleCut = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    recordViolation('cut_attempt', 'Cut attempted');
+  }, [recordViolation]);
+
+  // Anti-cheating: Prevent right-click
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    recordViolation('right_click', 'Right-click attempted');
+    toast.warning("Right-click is disabled during the application", {
+      icon: <ShieldAlert className="h-4 w-4" />,
+    });
+  }, [recordViolation]);
+
+  // Anti-cheating: Block keyboard shortcuts
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
+      toast.warning("Keyboard shortcuts are disabled during the application", {
+        icon: <ShieldAlert className="h-4 w-4" />,
+      });
+    }
+  }, [recordViolation]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({
@@ -175,6 +241,24 @@ export default function ApplicationFormPhase() {
                          application?.phase === stepId && 
                          !application?.ai_analysis;
   const alreadySubmitted = hasApplicationAnswers && !isReconsidered;
+
+  // Anti-cheating: Tab visibility detection
+  useEffect(() => {
+    if (alreadySubmitted) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        recordViolation('tab_switch', 'User switched to another tab or window');
+        toast.warning("Tab switch detected!", {
+          description: "This activity has been recorded.",
+          icon: <ShieldAlert className="h-4 w-4" />,
+        });
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [alreadySubmitted, recordViolation]);
 
   // Auto-fill form fields from candidate profile data
   const [hasPrefilledFromProfile, setHasPrefilledFromProfile] = useState(false);
@@ -770,7 +854,23 @@ export default function ApplicationFormPhase() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div 
+      ref={formContainerRef}
+      className="space-y-6 max-w-3xl mx-auto select-none"
+      onCopy={handleCopy}
+      onPaste={handlePaste}
+      onCut={handleCut}
+      onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
+    >
+      {/* Anti-cheat indicator */}
+      {violations.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
+          <ShieldAlert className="h-4 w-4" />
+          <span>{violations.length} violation(s) recorded</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -1099,8 +1199,11 @@ export default function ApplicationFormPhase() {
             <Textarea
               value={coverLetter}
               onChange={(e) => setCoverLetter(e.target.value)}
-              onPaste={(e) => e.preventDefault()}
-              onCopy={(e) => e.preventDefault()}
+              onPaste={handlePaste}
+              onCopy={handleCopy}
+              onCut={handleCut}
+              onContextMenu={handleContextMenu}
+              onKeyDown={handleKeyDown}
               placeholder="Write a brief cover letter..."
               rows={6}
             />
