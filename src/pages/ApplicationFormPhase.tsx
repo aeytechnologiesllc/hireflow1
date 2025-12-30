@@ -30,6 +30,7 @@ import {
   Eye
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -1080,48 +1081,62 @@ export default function ApplicationFormPhase() {
                       <FileIcon className="h-5 w-5 text-primary" />
                       <span className="text-sm truncate max-w-[200px]">{questionFiles[question.id].name}</span>
                       <CheckCircle className="h-4 w-4 text-success" />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const file = questionFiles[question.id];
-                          if (file) {
-                            const url = URL.createObjectURL(file);
-                            window.open(url, '_blank');
-                          }
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuestionFiles(prev => {
-                            const newFiles = { ...prev };
-                            delete newFiles[question.id];
-                            return newFiles;
-                          });
-                          setQuestionFileUrls(prev => {
-                            const newUrls = { ...prev };
-                            delete newUrls[question.id];
-                            return newUrls;
-                          });
-                          setAnswers(prev => {
-                            const newAnswers = { ...prev };
-                            delete newAnswers[question.id];
-                            return newAnswers;
-                          });
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const file = questionFiles[question.id];
+                                if (file) {
+                                  const url = URL.createObjectURL(file);
+                                  window.open(url, '_blank');
+                                }
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Preview file</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuestionFiles(prev => {
+                                  const newFiles = { ...prev };
+                                  delete newFiles[question.id];
+                                  return newFiles;
+                                });
+                                setQuestionFileUrls(prev => {
+                                  const newUrls = { ...prev };
+                                  delete newUrls[question.id];
+                                  return newUrls;
+                                });
+                                setAnswers(prev => {
+                                  const newAnswers = { ...prev };
+                                  delete newAnswers[question.id];
+                                  return newAnswers;
+                                });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove file</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   ) : questionFileUrls[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
@@ -1130,39 +1145,53 @@ export default function ApplicationFormPhase() {
                         {decodeURIComponent(questionFileUrls[question.id]?.split('/').pop() || 'File uploaded')}
                       </span>
                       <CheckCircle className="h-4 w-4 text-success" />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(questionFileUrls[question.id], '_blank');
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuestionFileUrls(prev => {
-                            const newUrls = { ...prev };
-                            delete newUrls[question.id];
-                            return newUrls;
-                          });
-                          setAnswers(prev => {
-                            const newAnswers = { ...prev };
-                            delete newAnswers[question.id];
-                            return newAnswers;
-                          });
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(questionFileUrls[question.id], '_blank');
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Preview file</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuestionFileUrls(prev => {
+                                  const newUrls = { ...prev };
+                                  delete newUrls[question.id];
+                                  return newUrls;
+                                });
+                                setAnswers(prev => {
+                                  const newAnswers = { ...prev };
+                                  delete newAnswers[question.id];
+                                  return newAnswers;
+                                });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Remove file</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   ) : (
                     <div
@@ -1221,61 +1250,89 @@ export default function ApplicationFormPhase() {
                     <FileIcon className="h-5 w-5 text-primary" />
                     <span className="text-sm truncate max-w-[200px]">{resumeFile.name}</span>
                     <CheckCircle className="h-4 w-4 text-success" />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const url = URL.createObjectURL(resumeFile);
-                        window.open(url, '_blank');
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setResumeFile(null);
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = URL.createObjectURL(resumeFile);
+                              window.open(url, '_blank');
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Preview resume</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setResumeFile(null);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove resume</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 ) : usingProfileResume && profile?.resume_url ? (
                   <div className="flex items-center justify-center gap-2">
                     <FileIcon className="h-5 w-5 text-primary" />
                     <span className="text-sm text-muted-foreground">Using resume from your profile</span>
                     <CheckCircle className="h-4 w-4 text-success" />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(profile.resume_url, '_blank');
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setUsingProfileResume(false);
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(profile.resume_url, '_blank');
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Preview resume</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUsingProfileResume(false);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Upload different resume</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 ) : (
                   <div
