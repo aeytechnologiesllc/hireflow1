@@ -524,45 +524,62 @@ function generateFullSummary(
     concernLabel = 'typing speed';
   }
   
-  // Line 1: Signal status with interpretive context
+  // Build plain-language summary with actionable next steps
   if (finalScoreNum !== null) {
     if (finalScoreNum >= 80) {
-      summaryLines.push(`Strong signal (${finalScoreNum}/100). Recommended to proceed.`);
-    } else if (finalScoreNum >= 60) {
-      // Add interpretive sentence for "Consider" range
-      if (topStrength && topConcern) {
-        summaryLines.push(`Positive signal (${finalScoreNum}/100), though ${concernLabel} (${topConcern}) offsets ${strengthLabel} (${topStrength}).`);
-      } else if (topConcern) {
-        summaryLines.push(`Positive signal (${finalScoreNum}/100), limited by ${concernLabel} (${topConcern}).`);
+      // Strong candidate - recommend proceeding
+      if (topStrength) {
+        summaryLines.push(`This candidate performed well across evaluations, with particularly strong ${strengthLabel} (${topStrength}).`);
       } else {
-        summaryLines.push(`Positive signal (${finalScoreNum}/100). Review completed phases before proceeding.`);
+        summaryLines.push(`This candidate performed well across all completed evaluations.`);
+      }
+      summaryLines.push(`Recommend scheduling an interview or extending an offer.`);
+    } else if (finalScoreNum >= 60) {
+      // Good candidate with some considerations
+      if (topStrength && topConcern) {
+        summaryLines.push(`This candidate shows promise in ${strengthLabel} (${topStrength}), but ${concernLabel} (${topConcern}) needs consideration.`);
+        summaryLines.push(`Recommend reviewing these areas before moving forward.`);
+      } else if (topConcern) {
+        summaryLines.push(`This candidate meets baseline expectations, though ${concernLabel} (${topConcern}) may affect fit.`);
+        summaryLines.push(`Consider a follow-up conversation to clarify.`);
+      } else if (topStrength) {
+        summaryLines.push(`This candidate shows solid ${strengthLabel} (${topStrength}) and meets role requirements.`);
+        summaryLines.push(`Recommend proceeding to the next stage.`);
+      } else {
+        summaryLines.push(`This candidate meets most expectations for the role.`);
+        summaryLines.push(`Recommend proceeding with caution or requesting additional information.`);
       }
     } else if (finalScoreNum >= 40) {
-      // Add interpretive sentence for "Mixed" range
+      // Mixed results - hold or gather more info
       if (topConcern) {
-        summaryLines.push(`Mixed signal (${finalScoreNum}/100). ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) is the primary factor.`);
+        summaryLines.push(`This candidate showed mixed results. ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) is the main concern.`);
       } else {
-        summaryLines.push(`Mixed signal (${finalScoreNum}/100). Multiple areas below expectations.`);
+        summaryLines.push(`This candidate's performance was below expectations in multiple areas.`);
+      }
+      if (topStrength) {
+        summaryLines.push(`However, ${strengthLabel} (${topStrength}) may warrant a closer look. Recommend holding for now.`);
+      } else {
+        summaryLines.push(`Recommend placing on hold unless the talent pool is limited.`);
       }
     } else {
+      // Weak candidate - recommend passing
       if (topConcern) {
-        summaryLines.push(`Weak signal (${finalScoreNum}/100). ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) indicates low readiness.`);
+        summaryLines.push(`This candidate did not meet expectations. ${concernLabel?.charAt(0).toUpperCase()}${concernLabel?.slice(1)} (${topConcern}) is a significant gap.`);
       } else {
-        summaryLines.push(`Weak signal (${finalScoreNum}/100). Not recommended.`);
+        summaryLines.push(`This candidate did not meet the requirements for this role.`);
       }
+      summaryLines.push(`Recommend passing on this candidate.`);
     }
   } else if (phaseResults.length > 0) {
-    summaryLines.push(`${phaseResults.length} phase${phaseResults.length !== 1 ? 's' : ''} completed. Assessment in progress.`);
+    summaryLines.push(`This candidate has completed ${phaseResults.length} evaluation${phaseResults.length !== 1 ? 's' : ''}.`);
+    summaryLines.push(`Full recommendation will be available once all phases are complete.`);
   } else {
-    summaryLines.push(`Assessment in progress.`);
+    summaryLines.push(`This candidate's evaluation is in progress.`);
+    summaryLines.push(`Check back once they complete required phases.`);
   }
   
-  // Return compact summary
-  if (summaryLines.length > 0) {
-    return summaryLines.join(' ');
-  }
-  
-  return "Assessment in progress.";
+  // Return compact summary (2-3 sentences)
+  return summaryLines.slice(0, 3).join(' ');
 }
 
 // ============= Parsing Logic =============
