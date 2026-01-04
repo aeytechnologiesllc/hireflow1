@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "employer" | "candidate" | "team_member";
+type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
 interface AuthContextType {
   user: User | null;
@@ -111,15 +111,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
       if (error) {
         console.error("Error fetching user role:", error);
         return;
       }
 
-      setRole(data?.role as AppRole);
+      // Handle multiple roles - prioritize developer > employer > team_member > candidate
+      const roles = (data ?? []).map(r => r.role as AppRole);
+      const resolved: AppRole | null = 
+        roles.includes("developer") ? "developer" :
+        roles.includes("employer") ? "employer" :
+        roles.includes("team_member") ? "team_member" :
+        roles.includes("candidate") ? "candidate" :
+        null;
+
+      setRole(resolved);
     } catch (error) {
       console.error("Error fetching user role:", error);
     }
