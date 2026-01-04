@@ -56,6 +56,11 @@ const Terms = lazy(() => import("./pages/Terms"));
 
 // Developer Dashboard pages
 const DeveloperDashboard = lazy(() => import("./pages/DeveloperDashboard"));
+const DeveloperUsers = lazy(() => import("./pages/DeveloperUsers"));
+const DeveloperSubscriptions = lazy(() => import("./pages/DeveloperSubscriptions"));
+const DeveloperJobs = lazy(() => import("./pages/DeveloperJobs"));
+const DeveloperActivity = lazy(() => import("./pages/DeveloperActivity"));
+const DeveloperSettings = lazy(() => import("./pages/DeveloperSettings"));
 
 // Configure QueryClient for production
 const queryClient = new QueryClient({
@@ -95,6 +100,11 @@ const App = () => (
                   {/* Developer Dashboard (role-based access) */}
                   <Route element={<DeveloperLayout />}>
                     <Route path="/developer" element={<DeveloperDashboard />} />
+                    <Route path="/developer/users" element={<DeveloperUsers />} />
+                    <Route path="/developer/subscriptions" element={<DeveloperSubscriptions />} />
+                    <Route path="/developer/jobs" element={<DeveloperJobs />} />
+                    <Route path="/developer/activity" element={<DeveloperActivity />} />
+                    <Route path="/developer/settings" element={<DeveloperSettings />} />
                   </Route>
                   
                   {/* Protected routes with AppLayout */}
