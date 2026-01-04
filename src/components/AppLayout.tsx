@@ -113,8 +113,21 @@ export default function AppLayout() {
   const isCandidateRoute = location.pathname.startsWith("/candidate");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
 
-  // Show loading while auth or subscription is loading
-  if (loading || subLoading) {
+  // Show loading while auth is loading
+  if (loading) {
+    return <AuthLoadingScreen variant={loadingVariant} />;
+  }
+
+  // Developers bypass all subscription checks - redirect immediately
+  if (user && (role as string) === 'developer') {
+    if (!location.pathname.startsWith("/developer")) {
+      navigate("/developer", { replace: true });
+    }
+    return <AuthLoadingScreen variant={loadingVariant} />;
+  }
+
+  // Show loading while subscription is loading (non-developers only)
+  if (subLoading) {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
