@@ -104,8 +104,11 @@ export default function AppLayout() {
     if (!loading && !user) {
       const isCandidateRoute = location.pathname.startsWith("/candidate");
       navigate(isCandidateRoute ? "/candidate/auth" : "/auth", { replace: true });
+    } else if (!loading && user && (role as string) === 'developer' && !location.pathname.startsWith("/developer")) {
+      // Redirect developers to their dashboard
+      navigate("/developer", { replace: true });
     }
-  }, [user, loading, navigate, location.pathname]);
+  }, [user, loading, role, navigate, location.pathname]);
 
   const isCandidateRoute = location.pathname.startsWith("/candidate");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
