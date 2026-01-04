@@ -9,6 +9,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingFallback from "@/components/LoadingFallback";
 import AppLayout from "@/components/AppLayout";
+import DeveloperLayout from "@/components/DeveloperLayout";
 
 // Eager load core pages for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -53,6 +54,9 @@ const OAuthGoogleCallback = lazy(() => import("./pages/OAuthGoogleCallback"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 
+// Developer Dashboard pages
+const DeveloperDashboard = lazy(() => import("./pages/DeveloperDashboard"));
+
 // Configure QueryClient for production
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +91,11 @@ const App = () => (
                   {/* Candidate Portal (separate entry point) */}
                   <Route path="/candidate" element={<CandidatePortalLanding />} />
                   <Route path="/candidate/auth" element={<CandidateAuth />} />
+                  
+                  {/* Developer Dashboard (role-based access) */}
+                  <Route element={<DeveloperLayout />}>
+                    <Route path="/developer" element={<DeveloperDashboard />} />
+                  </Route>
                   
                   {/* Protected routes with AppLayout */}
                   <Route element={<AppLayout />}>
