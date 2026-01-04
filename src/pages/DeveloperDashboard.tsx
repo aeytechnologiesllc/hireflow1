@@ -27,7 +27,6 @@ import {
   Line,
   XAxis,
   YAxis,
-  ResponsiveContainer,
   AreaChart,
   Area,
   BarChart,
@@ -204,34 +203,32 @@ export default function DeveloperDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={userStats?.signupTrend || []}>
-                        <defs>
-                          <linearGradient id="signupGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <XAxis 
-                          dataKey="date" 
-                          stroke="hsl(var(--muted-foreground))"
-                          fontSize={10}
-                          tickFormatter={(value) => format(new Date(value), 'MMM d')}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Area 
-                          type="monotone" 
-                          dataKey="count" 
-                          stroke="hsl(24, 100%, 50%)" 
-                          fill="url(#signupGradient)"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartContainer config={{ count: { label: "Signups", color: "hsl(24, 100%, 50%)" } }} className="h-64 w-full">
+                    <AreaChart data={userStats?.signupTrend || []}>
+                      <defs>
+                        <linearGradient id="signupGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={10}
+                        tickFormatter={(value) => format(new Date(value), 'MMM d')}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="count" 
+                        stroke="hsl(24, 100%, 50%)" 
+                        fill="url(#signupGradient)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
 
@@ -244,33 +241,36 @@ export default function DeveloperDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={[
-                            { name: 'Employers', value: userStats?.employers || 0 },
-                            { name: 'Candidates', value: userStats?.candidates || 0 },
-                            { name: 'Team Members', value: userStats?.teamMembers || 0 },
-                            { name: 'Developers', value: userStats?.developers || 0 },
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          labelLine={false}
-                        >
-                          {[0, 1, 2, 3].map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartContainer config={{ 
+                    employers: { label: "Employers", color: COLORS[0] },
+                    candidates: { label: "Candidates", color: COLORS[1] },
+                    teamMembers: { label: "Team Members", color: COLORS[2] },
+                    developers: { label: "Developers", color: COLORS[3] }
+                  }} className="h-64 w-full">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Employers', value: userStats?.employers || 0 },
+                          { name: 'Candidates', value: userStats?.candidates || 0 },
+                          { name: 'Team Members', value: userStats?.teamMembers || 0 },
+                          { name: 'Developers', value: userStats?.developers || 0 },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {[0, 1, 2, 3].map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
             </div>
@@ -284,37 +284,38 @@ export default function DeveloperDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={platformActivity?.activityTrend || []}>
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={10}
-                        tickFormatter={(value) => format(new Date(value), 'MMM d')}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line 
-                        type="monotone" 
-                        dataKey="jobs" 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        dot={false}
-                        name="Jobs Created"
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="applications" 
-                        stroke="hsl(24, 100%, 50%)" 
-                        strokeWidth={2}
-                        dot={false}
-                        name="Applications"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <ChartContainer config={{ 
+                  jobs: { label: "Jobs Created", color: "hsl(var(--primary))" },
+                  applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
+                }} className="h-72 w-full">
+                  <LineChart data={platformActivity?.activityTrend || []}>
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={10}
+                      tickFormatter={(value) => format(new Date(value), 'MMM d')}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="jobs" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={2}
+                      dot={false}
+                      name="Jobs Created"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="applications" 
+                      stroke="hsl(24, 100%, 50%)" 
+                      strokeWidth={2}
+                      dot={false}
+                      name="Applications"
+                    />
+                  </LineChart>
+                </ChartContainer>
               </CardContent>
             </Card>
           </TabsContent>
@@ -440,22 +441,23 @@ export default function DeveloperDashboard() {
                 <CardTitle className="text-lg">Jobs vs Applications Over Time</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={platformActivity?.activityTrend?.slice(-14) || []}>
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={10}
-                        tickFormatter={(value) => format(new Date(value), 'MMM d')}
-                      />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="jobs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Jobs" />
-                      <Bar dataKey="applications" fill="hsl(24, 100%, 50%)" radius={[4, 4, 0, 0]} name="Applications" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <ChartContainer config={{ 
+                  jobs: { label: "Jobs", color: "hsl(var(--primary))" },
+                  applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
+                }} className="h-72 w-full">
+                  <BarChart data={platformActivity?.activityTrend?.slice(-14) || []}>
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={10}
+                      tickFormatter={(value) => format(new Date(value), 'MMM d')}
+                    />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="jobs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Jobs" />
+                    <Bar dataKey="applications" fill="hsl(24, 100%, 50%)" radius={[4, 4, 0, 0]} name="Applications" />
+                  </BarChart>
+                </ChartContainer>
               </CardContent>
             </Card>
           </TabsContent>
@@ -515,31 +517,31 @@ export default function DeveloperDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={featureUsage?.workflowStepUsage || []} 
-                      layout="vertical"
-                    >
-                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                      <YAxis 
-                        type="category" 
-                        dataKey="step" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={10}
-                        width={120}
-                        tickFormatter={(value) => value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar 
-                        dataKey="count" 
-                        fill="hsl(24, 100%, 50%)" 
-                        radius={[0, 4, 4, 0]}
-                        name="Usage Count"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <ChartContainer config={{ 
+                  count: { label: "Usage Count", color: "hsl(24, 100%, 50%)" }
+                }} className="h-72 w-full">
+                  <BarChart 
+                    data={featureUsage?.workflowStepUsage || []} 
+                    layout="vertical"
+                  >
+                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="step" 
+                      stroke="hsl(var(--muted-foreground))" 
+                      fontSize={10}
+                      width={120}
+                      tickFormatter={(value) => value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar 
+                      dataKey="count" 
+                      fill="hsl(24, 100%, 50%)" 
+                      radius={[0, 4, 4, 0]}
+                      name="Usage Count"
+                    />
+                  </BarChart>
+                </ChartContainer>
               </CardContent>
             </Card>
           </TabsContent>
