@@ -16,6 +16,29 @@ export default function VoiceCreditsSection() {
   const [verifying, setVerifying] = useState(false);
   const queryClient = useQueryClient();
 
+  // Realtime subscription for voice credits updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('voice-credits-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'voice_credits',
+        },
+        (payload) => {
+          console.log('Voice credits updated:', payload);
+          queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   // Verify voice credits purchase on return from Stripe
   useEffect(() => {
     const verifyPurchase = async () => {
@@ -34,6 +57,10 @@ export default function VoiceCreditsSection() {
           if (error) {
             console.error('Error verifying purchase:', error);
             toast.error('Failed to verify purchase. Please contact support if credits are missing.');
+            // Retry after 2 seconds in case of timing issue
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['subscription'] });
+            }, 2000);
           } else if (data?.already_granted) {
             toast.success('Voice credits already added!');
           } else if (data?.success) {
@@ -46,6 +73,10 @@ export default function VoiceCreditsSection() {
         } catch (err) {
           console.error('Verification error:', err);
           toast.error('Error verifying purchase');
+          // Retry after 2 seconds
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['subscription'] });
+          }, 2000);
         } finally {
           setVerifying(false);
           // Clean URL
@@ -71,7 +102,8 @@ export default function VoiceCreditsSection() {
     try {
       const result = await purchaseVoiceCredits.mutateAsync({ packSize });
       if (result?.url) {
-        window.open(result.url, '_blank');
+        // Open in same tab so verification runs properly on return
+        window.location.href = result.url;
       }
     } catch (err) {
       toast.error('Failed to start checkout');
