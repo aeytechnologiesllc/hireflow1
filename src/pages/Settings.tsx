@@ -8,11 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, CreditCard } from "lucide-react";
+import { User, CreditCard, Loader2 } from "lucide-react";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
+import { useSubscription } from "@/hooks/useSubscription";
 
 export default function Settings() {
   const { user, role } = useAuth();
@@ -20,9 +21,12 @@ export default function Settings() {
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncAttempted = useRef(false);
   
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
   const updatePrefs = useUpdateEmailPreferences();
+  const { syncSubscription, refetch } = useSubscription();
   
   const [localPrefs, setLocalPrefs] = useState<EmailPreferences>({
     email_notifications_enabled: true,
@@ -32,6 +36,49 @@ export default function Settings() {
     email_document_updates: true,
     email_phase_updates: true,
   });
+
+  // Handle subscription success callback from Stripe
+  useEffect(() => {
+    const subscriptionParam = searchParams.get("subscription");
+    
+    if (subscriptionParam === "success" && !syncAttempted.current) {
+      syncAttempted.current = true;
+      setIsSyncing(true);
+      
+      // Sync subscription with Stripe
+      syncSubscription.mutateAsync()
+        .then((result) => {
+          console.log("[Settings] Subscription synced:", result);
+          if (result?.synced) {
+            toast.success("Subscription activated successfully!", {
+              description: `You now have access to the ${result.subscription?.plan_type} plan.`,
+            });
+          }
+          // Clear the URL parameter
+          setSearchParams((prev) => {
+            prev.delete("subscription");
+            return prev;
+          });
+          // Refetch subscription data
+          refetch();
+        })
+        .catch((error) => {
+          console.error("[Settings] Sync error:", error);
+          toast.error("Failed to verify subscription", {
+            description: "Please refresh the page or contact support.",
+          });
+        })
+        .finally(() => {
+          setIsSyncing(false);
+        });
+    } else if (subscriptionParam === "canceled") {
+      toast.info("Checkout canceled");
+      setSearchParams((prev) => {
+        prev.delete("subscription");
+        return prev;
+      });
+    }
+  }, [searchParams, setSearchParams, syncSubscription, refetch]);
 
   useEffect(() => {
     if (emailPrefs) {

@@ -77,3 +77,21 @@ verify_jwt = true
 
 [functions.check-applicant-limit]
 verify_jwt = false
+
+[functions.sync-subscription]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.stripe-checkout]
+verify_jwt = true
+
+[functions.get-subscription]
+verify_jwt = true
+
+[functions.create-billing-portal]
+verify_jwt = true
+
+[functions.purchase-voice-credits]
+verify_jwt = true

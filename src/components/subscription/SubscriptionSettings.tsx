@@ -17,6 +17,7 @@ import {
   Briefcase,
   Clock,
   Mic,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import VoiceCreditsSection from "./VoiceCreditsSection";
@@ -32,6 +33,8 @@ export default function SubscriptionSettings() {
     getTrialTimeRemaining,
     createCheckoutSession,
     createBillingPortal,
+    syncSubscription,
+    refetch,
   } = useSubscription();
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
@@ -64,6 +67,18 @@ export default function SubscriptionSettings() {
       }
     } catch (error) {
       console.error("Billing portal error:", error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleRefreshSubscription = async () => {
+    setLoading("refresh");
+    try {
+      await syncSubscription.mutateAsync();
+      await refetch();
+    } catch (error) {
+      console.error("Refresh error:", error);
     } finally {
       setLoading(null);
     }
@@ -295,23 +310,38 @@ export default function SubscriptionSettings() {
               )}
             </div>
           </div>
-          {isPaid && (
+          <div className="flex gap-2">
             <Button 
-              variant="outline" 
-              className="border-border text-muted-foreground hover:bg-muted"
-              onClick={handleManageBilling} 
-              disabled={loading === "billing"}
+              variant="ghost" 
+              size="sm"
+              className="text-muted-foreground hover:bg-muted"
+              onClick={handleRefreshSubscription} 
+              disabled={loading === "refresh"}
             >
-              {loading === "billing" ? (
+              {loading === "refresh" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Manage Billing
-                </>
+                <RefreshCw className="h-4 w-4" />
               )}
             </Button>
-          )}
+            {isPaid && (
+              <Button 
+                variant="outline" 
+                className="border-border text-muted-foreground hover:bg-muted"
+                onClick={handleManageBilling} 
+                disabled={loading === "billing"}
+              >
+                {loading === "billing" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Manage Billing
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       {/* Voice Credits Section - For Business users */}
