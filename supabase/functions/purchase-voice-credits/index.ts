@@ -7,20 +7,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Voice credit pack configurations
-const VOICE_CREDIT_PACKS = {
-  small: {
-    minutes: 50,
-    priceId: "price_1Sf3ZfJoMc2msNl4YoYccDUy",
-  },
-  medium: {
-    minutes: 150,
-    priceId: "price_1Sf3ZgJoMc2msNl4n7D8gzMl",
-  },
-  large: {
-    minutes: 500,
-    priceId: "price_1Sf3ZhJoMc2msNl49h4FHU8t",
-  },
+// Single voice credit pack - 50 minutes for $15
+const VOICE_CREDIT_PACK = {
+  minutes: 50,
+  priceId: "price_1Sf3ZfJoMc2msNl4YoYccDUy",
 };
 
 serve(async (req) => {
@@ -29,9 +19,9 @@ serve(async (req) => {
   }
 
   try {
-    const { packSize, successUrl, cancelUrl } = await req.json();
+    const { successUrl, cancelUrl } = await req.json();
     
-    console.log("Creating voice credits checkout for pack:", packSize);
+    console.log("Creating voice credits checkout for standard pack");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -60,10 +50,20 @@ serve(async (req) => {
       throw new Error("Voice credits require an active Business subscription");
     }
 
-    // Get pack configuration
-    const pack = VOICE_CREDIT_PACKS[packSize as keyof typeof VOICE_CREDIT_PACKS];
-    if (!pack) {
-      throw new Error(`Invalid pack size: ${packSize}. Valid options: small, medium, large`);
+    // Check current voice credits balance - only allow purchase if under 60 minutes
+    const { data: activeCredits } = await supabaseClient
+      .from("voice_credits")
+      .select("minutes_remaining")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .gte("expires_at", new Date().toISOString());
+
+    const totalMinutes = activeCredits?.reduce(
+      (sum, c) => sum + (c.minutes_remaining || 0), 0
+    ) || 0;
+
+    if (totalMinutes >= 60) {
+      throw new Error("You can only purchase more minutes when your balance is under 1 hour");
     }
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -87,15 +87,15 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
-      line_items: [{ price: pack.priceId, quantity: 1 }],
+      line_items: [{ price: VOICE_CREDIT_PACK.priceId, quantity: 1 }],
       mode: "payment",
       success_url: successUrl || `${req.headers.get("origin")}/settings?tab=subscription&voice_credits=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl || `${req.headers.get("origin")}/settings?tab=subscription&voice_credits=canceled`,
       metadata: {
         user_id: user.id,
         type: "voice_credits",
-        pack_size: packSize,
-        minutes: pack.minutes.toString(),
+        pack_size: "standard",
+        minutes: VOICE_CREDIT_PACK.minutes.toString(),
       },
     });
 

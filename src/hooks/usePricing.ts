@@ -105,11 +105,7 @@ export interface PricingData {
     yearlyFormatted: string;
     yearlyMonthly: string;
   };
-  voiceCredits: {
-    small: VoiceCreditPackPricing;
-    medium: VoiceCreditPackPricing;
-    large: VoiceCreditPackPricing;
-  };
+  voiceCredits: VoiceCreditPackPricing;
   tier: number;
   isLoading: boolean;
 }
@@ -208,32 +204,22 @@ export function usePricing(): PricingData {
 
   const pricing = REGIONAL_PRICING[countryCode] || REGIONAL_PRICING.DEFAULT;
 
-  // Calculate voice credit pricing based on tier discount
-  const getVoiceCreditPricing = () => {
-    // Base USD prices
-    const basePrices = { small: 15, medium: 39, large: 99 };
-    const minutes = { small: 50, medium: 150, large: 500 };
+  // Single voice credit pack pricing - 50 minutes for $15
+  const getVoiceCreditPricing = (): VoiceCreditPackPricing => {
+    const basePrice = 15;
+    const minutes = 50;
     
     // Apply tier discount (same ratio as subscription pricing)
     const tierMultiplier = pricing.tier === 1 ? 1 : 
                           pricing.tier === 2 ? 0.93 : 
                           pricing.tier === 3 ? 0.6 : 0.4;
     
-    const calculatePack = (size: 'small' | 'medium' | 'large') => {
-      const basePrice = basePrices[size];
-      const adjustedPrice = Math.round(basePrice * tierMultiplier);
-      return {
-        minutes: minutes[size],
-        price: adjustedPrice,
-        priceFormatted: formatPrice(adjustedPrice, pricing.symbol, pricing.currency),
-        pricePerMinute: formatPrice(adjustedPrice / minutes[size], pricing.symbol, pricing.currency),
-      };
-    };
-
+    const adjustedPrice = Math.round(basePrice * tierMultiplier);
     return {
-      small: calculatePack('small'),
-      medium: calculatePack('medium'),
-      large: calculatePack('large'),
+      minutes,
+      price: adjustedPrice,
+      priceFormatted: formatPrice(adjustedPrice, pricing.symbol, pricing.currency),
+      pricePerMinute: formatPrice(adjustedPrice / minutes, pricing.symbol, pricing.currency),
     };
   };
 

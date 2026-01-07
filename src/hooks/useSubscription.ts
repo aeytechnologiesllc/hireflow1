@@ -111,10 +111,10 @@ export function useSubscription() {
   });
 
   const purchaseVoiceCredits = useMutation({
-    mutationFn: async ({ packSize }: { packSize: 'small' | 'medium' | 'large' }) => {
+    mutationFn: async ({ packSize }: { packSize?: string } = {}) => {
       const { data, error } = await supabase.functions.invoke('purchase-voice-credits', {
         body: {
-          packSize,
+          packSize: packSize || 'standard',
           successUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=success`,
           cancelUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=canceled`,
         },

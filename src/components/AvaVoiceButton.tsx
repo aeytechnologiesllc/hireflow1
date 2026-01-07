@@ -217,15 +217,16 @@ export default function AvaVoiceButton() {
     }
   };
 
-  const handlePurchasePack = async (packSize: 'small' | 'medium' | 'large') => {
+  const handlePurchasePack = async (packSize: string = 'standard') => {
     setPurchasingPack(packSize);
     try {
       const result = await purchaseVoiceCredits.mutateAsync({ packSize });
       if (result?.url) {
-        window.open(result.url, '_blank');
+        window.location.href = result.url;
       }
-    } catch (err) {
-      toast.error('Failed to start checkout');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start checkout';
+      toast.error(errorMessage);
     } finally {
       setPurchasingPack(null);
       setShowUpgradeDialog(false);
@@ -450,59 +451,29 @@ export default function AvaVoiceButton() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Show purchase options for Business users who are exhausted */}
+            {/* Show purchase option for Business users who are exhausted */}
             {isBusinessUser && voiceAccessState === 'exhausted' ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Purchase additional voice minutes to continue using AVA Voice.
                 </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePurchasePack('small')}
-                    disabled={!!purchasingPack}
-                    className="flex flex-col h-auto py-3 gap-1"
-                  >
-                    {purchasingPack === 'small' ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span className="font-semibold">60 min</span>
-                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.small.priceFormatted}</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePurchasePack('medium')}
-                    disabled={!!purchasingPack}
-                    className="flex flex-col h-auto py-3 gap-1 border-primary/50"
-                  >
-                    {purchasingPack === 'medium' ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span className="font-semibold">180 min</span>
-                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.medium.priceFormatted}</span>
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePurchasePack('large')}
-                    disabled={!!purchasingPack}
-                    className="flex flex-col h-auto py-3 gap-1"
-                  >
-                    {purchasingPack === 'large' ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span className="font-semibold">500 min</span>
-                        <span className="text-xs text-muted-foreground">{pricing.voiceCredits.large.priceFormatted}</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePurchasePack('standard')}
+                  disabled={!!purchasingPack}
+                  className="w-full flex items-center justify-between h-auto py-4"
+                >
+                  {purchasingPack ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{pricing.voiceCredits.minutes} min</span>
+                      </div>
+                      <span className="text-muted-foreground">{pricing.voiceCredits.priceFormatted}</span>
+                    </>
+                  )}
+                </Button>
                 <p className="text-xs text-center text-muted-foreground">
                   Voice credits expire after 1 month
                 </p>
