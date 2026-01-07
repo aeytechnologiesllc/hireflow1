@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
@@ -6,11 +6,56 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Mic, Clock, AlertTriangle, Package } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function VoiceCreditsSection() {
   const { subscription, voiceCredits, purchaseVoiceCredits, showLowBalanceWarning } = useSubscription();
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Verify voice credits purchase on return from Stripe
+  useEffect(() => {
+    const verifyPurchase = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const voiceCreditsParam = params.get('voice_credits');
+      const sessionId = params.get('session_id');
+      
+      if (voiceCreditsParam === 'success' && sessionId && !verifying) {
+        setVerifying(true);
+        
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-voice-credits-purchase', {
+            body: { sessionId }
+          });
+          
+          if (error) {
+            console.error('Error verifying purchase:', error);
+            toast.error('Failed to verify purchase. Please contact support if credits are missing.');
+          } else if (data?.already_granted) {
+            toast.success('Voice credits already added!');
+          } else if (data?.success) {
+            toast.success(`${data.minutes_added} voice minutes added!`);
+          }
+          
+          // Refresh subscription data
+          queryClient.invalidateQueries({ queryKey: ['subscription'] });
+          
+        } catch (err) {
+          console.error('Verification error:', err);
+          toast.error('Error verifying purchase');
+        } finally {
+          setVerifying(false);
+          // Clean URL
+          window.history.replaceState({}, '', '/settings?tab=subscription');
+        }
+      }
+    };
+    
+    verifyPurchase();
+  }, [queryClient, verifying]);
 
   const hasVoicePlan = ['business', 'enterprise'].includes(subscription?.plan_type || '') && subscription?.status === 'active';
   const isTrialing = subscription?.status === 'trialing';
