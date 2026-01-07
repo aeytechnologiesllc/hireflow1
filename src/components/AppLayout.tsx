@@ -3,6 +3,7 @@ import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
@@ -23,8 +24,9 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading, role, signOut } = useAuth();
-  const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
+  const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
+  const syncAttemptedRef = useRef(false);
   
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -99,6 +101,41 @@ export default function AppLayout() {
       }
     }
   }, [subError, signOut]);
+
+  // Auto-sync subscription when pending flag exists (after checkout in new tab)
+  useEffect(() => {
+    if (!user || subLoading || syncAttemptedRef.current) return;
+    
+    const pendingSync = localStorage.getItem("pending_subscription_sync");
+    if (!pendingSync) return;
+    
+    const syncTimestamp = parseInt(pendingSync, 10);
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    
+    // Only sync if flag is recent (within 30 minutes) and subscription is expired
+    if (syncTimestamp > thirtyMinutesAgo && isExpired) {
+      syncAttemptedRef.current = true;
+      console.log("[AppLayout] Pending subscription sync detected, syncing...");
+      
+      syncSubscription.mutateAsync()
+        .then((result) => {
+          localStorage.removeItem("pending_subscription_sync");
+          if (result?.synced) {
+            toast.success("Subscription activated!");
+            refetch();
+          } else {
+            console.log("[AppLayout] Sync result:", result?.message);
+          }
+        })
+        .catch((error) => {
+          console.error("[AppLayout] Sync error:", error);
+          localStorage.removeItem("pending_subscription_sync");
+        });
+    } else if (syncTimestamp <= thirtyMinutesAgo) {
+      // Flag is too old, clear it
+      localStorage.removeItem("pending_subscription_sync");
+    }
+  }, [user, subLoading, isExpired, syncSubscription, refetch]);
 
   useEffect(() => {
     if (!loading && !user) {
