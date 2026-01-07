@@ -5,6 +5,7 @@ import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
+  message?: string;
 }
 
 const employerMessages = [
@@ -21,9 +22,12 @@ const candidateMessages = [
   "Almost there...",
 ];
 
-export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenProps) {
+export function AuthLoadingScreen({ variant = "employer", message }: AuthLoadingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const messages = variant === "employer" ? employerMessages : candidateMessages;
+  
+  // If a custom message is provided, show only that message
+  const displayMessage = message || messages[messageIndex];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -59,18 +63,18 @@ export function AuthLoadingScreen({ variant = "employer" }: AuthLoadingScreenPro
         <div className="mb-8">
           <StaggeredBarsLoader size="lg" />
         </div>
-        {/* Rotating messages */}
+        {/* Rotating messages or custom message */}
         <div className="h-8 overflow-hidden relative">
           <AnimatePresence mode="wait">
             <motion.p
-              key={messageIndex}
+              key={message ? "custom" : messageIndex}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
               className="text-lg font-medium text-foreground text-center"
             >
-              {messages[messageIndex]}
+              {displayMessage}
             </motion.p>
           </AnimatePresence>
         </div>
