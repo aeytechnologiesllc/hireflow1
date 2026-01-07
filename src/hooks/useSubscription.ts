@@ -140,6 +140,17 @@ export function useSubscription() {
     },
   });
 
+  const syncSubscription = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-subscription');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+    },
+  });
+
   // Real-time subscription for usage updates - useEffect comes after all hooks
   useEffect(() => {
     if (!user?.id) return;
@@ -275,6 +286,7 @@ export function useSubscription() {
     createBillingPortal,
     purchaseVoiceCredits,
     completeOnboarding,
+    syncSubscription,
     getTrialTimeRemaining,
     hasFeature,
     isWithinLimit,
