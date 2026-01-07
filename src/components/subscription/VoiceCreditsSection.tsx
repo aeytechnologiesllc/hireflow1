@@ -97,20 +97,23 @@ export default function VoiceCreditsSection() {
   // Don't show if no voice credits available and not on a voice plan
   if (voiceCredits.totalMinutesAvailable <= 0 && !hasVoicePlan) return null;
 
-  const handlePurchase = async (packSize: 'small' | 'medium' | 'large') => {
-    setLoading(packSize);
+  const handlePurchase = async () => {
+    setLoading('standard');
     try {
-      const result = await purchaseVoiceCredits.mutateAsync({ packSize });
+      const result = await purchaseVoiceCredits.mutateAsync({ packSize: 'standard' });
       if (result?.url) {
         // Open in same tab so verification runs properly on return
         window.location.href = result.url;
       }
-    } catch (err) {
-      toast.error('Failed to start checkout');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start checkout';
+      toast.error(errorMessage);
     } finally {
       setLoading(null);
     }
   };
+
+  const canPurchase = voiceCredits.totalMinutesAvailable < 60;
 
   const formatMinutes = (minutes: number) => {
     if (minutes >= 60) {
@@ -179,36 +182,40 @@ export default function VoiceCreditsSection() {
         </div>
       )}
 
-      {/* Purchase options - only show for Business/Enterprise users */}
+      {/* Purchase option - only show for Business/Enterprise users */}
       {hasVoicePlan && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Buy More Minutes</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['small', 'medium', 'large'] as const).map((size) => {
-              const pack = pricing.voiceCredits[size];
-              return (
-                <Button
-                  key={size}
-                  variant="outline"
-                  className="flex-col h-auto py-3 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
-                  onClick={() => handlePurchase(size)}
-                  disabled={loading !== null}
-                >
-                  {loading === size ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <span className="text-lg font-bold text-purple-400">{pack.minutes}</span>
-                      <span className="text-xs text-muted-foreground">minutes</span>
-                      <span className="text-sm font-medium text-foreground mt-1">{pack.priceFormatted}</span>
-                    </>
-                  )}
-                </Button>
-              );
-            })}
-          </div>
+          
+          {canPurchase ? (
+            <Button
+              variant="outline"
+              className="w-full flex items-center justify-between h-auto py-4 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
+              onClick={handlePurchase}
+              disabled={loading !== null}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-purple-400">{pricing.voiceCredits.minutes}</span>
+                    <span className="text-muted-foreground">minutes</span>
+                  </div>
+                  <span className="font-medium text-foreground">{pricing.voiceCredits.priceFormatted}</span>
+                </>
+              )}
+            </Button>
+          ) : (
+            <div className="p-4 rounded-lg bg-muted/30 text-center border border-border/50">
+              <p className="text-sm text-muted-foreground">
+                You have sufficient balance. Purchase available when under 1 hour remaining.
+              </p>
+            </div>
+          )}
+          
           <p className="text-xs text-center text-muted-foreground mt-2">
-            All voice minutes reset at the end of each billing cycle
+            Available when your balance is under 1 hour
           </p>
         </div>
       )}
