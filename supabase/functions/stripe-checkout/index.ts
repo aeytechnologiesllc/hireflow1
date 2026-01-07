@@ -51,15 +51,20 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Check if user is currently on a trial
+    // Check if user has EVER had a subscription (trial or otherwise)
     const { data: existingSub } = await supabaseAdmin
       .from("subscriptions")
-      .select("status")
+      .select("status, trial_start, trial_end")
       .eq("user_id", user.id)
       .single();
 
-    const isCurrentlyTrialing = existingSub?.status === 'trialing';
-    console.log("User trial status:", isCurrentlyTrialing ? "trialing (will charge immediately)" : "not trialing (will get 7-day trial)");
+    // User has already used their trial if they have any subscription with trial dates
+    const hasUsedTrial = existingSub && (
+      existingSub.status === 'trialing' ||
+      existingSub.trial_start !== null ||
+      existingSub.trial_end !== null
+    );
+    console.log("User trial status:", hasUsedTrial ? "has used trial (will charge immediately)" : "new user (will get 7-day trial)");
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2023-10-16",
@@ -90,8 +95,8 @@ serve(async (req) => {
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
       subscription_data: {
-        // Skip trial for users already trialing - they get charged immediately
-        ...(isCurrentlyTrialing ? {} : { trial_period_days: 7 }),
+        // Skip trial for users who have already used their trial
+        ...(hasUsedTrial ? {} : { trial_period_days: 7 }),
         metadata: {
           user_id: user.id,
           plan_type: planType,
