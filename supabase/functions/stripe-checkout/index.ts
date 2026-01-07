@@ -84,17 +84,41 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Also check Stripe for any historical subscriptions (double safety)
-    let hasStripeSubscriptionHistory = false;
-    if (customerId) {
-      const stripeSubscriptions = await stripe.subscriptions.list({
-        customer: customerId,
-        status: "all",
-        limit: 1,
-      });
-      hasStripeSubscriptionHistory = stripeSubscriptions.data.length > 0;
-      console.log("User has Stripe subscription history:", hasStripeSubscriptionHistory);
+    // SAFETY: Cancel ALL existing active/trialing subscriptions to prevent duplicates
+    // This ensures users can only ever have ONE active subscription at a time
+    const existingActiveSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "active",
+    });
+    
+    const existingTrialingSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "trialing",
+    });
+    
+    const allActiveSubscriptions = [
+      ...existingActiveSubscriptions.data,
+      ...existingTrialingSubscriptions.data,
+    ];
+    
+    if (allActiveSubscriptions.length > 0) {
+      console.log(`Found ${allActiveSubscriptions.length} existing subscription(s), canceling before new checkout...`);
+      for (const sub of allActiveSubscriptions) {
+        console.log(`Canceling subscription ${sub.id} (status: ${sub.status})`);
+        await stripe.subscriptions.cancel(sub.id);
+      }
+      console.log(`Successfully canceled ${allActiveSubscriptions.length} subscription(s)`);
     }
+
+    // Check Stripe for any historical subscriptions (for trial eligibility)
+    let hasStripeSubscriptionHistory = false;
+    const stripeSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 1,
+    });
+    hasStripeSubscriptionHistory = stripeSubscriptions.data.length > 0;
+    console.log("User has Stripe subscription history:", hasStripeSubscriptionHistory);
 
     // Only eligible for trial if NO subscription record AND NO Stripe history
     const eligibleForTrial = !hasSubscriptionRecord && !hasStripeSubscriptionHistory;
