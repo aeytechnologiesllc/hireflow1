@@ -51,20 +51,16 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Check if user has EVER had a subscription (trial or otherwise)
+    // Check if user has EVER had a subscription record (any status = not eligible for trial)
     const { data: existingSub } = await supabaseAdmin
       .from("subscriptions")
-      .select("status, trial_start, trial_end")
+      .select("id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
-    // User has already used their trial if they have any subscription with trial dates
-    const hasUsedTrial = existingSub && (
-      existingSub.status === 'trialing' ||
-      existingSub.trial_start !== null ||
-      existingSub.trial_end !== null
-    );
-    console.log("User trial status:", hasUsedTrial ? "has used trial (will charge immediately)" : "new user (will get 7-day trial)");
+    // If user has ANY subscription record, they are not eligible for a trial
+    const hasSubscriptionRecord = !!existingSub;
+    console.log("User has subscription record:", hasSubscriptionRecord);
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2023-10-16",
@@ -88,15 +84,30 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Create checkout session - only give trial to NEW users, not upgrading trial users
+    // Also check Stripe for any historical subscriptions (double safety)
+    let hasStripeSubscriptionHistory = false;
+    if (customerId) {
+      const stripeSubscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 1,
+      });
+      hasStripeSubscriptionHistory = stripeSubscriptions.data.length > 0;
+      console.log("User has Stripe subscription history:", hasStripeSubscriptionHistory);
+    }
+
+    // Only eligible for trial if NO subscription record AND NO Stripe history
+    const eligibleForTrial = !hasSubscriptionRecord && !hasStripeSubscriptionHistory;
+    console.log("Eligible for trial:", eligibleForTrial);
+
+    // Create checkout session - only give trial to truly NEW users
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
       subscription_data: {
-        // Skip trial for users who have already used their trial
-        ...(hasUsedTrial ? {} : { trial_period_days: 7 }),
+        ...(eligibleForTrial ? { trial_period_days: 7 } : {}),
         metadata: {
           user_id: user.id,
           plan_type: planType,
