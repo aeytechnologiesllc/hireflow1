@@ -92,18 +92,32 @@ serve(async (req) => {
           }, { onConflict: 'user_id' });
 
           // If upgrading to Business or Enterprise, grant initial 30 minutes
+          // SAFETY: Check for recently-created credits to prevent duplicates from webhook retries
           if (planType === 'business' || planType === 'enterprise') {
-            const expiresAt = new Date();
-            expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month expiry for monthly reset
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+            const { data: recentCredits } = await supabaseAdmin
+              .from("voice_credits")
+              .select("id")
+              .eq("user_id", userId)
+              .eq("source", "subscription")
+              .gte("created_at", fiveMinutesAgo)
+              .limit(1);
 
-            await supabaseAdmin.from("voice_credits").insert({
-              user_id: userId,
-              source: 'subscription',
-              minutes_granted: 30,
-              minutes_remaining: 30,
-              expires_at: expiresAt.toISOString(),
-            });
-            console.log("Initial Business voice credits (30 min) granted for user:", userId);
+            if (recentCredits && recentCredits.length > 0) {
+              console.log("Skipping duplicate credit creation - recent credits already exist for user:", userId);
+            } else {
+              const expiresAt = new Date();
+              expiresAt.setMonth(expiresAt.getMonth() + 1); // 1 month expiry for monthly reset
+
+              await supabaseAdmin.from("voice_credits").insert({
+                user_id: userId,
+                source: 'subscription',
+                minutes_granted: 30,
+                minutes_remaining: 30,
+                expires_at: expiresAt.toISOString(),
+              });
+              console.log("Initial Business voice credits (30 min) granted for user:", userId);
+            }
           }
 
           console.log("Subscription activated for user:", userId);

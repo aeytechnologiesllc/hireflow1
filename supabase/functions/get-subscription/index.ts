@@ -142,53 +142,8 @@ serve(async (req) => {
       0
     );
 
-    // AUTO-PROVISION: If Business or Enterprise user has no active credits, provision monthly allocation
-    const hasVoicePlan = ['business', 'enterprise'].includes(subscription?.plan_type) && subscription?.status === 'active';
-    if (hasVoicePlan && totalVoiceMinutes <= 0) {
-      console.log("Business/Enterprise user has no active voice credits - auto-provisioning monthly allocation");
-      
-      // Mark any expired credits as expired (cleanup)
-      await supabaseAdmin
-        .from("voice_credits")
-        .update({ status: 'expired' })
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .lt("expires_at", new Date().toISOString());
-      
-      // Create new monthly credit bucket (30 minutes, expires in 30 days)
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-      
-      const { error: insertError } = await supabaseAdmin
-        .from("voice_credits")
-        .insert({
-          user_id: user.id,
-          source: 'subscription',
-          minutes_granted: 30,
-          minutes_remaining: 30,
-          expires_at: expiresAt.toISOString(),
-          status: 'active',
-        });
-      
-      if (!insertError) {
-        console.log("Auto-provisioned 30 voice minutes for Business/Enterprise user");
-        
-        // Re-fetch credits after provisioning
-        const { data: refreshedCredits } = await supabaseAdmin
-          .from("voice_credits")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .gt("expires_at", new Date().toISOString())
-          .order("expires_at", { ascending: true });
-        
-        voiceCredits = refreshedCredits;
-        totalVoiceMinutes = (voiceCredits || []).reduce(
-          (sum, credit) => sum + (credit.minutes_remaining || 0),
-          0
-        );
-      }
-    }
+    // NOTE: Voice credits are provisioned ONLY by stripe-webhook to prevent race condition duplicates
+    // get-subscription only READS credits, never creates them for Business/Enterprise
 
     // AUTO-PROVISION: If Trial user has no active credits, provision trial allocation
     const isTrial = subscription?.status === 'trialing';
