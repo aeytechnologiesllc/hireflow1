@@ -28,6 +28,15 @@ export default function AppLayout() {
   const isMobile = useIsMobile();
   const syncAttemptedRef = useRef(false);
   
+  // Check if we need to sync subscription on mount (after checkout return)
+  const [isSyncingSubscription, setIsSyncingSubscription] = useState(() => {
+    const pendingSync = localStorage.getItem("pending_subscription_sync");
+    if (!pendingSync) return false;
+    const syncTimestamp = parseInt(pendingSync, 10);
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    return syncTimestamp > thirtyMinutesAgo;
+  });
+  
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return !isMobile;
@@ -107,14 +116,18 @@ export default function AppLayout() {
     if (!user || subLoading || syncAttemptedRef.current) return;
     
     const pendingSync = localStorage.getItem("pending_subscription_sync");
-    if (!pendingSync) return;
+    if (!pendingSync) {
+      setIsSyncingSubscription(false);
+      return;
+    }
     
     const syncTimestamp = parseInt(pendingSync, 10);
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     
-    // Only sync if flag is recent (within 30 minutes) and subscription is expired
-    if (syncTimestamp > thirtyMinutesAgo && isExpired) {
+    // Only sync if flag is recent (within 30 minutes)
+    if (syncTimestamp > thirtyMinutesAgo) {
       syncAttemptedRef.current = true;
+      setIsSyncingSubscription(true);
       console.log("[AppLayout] Pending subscription sync detected, syncing...");
       
       syncSubscription.mutateAsync()
@@ -130,12 +143,16 @@ export default function AppLayout() {
         .catch((error) => {
           console.error("[AppLayout] Sync error:", error);
           localStorage.removeItem("pending_subscription_sync");
+        })
+        .finally(() => {
+          setIsSyncingSubscription(false);
         });
-    } else if (syncTimestamp <= thirtyMinutesAgo) {
+    } else {
       // Flag is too old, clear it
       localStorage.removeItem("pending_subscription_sync");
+      setIsSyncingSubscription(false);
     }
-  }, [user, subLoading, isExpired, syncSubscription, refetch]);
+  }, [user, subLoading, syncSubscription, refetch]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -178,6 +195,11 @@ export default function AppLayout() {
 
   if (!user) {
     return <AuthLoadingScreen variant={loadingVariant} />;
+  }
+
+  // Show loading while syncing subscription after checkout
+  if (isSyncingSubscription) {
+    return <AuthLoadingScreen variant={loadingVariant} message="Activating your subscription..." />;
   }
 
   // Show onboarding wizard for new users (role-specific)
