@@ -96,14 +96,23 @@ serve(async (req) => {
     const priceId = subscription.items.data[0]?.price?.id;
     let planType = "growth";
     
-    // Map price IDs to plan types
+    // Map price IDs to plan types - Updated to match current Stripe prices
     const businessPriceIds = [
-      "price_1RRGRrHLyJYoVZxPCTqdfLGw", // business monthly
-      "price_1RRGRrHLyJYoVZxPyEJA28HB", // business yearly
+      "price_1SeWL7JoMc2msNl4380r2cSi", // business monthly
+      "price_1SeWL9JoMc2msNl4NNQVohgY", // business yearly
+    ];
+    
+    const growthPriceIds = [
+      "price_1SeWKzJoMc2msNl4m1z9SDUL", // growth monthly
+      "price_1SeWL5JoMc2msNl4j8st2mmO", // growth yearly
     ];
     
     if (priceId && businessPriceIds.includes(priceId)) {
       planType = "business";
+    } else if (priceId && growthPriceIds.includes(priceId)) {
+      planType = "growth";
+    } else if (priceId) {
+      logStep("Unknown price ID, defaulting to growth", { priceId });
     }
     logStep("Determined plan type", { planType, priceId });
 

@@ -4,13 +4,15 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Crown, LogOut, Loader2, Check, Sparkles } from "lucide-react";
+import { AlertTriangle, Crown, LogOut, Loader2, Check, Sparkles, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 export default function TrialExpiredOverlay() {
-  const { isExpired, createCheckoutSession } = useSubscription();
+  const { isExpired, createCheckoutSession, syncSubscription, refetch } = useSubscription();
   const { signOut } = useAuth();
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
   if (!isExpired) return null;
@@ -18,6 +20,9 @@ export default function TrialExpiredOverlay() {
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
+      // Set pending sync flag before opening checkout
+      localStorage.setItem("pending_subscription_sync", Date.now().toString());
+      
       const { url } = await createCheckoutSession.mutateAsync({ 
         planType, 
         countryCode: pricing.countryCode,
@@ -28,8 +33,27 @@ export default function TrialExpiredOverlay() {
       }
     } catch (error) {
       console.error("Checkout error:", error);
+      localStorage.removeItem("pending_subscription_sync");
     } finally {
       setLoading(null);
+    }
+  };
+
+  const handleRefreshAccess = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncSubscription.mutateAsync();
+      if (result?.synced) {
+        toast.success("Subscription synced! Refreshing...");
+        await refetch();
+      } else {
+        toast.error(result?.message || "No active subscription found in Stripe. Please complete checkout.");
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast.error("Failed to sync subscription. Please try again.");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -173,14 +197,34 @@ export default function TrialExpiredOverlay() {
             ))}
           </div>
 
-          <Button
-            variant="ghost"
-            className="text-gray-500 hover:text-gray-300 hover:bg-gray-800"
-            onClick={() => signOut()}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center justify-center gap-4">
+            <Button
+              variant="outline"
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+              onClick={handleRefreshAccess}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  I already paid — Refresh access
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>
