@@ -83,12 +83,13 @@ serve(async (req) => {
     }
 
     // Create checkout session for one-time payment
+    // Note: {CHECKOUT_SESSION_ID} is a Stripe template variable that gets replaced with actual session ID
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [{ price: pack.priceId, quantity: 1 }],
       mode: "payment",
-      success_url: successUrl || `${req.headers.get("origin")}/settings?tab=subscription&voice_credits=success`,
+      success_url: successUrl || `${req.headers.get("origin")}/settings?tab=subscription&voice_credits=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl || `${req.headers.get("origin")}/settings?tab=subscription&voice_credits=canceled`,
       metadata: {
         user_id: user.id,
