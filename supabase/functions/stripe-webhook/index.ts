@@ -47,7 +47,22 @@ serve(async (req) => {
         if (sessionType === "voice_credits" && userId) {
           const packSize = session.metadata?.pack_size;
           const minutes = parseInt(session.metadata?.minutes || "0", 10);
+          const paymentIntentId = session.payment_intent as string;
           
+          console.log("Processing voice credits purchase:", { userId, packSize, minutes, paymentIntentId });
+
+          // DUPLICATE PREVENTION: Check if credits already exist for this payment
+          const { data: existingCredits } = await supabaseAdmin
+            .from("voice_credits")
+            .select("id")
+            .eq("stripe_payment_id", paymentIntentId)
+            .limit(1);
+
+          if (existingCredits && existingCredits.length > 0) {
+            console.log("Skipping duplicate voice credit insert - already exists for payment:", paymentIntentId);
+            break;
+          }
+
           // Calculate expiration date (1 month from now - monthly reset)
           const expiresAt = new Date();
           expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -60,13 +75,14 @@ serve(async (req) => {
             minutes_granted: minutes,
             minutes_remaining: minutes,
             expires_at: expiresAt.toISOString(),
-            stripe_payment_id: session.payment_intent as string,
+            stripe_payment_id: paymentIntentId,
+            status: 'active',
           });
 
           if (creditsError) {
             console.error("Error inserting voice credits:", creditsError);
           } else {
-            console.log("Voice credits added for user:", userId, "minutes:", minutes);
+            console.log("Voice credits successfully inserted for user:", userId, "minutes:", minutes);
           }
           break;
         }
