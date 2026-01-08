@@ -27,6 +27,7 @@ export default function SubscriptionSettings() {
     subscription,
     usage,
     limits,
+    voiceCredits,
     isLoading,
     isPaid,
     isTrialing,
@@ -378,8 +379,9 @@ export default function SubscriptionSettings() {
           <UsageStat
             icon={Mic}
             label="Voice Minutes"
-            current={usage.voice_minutes_used}
-            limit={limits.voiceMinutes}
+            current={voiceCredits?.totalMinutesAvailable ?? 0}
+            limit={-1}
+            isAvailable
           />
         </div>
       </div>
@@ -392,15 +394,18 @@ function UsageStat({
   label,
   current,
   limit,
+  isAvailable = false,
 }: {
   icon: typeof Briefcase;
   label: string;
   current: number;
   limit: number;
+  isAvailable?: boolean;
 }) {
   const isUnlimited = limit === -1;
   const percentage = isUnlimited ? 0 : Math.min((current / limit) * 100, 100);
   const isNearLimit = !isUnlimited && percentage >= 80;
+  const isLow = isAvailable && current <= 5 && current > 0;
 
   return (
     <div className="p-4 rounded-lg bg-muted/30 border border-border">
@@ -409,14 +414,18 @@ function UsageStat({
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={`text-xl font-bold ${isNearLimit ? "text-amber-400" : "text-foreground"}`}>
+        <span className={`text-xl font-bold ${isLow ? "text-amber-400" : isNearLimit ? "text-amber-400" : "text-foreground"}`}>
           {current}
         </span>
-        <span className="text-sm text-muted-foreground">
-          / {isUnlimited ? "∞" : limit}
-        </span>
+        {isAvailable ? (
+          <span className="text-sm text-muted-foreground">available</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            / {isUnlimited ? "∞" : limit}
+          </span>
+        )}
       </div>
-      {!isUnlimited && (
+      {!isUnlimited && !isAvailable && (
         <Progress
           value={percentage}
           className={`h-1.5 mt-2 ${isNearLimit ? "[&>div]:bg-amber-400" : "[&>div]:bg-primary"}`}
