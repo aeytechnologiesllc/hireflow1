@@ -142,20 +142,77 @@ serve(async (req) => {
       0
     );
 
-    // NOTE: Voice credits are provisioned ONLY by stripe-webhook to prevent race condition duplicates
-    // get-subscription only READS credits, never creates them for Business/Enterprise
-
-    // AUTO-PROVISION: If Trial user has no active credits, provision trial allocation
+    // AUTO-PROVISION: If user has no active credits, check if they should have some
     const isTrial = subscription?.status === 'trialing';
+    const isPaidVoicePlan = (subscription?.plan_type === 'business' || subscription?.plan_type === 'enterprise') && subscription?.status === 'active';
+    
+    // Self-healing: Provision monthly credits for paid plans if balance is unexpectedly 0
+    if (isPaidVoicePlan && totalVoiceMinutes <= 0) {
+      console.log("Paid voice plan has 0 balance - checking for missing subscription credits");
+      
+      // Check if a subscription credit for current period already exists (any status)
+      const periodEnd = subscription.current_period_end 
+        ? new Date(subscription.current_period_end).toISOString()
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: existingPeriodCredit } = await supabaseAdmin
+        .from("voice_credits")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("source", "subscription")
+        .eq("expires_at", periodEnd)
+        .maybeSingle();
+      
+      if (!existingPeriodCredit) {
+        console.log("No subscription credit found for current period - auto-provisioning 30 minutes");
+        
+        const { data: insertedCredit, error: insertError } = await supabaseAdmin
+          .from("voice_credits")
+          .insert({
+            user_id: user.id,
+            source: 'subscription',
+            pack_size: 'monthly',
+            minutes_granted: 30,
+            minutes_remaining: 30,
+            expires_at: periodEnd,
+            status: 'active',
+          })
+          .select("id, minutes_remaining, expires_at")
+          .maybeSingle();
+        
+        if (insertError) {
+          console.error("Failed to auto-provision paid plan voice credits", { user_id: user.id, error: insertError });
+        } else {
+          console.log("Auto-provisioned 30 voice minutes for paid plan user", insertedCredit);
+          
+          // Re-fetch credits after provisioning
+          const { data: refreshedCredits } = await supabaseAdmin
+            .from("voice_credits")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("status", "active")
+            .gt("expires_at", new Date().toISOString())
+            .order("expires_at", { ascending: true });
+          
+          voiceCredits = refreshedCredits;
+          totalVoiceMinutes = (voiceCredits || []).reduce(
+            (sum, credit) => sum + (credit.minutes_remaining || 0),
+            0
+          );
+        }
+      } else {
+        console.log("Subscription credit exists for period but balance is 0 - credits exhausted or voided");
+      }
+    }
+    
+    // Auto-provision for Trial users
     if (isTrial && totalVoiceMinutes <= 0) {
       console.log("Trial user has no active voice credits - auto-provisioning trial allocation");
 
-      // Get trial end date from subscription
       const trialEnd = subscription?.trial_end
         ? new Date(subscription.trial_end)
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default 7 days
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-      // Create trial credit bucket (15 minutes, expires when trial ends)
       const { data: insertedCredit, error: insertError } = await supabaseAdmin
         .from("voice_credits")
         .insert({
@@ -170,14 +227,10 @@ serve(async (req) => {
         .maybeSingle();
 
       if (insertError) {
-        console.error("Failed to auto-provision trial voice credits", {
-          user_id: user.id,
-          error: insertError,
-        });
+        console.error("Failed to auto-provision trial voice credits", { user_id: user.id, error: insertError });
       } else {
         console.log("Auto-provisioned 15 voice minutes for Trial user", insertedCredit);
 
-        // Re-fetch credits after provisioning
         const { data: refreshedCredits } = await supabaseAdmin
           .from("voice_credits")
           .select("*")
