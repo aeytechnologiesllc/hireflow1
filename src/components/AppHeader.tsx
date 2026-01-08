@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,6 +37,7 @@ interface AppHeaderProps {
 
 export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
   const { user, role, signOut } = useAuth();
+  const { data: profile } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -52,7 +54,8 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
         .toUpperCase()
     : user?.email?.[0]?.toUpperCase() || "U";
 
-  const userName = user?.user_metadata?.full_name || user?.email || "User";
+  const firstName = (profile?.full_name || user?.user_metadata?.full_name || "")
+    .split(" ")[0] || user?.email?.split("@")[0] || "User";
   const pageTitle = pageTitles[location.pathname] || "";
   
   // Hide title on detail pages (routes with IDs like /applicants/:id, /jobs/:id)
@@ -94,6 +97,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
+              <span className="text-sm font-medium hidden md:block">{firstName}</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
             </Button>
           </DropdownMenuTrigger>
