@@ -95,3 +95,6 @@ verify_jwt = true
 
 [functions.purchase-voice-credits]
 verify_jwt = true
+
+[functions.verify-voice-credits-purchase]
+verify_jwt = true
