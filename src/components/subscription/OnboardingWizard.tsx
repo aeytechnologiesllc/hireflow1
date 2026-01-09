@@ -1224,7 +1224,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                     )}
                     {plan.premium && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
+                        <span className="bg-primary text-primary-foreground text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
                           <Sparkles className="h-3.5 w-3.5" /> Premium
                         </span>
                       </div>
@@ -1256,27 +1256,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               </div>
 
               <motion.div
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                animate={{ 
-                  boxShadow: [
-                    "0 0 30px -10px hsla(160, 60%, 40%, 0.8), inset 0 0 0 1px hsla(160, 60%, 35%, 0.4)",
-                    "0 0 60px -10px hsla(160, 60%, 50%, 1), inset 0 0 0 1px hsla(160, 60%, 45%, 0.7)",
-                    "0 0 30px -10px hsla(160, 60%, 40%, 0.8), inset 0 0 0 1px hsla(160, 60%, 35%, 0.4)"
-                  ],
-                  borderColor: [
-                    "hsla(160, 60%, 35%, 0.4)",
-                    "hsla(160, 60%, 50%, 0.7)",
-                    "hsla(160, 60%, 35%, 0.4)"
-                  ]
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="inline-block rounded-2xl border border-[hsla(160,60%,40%,0.4)]"
+                className="inline-block"
               >
                 <Button
                   size="lg"
                   onClick={() => setStep(4)}
-                  className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border-0 rounded-2xl px-10 py-7 text-lg h-auto font-medium"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl px-10 py-7 text-lg h-auto font-medium shadow-lg shadow-primary/25"
                 >
                   Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
                 </Button>
