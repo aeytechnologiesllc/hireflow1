@@ -142,7 +142,7 @@ export interface VoiceInterviewPhaseData {
   executive_summary?: string;
   recommendation?: string;
   credibility_rating?: string;
-  
+
   // Score breakdown
   communication_score?: number;
   technical_score?: number;
@@ -251,6 +251,25 @@ function extractValue(items: string[], key: string): string | null {
   return null;
 }
 
+// Helper to detect "none" variations in AI responses
+function isNoneValue(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const lower = value.toLowerCase().trim();
+  return (
+    lower === "none" ||
+    lower === "none." ||
+    lower.startsWith("none detected") ||
+    lower.startsWith("none identified") ||
+    lower.startsWith("none found") ||
+    lower.startsWith("no issues") ||
+    lower.startsWith("no concerns") ||
+    lower.startsWith("no red flags") ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "not applicable"
+  );
+}
+
 function parseAnalysis(sections: ParsedSectionLike[]): ExtractedAnalysis {
   const result: ExtractedAnalysis = {
     resumeStatus: null,
@@ -292,7 +311,7 @@ function parseAnalysis(sections: ParsedSectionLike[]): ExtractedAnalysis {
       };
     }
     const discrepancies = extractValue(crossRefSection.items, "Discrepancies Found");
-    if (discrepancies && discrepancies.toLowerCase() !== "none") {
+    if (discrepancies && !isNoneValue(discrepancies)) {
       result.concerns.push(discrepancies);
     }
   }
@@ -303,7 +322,7 @@ function parseAnalysis(sections: ParsedSectionLike[]): ExtractedAnalysis {
     result.aiContentStatus = extractValue(aiSection.items, "Overall Authenticity");
     result.coverLetterStatus = extractValue(aiSection.items, "Cover Letter");
     const aiNotes = extractValue(aiSection.items, "AI Detection Notes");
-    if (aiNotes) result.concerns.push(aiNotes);
+    if (aiNotes && !isNoneValue(aiNotes)) result.concerns.push(aiNotes);
   }
 
   // Authenticity Assessment
@@ -311,8 +330,8 @@ function parseAnalysis(sections: ParsedSectionLike[]): ExtractedAnalysis {
   if (authSection) {
     result.authenticityStatus = extractValue(authSection.items, "Status");
     const redFlagsRaw = extractValue(authSection.items, "Red Flags");
-    if (redFlagsRaw && redFlagsRaw.toLowerCase() !== "none") {
-      result.redFlags = redFlagsRaw.split(",").map(f => f.trim()).filter(Boolean);
+    if (redFlagsRaw && !isNoneValue(redFlagsRaw)) {
+      result.redFlags = redFlagsRaw.split(",").map(f => f.trim()).filter(f => !isNoneValue(f));
     }
   }
 
@@ -375,7 +394,7 @@ function parseAnalysis(sections: ParsedSectionLike[]): ExtractedAnalysis {
   }
 
   result.concerns = [...new Set(result.concerns)].filter(c => 
-    c.toLowerCase() !== "none" && 
+    !isNoneValue(c) && 
     c.length > 3 &&
     !c.includes("CANNOT_VERIFY")
   );
