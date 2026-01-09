@@ -1360,22 +1360,22 @@ export default function CreateJob() {
                           handleChange("salary_type", v);
                         }
                       }}
-                      className="grid grid-cols-2 gap-4 sm:gap-3"
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                     >
-                      <div className="flex items-center space-x-2 py-1">
-                        <RadioGroupItem value="fixed" id="salary-fixed" />
+                      <div className="flex items-center space-x-3 py-2">
+                        <RadioGroupItem value="fixed" id="salary-fixed" className="shrink-0" />
                         <Label htmlFor="salary-fixed" className="cursor-pointer font-normal text-sm leading-tight">Fixed Salary</Label>
                       </div>
-                      <div className="flex items-center space-x-2 py-1">
-                        <RadioGroupItem value="range" id="salary-range" />
+                      <div className="flex items-center space-x-3 py-2">
+                        <RadioGroupItem value="range" id="salary-range" className="shrink-0" />
                         <Label htmlFor="salary-range" className="cursor-pointer font-normal text-sm leading-tight">Salary Range</Label>
                       </div>
-                      <div className="flex items-center space-x-2 py-1">
-                        <RadioGroupItem value="commission" id="salary-commission" />
+                      <div className="flex items-center space-x-3 py-2">
+                        <RadioGroupItem value="commission" id="salary-commission" className="shrink-0" />
                         <Label htmlFor="salary-commission" className="cursor-pointer font-normal text-sm leading-tight">Commission Only</Label>
                       </div>
-                      <div className="flex items-center space-x-2 py-1">
-                        <RadioGroupItem value="base_plus_commission" id="salary-base-commission" />
+                      <div className="flex items-center space-x-3 py-2">
+                        <RadioGroupItem value="base_plus_commission" id="salary-base-commission" className="shrink-0" />
                         <Label htmlFor="salary-base-commission" className="cursor-pointer font-normal text-sm leading-tight">Base + Commission</Label>
                       </div>
                     </RadioGroup>
