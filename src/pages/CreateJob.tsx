@@ -1034,7 +1034,7 @@ export default function CreateJob() {
   const wizardSteps = getWizardSteps();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1045,7 +1045,7 @@ export default function CreateJob() {
             <h2 className="text-2xl font-bold text-foreground">
               {isEditMode ? "Edit Job" : "Create New Job"}
             </h2>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground mt-1.5 leading-relaxed">
               {isEditMode ? "Update your job posting" : "Ava-powered job posting wizard"}
             </p>
           </div>
@@ -1074,7 +1074,7 @@ export default function CreateJob() {
       </div>
 
       {/* Progress Steps */}
-      <div className="flex items-center justify-between px-4 overflow-x-auto">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 overflow-x-auto">
         {wizardSteps.map((step, index) => {
           const Icon = step.icon;
           const isActive = index === currentStep;
@@ -1092,7 +1092,7 @@ export default function CreateJob() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                <div className={`w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center ${
                   isActive 
                     ? "bg-primary text-primary-foreground" 
                     : isCompleted
@@ -1108,7 +1108,7 @@ export default function CreateJob() {
                 <span className="font-medium hidden lg:block text-sm">{step.title}</span>
               </button>
               {index < wizardSteps.length - 1 && (
-                <div className={`w-8 h-1 mx-1 rounded-full ${
+                <div className={`w-6 sm:w-8 h-0.5 mx-0.5 sm:mx-1 rounded-full ${
                   isCompleted ? "bg-primary" : "bg-border"
                 }`} />
               )}
@@ -1644,19 +1644,19 @@ export default function CreateJob() {
                 <>
                   {/* Create Mode: Difficulty Selection and Generation */}
                   <Card className="bg-card border-border">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-primary" />
                         AI Hiring Workflow
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-sm text-muted-foreground leading-relaxed">
                         Select screening difficulty and generate a complete hiring workflow
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6 sm:space-y-6">
+                    <CardContent className="space-y-8 sm:space-y-6 pt-2">
                       <div className="space-y-4 sm:space-y-3">
-                        <Label className="text-base sm:text-sm font-semibold">Screening Difficulty</Label>
-                        <div className="grid grid-cols-2 gap-3">
+                        <Label className="text-lg sm:text-sm font-semibold mb-1">Screening Difficulty</Label>
+                        <div className="grid grid-cols-2 gap-4 sm:gap-3">
                           {DIFFICULTY_OPTIONS.map((option) => {
                             const Icon = option.icon;
                             const isSelected = workflowDifficulty === option.value;
@@ -1668,17 +1668,17 @@ export default function CreateJob() {
                                   setWorkflowGenerated(false);
                                 }}
                                 className={cn(
-                                  "p-5 sm:p-4 rounded-xl border-2 transition-all text-left min-h-[100px]",
+                                  "p-5 sm:p-4 rounded-xl border-2 transition-all text-left min-h-[110px] sm:min-h-[100px]",
                                   isSelected
-                                    ? `${option.borderColor} ${option.bgColor} shadow-lg ${option.shadowColor} ring-2 ring-offset-2 ring-offset-background`
+                                    ? `${option.borderColor} ${option.bgColor} shadow-lg ${option.shadowColor} ring-2 ring-offset-2 ring-offset-background scale-[1.02] sm:scale-100`
                                     : "border-border bg-card hover:border-muted-foreground/30"
                                 )}
                               >
                                 <div className="flex items-start gap-3">
-                                  <Icon className={cn("h-5 w-5 mt-0.5 shrink-0", option.color)} />
+                                  <Icon className={cn("h-6 w-6 sm:h-5 sm:w-5 mt-0.5 shrink-0", option.color)} />
                                   <div>
-                                    <div className="text-base sm:text-sm font-bold sm:font-semibold">{option.label}</div>
-                                    <div className="text-sm sm:text-xs text-muted-foreground leading-relaxed mt-1">{option.description}</div>
+                                    <div className="text-lg sm:text-sm font-bold tracking-tight">{option.label}</div>
+                                    <div className="text-sm sm:text-xs text-muted-foreground/90 leading-relaxed mt-1.5">{option.description}</div>
                                   </div>
                                 </div>
                               </button>
@@ -1687,14 +1687,14 @@ export default function CreateJob() {
                         </div>
                       </div>
 
-                      <Separator />
+                      <Separator className="my-2 sm:my-0" />
 
                       {/* Passing Score - Always visible since we default to Auto mode */}
-                      <div className="p-5 sm:p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-5 sm:space-y-4">
-                        <div className="flex items-start justify-between gap-4">
+                      <div className="p-6 sm:p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                           <div className="space-y-1">
-                            <Label className="text-base sm:text-sm font-semibold">Passing Score</Label>
-                            <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">
+                            <Label className="text-lg sm:text-sm font-bold">Passing Score</Label>
+                            <p className="text-sm sm:text-xs text-muted-foreground/80 leading-relaxed">
                               Minimum Ava score to auto-advance candidates
                             </p>
                           </div>
@@ -1702,12 +1702,12 @@ export default function CreateJob() {
                             key={passingScore}
                             initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
                             animate={{ scale: 1 }}
-                            className="text-4xl sm:text-2xl font-bold text-primary tabular-nums shrink-0"
+                            className="text-5xl sm:text-2xl font-bold text-primary tabular-nums shrink-0"
                           >
                             {passingScore}%
                           </motion.div>
                         </div>
-                        <div className="pt-1">
+                        <div className="pt-2 sm:pt-1">
                           <Slider
                             value={[passingScore]}
                             onValueChange={([value]) => setPassingScore(value)}
@@ -1717,7 +1717,7 @@ export default function CreateJob() {
                             className="w-full"
                           />
                         </div>
-                        <div className="flex justify-between text-sm sm:text-xs text-muted-foreground pt-1">
+                        <div className="flex justify-between text-xs text-muted-foreground/70 pt-2 sm:pt-1">
                           <span>Lenient (30%)</span>
                           <span>Strict (95%)</span>
                         </div>
@@ -1725,12 +1725,12 @@ export default function CreateJob() {
 
                       {/* WPM slider moved to typing test phase card below */}
 
-                      <p className="text-sm sm:text-xs text-muted-foreground/80 text-center leading-relaxed">
+                      <p className="text-xs text-muted-foreground/60 text-center leading-relaxed py-2">
                         💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
                       </p>
 
                       {/* Generate with AVA Button - Pink/Purple gradient */}
-                      <div className="flex justify-center sm:justify-end pt-2">
+                      <div className="flex justify-center sm:justify-end pt-4 sm:pt-2">
                         <motion.div
                           className="relative w-full sm:w-auto"
                           animate={{
@@ -1751,7 +1751,7 @@ export default function CreateJob() {
                             onClick={generateWorkflow}
                             disabled={isGeneratingWorkflow}
                             className={cn(
-                              "gap-2 px-6 relative overflow-hidden w-full sm:w-auto",
+                              "gap-2 px-8 sm:px-6 py-6 sm:py-3 relative overflow-hidden w-full sm:w-auto",
                               "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
                               "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
                               "text-white font-semibold",
