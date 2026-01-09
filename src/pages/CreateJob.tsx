@@ -1340,13 +1340,13 @@ export default function CreateJob() {
             >
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Compensation & Benefits</CardTitle>
-                  <CardDescription>Salary range and perks</CardDescription>
+                  <CardTitle className="text-xl sm:text-lg font-bold">Compensation & Benefits</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground leading-relaxed">Salary range and perks</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-8 sm:space-y-6">
                   {/* Salary Type Selection */}
                   <div className="space-y-3">
-                    <Label>Compensation Type</Label>
+                    <Label className="text-base sm:text-sm font-medium">Compensation Type</Label>
                     <RadioGroup
                       value={formData.salary_type}
                       onValueChange={(v) => {
@@ -1360,32 +1360,32 @@ export default function CreateJob() {
                           handleChange("salary_type", v);
                         }
                       }}
-                      className="grid grid-cols-2 gap-3"
+                      className="grid grid-cols-2 gap-4 sm:gap-3"
                     >
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 py-1">
                         <RadioGroupItem value="fixed" id="salary-fixed" />
-                        <Label htmlFor="salary-fixed" className="cursor-pointer font-normal">Fixed Salary</Label>
+                        <Label htmlFor="salary-fixed" className="cursor-pointer font-normal text-sm leading-tight">Fixed Salary</Label>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 py-1">
                         <RadioGroupItem value="range" id="salary-range" />
-                        <Label htmlFor="salary-range" className="cursor-pointer font-normal">Salary Range</Label>
+                        <Label htmlFor="salary-range" className="cursor-pointer font-normal text-sm leading-tight">Salary Range</Label>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 py-1">
                         <RadioGroupItem value="commission" id="salary-commission" />
-                        <Label htmlFor="salary-commission" className="cursor-pointer font-normal">Commission Only</Label>
+                        <Label htmlFor="salary-commission" className="cursor-pointer font-normal text-sm leading-tight">Commission Only</Label>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 py-1">
                         <RadioGroupItem value="base_plus_commission" id="salary-base-commission" />
-                        <Label htmlFor="salary-base-commission" className="cursor-pointer font-normal">Base + Commission</Label>
+                        <Label htmlFor="salary-base-commission" className="cursor-pointer font-normal text-sm leading-tight">Base + Commission</Label>
                       </div>
                     </RadioGroup>
                   </div>
 
                   {/* Currency and Period - only show for non-commission types */}
                   {formData.salary_type !== "commission" && (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="salary_currency">Currency</Label>
+                        <Label htmlFor="salary_currency" className="text-base sm:text-sm font-medium">Currency</Label>
                         <Popover open={currencyOpen} onOpenChange={setCurrencyOpen}>
                           <PopoverTrigger asChild>
                             <Button
@@ -1394,9 +1394,11 @@ export default function CreateJob() {
                               aria-expanded={currencyOpen}
                               className="w-full justify-between bg-background"
                             >
-                              {formData.salary_currency 
-                                ? CURRENCIES.find(c => c.value === formData.salary_currency)?.label || formData.salary_currency
-                                : "Select currency"}
+                              <span className="truncate">
+                                {formData.salary_currency 
+                                  ? CURRENCIES.find(c => c.value === formData.salary_currency)?.label || formData.salary_currency
+                                  : "Select currency"}
+                              </span>
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </PopoverTrigger>
@@ -1431,7 +1433,7 @@ export default function CreateJob() {
                         </Popover>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="salary_period">Pay Period</Label>
+                        <Label htmlFor="salary_period" className="text-base sm:text-sm font-medium">Pay Period</Label>
                         <Select value={formData.salary_period} onValueChange={(v) => handleChange("salary_period", v)}>
                           <SelectTrigger className="bg-background">
                             <SelectValue />
@@ -1449,7 +1451,7 @@ export default function CreateJob() {
                   {/* Salary Amount(s) based on type */}
                   {formData.salary_type === "fixed" && (
                     <div className="space-y-2">
-                      <Label htmlFor="salary_fixed">Salary Amount</Label>
+                      <Label htmlFor="salary_fixed" className="text-base sm:text-sm font-medium">Salary Amount</Label>
                       <Input
                         id="salary_fixed"
                         type="text"
@@ -1459,16 +1461,16 @@ export default function CreateJob() {
                         value={formData.salary_fixed ? parseInt(formData.salary_fixed).toLocaleString() : ""}
                         onChange={(e) => handleChange("salary_fixed", e.target.value.replace(/\D/g, ""))}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">
                         {formData.salary_currency} {formData.salary_period}
                       </p>
                     </div>
                   )}
 
                   {formData.salary_type === "range" && (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="salary_min">Minimum Salary</Label>
+                        <Label htmlFor="salary_min" className="text-base sm:text-sm font-medium">Minimum Salary</Label>
                         <Input
                           id="salary_min"
                           type="text"
@@ -1480,7 +1482,7 @@ export default function CreateJob() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="salary_max">Maximum Salary</Label>
+                        <Label htmlFor="salary_max" className="text-base sm:text-sm font-medium">Maximum Salary</Label>
                         <Input
                           id="salary_max"
                           type="text"
@@ -1491,7 +1493,7 @@ export default function CreateJob() {
                           onChange={(e) => handleChange("salary_max", e.target.value.replace(/\D/g, ""))}
                         />
                       </div>
-                      <p className="col-span-2 text-xs text-muted-foreground">
+                      <p className="col-span-1 sm:col-span-2 text-sm sm:text-xs text-muted-foreground leading-relaxed">
                         {formData.salary_currency} {formData.salary_period}
                       </p>
                     </div>
@@ -1499,7 +1501,7 @@ export default function CreateJob() {
 
                   {formData.salary_type === "commission" && (
                     <div className="p-4 bg-muted/50 rounded-lg border border-border">
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
                         Commission-only compensation. You can describe the commission structure in the job description or benefits section.
                       </p>
                     </div>
@@ -1508,7 +1510,7 @@ export default function CreateJob() {
                   {formData.salary_type === "base_plus_commission" && (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="salary_fixed">Base Salary</Label>
+                        <Label htmlFor="salary_fixed" className="text-base sm:text-sm font-medium">Base Salary</Label>
                         <Input
                           id="salary_fixed"
                           type="text"
@@ -1518,12 +1520,12 @@ export default function CreateJob() {
                           value={formData.salary_fixed ? parseInt(formData.salary_fixed).toLocaleString() : ""}
                           onChange={(e) => handleChange("salary_fixed", e.target.value.replace(/\D/g, ""))}
                         />
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">
                           {formData.salary_currency} {formData.salary_period} + commission
                         </p>
                       </div>
-                      <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
-                        <p className="text-xs text-muted-foreground">
+                      <div className="p-4 sm:p-3 bg-primary/5 rounded-lg border border-primary/20">
+                        <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">
                           Tip: Describe your commission structure (e.g., percentage, tiers, OTE) in the job description or benefits section.
                         </p>
                       </div>
@@ -1534,7 +1536,7 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="benefits">Benefits</Label>
+                      <Label htmlFor="benefits" className="text-base sm:text-sm font-medium">Benefits</Label>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1550,20 +1552,20 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Input
+                    <Textarea
                       id="benefits"
                       placeholder="Health insurance, 401k, Remote work, Unlimited PTO..."
-                      className="bg-background"
+                      className="bg-background min-h-[80px] sm:min-h-[60px] resize-none"
                       value={formData.benefits}
                       onChange={(e) => handleChange("benefits", e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">Separate benefits with commas</p>
+                    <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">Separate benefits with commas</p>
                   </div>
 
                   <Separator />
 
                   <div className="space-y-2">
-                    <Label>Application Deadline</Label>
+                    <Label className="text-base sm:text-sm font-medium">Application Deadline</Label>
                     <Popover open={deadlineOpen} onOpenChange={setDeadlineOpen}>
                       <PopoverTrigger asChild>
                         <Button
@@ -1595,7 +1597,7 @@ export default function CreateJob() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">
                       When should applications close for this position?
                     </p>
                   </div>
