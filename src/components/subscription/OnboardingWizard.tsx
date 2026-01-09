@@ -187,7 +187,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         transition={{ duration: 6, repeat: Infinity }}
       />
       <motion.div
-        className="absolute top-[40%] left-[30%] w-[200px] h-[200px] rounded-full bg-cyan-500/10 blur-[80px]"
+        className="absolute top-[40%] left-[30%] w-[200px] h-[200px] rounded-full bg-primary/10 blur-[80px]"
         animate={{
           x: [0, 100, 0],
           y: [0, -50, 0],
@@ -422,7 +422,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <Button
                 size="lg"
                 onClick={() => setStep(2)}
-                className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg"
+                className="px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
               >
                 See How AVA Works <ChevronRight className="h-5 w-5 ml-2" />
               </Button>
@@ -1136,7 +1136,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 <Button
                   size="lg"
                   onClick={() => setStep(3)}
-                  className="px-8 bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-500 text-primary-foreground shadow-lg hover:shadow-primary/30 transition-all"
+                  className="px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-primary/30 transition-all"
                 >
                   See What You Get <ChevronRight className="h-5 w-5 ml-2" />
                 </Button>
@@ -1217,7 +1217,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   >
                     {plan.popular && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="bg-gradient-to-r from-primary to-cyan-400 text-primary-foreground text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
+                        <span className="bg-primary text-primary-foreground text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg font-medium">
                           <Crown className="h-3.5 w-3.5" /> Most Popular
                         </span>
                       </div>
