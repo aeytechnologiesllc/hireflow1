@@ -33,7 +33,7 @@ import {
   Wand2,
   FileText,
   DollarSign,
-  Users,
+  Briefcase,
   ChevronRight,
   ChevronLeft,
   Eye,
@@ -130,7 +130,7 @@ interface WorkflowStep {
 
 const WIZARD_STEPS = [
   { id: "basic", title: "Basic Info", icon: FileText },
-  { id: "details", title: "Job Details", icon: Users },
+  { id: "details", title: "Job Details", icon: Briefcase },
   { id: "compensation", title: "Compensation", icon: DollarSign },
   { id: "workflow", title: "Workflow", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
@@ -1022,7 +1022,7 @@ export default function CreateJob() {
     if (isEditMode) {
       return [
         { id: "basic", title: "Basic Info", icon: FileText },
-        { id: "details", title: "Job Details", icon: Users },
+        { id: "details", title: "Job Details", icon: Briefcase },
         { id: "compensation", title: "Compensation", icon: DollarSign },
         { id: "workflow", title: "Workflow (View Only)", icon: Sparkles },
         { id: "review", title: "Review & Update", icon: Eye },
