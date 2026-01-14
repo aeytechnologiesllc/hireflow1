@@ -63,7 +63,7 @@ serve(async (req) => {
         quizRange: "18-25",
         quizMin: 18,
         quizMax: 25,
-        stepCount: "3-5",
+        stepCount: "2-4",
         description: "Intensive screening with deep assessments"
       },
       intense: {
@@ -71,7 +71,7 @@ serve(async (req) => {
         quizRange: "25-30",
         quizMin: 25,
         quizMax: 30,
-        stepCount: "4-6",
+        stepCount: "3-4",
         description: "Maximum rigor for critical & executive roles"
       }
     };
@@ -79,32 +79,49 @@ serve(async (req) => {
     const config = difficultyConfig[difficulty];
     const randomSeed = Date.now() + Math.random().toString(36).substring(7);
 
-    // Detect creative/technical roles that require portfolio
-    const creativeKeywords = [
-      'designer', 'design', 'creative', 'artist', 'illustrator', 
-      'ui', 'ux', 'graphic', 'visual', 'animator', 'motion',
-      'photographer', 'videographer', 'content creator', 'editor',
-      'developer', 'engineer', 'programmer', 'architect', 'frontend',
-      'backend', 'fullstack', 'full-stack', 'software', 'web developer',
-      'portfolio', 'creative director', '3d', 'cad', 'drafter',
-      'art director', 'brand', 'marketing designer', 'product designer',
-      'game designer', 'level designer', 'character artist', 'concept artist'
+    // Detect visual/creative roles that require portfolio (narrowed list)
+    const portfolioKeywords = [
+      // Pure visual/creative roles
+      'graphic designer', 'ui designer', 'ux designer', 'web designer',
+      'product designer', 'visual designer', 'brand designer', 'marketing designer',
+      'illustrator', 'animator', 'motion graphics', 'motion designer',
+      'photographer', 'videographer', 'art director', 'creative director',
+      '3d artist', 'character artist', 'concept artist', 'game artist',
+      'level designer', 'environment artist', 'cad', 'drafter',
+      // Beauty/aesthetics roles
+      'nail tech', 'nail artist', 'hairstylist', 'makeup artist', 'beauty artist',
+      'interior designer', 'fashion designer', 'florist', 'cake decorator', 'tattoo artist',
+      // Generic creative terms (but only if not excluded)
+      'creative', 'artist', 'designer'
+    ];
+
+    // Exclude roles that should NOT get portfolio even if they match generic terms
+    const excludeFromPortfolio = [
+      'support', 'chat support', 'customer service', 'customer support',
+      'data entry', 'admin', 'administrative', 'assistant', 'receptionist',
+      'clerk', 'operator', 'coordinator', 'manager', 'supervisor',
+      'analyst', 'accountant', 'hr', 'recruiter', 'sales', 'representative',
+      'developer', 'engineer', 'programmer', 'software', 'backend', 'frontend',
+      'fullstack', 'full-stack', 'devops', 'architect'
     ];
 
     const titleLower = title.toLowerCase();
     const descLower = description.toLowerCase();
-    const isCreativeRole = creativeKeywords.some(kw => 
+    
+    const hasPortfolioKeyword = portfolioKeywords.some(kw => 
       titleLower.includes(kw) || descLower.includes(kw)
     );
+    const isExcludedRole = excludeFromPortfolio.some(kw => titleLower.includes(kw));
+    const isCreativeRole = hasPortfolioKeyword && !isExcludedRole;
 
-    console.log(`Role detection - Title: "${title}", isCreativeRole: ${isCreativeRole}`);
+    console.log(`Role detection - Title: "${title}", hasPortfolioKeyword: ${hasPortfolioKeyword}, isExcludedRole: ${isExcludedRole}, isCreativeRole: ${isCreativeRole}`);
 
     const portfolioInstruction = isCreativeRole 
       ? `\n\n⚠️⚠️⚠️ MANDATORY PORTFOLIO REQUIREMENT ⚠️⚠️⚠️
-This is a CREATIVE/TECHNICAL role (detected from job title/description).
+This is a VISUAL/CREATIVE role (detected from job title/description).
 You MUST include "portfolio_upload" as one of the workflow_steps.
 This is NON-NEGOTIABLE for this type of position.`
-      : '';
+      : `\n\n⚠️ Do NOT include portfolio_upload for this role - it is not a visual/creative position.`;
 
     const prompt = `You are AVA, an expert AI hiring assistant. Generate a comprehensive hiring workflow for this job.${portfolioInstruction}
 
@@ -148,10 +165,12 @@ Generate a MIX of question types:
 Each quiz question must have: id, type, question, options (if applicable), correct_answer, time_limit_seconds, category
 
 **PHASE 3: Workflow Steps (${config.stepCount} steps)**
+⚠️ IMPORTANT: Prefer the LOWER end of this range to avoid candidate drop-off.
+Only add steps that are DIRECTLY relevant to the job role.
 Choose appropriate steps based on the job role:
 - typing_test: For customer service/data entry roles (config: {"min_wpm": 40})
 - video_message: For communication-focused roles (config: {"min_duration_seconds": 30, "max_duration_seconds": 60})
-- portfolio_upload: For creative/technical roles (config: {"portfolio_type": "general"})
+- portfolio_upload: ONLY for visual/creative roles like designers, artists, photographers, nail techs (config: {"portfolio_type": "general"})
 - chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
 - sales_simulation: For sales, business development, and account management roles - tests pitching and objection handling (config: {"product": "enterprise solution"})
 
