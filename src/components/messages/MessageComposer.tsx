@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmojiPicker } from "./EmojiPicker";
 import { cn } from "@/lib/utils";
+import { useVirtualKeyboard } from "@/hooks/useVirtualKeyboard";
 
 interface MessageComposerProps {
   onSend: (message: string, file?: File) => Promise<void>;
@@ -23,6 +24,7 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { isKeyboardOpen, keyboardHeight } = useVirtualKeyboard();
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -82,7 +84,14 @@ export function MessageComposer({ onSend, disabled, isPending }: MessageComposer
   };
 
   return (
-    <div className="space-y-2">
+    <div 
+      className="space-y-2"
+      style={{
+        // Adjust bottom padding when keyboard is open to prevent overlap
+        paddingBottom: isKeyboardOpen ? `${Math.min(keyboardHeight, 20)}px` : undefined,
+        transition: 'padding-bottom 0.2s ease-out',
+      }}
+    >
       {/* File Preview */}
       {selectedFile && (
         <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg">

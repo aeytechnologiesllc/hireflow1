@@ -513,7 +513,7 @@ export default function Applicants() {
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-3 sm:p-4">
             <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
