@@ -173,3 +173,5 @@ export function resetAllFeatureDiscoveries() {
     }
   });
 }
+
+export default FeatureDiscoveryTooltip;
