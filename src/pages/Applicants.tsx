@@ -44,16 +44,7 @@ import BulkRejectDialog from "@/components/BulkRejectDialog";
 import BulkMessageDialog from "@/components/BulkMessageDialog";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { staggerContainer, staggerItem } from "@/lib/animations";
-
-const statusColors: Record<string, string> = {
-  in_progress: "bg-orange-500/20 text-orange-500",
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
-  offered: "bg-primary/20 text-primary",
-  hired: "bg-success/20 text-success",
-  rejected: "bg-destructive/20 text-destructive",
-};
+import { applicationStatusColors, applicationStatusLabels } from "@/lib/terminology";
 
 interface ApplicantCardProps {
   application: ApplicationWithCandidate;
@@ -222,10 +213,9 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
             </div>
 
             <div className="mt-2 flex items-center gap-3 flex-wrap">
-              <Badge className={statusColors[application.status]}>
-                {application.status === "in_progress" 
-                  ? "In Progress" 
-                  : phaseName || application.status.charAt(0).toUpperCase() + application.status.slice(1)
+              <Badge className={applicationStatusColors[application.status]}>
+                {applicationStatusLabels[application.status] || 
+                  (phaseName || application.status.charAt(0).toUpperCase() + application.status.slice(1))
                 }
               </Badge>
               {application.status === "in_progress" && (

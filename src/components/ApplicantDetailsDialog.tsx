@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+import { applicationStatusColors, getApplicationStatusLabel } from "@/lib/terminology";
 
 interface ApplicantDetailsDialogProps {
   application: ApplicationWithCandidate | null;
@@ -28,15 +29,6 @@ interface ApplicantDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   onAnalyze?: (analysis: string, score: number | null) => void;
 }
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
-  offered: "bg-primary/20 text-primary",
-  hired: "bg-success/20 text-success",
-  rejected: "bg-destructive/20 text-destructive",
-};
 
 export default function ApplicantDetailsDialog({
   application,
@@ -112,8 +104,8 @@ export default function ApplicantDetailsDialog({
           <div className="space-y-6">
             {/* Status & Score */}
             <div className="flex items-center gap-4">
-              <Badge className={statusColors[application.status]}>
-                {application.status}
+              <Badge className={applicationStatusColors[application.status]}>
+                {getApplicationStatusLabel(application.status)}
               </Badge>
               {application.ai_score && (
                 <div className="flex items-center gap-2">

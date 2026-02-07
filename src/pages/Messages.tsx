@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Search, Plus, Briefcase, Trash2, EyeOff, Users, ArrowLeft } from "lucide-react";
+import { MessageSquare, Search, Plus, Briefcase, Trash2, EyeOff, Users, ArrowLeft, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { MessageComposer } from "@/components/messages/MessageComposer";
 import { FileMessage } from "@/components/messages/FileMessage";
 import { staggerContainer, staggerItem } from "@/lib/animations";
+import { EmptyStateCard } from "@/components/EmptyStateCard";
 
 function formatMessageDate(date: Date) {
   if (isToday(date)) return format(date, "h:mm a");
@@ -327,22 +328,52 @@ export default function Messages() {
               ))}
             </div>
           ) : (isCandidate && newEmployerOptions.length > 0) || (isEmployer && newCandidateOptions.length > 0) ? (
-            <div className="p-8 text-center">
-              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground mb-4">No conversations yet</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowNewConversation(true)}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Start a Conversation
-              </Button>
+            <div className="p-4">
+              <EmptyStateCard
+                icon={MessageSquare}
+                title="No Messages Yet"
+                description={
+                  isCandidate
+                    ? "Messages will appear here once you connect with employers about your applications."
+                    : "Messages will appear here once you connect with candidates who have applied to your jobs."
+                }
+                action={{
+                  label: "Start a Conversation",
+                  onClick: () => setShowNewConversation(true),
+                  icon: Plus,
+                }}
+                tip={
+                  isCandidate
+                    ? "Employers may reach out to discuss your application status or next steps."
+                    : "You can message any candidate who has applied to your job postings."
+                }
+              />
             </div>
           ) : (
-            <div className="p-8 text-center text-muted-foreground">
-              No conversations yet
+            <div className="p-4">
+              <EmptyStateCard
+                icon={MessageSquare}
+                title="No Messages Yet"
+                description={
+                  isCandidate
+                    ? "Apply to jobs first, then you'll be able to message employers here."
+                    : "Once candidates apply to your jobs, you can message them here."
+                }
+                action={
+                  isCandidate
+                    ? {
+                        label: "Browse Jobs",
+                        onClick: () => window.location.href = "/apply",
+                        icon: Briefcase,
+                      }
+                    : undefined
+                }
+                tip={
+                  isCandidate
+                    ? "Start by applying to positions that match your skills and experience."
+                    : "Post a job to start receiving applications from candidates."
+                }
+              />
             </div>
           )}
         </ScrollArea>

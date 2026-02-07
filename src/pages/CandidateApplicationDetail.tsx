@@ -44,6 +44,7 @@ import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterv
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
+import { CandidateJourneyProgress } from "@/components/CandidateJourneyProgress";
 
 interface WorkflowStep {
   id: string;
@@ -75,29 +76,23 @@ const stepTypeIcons: Record<string, any> = {
   hired: CheckCircle,
 };
 
+import { 
+  candidatePhaseStatusLabels, 
+  phaseActionMessages as terminologyPhaseActionMessages 
+} from "@/lib/terminology";
+
 const phaseStatusLabels: Record<string, { label: string; color: string; icon: any }> = {
-  pending: { label: "Pending Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
-  in_progress: { label: "In Progress", color: "bg-blue-500/20 text-blue-500 border-blue-500/30", icon: Play },
-  completed: { label: "Completed", color: "bg-success/20 text-success border-success/30", icon: CheckCircle },
-  awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30", icon: Play },
-  under_review: { label: "Under Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30", icon: Clock },
-  employer_reviewing: { label: "Employer Reviewing", color: "bg-amber-500/20 text-amber-500 border-amber-500/30", icon: Eye },
-  rejected: { label: "Not Passed", color: "bg-destructive/20 text-destructive border-destructive/30", icon: AlertCircle },
+  pending: { ...candidatePhaseStatusLabels.pending, icon: Clock },
+  in_progress: { ...candidatePhaseStatusLabels.in_progress, icon: Play },
+  completed: { ...candidatePhaseStatusLabels.completed, icon: CheckCircle },
+  awaiting_action: { ...candidatePhaseStatusLabels.awaiting_action, icon: Play },
+  under_review: { ...candidatePhaseStatusLabels.under_review, icon: Clock },
+  employer_reviewing: { ...candidatePhaseStatusLabels.employer_reviewing, icon: Eye },
+  rejected: { ...candidatePhaseStatusLabels.rejected, icon: AlertCircle },
 };
 
-// Friendly action messages for each phase type
-const phaseActionMessages: Record<string, { buttonText: string; description: string }> = {
-  application: { buttonText: "Complete Application", description: "Fill out your application form" },
-  quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
-  typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
-  video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
-  video_message: { buttonText: "Record Video", description: "Record a 60-second video about yourself" },
-  chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
-  chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
-  sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
-  portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
-  voice_interview: { buttonText: "Start Ava Interview", description: "Have a voice conversation with Ava" },
-};
+// Use centralized phase action messages
+const phaseActionMessages = terminologyPhaseActionMessages;
 
 export default function CandidateApplicationDetail() {
   const { id } = useParams<{ id: string }>();
@@ -564,6 +559,19 @@ export default function CandidateApplicationDetail() {
     return "upcoming";
   };
 
+  // Calculate completed phase indexes for journey progress
+  const completedPhaseIndexes = useMemo(() => {
+    const completed: number[] = [];
+    for (let i = 0; i < effectivePhaseIndex; i++) {
+      const phase = phases[i];
+      // A phase is completed if it's before current AND has data (or was skipped)
+      if (hasPhaseData(phase.id, phase.type) || isEmployerSkipped(phase.id, phase.type)) {
+        completed.push(i);
+      }
+    }
+    return completed;
+  }, [phases, effectivePhaseIndex, hasPhaseData, isEmployerSkipped]);
+
   // Calculate progress percentage
   const progressPercentage = ((effectivePhaseIndex + 1) / phases.length) * 100;
 
@@ -713,6 +721,15 @@ export default function CandidateApplicationDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Journey Progress - shows step X of Y and estimated time */}
+      {!isRejected && !isHired && phases.length > 0 && (
+        <CandidateJourneyProgress
+          phases={phases}
+          currentPhaseIndex={effectivePhaseIndex}
+          completedPhases={completedPhaseIndexes}
+        />
+      )}
 
       {/* Interview Confirmation Card - for candidate to confirm/reschedule */}
       {candidateInterview && (

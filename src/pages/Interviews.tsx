@@ -27,21 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
-
-// Human-readable status labels
-const statusLabels: Record<string, string> = {
-  scheduled: "Scheduled",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  no_show: "No Show",
-};
-
-const statusColors: Record<string, string> = {
-  scheduled: "bg-blue-500/20 text-blue-500",
-  completed: "bg-success/20 text-success",
-  cancelled: "bg-destructive/20 text-destructive",
-  no_show: "bg-yellow-500/20 text-yellow-500",
-};
+import { interviewStatusLabels, interviewStatusColors } from "@/lib/terminology";
 
 interface InterviewCardProps {
   interview: InterviewWithDetails;
@@ -157,8 +143,8 @@ function InterviewCard({
                     Review
                   </Button>
                 )}
-                <Badge className={statusColors[interview.status]}>
-                  {statusLabels[interview.status] || interview.status}
+                <Badge className={interviewStatusColors[interview.status]}>
+                  {interviewStatusLabels[interview.status] || interview.status}
                 </Badge>
                 {isEmployer && canScheduleInterviews && (
                   <DropdownMenu>
@@ -360,7 +346,7 @@ export default function Interviews() {
   const handleStatusChange = async (id: string, status: string) => {
     try {
       await updateInterview.mutateAsync({ id, status: status as any });
-      toast.success(`Interview marked as ${statusLabels[status] || status}`);
+      toast.success(`Interview marked as ${interviewStatusLabels[status] || status}`);
     } catch (error) {
       toast.error("Failed to update interview");
     }

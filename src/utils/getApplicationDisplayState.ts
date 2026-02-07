@@ -2,25 +2,14 @@ import {
   FileText, ClipboardList, Keyboard, Video, MessageSquare, Mic
 } from "lucide-react";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
+import { 
+  applicationStatusColors, 
+  applicationStatusLabels 
+} from "@/lib/terminology";
 
-// Shared configuration for status colors
-export const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
-  offered: "bg-primary/20 text-primary",
-  hired: "bg-success/20 text-success",
-  rejected: "bg-destructive/20 text-destructive",
-};
-
-export const statusLabels: Record<string, string> = {
-  pending: "Pending Review",
-  reviewing: "Under Review",
-  interview: "Interview Scheduled",
-  offered: "Offer Extended",
-  hired: "Hired",
-  rejected: "Not Selected",
-};
+// Re-export from terminology for backwards compatibility
+export const statusColors = applicationStatusColors;
+export const statusLabels = applicationStatusLabels;
 
 // Map phase types to icons and action labels
 export const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
