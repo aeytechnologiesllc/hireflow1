@@ -11,7 +11,7 @@ import {
   Loader2, 
   AlertCircle,
   Briefcase,
-  Sparkles
+  KeyRound
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -89,11 +89,11 @@ export default function ApplyWithCode() {
         className="text-center mb-8"
       >
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4">
-          <Sparkles className="h-8 w-8 text-white" />
+          <KeyRound className="h-8 w-8 text-white" />
         </div>
-        <h1 className="text-4xl font-bold text-foreground">Apply Now</h1>
+        <h1 className="text-4xl font-bold text-foreground">Enter Job Code</h1>
         <p className="text-muted-foreground mt-2 max-w-md">
-          Enter the application code provided by the employer to view the position
+          Enter the application code you received from the employer to view and apply for the position
         </p>
       </motion.div>
 
@@ -109,7 +109,7 @@ export default function ApplyWithCode() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="job-code" className="text-base font-medium">
-                  Application Code
+                  Job Application Code
                 </Label>
                 <Input
                   id="job-code"

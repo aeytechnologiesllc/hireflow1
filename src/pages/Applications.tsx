@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 import { toast } from "sonner";
@@ -292,6 +293,7 @@ export default function Applications() {
   const { role, user } = useAuth();
   const isEmployer = role === "employer";
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: applications, isLoading, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -436,18 +438,17 @@ export default function Applications() {
             />
           ))
         ) : (
-          <Card className="bg-card border-border">
-            <CardContent className="p-12 text-center">
-              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No applications yet</h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                Start applying to jobs to track your applications here.
-              </p>
-              <Button asChild>
-                <Link to="/find-jobs">Browse Jobs</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <EmptyStateCard
+            icon={Sparkles}
+            title="Ready to Start Your Job Search?"
+            description="To apply for a position on HireFlow, you'll need a job application code from an employer. Once you have one, click below to get started."
+            action={{
+              label: "Enter Job Code",
+              onClick: () => navigate("/apply"),
+              icon: Briefcase,
+            }}
+            tip="Job codes are typically shared by employers via email, job postings, or during initial contact. Ask the employer if you haven't received one yet."
+          />
         )}
       </div>
       

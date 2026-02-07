@@ -154,7 +154,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
 
   const candidateNavItems: NavItemProps[] = [
     { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
-    { icon: Briefcase, label: "Apply Now", to: "/apply" },
+    { icon: Briefcase, label: "Enter Job Code", to: "/apply" },
     { icon: ClipboardCheck, label: "Applications", to: "/applications", badge: pendingActions || 0, highlight: (pendingActions || 0) > 0 },
     { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
