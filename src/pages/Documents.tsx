@@ -41,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { cn } from "@/lib/utils";
+import { EmptyStateCard } from "@/components/EmptyStateCard";
 
 // Get display status based on document state and user role
 const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => {
@@ -636,29 +637,29 @@ export default function Documents() {
         null
       ) : (
         <motion.div variants={staggerItem}>
-          <Card className="bg-card border-border">
-            <CardContent className="p-12 text-center">
-              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No documents</h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              {isEmployer 
-                ? (canSendDocuments ? "Create AI-generated documents or request documents from candidates." : "Documents will appear here when created.")
-                : "Documents will appear here."}
-              </p>
-              {isEmployer && canSendDocuments && (
-                <div className="flex items-center justify-center gap-2">
-                  <Button variant="outline" onClick={() => setRequestWizardOpen(true)}>
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Request Document
-                  </Button>
-                  <Button onClick={() => setWizardOpen(true)}>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Create Document
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EmptyStateCard
+            icon={FileText}
+            title="No Documents Yet"
+            description={
+              isEmployer
+                ? "Create contracts, offer letters, and NDAs to send to your candidates, or request documents from them."
+                : "Documents like offer letters, contracts, and NDAs will appear here when employers send them to you."
+            }
+            action={
+              isEmployer && canSendDocuments
+                ? {
+                    label: "Create Document",
+                    onClick: () => setWizardOpen(true),
+                    icon: Wand2,
+                  }
+                : undefined
+            }
+            tip={
+              isEmployer
+                ? "You can create AI-generated documents or request uploads like ID, work authorization, etc."
+                : "Employers will send documents when you advance in the hiring process. Keep an eye on your notifications!"
+            }
+          />
         </motion.div>
       )}
 
