@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,6 +58,7 @@ import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import ActivityFeed from "@/components/ActivityFeed";
 import PipelineHealthCard from "@/components/PipelineHealthCard";
 import ProfileCompletionCard from "@/components/ProfileCompletionCard";
+import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
@@ -481,6 +482,29 @@ export default function Dashboard() {
   const [blueprintApplicationId, setBlueprintApplicationId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   
+  // Getting Started Checklist state
+  const [checklistDismissed, setChecklistDismissed] = useState(() => {
+    return localStorage.getItem("gettingStartedDismissed") === "true";
+  });
+  
+  const handleDismissChecklist = () => {
+    setChecklistDismissed(true);
+    localStorage.setItem("gettingStartedDismissed", "true");
+  };
+  
+  // Determine if we should show the getting started checklist
+  const showGettingStarted = useMemo(() => {
+    if (checklistDismissed) return false;
+    if (!isEmployer) return false;
+    if (isTeamMember) return false;
+    
+    const hasJobs = (jobs?.length || 0) > 0;
+    const hasApplicants = (appStats?.total || 0) > 0;
+    
+    // Show if missing jobs OR applicants (new user experience)
+    return !hasJobs || !hasApplicants;
+  }, [checklistDismissed, isEmployer, isTeamMember, jobs, appStats]);
+  
   const handleOpenBlueprintDialog = (applicationId: string) => {
     setBlueprintApplicationId(applicationId);
     setShowBlueprintDialog(true);
@@ -592,6 +616,18 @@ export default function Dashboard() {
             Test Onboarding
           </Button>
         </div>
+      )}
+      
+      {/* Getting Started Checklist */}
+      {showGettingStarted && (
+        <motion.div variants={staggerItem}>
+          <GettingStartedChecklist
+            hasJobs={(jobs?.length || 0) > 0}
+            hasApplicants={(appStats?.total || 0) > 0}
+            hasInterviews={(upcomingInterviews?.length || 0) > 0}
+            onDismiss={handleDismissChecklist}
+          />
+        </motion.div>
       )}
       
       {/* Stats Grid */}
@@ -754,14 +790,40 @@ export default function Dashboard() {
                 />
               ))
             ) : (
-              <div className="text-center py-6 md:py-8 text-muted-foreground">
-                <Briefcase className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
-                <p className="text-sm md:text-base">No jobs posted yet</p>
-                <p className="text-xs md:text-sm mt-1">Create your first job posting to get started</p>
-                <Button className="mt-3 md:mt-4 h-9 md:h-10" asChild>
-                  <Link to="/jobs">Create Job</Link>
+              <motion.div 
+                className="text-center py-8 md:py-12"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="relative inline-block mb-4">
+                  <motion.div
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 5, -5, 0]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  >
+                    <Briefcase className="h-14 w-14 md:h-16 md:w-16 text-primary/60" />
+                  </motion.div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                    <Sparkles className="h-3 w-3 text-white" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">Ready to Start Hiring?</h3>
+                <p className="text-sm text-muted-foreground mb-1 max-w-xs mx-auto">
+                  Ava will help you create a job posting in under 2 minutes.
+                </p>
+                <p className="text-xs text-muted-foreground/80 mb-4">
+                  Your applicants will be automatically screened.
+                </p>
+                <Button className="gap-2" asChild>
+                  <Link to="/jobs/create">
+                    <Sparkles className="h-4 w-4" />
+                    Create with Ava
+                  </Link>
                 </Button>
-              </div>
+              </motion.div>
             )}
           </CardContent>
         </Card>
@@ -821,14 +883,33 @@ export default function Dashboard() {
                 />
               ))
             ) : (
-              <div className="text-center py-6 md:py-8 text-muted-foreground">
-                <Briefcase className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
-                <p className="text-sm md:text-base">No applications yet</p>
-                <p className="text-xs md:text-sm mt-1">Enter an application code to apply for your first job</p>
-                <Button className="mt-3 md:mt-4 h-9 md:h-10" asChild>
-                  <Link to="/apply">Apply Now</Link>
+              <motion.div 
+                className="text-center py-8 md:py-12"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="relative inline-block mb-4">
+                  <motion.div
+                    animate={{ 
+                      y: [0, -5, 0]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Briefcase className="h-14 w-14 md:h-16 md:w-16 text-primary/60" />
+                  </motion.div>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Applications Yet</h3>
+                <p className="text-sm text-muted-foreground mb-4 max-w-xs mx-auto">
+                  Have an application code from an employer? Enter it to start applying.
+                </p>
+                <Button className="gap-2" asChild>
+                  <Link to="/apply">
+                    <Send className="h-4 w-4" />
+                    Apply Now
+                  </Link>
                 </Button>
-              </div>
+              </motion.div>
             )}
           </CardContent>
         </Card>

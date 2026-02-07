@@ -27,6 +27,7 @@ import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaA
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 
 // Sample typing test paragraphs
 const typingTexts = [

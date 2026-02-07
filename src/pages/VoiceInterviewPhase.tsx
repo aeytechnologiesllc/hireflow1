@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { AvaAvatar, useAvaExpression } from "@/components/AvaAvatar";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 
 interface Message {
   id: string;

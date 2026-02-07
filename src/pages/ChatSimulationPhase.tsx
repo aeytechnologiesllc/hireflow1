@@ -25,6 +25,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 
 interface Message {
   id: string;

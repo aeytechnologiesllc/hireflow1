@@ -25,6 +25,7 @@ import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 interface ApplicationDetails {
   id: string;
   candidate_id: string;

@@ -27,6 +27,7 @@ import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applic
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 
 interface QuizQuestion {
   id: string;

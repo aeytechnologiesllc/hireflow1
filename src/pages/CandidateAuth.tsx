@@ -242,6 +242,12 @@ export default function CandidateAuth() {
               <Sparkles className="h-3.5 w-3.5" />
               Candidate Portal
             </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Hiring?{" "}
+              <Link to="/auth" className="text-primary hover:underline">
+                Go to Employer Portal →
+              </Link>
+            </p>
           </div>
 
           {/* Auth Card */}
