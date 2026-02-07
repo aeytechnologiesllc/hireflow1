@@ -1,341 +1,551 @@
 
-
-# Comprehensive UX Clarity Implementation Plan
+# Comprehensive UX Clarity Improvement Plan - Phase 2
 
 ## Executive Summary
 
-This plan addresses user confusion through a systematic 3-phase approach: Entry Point Clarity, Employer First-Run Experience, and Candidate Clarity. Each phase builds on the previous one, creating a progressively clearer user journey.
+This plan addresses the remaining confusion points identified after the initial UX clarity improvements. It focuses on six key areas: Terminology Standardization, ApplicantDetails Page Simplification, Empty State Improvements, Candidate Journey Visibility, Feature Discovery, and Portal Navigation Clarity.
 
 ---
 
-## Phase 1: Entry Point Clarity
+## Phase 1: Terminology Standardization
 
 ### Problem
-Users arriving at the landing page or auth pages may not immediately understand whether they're in the right place (employer vs. candidate). The current navigation has:
-- "Sign In" and "Get Started" buttons that both go to `/auth` (employer portal)
-- No visible path to candidate portal from landing page
-- Auth pages show portal type via small badge, but confusion may already have occurred
+Status labels and terminology are inconsistent across the application, causing confusion:
+- `statusLabels` defined in 4+ different files with slight variations
+- "Pending Review" vs "Under Review" vs "Awaiting Review" used interchangeably
+- Phase types like "voice_interview" shown as "Ava Interview" in some places, "Voice Interview" in others
 
-### Solution Overview
-Add a clear role selection on the landing page footer and navigation, plus visual differentiation between portals.
+### Current State Analysis
+| File | Location | Inconsistency |
+|------|----------|---------------|
+| `getApplicationDisplayState.ts` | Central utility | "Pending Review", "Under Review" |
+| `ApplicantDetailsDialog.tsx` | Duplicate definition | Shows raw `application.status` |
+| `Applicants.tsx` | Duplicate definition | "In Progress" hardcoded |
+| `CandidateApplicationDetail.tsx` | `phaseStatusLabels` | "Pending Review", "Employer Reviewing" |
+| `Interviews.tsx` | Separate `statusLabels` | "Scheduled", "Completed", "Cancelled" |
+| `Team.tsx` | Team-specific | "pending", "accepted" |
+
+### Solution
+Create a centralized terminology system with a single source of truth.
 
 ### Technical Implementation
 
-#### 1.1 Update Landing Page Navigation (Index.tsx)
-**File:** `src/pages/Index.tsx` (lines 160-186)
-
-Add a "Candidate? Apply here" link in the navigation header:
-
-```text
-Current:
-  - Sign In → /auth
-  - Get Started → /auth
-
-Proposed:
-  - Sign In → /auth (employer)
-  - Get Started → /auth
-  - NEW: "Looking for work? →" link → /candidate
-```
-
-Changes:
-- Add a subtle text link before "Sign In" that says "Looking for work? →" linking to `/candidate`
-- Style it as muted text that doesn't compete with primary CTAs
-
-#### 1.2 Update Landing Page Footer (Index.tsx)
-**File:** `src/pages/Index.tsx` (lines 536-561)
-
-Add candidate portal link to footer:
-
-```text
-Current footer:
-  © 2025 HireFlow. Powered by Ava. • Privacy • Terms
-
-Proposed footer:
-  © 2025 HireFlow. Powered by Ava. • Privacy • Terms • Candidate Portal
-```
-
-#### 1.3 Add "Wrong Portal?" Escape Hatches
-**File:** `src/pages/Auth.tsx` (around line 404)
-
-Add a subtle link below the "Employer Portal" badge:
-
-```text
-Current:
-  [Briefcase icon] Employer Portal
-
-Proposed:
-  [Briefcase icon] Employer Portal
-  "Looking for work? Go to Candidate Portal →"
-```
-
-**File:** `src/pages/CandidateAuth.tsx` (around line 244)
-
-Add the inverse:
-
-```text
-Current:
-  [Sparkles icon] Candidate Portal
-
-Proposed:
-  [Sparkles icon] Candidate Portal
-  "Hiring? Go to Employer Portal →"
-```
-
-#### 1.4 Visual Differentiation
-Enhance the badge styling to make portal type more prominent:
-- Employer Portal: Uses `Briefcase` icon - keep as is
-- Candidate Portal: Uses `Sparkles` icon - keep as is
-- Consider slightly larger badge size for better visibility
-
-### Files Modified in Phase 1
-| File | Changes |
-|------|---------|
-| `src/pages/Index.tsx` | Add candidate link to nav, add to footer |
-| `src/pages/Auth.tsx` | Add "Looking for work?" escape hatch link |
-| `src/pages/CandidateAuth.tsx` | Add "Hiring?" escape hatch link |
-
-### Safety Considerations
-- No database changes required
-- No authentication flow changes
-- Changes are purely additive (new links)
-- All existing functionality remains intact
-
----
-
-## Phase 2: Employer First-Run Experience
-
-### Problem
-New employers land on a dashboard with potentially empty states and high-density information. There's no guided path to their first successful hire.
-
-### Solution Overview
-Implement a dismissible "Getting Started Checklist" that appears on the dashboard for new employers who haven't completed key actions.
-
-### Technical Implementation
-
-#### 2.1 Create Getting Started Checklist Component
-**New File:** `src/components/GettingStartedChecklist.tsx`
-
-A dismissible card component that tracks:
-- [ ] Create your first job
-- [ ] Review an applicant
-- [ ] Schedule an interview
-
-Features:
-- Tracks completion via localStorage (simple) or profile metadata (persistent)
-- Auto-dismisses after all tasks complete
-- Manual dismiss button available
-- Shows progress indicator (e.g., "2 of 3 complete")
-
-```text
-┌─────────────────────────────────────────────────┐
-│ 🚀 Getting Started                    [Dismiss] │
-├─────────────────────────────────────────────────┤
-│ Complete these steps to start hiring faster     │
-│                                                 │
-│ [✓] Create your first job       → Create Job   │
-│ [○] Review an applicant         → View Queue   │
-│ [○] Schedule an interview       → Interviews   │
-│                                                 │
-│ ━━━━━━━━━━━━━━━━░░░░░░░░ 1 of 3               │
-└─────────────────────────────────────────────────┘
-```
-
-#### 2.2 Integrate Checklist into Dashboard
-**File:** `src/pages/Dashboard.tsx`
-
-Add the checklist component above the stats cards for new users:
+#### 1.1 Create Centralized Terminology File
+**New File:** `src/lib/terminology.ts`
 
 ```typescript
-// Logic to show checklist
-const showGettingStarted = useMemo(() => {
-  // Don't show if:
-  // 1. User has dismissed it (localStorage)
-  // 2. User has jobs AND applicants (not new)
-  // 3. User is a team member
-  const dismissed = localStorage.getItem('gettingStartedDismissed');
-  const hasJobs = (jobs?.length || 0) > 0;
-  const hasApplicants = (appStats?.total || 0) > 0;
-  
-  return !dismissed && !isTeamMember && (!hasJobs || !hasApplicants);
-}, [jobs, appStats, isTeamMember]);
+// Single source of truth for all user-facing labels
+export const applicationStatusLabels: Record<string, string> = {
+  in_progress: "In Progress",
+  pending: "Submitted",
+  reviewing: "Under Review",
+  interview: "Interview Stage",
+  offered: "Offer Extended",
+  hired: "Hired",
+  rejected: "Not Selected",
+};
+
+export const phaseDisplayNames: Record<string, string> = {
+  application: "Application",
+  quiz: "Assessment",
+  typing_test: "Typing Test",
+  video_intro: "Video Introduction",
+  video_message: "Video Message",
+  chat_simulation: "Chat Simulation",
+  chat_interview: "Chat Interview",
+  sales_simulation: "Sales Simulation",
+  voice_interview: "Ava Interview", // Always "Ava Interview"
+  portfolio_upload: "Portfolio",
+  review: "Review",
+  interview: "Interview",
+  hired: "Hired",
+};
+
+export const interviewStatusLabels: Record<string, string> = {
+  scheduled: "Scheduled",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+export const candidatePhaseStatus: Record<string, string> = {
+  awaiting_action: "Ready for You",
+  pending_review: "Under Review",
+  completed: "Completed",
+  skipped: "Skipped",
+};
 ```
 
-#### 2.3 Improve Empty States
-**File:** `src/pages/Dashboard.tsx` (lines 758-762, 824-828)
+#### 1.2 Update Files to Use Centralized Terminology
+**Files to update:**
+- `src/utils/getApplicationDisplayState.ts` - Import from terminology
+- `src/components/ApplicantDetailsDialog.tsx` - Remove local `statusColors`, import shared
+- `src/pages/Applicants.tsx` - Remove local `statusColors`, import shared
+- `src/pages/Interviews.tsx` - Import `interviewStatusLabels`
+- `src/pages/CandidateApplicationDetail.tsx` - Update `phaseStatusLabels`
 
-Current empty states are basic. Enhance them:
-
-```text
-Current:
-  [Icon]
-  No jobs posted yet
-  Create your first job posting to get started
-  [Create Job]
-
-Enhanced:
-  [Animated Icon]
-  Ready to Start Hiring?
-  Ava will help you create a job posting in under 2 minutes.
-  Your applicants will be automatically screened.
-  [✨ Create with Ava]
-```
-
-#### 2.4 Add Autopilot Explainer to Job Creation
-**File:** `src/pages/CreateJob.tsx` (where processing mode is shown)
-
-Add a collapsible "What is this?" explainer next to the Autopilot/Manual toggle:
-
-```text
-Processing Mode: [Autopilot ▾]
-                              
-ℹ️ What's the difference?
-├─ Autopilot: Ava automatically advances qualified 
-│  candidates and rejects those who don't meet criteria
-└─ Manual: You review and decide on every candidate
-```
-
-Implementation: Use the existing tooltip pattern or add a small info icon that expands a description on click.
-
-### Files Modified in Phase 2
+### Files Modified
 | File | Changes |
 |------|---------|
-| `src/components/GettingStartedChecklist.tsx` | **NEW FILE** |
-| `src/pages/Dashboard.tsx` | Import and render checklist, enhance empty states |
-| `src/pages/CreateJob.tsx` | Add processing mode explainer |
+| `src/lib/terminology.ts` | **NEW FILE** |
+| `src/utils/getApplicationDisplayState.ts` | Import from terminology.ts |
+| `src/components/ApplicantDetailsDialog.tsx` | Remove duplicate statusColors |
+| `src/pages/Applicants.tsx` | Import shared labels |
+| `src/pages/CandidateApplicationDetail.tsx` | Use centralized phase names |
+| `src/pages/Interviews.tsx` | Import shared labels |
 
 ### Safety Considerations
-- Uses localStorage for dismissal state (no DB changes needed)
-- Checklist is optional and dismissible
-- Empty state changes are visual only
-- CreateJob explainer is informational only
+- Changes are refactoring only (moving definitions)
+- No logic changes, only label text updates
+- Incremental migration (files continue working if import fails)
 
 ---
 
-## Phase 3: Candidate Clarity
+## Phase 2: Empty State Improvements
 
 ### Problem
-Candidates going through application phases (quiz, video, chat simulation, etc.) may not understand:
-- Why they're being asked to do this step
-- How long it will take
-- What happens next
+Empty states in Messages and Documents lack context and guidance. Users don't know:
+- Why the section is empty
+- What action they should take to populate it
+- Whether it's normal for it to be empty
 
-### Solution Overview
-Add contextual "Why this step?" cards at the beginning of each phase, and improve progress indicators.
+### Current State
+- **Messages:** Shows "No conversations yet" with "Start a Conversation" button (decent but lacks context)
+- **Documents:** Shows nothing for empty state (candidates see no guidance)
+
+### Solution
+Create contextual empty states that explain WHY the section is empty and provide clear next steps.
 
 ### Technical Implementation
 
-#### 3.1 Create Phase Context Card Component
-**New File:** `src/components/PhaseContextCard.tsx`
+#### 2.1 Create Empty State Component
+**New File:** `src/components/EmptyStateCard.tsx`
 
-A collapsible card that appears at the top of each phase page:
+A reusable component for consistent empty states across the app:
 
 ```text
 ┌────────────────────────────────────────────────┐
-│ 📝 About This Step                  [Hide ▲]  │
-├────────────────────────────────────────────────┤
-│ This timed assessment helps the employer       │
-│ understand your knowledge and problem-solving  │
-│ abilities.                                     │
+│         [Animated Icon]                        │
 │                                                │
-│ ⏱️ Takes about 5-10 minutes                   │
-│ 📊 Your responses are reviewed by the team    │
+│        Primary Message                         │
+│        Secondary explanation text              │
+│                                                │
+│        [Primary Action Button]                 │
+│                                                │
+│        💡 Contextual tip or guidance           │
 └────────────────────────────────────────────────┘
 ```
 
-Phase-specific content:
+Features:
+- Animated icon with subtle motion
+- Clear primary and secondary messaging
+- Optional action button
+- Optional tip/guidance section
+- Responsive design
 
-| Phase | "Why This Step" | Duration |
-|-------|-----------------|----------|
-| Quiz | "Tests your knowledge relevant to the role" | "5-10 minutes" |
-| Typing Test | "Measures typing speed for communication-heavy roles" | "2-3 minutes" |
-| Video Intro | "Gives the team a chance to see your personality" | "2-5 minutes" |
-| Chat Simulation | "Shows your customer communication skills" | "10-15 minutes" |
-| Chat Interview | "An interview conversation about your experience" | "15-20 minutes" |
-| Voice Interview | "A voice conversation with Ava about the role" | "10-15 minutes" |
-| Portfolio Upload | "Share examples of your previous work" | "5 minutes" |
-| Sales Simulation | "Demonstrate your sales approach" | "10-15 minutes" |
+#### 2.2 Update Messages Empty State
+**File:** `src/pages/Messages.tsx` (lines 343-346)
 
-#### 3.2 Integrate Context Cards into Phase Pages
-Add the `PhaseContextCard` component to each phase page:
-
-**Files to update:**
-- `src/pages/QuizPhase.tsx`
-- `src/pages/TypingTestPhase.tsx`
-- `src/pages/VideoIntroPhase.tsx`
-- `src/pages/ChatSimulationPhase.tsx`
-- `src/pages/ChatInterviewPhase.tsx`
-- `src/pages/VoiceInterviewPhase.tsx`
-- `src/pages/PortfolioUploadPhase.tsx`
-- `src/pages/SalesSimulationPhase.tsx`
-
-Each page gets:
-```typescript
-<PhaseContextCard 
-  phaseType="quiz" // or "typing_test", "video_intro", etc.
-  onDismiss={() => setShowContext(false)}
-/>
-```
-
-#### 3.3 Improve Application Detail Progress Indicator
-**File:** `src/pages/CandidateApplicationDetail.tsx`
-
-The current phase list shows icons and status. Enhance with:
-- Step numbers (1, 2, 3, etc.)
-- Estimated remaining time
-- "You are here" indicator
-
+For candidates with no applications:
 ```text
-Current:
-  [✓] Application    Completed
-  [→] Quiz           Ready for You
-  [ ] Interview      Pending
+No Messages Yet
+Messages will appear here once you apply to jobs and
+employers reach out to you.
 
-Enhanced:
-  Step 1 of 5
-  [✓] Application    ✓ Completed
-  [→] Quiz           ▶ Ready for You (5-10 min)  ← YOU ARE HERE
-  [ ] Review         ○ Pending
+[Browse Jobs →]
+
+💡 Employers may message you about your application status
 ```
 
-### Files Modified in Phase 3
+For employers with no applicants:
+```text
+No Messages Yet
+Messages will appear here once candidates apply
+to your jobs.
+
+[View Applicants →]
+
+💡 You can message any candidate who has applied to your jobs
+```
+
+#### 2.3 Update Documents Empty State
+**File:** `src/pages/Documents.tsx` (after line 441)
+
+For candidates:
+```text
+No Documents Yet
+Documents like offer letters, contracts, and NDAs
+will appear here when employers send them to you.
+
+💡 Employers will send documents when you advance in the hiring process
+```
+
+For employers:
+```text
+No Documents Yet
+Create contracts, offer letters, and NDAs to send
+to your candidates.
+
+[✨ Create Document]
+
+💡 You can also request documents from candidates
+```
+
+### Files Modified
 | File | Changes |
 |------|---------|
-| `src/components/PhaseContextCard.tsx` | **NEW FILE** |
-| `src/pages/QuizPhase.tsx` | Add PhaseContextCard |
-| `src/pages/TypingTestPhase.tsx` | Add PhaseContextCard |
-| `src/pages/VideoIntroPhase.tsx` | Add PhaseContextCard |
-| `src/pages/ChatSimulationPhase.tsx` | Add PhaseContextCard |
-| `src/pages/ChatInterviewPhase.tsx` | Add PhaseContextCard |
-| `src/pages/VoiceInterviewPhase.tsx` | Add PhaseContextCard |
-| `src/pages/PortfolioUploadPhase.tsx` | Add PhaseContextCard |
-| `src/pages/SalesSimulationPhase.tsx` | Add PhaseContextCard |
-| `src/pages/CandidateApplicationDetail.tsx` | Enhance progress indicator |
+| `src/components/EmptyStateCard.tsx` | **NEW FILE** |
+| `src/pages/Messages.tsx` | Use EmptyStateCard with context |
+| `src/pages/Documents.tsx` | Add empty state handling |
 
 ### Safety Considerations
-- All changes are UI additions
-- No workflow logic changes
-- Context cards are dismissible
-- Memory pattern compliance: Per the `design/candidate-portal-visibility-constraints` memory, all messaging is candidate-friendly (no "AI judging" language)
+- Purely additive UI changes
+- Existing functionality unchanged
+- Falls back gracefully if component fails
 
 ---
 
-## Implementation Order Summary
+## Phase 3: Candidate Journey Visibility
+
+### Problem
+Candidates don't have a clear sense of:
+- How far along they are in the overall process
+- How many steps remain
+- Estimated total time for the full journey
+
+### Current State
+`CandidateApplicationDetail.tsx` shows individual phases but lacks:
+- "Step X of Y" overall indicator
+- Total estimated time remaining
+- Visual journey progress bar
+
+### Solution
+Add a "Journey Progress" header card that shows the candidate's overall progress.
+
+### Technical Implementation
+
+#### 3.1 Create Journey Progress Component
+**New File:** `src/components/CandidateJourneyProgress.tsx`
 
 ```text
-Phase 1: Entry Point Clarity (3 files)
-├── Index.tsx - Add candidate links
-├── Auth.tsx - Add escape hatch
-└── CandidateAuth.tsx - Add escape hatch
+┌──────────────────────────────────────────────────────────┐
+│ Your Application Journey                                 │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│ Step 2 of 5                                              │
+│ ████████████░░░░░░░░░░░░░░░░░ 40%                       │
+│                                                          │
+│ ⏱️ ~25 minutes remaining                                │
+│                                                          │
+│ ● Application → ● Quiz → ○ Interview → ○ Review → ○ Hired│
+└──────────────────────────────────────────────────────────┘
+```
 
-Phase 2: Employer First-Run (3 files)
-├── GettingStartedChecklist.tsx - NEW
-├── Dashboard.tsx - Integrate checklist, enhance empty states
-└── CreateJob.tsx - Add autopilot explainer
+Features:
+- Current step indicator with total count
+- Visual progress bar
+- Estimated time remaining (sum of remaining phase durations)
+- Mini step visualization with icons
 
-Phase 3: Candidate Clarity (10 files)
-├── PhaseContextCard.tsx - NEW
-├── 8 Phase pages - Add context cards
-└── CandidateApplicationDetail.tsx - Enhance progress
+#### 3.2 Define Phase Duration Estimates
+**File:** `src/lib/phaseDurations.ts` (or add to terminology.ts)
+
+```typescript
+export const phaseDurationEstimates: Record<string, { min: number; max: number; label: string }> = {
+  application: { min: 5, max: 10, label: "5-10 min" },
+  quiz: { min: 5, max: 15, label: "5-15 min" },
+  typing_test: { min: 2, max: 5, label: "2-5 min" },
+  video_intro: { min: 3, max: 10, label: "3-10 min" },
+  video_message: { min: 2, max: 5, label: "2-5 min" },
+  chat_simulation: { min: 10, max: 20, label: "10-20 min" },
+  chat_interview: { min: 15, max: 25, label: "15-25 min" },
+  sales_simulation: { min: 10, max: 20, label: "10-20 min" },
+  voice_interview: { min: 10, max: 20, label: "10-20 min" },
+  portfolio_upload: { min: 5, max: 15, label: "5-15 min" },
+  review: { min: 0, max: 0, label: "Employer review" }, // No candidate action
+  interview: { min: 30, max: 60, label: "30-60 min" },
+};
+```
+
+#### 3.3 Integrate into CandidateApplicationDetail
+**File:** `src/pages/CandidateApplicationDetail.tsx`
+
+Add `<CandidateJourneyProgress />` above the phase list:
+
+```typescript
+<CandidateJourneyProgress
+  phases={phases}
+  currentPhaseIndex={effectivePhaseIndex}
+  completedPhases={completedPhaseIndexes}
+/>
+```
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/components/CandidateJourneyProgress.tsx` | **NEW FILE** |
+| `src/lib/phaseDurations.ts` | **NEW FILE** (or extend terminology.ts) |
+| `src/pages/CandidateApplicationDetail.tsx` | Import and render progress component |
+
+### Safety Considerations
+- Additive component only
+- Uses existing phase data
+- Falls back gracefully if phase calculation fails
+
+---
+
+## Phase 4: Feature Discovery
+
+### Problem
+Key features are hidden or lack explanation:
+- **AI Shortlist** - Sparkles icon with no tooltip, users don't know what it does
+- **Job Code** - Displayed but purpose not explained
+- **Bulk Actions** - Selection mode hidden behind checkbox icon
+- **Processing Mode Toggle** - On Dashboard, no explanation of impact
+
+### Solution
+Add contextual tooltips and first-time feature discovery prompts.
+
+### Technical Implementation
+
+#### 4.1 Create Feature Discovery Tooltip Component
+**New File:** `src/components/FeatureDiscoveryTooltip.tsx`
+
+A reusable component for first-time feature explanations:
+
+```typescript
+interface FeatureDiscoveryTooltipProps {
+  featureId: string; // For localStorage tracking
+  title: string;
+  description: string;
+  position?: "top" | "bottom" | "left" | "right";
+  children: React.ReactNode;
+}
+```
+
+Features:
+- Shows once per feature (localStorage tracked)
+- Auto-dismisses after 6 seconds
+- Manual dismiss button
+- Animated entrance/exit
+
+#### 4.2 Add Tooltips to Key Features
+
+**AI Shortlist Button** (`src/pages/Applicants.tsx`):
+```text
+✨ Ava's Shortlist
+Let Ava analyze all applicants and rank
+them by fit for this role.
+```
+
+**Job Code** (`src/pages/Jobs.tsx` or job cards):
+```text
+📋 Job Code
+Share this code with candidates so they
+can apply directly to this position.
+```
+
+**Bulk Actions** (`src/pages/Applicants.tsx`):
+```text
+☑️ Bulk Actions
+Select multiple candidates to message,
+reject, or advance them together.
+```
+
+**Processing Mode Toggle** (`src/pages/Dashboard.tsx`):
+```text
+🤖 Processing Mode
+Toggle between Autopilot (Ava handles
+everything) and Manual (you review each).
+```
+
+#### 4.3 Enhance Existing Tooltips
+**File:** `src/pages/ApplicantDetails.tsx`
+
+The phase slider already has help dialogs - ensure they're easily discoverable by:
+- Adding a subtle "?" icon that pulses on first visit
+- Making the help content more concise
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/components/FeatureDiscoveryTooltip.tsx` | **NEW FILE** |
+| `src/pages/Applicants.tsx` | Wrap AI Shortlist button |
+| `src/pages/Jobs.tsx` | Add Job Code tooltip |
+| `src/pages/Dashboard.tsx` | Add Processing Mode tooltip |
+
+### Safety Considerations
+- Tooltips are additive overlay
+- Uses localStorage for persistence
+- Non-blocking UI
+- Can be dismissed permanently
+
+---
+
+## Phase 5: ApplicantDetails Page Simplification (Progressive Disclosure)
+
+### Problem
+`ApplicantDetails.tsx` is nearly 3,800 lines with:
+- 17+ dialog state variables
+- Complex phase slider with many states
+- Dense information display
+- Overwhelming for first-time users
+
+### Solution
+Implement progressive disclosure - show essential information first, expand for details.
+
+### Technical Implementation
+
+#### 5.1 Create Collapsible Sections
+**Approach:** Use the existing `Collapsible` component to group related information.
+
+**Sections to create:**
+
+```text
+┌─────────────────────────────────────────────────┐
+│ [Header: Candidate Name, Score, Status]        │
+├─────────────────────────────────────────────────┤
+│ [ALWAYS VISIBLE]                               │
+│ • Current Phase Indicator                      │
+│ • Key Action Buttons (Reject/Advance/Message)  │
+│ • Ava's Summary (1-2 sentences)               │
+├─────────────────────────────────────────────────┤
+│ ▼ Contact & Profile Details                    │
+│ ▼ Phase Progress & Submissions                 │
+│ ▼ Interview History                            │
+│ ▼ Documents                                    │
+│ ▼ Full Ava Analysis                           │
+└─────────────────────────────────────────────────┘
+```
+
+#### 5.2 Refactor Into Sub-Components
+**New Files:**
+- `src/components/applicant/ApplicantHeader.tsx` - Name, avatar, score, status
+- `src/components/applicant/ApplicantActions.tsx` - Primary action buttons
+- `src/components/applicant/ApplicantPhaseSlider.tsx` - Phase management (extracted)
+- `src/components/applicant/ApplicantSubmissions.tsx` - Quiz/video/chat results
+- `src/components/applicant/ApplicantContact.tsx` - Contact info section
+
+This refactoring reduces the main file from 3,800 lines to ~800 lines while keeping all functionality.
+
+#### 5.3 Add Section Expand States
+Track which sections are expanded in localStorage so user preferences persist:
+
+```typescript
+const [expandedSections, setExpandedSections] = useState<string[]>(() => {
+  const saved = localStorage.getItem(`applicant-sections-${id}`);
+  return saved ? JSON.parse(saved) : ['actions', 'summary']; // Default open
+});
+```
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/components/applicant/ApplicantHeader.tsx` | **NEW FILE** |
+| `src/components/applicant/ApplicantActions.tsx` | **NEW FILE** |
+| `src/components/applicant/ApplicantPhaseSlider.tsx` | **NEW FILE** |
+| `src/components/applicant/ApplicantSubmissions.tsx` | **NEW FILE** |
+| `src/components/applicant/ApplicantContact.tsx` | **NEW FILE** |
+| `src/pages/ApplicantDetails.tsx` | Import sub-components, add collapsible sections |
+
+### Safety Considerations
+- Extract components without changing functionality
+- Test each section independently
+- Keep all dialog logic in main file initially
+- Progressive refactoring (can be done in multiple PRs)
+
+---
+
+## Phase 6: Navigation Clarity for Dual Roles
+
+### Problem
+When a user is both an employer and candidate (rare but possible), there's no clear visual indicator of which "mode" they're in.
+
+### Solution
+Add a subtle but clear role indicator in the sidebar/header.
+
+### Technical Implementation
+
+#### 6.1 Enhance AppSidebar Role Indicator
+**File:** `src/components/AppSidebar.tsx`
+
+Add a persistent role badge in the sidebar header:
+
+```text
+┌──────────────────────┐
+│ HireFlow             │
+│ [Employer Mode]      │  ← Subtle badge
+├──────────────────────┤
+│ Dashboard            │
+│ Jobs                 │
+│ ...                  │
+└──────────────────────┘
+```
+
+For candidates:
+```text
+┌──────────────────────┐
+│ HireFlow             │
+│ [Candidate Mode]     │  ← Different color
+├──────────────────────┤
+│ Find Jobs            │
+│ Applications         │
+│ ...                  │
+└──────────────────────┘
+```
+
+#### 6.2 Add Quick Role Switch (Optional)
+If user has both roles, show a dropdown to switch:
+
+```text
+[Employer Mode ▼]
+├── Switch to Candidate View
+└── Current: Employer
+```
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/components/AppSidebar.tsx` | Add role indicator badge |
+| `src/components/AppHeader.tsx` | Optional: Add role indicator for mobile |
+
+### Safety Considerations
+- Visual change only
+- Uses existing role data from auth context
+- No navigation changes
+
+---
+
+## Implementation Order
+
+```text
+Phase 1: Terminology Standardization (~2-3 messages)
+├── Create terminology.ts
+├── Update 5 files to import shared labels
+└── Test for consistency
+
+Phase 2: Empty State Improvements (~1-2 messages)
+├── Create EmptyStateCard component
+├── Update Messages.tsx
+└── Update Documents.tsx
+
+Phase 3: Candidate Journey Visibility (~2 messages)
+├── Create CandidateJourneyProgress component
+├── Add phase duration estimates
+└── Integrate into CandidateApplicationDetail
+
+Phase 4: Feature Discovery (~2-3 messages)
+├── Create FeatureDiscoveryTooltip component
+├── Add tooltips to 4 key features
+└── Test localStorage persistence
+
+Phase 5: ApplicantDetails Simplification (~4-5 messages)
+├── Create sub-components (one at a time)
+├── Add collapsible sections
+└── Test functionality preservation
+
+Phase 6: Navigation Clarity (~1 message)
+├── Add role indicator to sidebar
+└── Optional: Add role switch dropdown
 ```
 
 ---
@@ -344,36 +554,42 @@ Phase 3: Candidate Clarity (10 files)
 
 | Risk | Mitigation |
 |------|------------|
-| New components have styling issues | Use existing shadcn/ui patterns and CSS variables |
-| Context cards feel intrusive | Make them collapsible/dismissible with localStorage memory |
-| Getting Started never dismissed | Auto-dismiss after all tasks complete |
-| Changes affect existing flows | All changes are additive, no removal of functionality |
+| Terminology changes break existing logic | Only change display labels, not status values |
+| Collapsible sections hide important info | Default critical sections to expanded |
+| Feature tooltips are annoying | Auto-dismiss + manual dismiss + show only once |
+| Sub-component extraction breaks dialogs | Keep dialog state in main file initially |
+| Role indicator confuses single-role users | Only show if user has both roles |
+
+---
+
+## Success Metrics
+
+After implementation, we expect:
+- Reduced confusion about status meanings
+- Better first-time user experience with empty states
+- Candidates feel more informed about their progress
+- Employers discover AI features faster
+- ApplicantDetails page feels less overwhelming
 
 ---
 
 ## Technical Notes
 
-### New Components Created
-1. `GettingStartedChecklist.tsx` - Dismissible checklist for new employers
-2. `PhaseContextCard.tsx` - Contextual explanation for application phases
+### localStorage Keys Used
+- `gettingStartedDismissed` (existing)
+- `phaseContext_{type}_collapsed` (existing)
+- `feature_discovery_{id}` (new)
+- `applicant-sections-{id}` (new)
 
-### Existing Patterns Used
-- `GuestOnboardingTooltips.tsx` - Reference for dismissible educational UI
-- `OnboardingWizard.tsx` - Reference for step-based progress visualization
-- `phaseActionMessages` in `CandidateApplicationDetail.tsx` - Reference for phase-specific messaging
+### New Components Summary
+1. `src/lib/terminology.ts` - Centralized labels
+2. `src/components/EmptyStateCard.tsx` - Reusable empty state
+3. `src/components/CandidateJourneyProgress.tsx` - Journey visualization
+4. `src/lib/phaseDurations.ts` - Duration estimates
+5. `src/components/FeatureDiscoveryTooltip.tsx` - First-time hints
+6. `src/components/applicant/*.tsx` - 5 sub-components
 
-### Storage
-- Dismissal states stored in localStorage (no database changes)
-- Keys: `gettingStartedDismissed`, `phaseContext_{phaseType}_dismissed`
-
----
-
-## Expected Outcomes
-
-After implementation:
-- **New users** immediately understand which portal they need
-- **Wrong-portal users** can easily find the correct path
-- **New employers** have a guided first-time experience
-- **Candidates** understand what each phase does and how long it takes
-- **Overall confusion** reduced without adding complexity to the core flows
-
+### Existing Patterns Followed
+- `GettingStartedChecklist.tsx` - Dismissible onboarding pattern
+- `FirstJobTooltip.tsx` - Feature discovery pattern
+- `PhaseContextCard.tsx` - Collapsible info card pattern
