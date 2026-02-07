@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -229,6 +230,47 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
           </Button>
         )}
       </div>
+
+      {/* Role indicator badge */}
+      {(!collapsed || isMobile) && (
+        <div className="relative z-10 px-6 pb-2">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-[10px] font-medium px-2 py-0.5",
+              isTeamMember 
+                ? "border-blue-500/30 text-blue-400 bg-blue-500/10"
+                : isEmployer 
+                  ? "border-primary/30 text-primary bg-primary/10"
+                  : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
+            )}
+          >
+            {isTeamMember ? "Team Member" : isEmployer ? "Employer" : "Candidate"}
+          </Badge>
+        </div>
+      )}
+      {/* Collapsed role indicator */}
+      {collapsed && !isMobile && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative z-10 flex justify-center pb-2">
+              <div 
+                className={cn(
+                  "w-2 h-2 rounded-full",
+                  isTeamMember 
+                    ? "bg-blue-500"
+                    : isEmployer 
+                      ? "bg-primary"
+                      : "bg-emerald-500"
+                )}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="bg-card/95 backdrop-blur-sm border-primary/20">
+            {isTeamMember ? "Team Member" : isEmployer ? "Employer Mode" : "Candidate Mode"}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Gradient divider */}
       <div className="relative z-10 mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />

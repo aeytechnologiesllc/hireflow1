@@ -42,6 +42,7 @@ import AIShortlistDialog from "@/components/AIShortlistDialog";
 import BulkActionsBar from "@/components/BulkActionsBar";
 import BulkRejectDialog from "@/components/BulkRejectDialog";
 import BulkMessageDialog from "@/components/BulkMessageDialog";
+import { FeatureDiscoveryTooltip } from "@/components/FeatureDiscoveryTooltip";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { applicationStatusColors, applicationStatusLabels } from "@/lib/terminology";
@@ -492,14 +493,22 @@ export default function Applicants() {
         </div>
         {/* AI Shortlist Button - only show when filtered by job and 2+ applicants */}
         {jobIdFilter && filteredJob && filteredApplications.length >= 2 && (
-          <Button 
-            onClick={handleGenerateShortlist}
-            className="w-full sm:w-auto gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
-            disabled={isShortlistLoading}
+          <FeatureDiscoveryTooltip
+            featureId="ai_shortlist"
+            title="Ava's Shortlist"
+            description="Let Ava analyze all applicants and rank them by fit for this role. She'll highlight top candidates and explain why."
+            icon={<Sparkles className="h-4 w-4" />}
+            position="bottom"
           >
-            <Sparkles className="h-4 w-4" />
-            AI Shortlist
-          </Button>
+            <Button 
+              onClick={handleGenerateShortlist}
+              className="w-full sm:w-auto gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+              disabled={isShortlistLoading}
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Shortlist
+            </Button>
+          </FeatureDiscoveryTooltip>
         )}
       </motion.div>
 
@@ -549,19 +558,27 @@ export default function Applicants() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant={isSelectionMode ? "default" : "outline"} 
-            className="gap-2 flex-1 sm:flex-none"
-            onClick={() => {
-              setIsSelectionMode(!isSelectionMode);
-              if (isSelectionMode) {
-                setSelectedIds(new Set());
-              }
-            }}
+          <FeatureDiscoveryTooltip
+            featureId="bulk_actions"
+            title="Bulk Actions"
+            description="Select multiple candidates to message, reject, or advance them all at once."
+            icon={<CheckSquare className="h-4 w-4" />}
+            position="bottom"
           >
-            {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-            {isSelectionMode ? "Done" : "Select"}
-          </Button>
+            <Button 
+              variant={isSelectionMode ? "default" : "outline"} 
+              className="gap-2 flex-1 sm:flex-none"
+              onClick={() => {
+                setIsSelectionMode(!isSelectionMode);
+                if (isSelectionMode) {
+                  setSelectedIds(new Set());
+                }
+              }}
+            >
+              {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+              {isSelectionMode ? "Done" : "Select"}
+            </Button>
+          </FeatureDiscoveryTooltip>
           {isSelectionMode && filteredApplications.length > 0 && (
             <Button variant="outline" onClick={handleSelectAll} className="hidden sm:flex">
               {selectedIds.size === filteredApplications.length ? "Deselect All" : "Select All"}
