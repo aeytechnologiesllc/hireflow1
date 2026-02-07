@@ -39,6 +39,24 @@ export const staggerItem: Variants = {
   }
 };
 
+// Motion-safe variants that respect reduced motion preference
+export const noMotion: Variants = {
+  hidden: {},
+  visible: {}
+};
+
+export const getSafeStaggerContainer = (prefersReduced: boolean): Variants =>
+  prefersReduced ? noMotion : staggerContainer;
+
+export const getSafeStaggerItem = (prefersReduced: boolean): Variants =>
+  prefersReduced ? noMotion : staggerItem;
+
+export const getSafeFadeInUp = (prefersReduced: boolean): Variants =>
+  prefersReduced ? noMotion : fadeInUp;
+
+export const getSafeFadeIn = (prefersReduced: boolean): Variants =>
+  prefersReduced ? noMotion : fadeIn;
+
 // Pulsing green underglow animation for premium buttons
 export const pulsingGlow = {
   animate: {

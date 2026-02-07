@@ -162,7 +162,7 @@ export default function Messages() {
 
   return (
     <motion.div 
-      className="flex flex-col h-[calc(100vh-10rem)] sm:h-[calc(100vh-12rem)] sm:flex-row gap-4"
+      className="flex flex-col h-[calc(100vh-10rem)] sm:h-[calc(100vh-12rem)] md:grid md:grid-cols-[320px_1fr] gap-4"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
@@ -170,7 +170,7 @@ export default function Messages() {
       {/* Conversations List */}
       <Card className={cn(
         "bg-card border-border flex flex-col",
-        selectedContactId ? "hidden sm:flex sm:w-80 sm:flex-shrink-0" : "flex-1 sm:w-80 sm:flex-shrink-0"
+        selectedContactId ? "hidden md:flex" : "flex-1 md:flex"
       )}>
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
@@ -382,7 +382,7 @@ export default function Messages() {
       {/* Chat Area */}
       <Card className={cn(
         "bg-card border-border flex flex-col",
-        selectedContactId ? "flex-1" : "hidden sm:flex sm:flex-1"
+        selectedContactId ? "flex-1" : "hidden md:flex md:flex-1"
       )}>
         {selectedContactId ? (
           <>

@@ -456,6 +456,31 @@
   .space-y-responsive > * + * {
     @apply mt-3 sm:mt-4 md:mt-6;
   }
+
+  /* Touch-safe icon button - enforces 44px minimum with visual appearance */
+  .touch-icon-btn {
+    @apply relative min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* Scroll snap for horizontal carousels */
+  .scroll-snap-x {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  .scroll-snap-item {
+    scroll-snap-align: start;
+  }
+
+  .scroll-snap-center {
+    scroll-snap-align: center;
+  }
+
+  /* Overscroll containment for nested containers */
+  .scroll-contain {
+    overscroll-behavior: contain;
+  }
 }
 
 /* Disable heavy animations on mobile for better performance */
@@ -536,4 +561,33 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Mobile landscape optimizations */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Reduce header height */
+  .app-header {
+    height: 48px !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  
+  /* Limit modal heights */
+  .dialog-content {
+    max-height: 90vh !important;
+  }
+  
+  /* Smaller stat cards */
+  .stat-card {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+}
+
+/* Safe area CSS variables for consistent usage */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }

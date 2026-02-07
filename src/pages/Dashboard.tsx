@@ -641,7 +641,7 @@ export default function Dashboard() {
       )}
       
       {/* Stats Grid */}
-      <motion.div variants={staggerItem} className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
+      <motion.div variants={staggerItem} className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
         {isEmployer ? (
           <>
             <StatCard
