@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, CheckCircle2, FileText, MessageSquare, ClipboardCheck } from "lucide-react";
+import { Sparkles, ArrowRight, CheckCircle2, FileText, MessageSquare, ClipboardCheck, UserPlus, KeyRound, Lightbulb } from "lucide-react";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 
 export default function CandidatePortalLanding() {
@@ -119,28 +119,48 @@ export default function CandidatePortalLanding() {
           ))}
         </motion.div>
 
-        {/* How It Works */}
+        {/* How It Works - Enhanced */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="max-w-2xl mx-auto"
+          className="max-w-3xl mx-auto"
         >
-          <h2 className="text-2xl font-bold text-foreground text-center mb-8">How It Works</h2>
-          <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-foreground text-center mb-4">How It Works</h2>
+          <p className="text-center text-muted-foreground mb-8 max-w-xl mx-auto">
+            Unlike traditional job boards, HireFlow uses a <span className="text-primary font-medium">direct application code</span> system. 
+            Employers share a unique code with you when you apply for their position.
+          </p>
+          
+          {/* Steps as cards with icons */}
+          <div className="grid sm:grid-cols-2 gap-4">
             {[
-              "Create your free account or sign in",
-              "Enter the job code provided by the employer",
-              "Complete the application and any required assessments",
-              "Track your progress and communicate with employers",
-            ].map((step, index) => (
-              <div key={index} className="flex items-center gap-4 bg-card/30 border border-border rounded-xl p-4">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
-                  {index + 1}
+              { step: 1, icon: UserPlus, title: "Create Your Account", desc: "Sign up for free in under a minute" },
+              { step: 2, icon: KeyRound, title: "Get a Job Code", desc: "The employer provides you with a unique application code" },
+              { step: 3, icon: ClipboardCheck, title: "Apply & Complete Tasks", desc: "Enter the code and complete any required assessments" },
+              { step: 4, icon: MessageSquare, title: "Track & Communicate", desc: "Monitor your progress and message employers directly" },
+            ].map(({ step, icon: Icon, title, desc }) => (
+              <div key={step} className="flex items-start gap-4 bg-card/30 border border-border rounded-xl p-4">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                  {step}
                 </div>
-                <p className="text-foreground">{step}</p>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-foreground">{title}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{desc}</p>
+                </div>
               </div>
             ))}
+          </div>
+          
+          {/* Info callout */}
+          <div className="mt-6 flex items-start gap-3 bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 max-w-xl mx-auto">
+            <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <p className="text-sm text-muted-foreground">
+              <span className="text-foreground font-medium">Don't have a job code yet?</span> Ask the employer or recruiter who directed you to HireFlow for the application code.
+            </p>
           </div>
         </motion.div>
 

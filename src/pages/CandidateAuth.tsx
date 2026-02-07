@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, Check, Circle, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, Check, Circle, Eye, EyeOff, Mail } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import hireflowLogo from "@/assets/hireflow-logo.png";
@@ -67,6 +67,11 @@ export default function CandidateAuth() {
   );
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  
+  // Password reset state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -187,6 +192,71 @@ export default function CandidateAuth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      emailSchema.parse(forgotPasswordEmail);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({
+          variant: "warning",
+          description: err.errors[0].message,
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Check if email exists
+    try {
+      const response = await supabase.functions.invoke('check-email-exists', {
+        body: { email: forgotPasswordEmail }
+      });
+
+      if (response.error) {
+        console.error('Error checking email:', response.error);
+      } else if (!response.data?.exists) {
+        toast({
+          variant: "warning",
+          title: "Email Not Found",
+          description: "No account found with this email address.",
+        });
+        setIsLoading(false);
+        return;
+      }
+    } catch (checkError) {
+      console.error('Error checking email existence:', checkError);
+    }
+
+    // Use candidate auth redirect
+    const productionUrl = 'https://hireflownow.com';
+    const redirectUrl = window.location.hostname === 'localhost' 
+      ? `${window.location.origin}/candidate/auth?reset=true`
+      : `${productionUrl}/candidate/auth?reset=true`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+      redirectTo: redirectUrl,
+    });
+
+    if (error) {
+      toast({
+        variant: "warning",
+        title: "Reset Failed",
+        description: error.message,
+      });
+    } else {
+      setResetEmailSent(true);
+      toast({
+        title: "Check your email",
+        description: "We've sent you a password reset link.",
+      });
+    }
+
+    setIsLoading(false);
+  };
+
   if (authLoading) {
     return <AuthLoadingScreen variant="candidate" />;
   }
@@ -252,6 +322,86 @@ export default function CandidateAuth() {
 
           {/* Auth Card */}
           <div className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-8">
+            {showForgotPassword ? (
+              /* Forgot Password View */
+              <motion.div
+                key="forgot-password"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {resetEmailSent ? (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
+                      <Mail className="h-8 w-8 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-foreground mb-2">Check your email</h2>
+                    <p className="text-muted-foreground mb-6">
+                      We've sent a password reset link to <span className="text-foreground font-medium">{forgotPasswordEmail}</span>
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setResetEmailSent(false);
+                        setForgotPasswordEmail("");
+                      }}
+                      className="w-full"
+                    >
+                      Back to Sign In
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(false)}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Back to Sign In
+                    </button>
+                    
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-bold text-foreground">Reset your password</h2>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Enter your email and we'll send you a reset link
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email" className="text-foreground">Email</Label>
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={forgotPasswordEmail}
+                          onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                          required
+                          className="bg-muted/50 border-border focus:border-primary h-12"
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" 
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          "Send Reset Link"
+                        )}
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </motion.div>
+            ) : (
+              <>
             {/* Google Sign In Button */}
             <Button
               type="button"
@@ -381,6 +531,15 @@ export default function CandidateAuth() {
                       "Sign In"
                     )}
                   </Button>
+                  
+                  {/* Forgot Password Link */}
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="w-full text-sm text-primary hover:underline mt-4"
+                  >
+                    Forgot your password?
+                  </button>
                 </form>
               </motion.div>
             ) : (
@@ -469,6 +628,8 @@ export default function CandidateAuth() {
                 Sign in here
               </Link>
             </p>
+              </>
+            )}
           </div>
         </motion.div>
       </div>
