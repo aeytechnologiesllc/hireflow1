@@ -401,6 +401,12 @@ export default function Auth() {
               <Briefcase className="h-3.5 w-3.5" />
               Employer Portal
             </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Looking for work?{" "}
+              <Link to="/candidate" className="text-primary hover:underline">
+                Go to Candidate Portal →
+              </Link>
+            </p>
           </div>
 
           {/* Auth Card */}

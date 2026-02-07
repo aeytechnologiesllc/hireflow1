@@ -169,6 +169,9 @@ export default function Index() {
             <span className="text-xl font-bold text-white">HireFlow</span>
           </Link>
           <div className="flex items-center gap-4">
+            <Link to="/candidate" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors hidden sm:block">
+              Looking for work? →
+            </Link>
             <Link to="/auth">
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-transparent">
                 Sign In
@@ -556,6 +559,8 @@ export default function Index() {
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
             <span>•</span>
             <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+            <span>•</span>
+            <Link to="/candidate" className="hover:text-emerald-400 transition-colors">Candidate Portal</Link>
           </div>
         </div>
       </motion.footer>

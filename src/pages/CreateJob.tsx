@@ -1727,9 +1727,32 @@ export default function CreateJob() {
 
                       {/* WPM slider moved to typing test phase card below */}
 
-                      <p className="text-xs text-muted-foreground/60 text-center leading-relaxed py-2">
-                        💡 You can switch between Autopilot and Manual mode anytime from the Jobs page
-                      </p>
+                      {/* Autopilot Explainer */}
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium text-foreground">What's Autopilot vs Manual?</span>
+                        </div>
+                        <div className="space-y-2 text-xs text-muted-foreground">
+                          <div className="flex items-start gap-2">
+                            <Bot className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-medium text-foreground">Autopilot (Default):</span>{" "}
+                              Ava automatically advances candidates who score above your passing threshold and sends respectful rejections to those who don't.
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Hand className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-medium text-foreground">Manual:</span>{" "}
+                              You review and decide on every candidate. Ava still scores and analyzes, but you control all advancement decisions.
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground/60 text-center leading-relaxed pt-1">
+                          💡 You can switch between modes anytime from the Jobs page
+                        </p>
+                      </div>
 
                       {/* Generate with AVA Button - Pink/Purple gradient */}
                       <div className="flex justify-center sm:justify-end pt-2">

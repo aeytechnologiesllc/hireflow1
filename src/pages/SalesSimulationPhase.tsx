@@ -25,6 +25,7 @@ import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
+import { PhaseContextCard } from "@/components/PhaseContextCard";
 
 interface Message {
   id: string;
