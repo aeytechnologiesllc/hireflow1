@@ -31,8 +31,14 @@ import {
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
   HelpCircle, Move, Zap, AlertCircle, Download, FastForward,
-  MoreHorizontal, CalendarX, Flag
+  MoreHorizontal, CalendarX, Flag, User
 } from "lucide-react";
+import { 
+  ApplicantHeader, 
+  ApplicantQuickActions, 
+  ApplicantAISummary,
+  CollapsibleSection 
+} from "@/components/applicant";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1679,85 +1685,55 @@ export default function ApplicantDetails() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => navigate("/applicants")}
-              className="flex-shrink-0"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Back to Applicants</TooltipContent>
-        </Tooltip>
-        
-        <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => downloadDossier(application?.id ?? null)}
-                disabled={isGeneratingDossier}
-              >
-                {isGeneratingDossier ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Download className="h-5 w-5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Download Dossier</TooltipContent>
-          </Tooltip>
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setShowNotesDialog(true)}
-                className="relative"
-              >
-                <FileText className="h-5 w-5" />
-                {application?.employer_notes && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Internal Notes</TooltipContent>
-          </Tooltip>
-          
-          {canMessageCandidates && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setShowMessageDialog(true)}
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Messages</TooltipContent>
-            </Tooltip>
-          )}
-          
-          {canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
-            <Button 
-              onClick={handleScheduleInterviewClick}
-              size="sm"
-              className="gap-1.5"
-            >
-              <Calendar className="h-4 w-4" />
-              Schedule
-            </Button>
-          )}
-        </div>
-      </div>
+      {/* Header with ApplicantHeader component */}
+      <ApplicantHeader
+        name={applicantDisplayName}
+        email={profile?.email || ""}
+        phone={profile?.phone}
+        avatarUrl={profile?.avatar_url}
+        aiScore={application.ai_score}
+        status={application.status}
+        onBack={() => navigate("/applicants")}
+        onAvatarClick={() => setShowAvatarLightbox(true)}
+      />
+
+      {/* Quick Actions */}
+      <ApplicantQuickActions
+        onMessage={() => setShowMessageDialog(true)}
+        onViewNotes={() => setShowNotesDialog(true)}
+        onDownloadDossier={() => downloadDossier(application?.id ?? null)}
+        onHire={() => setShowHireConfirmation(true)}
+        onReject={() => setShowRejectConfirmation(true)}
+        isGeneratingDossier={isGeneratingDossier}
+        isRejected={isRejected}
+        isHired={application.status === "hired"}
+        canMessage={canMessageCandidates}
+        canManagePipeline={canManagePipeline}
+        isMobile={isMobile}
+      />
+
+      {/* Ava's AI Summary - Always visible condensed version */}
+      <ApplicantAISummary
+        summary={application.ai_analysis}
+        fullAnalysis={application.ai_analysis}
+        aiScore={application.ai_score}
+        trustLevel={application.ai_score !== null && application.ai_score !== undefined 
+          ? application.ai_score >= 80 ? "high" : application.ai_score >= 60 ? "medium" : "low"
+          : "medium"}
+        isAnalyzing={isAnalyzing}
+        onReanalyze={hasValidApplicationData && !isRejected ? handleReanalyze : undefined}
+      />
+
+      {/* Schedule Interview Button - Visible when no active interview */}
+      {canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
+        <Button 
+          onClick={handleScheduleInterviewClick}
+          className="gap-1.5"
+        >
+          <Calendar className="h-4 w-4" />
+          Schedule Interview
+        </Button>
+      )}
 
       {/* Rejected Status Banner */}
       {isRejected && (() => {

@@ -34,7 +34,9 @@ import {
   Send,
   Rocket,
   Download,
+  ClipboardList,
 } from "lucide-react";
+import { FeatureDiscoveryTooltip } from "@/components/FeatureDiscoveryTooltip";
 import {
   Dialog,
   DialogContent,
@@ -286,27 +288,35 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
             </div>
 
             {job.job_code && (
-              <div className="p-2 md:p-3 rounded-lg bg-muted/30 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-xs md:text-sm text-muted-foreground">Code:</span>
-                  <span className="text-xs md:text-sm font-bold text-primary">{job.job_code}</span>
+              <FeatureDiscoveryTooltip
+                featureId="job_code"
+                title="Quick Apply Code"
+                description="Share this code with candidates so they can apply directly at /apply without searching for the job."
+                icon={<ClipboardList className="h-4 w-4" />}
+                position="bottom"
+              >
+                <div className="p-2 md:p-3 rounded-lg bg-muted/30 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-xs md:text-sm text-muted-foreground">Code:</span>
+                    <span className="text-xs md:text-sm font-bold text-primary">{job.job_code}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyCode}>
+                      <Copy className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Code</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyLink}>
+                      <Link2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Link</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={shareJob}>
+                      <Share2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Share</span>
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyCode}>
-                    <Copy className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Code</span>
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={copyLink}>
-                    <Link2 className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Link</span>
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-primary gap-1 h-7 md:h-8 px-2 text-xs" onClick={shareJob}>
-                    <Share2 className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Share</span>
-                  </Button>
-                </div>
-              </div>
+              </FeatureDiscoveryTooltip>
             )}
 
             <div className="flex items-center gap-2 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap">
