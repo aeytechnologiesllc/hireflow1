@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import EmbeddedCheckoutDialog from "./subscription/EmbeddedCheckoutDialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +25,7 @@ export default function AvaVoiceButton() {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [purchasingPack, setPurchasingPack] = useState<string | null>(null);
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
   
   // First-use detection
   const [isFirstUse, setIsFirstUse] = useState(() => {
@@ -206,14 +208,14 @@ export default function AvaVoiceButton() {
         countryCode: pricing.countryCode,
         interval: 'monthly',
       });
-      if (result?.url) {
-        window.open(result.url, '_blank');
+      if (result?.clientSecret) {
+        setCheckoutClientSecret(result.clientSecret);
+        setShowUpgradeDialog(false);
       }
     } catch (err) {
       toast.error('Failed to start checkout');
     } finally {
       setIsUpgrading(false);
-      setShowUpgradeDialog(false);
     }
   };
 
@@ -347,6 +349,10 @@ export default function AvaVoiceButton() {
 
   return (
     <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutClientSecret}
+        onClose={() => setCheckoutClientSecret(null)}
+      />
       {/* Header-integrated button */}
       <div className="relative">
         {/* Listening ring animation */}

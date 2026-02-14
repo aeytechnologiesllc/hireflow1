@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
@@ -14,26 +15,23 @@ export default function TrialExpiredOverlay() {
   const [loading, setLoading] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
 
   if (!isExpired) return null;
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      // Set pending sync flag before opening checkout
-      localStorage.setItem("pending_subscription_sync", Date.now().toString());
-      
-      const { url } = await createCheckoutSession.mutateAsync({ 
+      const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
         countryCode: pricing.countryCode,
         interval: billingInterval,
       });
-      if (url) {
-        window.open(url, "_blank");
+      if (clientSecret) {
+        setCheckoutClientSecret(clientSecret);
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      localStorage.removeItem("pending_subscription_sync");
     } finally {
       setLoading(null);
     }
@@ -79,6 +77,10 @@ export default function TrialExpiredOverlay() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsl(220, 18%, 7%)" }}>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutClientSecret}
+        onClose={() => setCheckoutClientSecret(null)}
+      />
       {/* Background gradient orbs */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-[150px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/12 rounded-full blur-[150px] pointer-events-none" />

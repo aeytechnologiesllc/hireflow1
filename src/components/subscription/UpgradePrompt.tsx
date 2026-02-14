@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
@@ -23,6 +24,7 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
   const [showDialog, setShowDialog] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
 
   const hasAccess = isPaid && (requiredPlan === "growth" || subscription?.plan_type === "business");
 
@@ -33,13 +35,13 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      const { url } = await createCheckoutSession.mutateAsync({ 
+      const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
         countryCode: pricing.countryCode,
         interval: billingInterval,
       });
-      if (url) {
-        window.open(url, "_blank");
+      if (clientSecret) {
+        setCheckoutClientSecret(clientSecret);
       }
     } catch (error) {
       console.error("Checkout error:", error);
@@ -50,6 +52,10 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
 
   return (
     <>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutClientSecret}
+        onClose={() => setCheckoutClientSecret(null)}
+      />
       <motion.div
         whileHover={{ scale: 1.02 }}
         className="p-6 rounded-xl border-2 border-dashed border-gray-700 bg-gray-800/20 cursor-pointer hover:border-emerald-500/30 transition-all"

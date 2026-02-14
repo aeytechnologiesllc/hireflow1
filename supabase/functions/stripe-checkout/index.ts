@@ -85,7 +85,6 @@ serve(async (req) => {
     }
 
     // SAFETY: Cancel ALL existing active/trialing subscriptions to prevent duplicates
-    // This ensures users can only ever have ONE active subscription at a time
     const existingActiveSubscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: "active",
@@ -124,12 +123,13 @@ serve(async (req) => {
     const eligibleForTrial = !hasSubscriptionRecord && !hasStripeSubscriptionHistory;
     console.log("Eligible for trial:", eligibleForTrial);
 
-    // Create checkout session - only give trial to truly NEW users
+    // Create checkout session in EMBEDDED mode
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
+      ui_mode: "embedded",
       subscription_data: {
         ...(eligibleForTrial ? { trial_period_days: 7 } : {}),
         metadata: {
@@ -138,8 +138,7 @@ serve(async (req) => {
           interval: interval,
         },
       },
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      return_url: `${successUrl || `${req.headers.get("origin")}/settings`}?session_id={CHECKOUT_SESSION_ID}`,
       metadata: {
         user_id: user.id,
         plan_type: planType,
@@ -147,9 +146,9 @@ serve(async (req) => {
       },
     });
 
-    console.log("Checkout session created:", session.id);
+    console.log("Embedded checkout session created:", session.id);
 
-    return new Response(JSON.stringify({ url: session.url }), {
+    return new Response(JSON.stringify({ clientSecret: session.client_secret }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {

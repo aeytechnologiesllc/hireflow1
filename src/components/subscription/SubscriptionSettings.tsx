@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
@@ -40,17 +41,18 @@ export default function SubscriptionSettings() {
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      const { url } = await createCheckoutSession.mutateAsync({ 
+      const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
         countryCode: pricing.countryCode,
         interval: billingInterval,
       });
-      if (url) {
-        window.open(url, "_blank");
+      if (clientSecret) {
+        setCheckoutClientSecret(clientSecret);
       }
     } catch (error) {
       console.error("Checkout error:", error);
@@ -98,6 +100,10 @@ export default function SubscriptionSettings() {
 
   return (
     <div className="space-y-6">
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutClientSecret}
+        onClose={() => setCheckoutClientSecret(null)}
+      />
       {/* Premium Upgrade Section - FIRST */}
       {(!isPaid || subscription?.plan_type === "growth") && (
         <motion.div
