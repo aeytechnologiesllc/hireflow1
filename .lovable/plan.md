@@ -3,84 +3,61 @@
 # Embed Stripe Checkout Inside the App
 
 ## Overview
-Instead of redirecting users to `checkout.stripe.com`, we'll embed the Stripe Checkout form directly inside a dialog/modal within HireFlow. This uses Stripe's official **Embedded Checkout** feature.
+Use your Stripe test publishable key (`pk_test_51SYwD8...`) to embed the Stripe Checkout form directly in a dialog, so users never leave HireFlow to pay.
 
-## How It Works Today
-When a user clicks "Subscribe", the app calls the `stripe-checkout` edge function, which returns a Stripe Checkout URL. The app then opens that URL in a new browser tab, taking the user away from HireFlow.
+## Changes
 
-## What Changes
+### 1. Update `stripe-checkout` edge function
+Switch to embedded mode by adding `ui_mode: "embedded"` and replacing `success_url`/`cancel_url` with `return_url`. Return `clientSecret` instead of `url`.
 
-### 1. Install Stripe frontend packages
-Add `@stripe/react-stripe-js` and `@stripe/stripe-js` as dependencies. These provide the `EmbeddedCheckoutProvider` and `EmbeddedCheckout` components.
+### 2. Create `EmbeddedCheckoutDialog` component
+New file: `src/components/subscription/EmbeddedCheckoutDialog.tsx`
+- Uses `loadStripe` with the publishable key
+- Wraps `EmbeddedCheckout` inside `EmbeddedCheckoutProvider`
+- Renders in a large dialog (full-width on mobile)
+- Shows loading spinner while form loads
+- On close, syncs subscription state
 
-### 2. Update the `stripe-checkout` edge function
-Add `ui_mode: "embedded"` to the Checkout Session creation and include a `return_url` (instead of `success_url`). When embedded mode is used, Stripe returns a `client_secret` instead of a URL. The function will return both so existing flows still work if needed.
+### 3. Update `useSubscription` hook
+Change `createCheckoutSession` mutation to return `clientSecret` instead of `url`.
 
-Key change in the edge function:
-- Add `ui_mode: "embedded"` to session creation
-- Replace `success_url`/`cancel_url` with `return_url` (Stripe requirement for embedded mode)
-- Return `{ clientSecret: session.client_secret }` instead of `{ url: session.url }`
+### 4. Update 5 checkout trigger points
+Replace `window.open(url, "_blank")` with opening the embedded dialog:
 
-### 3. Create an `EmbeddedCheckoutDialog` component
-A new dialog component (`src/components/subscription/EmbeddedCheckoutDialog.tsx`) that:
-- Loads `@stripe/stripe-js` with your publishable key
-- Wraps the `EmbeddedCheckout` component inside `EmbeddedCheckoutProvider`
-- Shows a loading spinner while the checkout form loads
-- Renders inside a large dialog/drawer (responsive for mobile)
+- **SubscriptionSettings.tsx** -- `handleUpgrade` opens embedded dialog
+- **TrialExpiredOverlay.tsx** -- `handleUpgrade` opens embedded dialog
+- **UpgradePrompt.tsx** -- `handleUpgrade` opens embedded dialog
+- **LimitReachedDialog.tsx** -- `handleUpgrade` opens embedded dialog
+- **AvaVoiceButton.tsx** -- `handleUpgrade` opens embedded dialog
 
-### 4. Update `useSubscription` hook
-Modify `createCheckoutSession` to return `clientSecret` instead of `url`. The mutation will pass the client secret to the embedded checkout dialog.
+Each file gets:
+- A `checkoutClientSecret` state variable
+- The `EmbeddedCheckoutDialog` component rendered with that secret
+- The handler sets the secret instead of opening a new tab
 
-### 5. Update all 5 checkout trigger points
-These files currently do `window.open(url, "_blank")` after getting the checkout URL. They'll instead open the embedded checkout dialog with the client secret:
+### Technical Details
 
-- `src/components/subscription/SubscriptionSettings.tsx`
-- `src/components/subscription/TrialExpiredOverlay.tsx`
-- `src/components/subscription/UpgradePrompt.tsx`
-- `src/components/subscription/LimitReachedDialog.tsx`
-- `src/components/AvaVoiceButton.tsx`
-
-The pattern changes from:
-```
-const { url } = await createCheckoutSession.mutateAsync({...});
-window.open(url, "_blank");
-```
-To:
-```
-const { clientSecret } = await createCheckoutSession.mutateAsync({...});
-setCheckoutClientSecret(clientSecret); // opens the embedded dialog
-```
-
-### 6. Handle completion
-After payment, Stripe's embedded checkout redirects within the iframe to the `return_url`. We'll set the return URL to the settings page with a success parameter. When the dialog detects completion or the user closes it, we sync the subscription state.
-
-## Technical Details
-
-### Edge function change (stripe-checkout)
-```typescript
-const session = await stripe.checkout.sessions.create({
-  // ... existing config ...
-  ui_mode: "embedded",
-  return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-  // remove success_url and cancel_url
+**Edge function key change:**
+```text
+// Before
+session = stripe.checkout.sessions.create({
+  success_url: ...,
+  cancel_url: ...,
 });
+return { url: session.url }
 
-return Response(JSON.stringify({ clientSecret: session.client_secret }));
+// After
+session = stripe.checkout.sessions.create({
+  ui_mode: "embedded",
+  return_url: successUrl + "?session_id={CHECKOUT_SESSION_ID}",
+});
+return { clientSecret: session.client_secret }
 ```
 
-### New EmbeddedCheckoutDialog component
-```typescript
-import { loadStripe } from "@stripe/stripe-js";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-
-// Renders inside a Dialog with the Stripe checkout form embedded
-```
-
-### Stripe publishable key
-The component needs the Stripe **publishable key** (not secret key). This is a public key safe for frontend use. It will need to be added as a `VITE_STRIPE_PUBLISHABLE_KEY` environment variable or hardcoded since it's public.
+**Stripe publishable key:** Stored directly in the `EmbeddedCheckoutDialog` component since it's a public key (safe for frontend).
 
 ## Files Changed
-1. `supabase/functions/stripe-checkout/index.ts` -- Add embedded mode
+1. `supabase/functions/stripe-checkout/index.ts` -- Embedded mode
 2. `src/components/subscription/EmbeddedCheckoutDialog.tsx` -- New component
 3. `src/hooks/useSubscription.ts` -- Return clientSecret
 4. `src/components/subscription/SubscriptionSettings.tsx` -- Use embedded dialog
