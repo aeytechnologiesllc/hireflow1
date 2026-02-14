@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, CreditCard, Loader2 } from "lucide-react";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
+import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { useSubscription } from "@/hooks/useSubscription";
 
@@ -22,6 +23,8 @@ export default function Settings() {
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
+  const [successPlanType, setSuccessPlanType] = useState("growth");
   const syncAttempted = useRef(false);
   
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
@@ -49,10 +52,12 @@ export default function Settings() {
       syncSubscription.mutateAsync()
         .then((result) => {
           console.log("[Settings] Subscription synced:", result);
-          if (result?.synced) {
-            toast.success("Subscription activated successfully!", {
-              description: `You now have access to the ${result.subscription?.plan_type} plan.`,
-            });
+          // Show premium modal instead of toast (once per activation)
+          const storageKey = `subscription_success_shown_${user?.id}`;
+          if (!localStorage.getItem(storageKey)) {
+            localStorage.setItem(storageKey, "true");
+            setSuccessPlanType(result?.subscription?.plan_type || "growth");
+            setShowSubscriptionSuccess(true);
           }
           // Clear the URL parameter
           setSearchParams((prev) => {
@@ -384,6 +389,13 @@ export default function Settings() {
           <SubscriptionSettings />
         </TabsContent>
       </Tabs>
+
+      {showSubscriptionSuccess && (
+        <SubscriptionSuccessModal
+          planType={successPlanType}
+          onClose={() => setShowSubscriptionSuccess(false)}
+        />
+      )}
     </div>
   );
 }

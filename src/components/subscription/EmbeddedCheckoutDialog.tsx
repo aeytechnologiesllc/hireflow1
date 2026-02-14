@@ -9,9 +9,9 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
+import SubscriptionSuccessModal from "./SubscriptionSuccessModal";
 
 const stripePromise = loadStripe(
   "pk_test_51SYwD8JoMc2msNl4N5h2xsl4PudL7EfI4IaTkYXkQ5xvRyJgL8Ysafhgi0Hyi3HXW2yHvWHXwoayQlkndkkchGY300VdwdmLq3"
@@ -93,16 +93,10 @@ export default function EmbeddedCheckoutDialog({
         <DialogTitle className="sr-only">Checkout</DialogTitle>
         <div className="min-h-[400px]">
           {paymentComplete ? (
-            <div className="flex flex-col items-center justify-center py-16 px-8 text-center gap-4">
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
-              <h3 className="text-xl font-semibold text-foreground">Payment Successful!</h3>
-              <p className="text-muted-foreground">
-                Your subscription has been activated. You now have full access to all features.
-              </p>
-              <Button onClick={() => handleOpenChange(false)} className="mt-4">
-                Continue
-              </Button>
-            </div>
+            <SubscriptionSuccessModal
+              planType="growth"
+              onClose={() => handleOpenChange(false)}
+            />
           ) : (
             <>
               <EmbeddedCheckoutProvider
