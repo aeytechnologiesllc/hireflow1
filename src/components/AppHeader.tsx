@@ -62,7 +62,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
   const isDetailPage = /\/(applicants|jobs|interviews|applications)\/[a-zA-Z0-9-]+/.test(location.pathname);
 
   return (
-    <header className="h-14 md:h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
+    <header className="h-14 md:h-16 bg-card/80 backdrop-blur-sm border-b border-border shadow-sm flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
       {/* Left side - Menu button (mobile) + Page Title */}
       <div className="flex items-center gap-3 min-w-0 flex-shrink">
         {isMobile && (
