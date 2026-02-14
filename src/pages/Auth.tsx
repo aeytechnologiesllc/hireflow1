@@ -273,12 +273,8 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    const redirectUrl = redirectTo === "createJob" 
-      ? `${window.location.origin}/jobs/create`
-      : `${window.location.origin}/dashboard`;
-    
-    // Pass "employer" role for Google sign-up from employer portal
-    const { error } = await signInWithGoogle(redirectUrl, "employer");
+    // Role is passed via /auth/callback route; redirect URL is handled there
+    const { error } = await signInWithGoogle(undefined, "employer");
     
     if (error) {
       toast({
