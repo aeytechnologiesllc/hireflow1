@@ -1,122 +1,70 @@
 
 
-# Role-Based Subscription Gating
+# Fix Google OAuth Role Assignment Bug
 
-## Summary
-Candidates are incorrectly blocked by subscription/trial logic meant only for employers. This fix ensures candidates always have free access, employers follow the trial/subscription model, and team members depend on their employer's subscription.
+## Root Cause
 
-## Changes
+The bug only affects **Google OAuth signups**, not email/password signups.
 
-### 1. `supabase/functions/get-subscription/index.ts` -- Role check for candidates
+**Email/password signup flow (works correctly):**
+1. `signUp()` passes `role` in `data` options
+2. This goes to `raw_user_meta_data` on the auth.users row
+3. The `handle_new_user` trigger reads it: `COALESCE((raw_user_meta_data ->> 'role')::app_role, 'candidate')`
+4. Correct role is inserted into `user_roles`
 
-Add a role lookup at the top of the function. If the user is a candidate, return a static "active" response immediately -- no trial record creation, no usage queries, no voice credit provisioning.
+**Google OAuth signup flow (broken):**
+1. Before redirect: `signInWithGoogle()` stores `intended_oauth_role` in localStorage (e.g., `"employer"`)
+2. Google OAuth completes -- Google **overwrites** `raw_user_meta_data` with its own fields (avatar, name, email). The `role` field is gone.
+3. The `handle_new_user` trigger fires, finds no `role` in metadata, defaults to `'candidate'`
+4. Back in the app, `onAuthStateChange` reads `intended_oauth_role` from localStorage
+5. It checks: `if (!existingRole)` -- but an existing role **does** exist (`candidate`, set by the trigger)
+6. The intended role is **never applied**
 
+## Fix
+
+### File 1: `src/hooks/useAuth.tsx` -- Fix OAuth role correction logic
+
+Change the `onAuthStateChange` handler so that when `intendedRole` exists in localStorage, it **updates** the role instead of only inserting when no role exists.
+
+**Current (broken):**
 ```text
-// After authenticating the user, before any subscription logic:
-const { data: roleData } = await supabaseAdmin
-  .from('user_roles')
-  .select('role')
-  .eq('user_id', user.id)
-  .single();
-
-if (roleData?.role === 'candidate') {
-  // Return free unlimited access -- skip ALL employer logic
-  return Response with:
-    subscription: { status: 'active', plan_type: 'candidate_free', onboarding_completed: true }
-    usage: all zeros
-    limits: all unlimited (-1)
-    voiceCredits: { totalMinutesAvailable: 0, credits: [] }
+if (!existingRole) {
+  await supabase.from("user_roles").insert({ user_id: verifiedUser.id, role: intendedRole });
 }
 ```
 
-This prevents trial records from ever being created for candidates.
-
-### 2. `src/components/AppLayout.tsx` -- Bypass subscription gates for candidates
-
-After the auth loading check and developer redirect, add a candidate bypass **before** any subscription-related checks:
-
+**Fixed:**
 ```text
-// After: if (loading) return <AuthLoadingScreen />
-// After: developer redirect logic
-
-// NEW: Candidates bypass ALL subscription logic
-if (role === 'candidate') {
-  // Check candidate-specific onboarding (via profile, not subscription)
-  // Then render normal layout directly
-  return <TooltipProvider>...<Outlet />...</TooltipProvider>
-}
-
-// Only employers/team reach these checks:
-if (subLoading) return loading screen
-if (isSyncingSubscription) return sync screen
-if (hookNeedsOnboarding) return OnboardingWizard (employer only)
-if (isExpired) return TrialExpiredOverlay
-```
-
-For candidate onboarding, we check a profile field (`onboarding_completed`) instead of the subscription table, so it works independently.
-
-### 3. `src/components/AppLayout.tsx` -- Candidate onboarding via profile
-
-Since candidates no longer go through subscription logic, their onboarding wizard needs its own trigger. We'll use a simple profile query to check if onboarding is completed:
-
-```text
-// For candidates only:
-const [candidateNeedsOnboarding, setCandidateNeedsOnboarding] = useState(false);
-
-useEffect(() => {
-  if (role === 'candidate' && user) {
-    // Check profiles table for onboarding status
-    supabase.from('profiles').select('onboarding_completed')
-      .eq('user_id', user.id).single()
-      .then(({ data }) => {
-        if (data && !data.onboarding_completed) setCandidateNeedsOnboarding(true);
-      });
-  }
-}, [role, user]);
-```
-
-If `candidateNeedsOnboarding` is true, show `CandidateOnboardingWizard`. On completion, update profiles table and dismiss the wizard.
-
-### 4. `src/pages/TeamPortal.tsx` -- Check employer subscription
-
-Add employer subscription validation to the Team Portal. After fetching the team membership, check if the employer's subscription is active:
-
-```text
-// After fetching memberData with employer_id:
-const { data: employerSub } = await supabase
-  .from('subscriptions')
-  .select('status, plan_type')
-  .eq('user_id', memberData.employer_id)
-  .maybeSingle();
-
-if (!employerSub || employerSub.status === 'expired') {
-  setEmployerExpired(true);  // New state variable
-  return;
+if (!existingRole) {
+  // No role at all -- insert the intended one
+  await supabase.from("user_roles").insert({ user_id: verifiedUser.id, role: intendedRole });
+} else if (existingRole.role !== intendedRole) {
+  // Trigger created wrong default -- update to intended role
+  await supabase.from("user_roles")
+    .update({ role: intendedRole })
+    .eq("user_id", verifiedUser.id);
 }
 ```
 
-When `employerExpired` is true, render a clean blocked screen:
-> "Your employer's subscription has expired. Please contact your account administrator."
+This ensures that if the trigger created a `candidate` role but the user signed up from the Employer Portal, the role gets corrected to `employer`.
 
-Team members never see billing UI -- just this informational message.
+### File 2: Fix existing mis-assigned user
 
-### 5. Database: Add `onboarding_completed` to profiles (if not exists)
-
-A migration to add the column to the profiles table so candidate onboarding works independently of the subscriptions table:
-
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS onboarding_completed boolean DEFAULT false;
-```
+The user `aeytechnologiesllc@gmail.com` (Google OAuth from Employer Portal) currently has `candidate` role. If they should be a candidate, no change needed. If they were supposed to be an employer, we can fix it manually via a database query after confirming with you.
 
 ## Files Changed
-1. `supabase/functions/get-subscription/index.ts` -- Add candidate role check, return free access
-2. `src/components/AppLayout.tsx` -- Candidate bypass before subscription gates, independent onboarding
-3. `src/pages/TeamPortal.tsx` -- Employer subscription check, expired screen
-4. Database migration -- Add `onboarding_completed` to profiles
+1. `src/hooks/useAuth.tsx` -- Update OAuth role correction to use update instead of insert-only-if-missing
+
+## What stays unchanged
+- Email/password signup -- already works correctly
+- `handle_new_user` trigger -- no changes needed
+- Employer subscription logic -- untouched
+- Candidate portal -- untouched
+- Auth.tsx passes `"employer"`, CandidateAuth.tsx passes `"candidate"`, PublishSignupModal passes `"employer"` -- all correct already
 
 ## Expected Result
-- **Candidates**: Always free access. Never see trial/subscription screens. Onboarding works via profile flag.
-- **Employers**: Trial and subscription enforced as before. No changes to billing logic.
-- **Team members**: Access depends on employer subscription. Clean "expired" message if employer lapses.
-- **No cross-role leakage**: Candidates never get trial records. Team members never see billing UI.
+- Google OAuth from Employer Portal --> `employer` role
+- Google OAuth from Candidate Portal --> `candidate` role
+- Email signup from either portal --> correct role (already works)
+- Existing users remain untouched unless manually corrected
+
