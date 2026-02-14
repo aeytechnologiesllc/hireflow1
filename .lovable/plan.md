@@ -1,111 +1,128 @@
 
 
-# Global Layout Containment Hardening
+# Employer Portal Visual System Refinement
 
-## Problem
-Tooltips, popovers, dropdowns, dialogs, and other floating elements can overflow or get clipped at viewport edges, especially on mobile and narrow screens. This needs a systematic fix across all Radix UI primitives and global CSS.
-
-## Solution
-
-Two-pronged approach: (1) global CSS containment rules, and (2) component-level collision padding and viewport constraints on every Radix floating primitive.
+## Overview
+A system-wide design token and global CSS refinement to elevate the Employer Portal to Linear/Stripe-level polish. No component redesigns -- just tuning the underlying color system, spacing, depth, and motion tokens so every page benefits automatically.
 
 ---
 
-## Changes
+## 1. Color System Refinement (`src/index.css` -- `.dark` block)
 
-### 1. Global CSS (`src/index.css`)
+Shift the dark theme backgrounds to a richer blue-tinted dark palette with better depth layering:
 
-Add a new containment layer targeting all Radix portal content and flex layout safety:
+| Token | Current | New | Purpose |
+|-------|---------|-----|---------|
+| `--background` | `220 15% 8%` | `222 47% 7%` | Slightly bluer, closer to #0F172A |
+| `--card` | `220 13% 11%` | `222 35% 10%` | Lighter than bg, visible separation |
+| `--popover` | `220 13% 12%` | `222 35% 12%` | Distinct from card |
+| `--secondary` | `220 13% 15%` | `222 30% 14%` | Interactive surface |
+| `--muted` | `220 13% 15%` | `222 30% 14%` | Match secondary |
+| `--muted-foreground` | `220 10% 55%` | `220 15% 58%` | Slightly brighter for readability |
+| `--border` | `220 12% 18%` | `222 20% 16%` | Subtle but visible |
+| `--sidebar-background` | `220 13% 9%` | `222 47% 6%` | 3-4% darker than main bg |
+| `--shadow-glow` | `0 0 20px ... 0.15` | `0 0 15px ... 0.12` | 15% less glow intensity |
 
-```text
-/* Floating element containment */
-[data-radix-popper-content-wrapper] {
-  max-width: calc(100vw - 16px) !important;
-}
+Text hierarchy (no variable changes needed -- achieved through consistent class usage):
+- Headings: `text-foreground` (near-white, ~98%)
+- Body: `text-foreground/80` or existing classes
+- Meta: `text-muted-foreground` (bumped to 58%)
+- Disabled: `opacity-45`
 
-/* Text safety for all floating elements */
-[data-radix-menu-content],
-[data-radix-popper-content-wrapper] *,
-[role="dialog"] * {
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
+---
 
-/* Flex overflow prevention */
-.flex {
-  min-width: 0;
-}
-```
+## 2. Card and Container Depth (`src/components/ui/card.tsx`)
 
-Remove the existing aggressive `@media (max-width: 640px) .flex { flex-wrap: wrap; }` rule -- this causes unintended wrapping on flex containers that should stay inline (like button icon+text). Replace with a targeted utility.
+Update the Card base styles for better depth separation:
+- Add `shadow-sm` to default card class
+- Ensure border uses low-opacity styling: `border-border/50`
+- Keep existing `rounded-lg` (matches 8-12px radius goal)
 
-### 2. Tooltip (`src/components/ui/tooltip.tsx`)
+---
 
-Add `collisionPadding={8}` prop to `TooltipPrimitive.Content`. This enables Radix's built-in flip+shift collision detection with 8px viewport padding. Also add `max-w-[calc(100vw-24px)]` to the className to cap width on small screens.
+## 3. Spacing and Breathing Room (`src/index.css`)
 
-### 3. Popover (`src/components/ui/popover.tsx`)
+Add a utility class for consistent section spacing and update main content padding:
+- `main` padding in `AppLayout.tsx`: increase from `p-3 md:p-6` to `p-4 md:p-8`
+- Add `.section-gap` utility: `@apply space-y-6 md:space-y-8`
 
-Add `collisionPadding={8}` prop to `PopoverPrimitive.Content`. Add `max-w-[calc(100vw-24px)]` to className.
+---
 
-### 4. Dropdown Menu (`src/components/ui/dropdown-menu.tsx`)
+## 4. Button System Consistency (`src/components/ui/button.tsx`)
 
-Add `collisionPadding={8}` to `DropdownMenuContent`. Add `max-w-[calc(100vw-24px)]` and `max-h-[calc(100vh-24px)] overflow-y-auto` to className. Same for `DropdownMenuSubContent`.
+Refine button variants for premium feel:
+- **Default (primary)**: Add `shadow-sm hover:shadow-md` and `hover:brightness-110`
+- **Destructive**: Add `shadow-sm` for depth
+- Keep existing active scale (`active:scale-[0.98]`)
+- Ensure transitions use `duration-200 ease-in-out`
 
-### 5. Context Menu (`src/components/ui/context-menu.tsx`)
+---
 
-Add `collisionPadding={8}` to `ContextMenuContent`. Add `max-w-[calc(100vw-24px)]` to className. Same for sub-content.
+## 5. Table Refinement (`src/components/ui/table.tsx`)
 
-### 6. Select (`src/components/ui/select.tsx`)
+- Strengthen row hover: `hover:bg-muted/60` (up from `hover:bg-muted/50`)
+- Add `transition-colors duration-150` to rows
+- Add `min-w-0` to table wrapper for flex containment
 
-The Select content already uses Radix portal. Add `max-w-[calc(100vw-24px)]` and `max-h-[calc(100vh-24px)]` constraints to `SelectContent` className.
+---
 
-### 7. Menubar (`src/components/ui/menubar.tsx`)
+## 6. Dialog Backdrop Enhancement (`src/components/ui/dialog.tsx`)
 
-Add `collisionPadding={8}` to `MenubarContent`. Add `max-w-[calc(100vw-24px)]` to className.
+- Add `backdrop-blur-sm` to `DialogOverlay`
+- Already has viewport constraints from previous hardening -- no changes needed there
 
-### 8. Hover Card (`src/components/ui/hover-card.tsx`)
+---
 
-Add `collisionPadding={8}` to `HoverCardPrimitive.Content`. Add `max-w-[calc(100vw-24px)]` to className.
+## 7. Header Refinement (`src/components/AppHeader.tsx`)
 
-### 9. Dialog (`src/components/ui/dialog.tsx`)
+- Add subtle bottom shadow: `shadow-sm` alongside border
+- Add `backdrop-blur-sm` for glass effect when scrolling behind gradient orbs
 
-Already has `w-[calc(100vw-2rem)]` and `max-h-[calc(100vh-2rem)]` -- these are correct. Add `overflow-wrap: break-word` via className for long text safety (already handled by global CSS rule above).
+---
 
-### 10. Alert Dialog (`src/components/ui/alert-dialog.tsx`)
+## 8. Sidebar Depth (`src/components/AppSidebar.tsx`)
 
-Add mobile viewport safety: `w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-lg` to match Dialog's existing pattern.
+- Replace gradient background with simpler `bg-sidebar` (which will now be distinctly darker)
+- Reduce glow orb opacity from `/20` and `/15` to `/10` and `/8` for subtlety
+- Reduce the `animate-pulse-glow` box-shadow intensity by ~15%
 
-### 11. Sheet (`src/components/ui/sheet.tsx`)
+---
 
-Already uses `w-3/4 sm:max-w-sm` -- safe. Add `overflow-y-auto` to content to prevent tall content from extending past viewport.
+## 9. Global Animation Tuning (`src/index.css` + `tailwind.config.ts`)
 
-### 12. Toast (`src/components/ui/toast.tsx`)
+- Standardize transition durations: update `fade-in` from `0.5s` to `0.3s`, `slide-in-left/right` from `0.5s` to `0.3s`
+- Ensure all use `ease-in-out` or custom cubic-bezier
+- Reduce `pulse-glow` shadow intensity from `0.3/0.5` to `0.25/0.4`
 
-Already constrained via viewport component (`md:max-w-[420px]`). Add `max-w-[calc(100vw-2rem)]` to the Toast component itself to prevent overflow on very small screens.
+---
+
+## 10. Layout Padding (`src/components/AppLayout.tsx`)
+
+- Increase main content padding from `p-3 md:p-6` to `p-4 md:p-8` for more breathing room
+- Apply to both employer and candidate layouts
 
 ---
 
 ## Files Changed
 
-1. `src/index.css` -- Global containment CSS rules
-2. `src/components/ui/tooltip.tsx` -- collisionPadding + max-width
-3. `src/components/ui/popover.tsx` -- collisionPadding + max-width
-4. `src/components/ui/dropdown-menu.tsx` -- collisionPadding + max-width on content + sub-content
-5. `src/components/ui/context-menu.tsx` -- collisionPadding + max-width on content + sub-content
-6. `src/components/ui/select.tsx` -- viewport constraints
-7. `src/components/ui/menubar.tsx` -- collisionPadding + max-width on content + sub-content
-8. `src/components/ui/hover-card.tsx` -- collisionPadding + max-width
-9. `src/components/ui/alert-dialog.tsx` -- mobile viewport safety
-10. `src/components/ui/sheet.tsx` -- overflow-y-auto
-11. `src/components/ui/toast.tsx` -- mobile max-width
+1. **`src/index.css`** -- Dark theme color tokens, glow intensity, animation durations, section spacing utility
+2. **`tailwind.config.ts`** -- Animation duration tuning (fade-in, slide-in)
+3. **`src/components/ui/card.tsx`** -- Add shadow and border refinement
+4. **`src/components/ui/button.tsx`** -- Add shadow states and transition tuning
+5. **`src/components/ui/table.tsx`** -- Stronger hover, transition, flex containment
+6. **`src/components/ui/dialog.tsx`** -- Backdrop blur on overlay
+7. **`src/components/AppHeader.tsx`** -- Shadow and backdrop-blur
+8. **`src/components/AppSidebar.tsx`** -- Reduce glow intensity
+9. **`src/components/AppLayout.tsx`** -- Increase main content padding
 
 ## What stays unchanged
-- Dialog -- already has correct containment
-- Drawer -- already has max-h-[90vh] and overflow handling
-- Responsive Dialog -- delegates to Dialog/Drawer, inherits fixes
-- All component consumers -- zero changes needed, fixes are at the primitive level
+- All page components (Dashboard, Jobs, Applicants, etc.) -- they inherit changes from tokens
+- All modal/dialog consumers -- inherit from base Dialog
+- Tooltip, Popover, Dropdown -- already hardened in previous pass
+- Auth pages, landing page -- separate light/dark theme
+- Sidebar navigation structure and logic
+- Mobile responsive behavior
 
-## Key Technical Detail
-
-Radix's `collisionPadding` prop (available on Tooltip, Popover, DropdownMenu, ContextMenu, HoverCard, and Menubar content) activates the built-in Floating UI collision detection. Setting it to `8` means the element will flip sides and shift position to stay at least 8px from any viewport edge. This is the proper way to handle repositioning -- no custom JS needed.
+## Why this works
+By changing CSS custom properties and base component styles, every page and modal in the Employer Portal automatically gets the refinement without touching individual page files. This is a true design system approach.
 
