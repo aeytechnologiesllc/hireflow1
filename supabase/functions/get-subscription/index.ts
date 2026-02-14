@@ -33,6 +33,50 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    // Check user role — candidates get free unlimited access
+    const { data: roleData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (roleData?.role === 'candidate') {
+      console.log("Candidate user detected — returning free access, skipping all subscription logic");
+      return new Response(JSON.stringify({
+        subscription: {
+          id: 'candidate_free',
+          user_id: user.id,
+          plan_type: 'candidate_free',
+          status: 'active',
+          onboarding_completed: true,
+          trial_end: null,
+          trial_start: null,
+          current_period_end: null,
+          current_period_start: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
+        limits: {
+          jobs: -1,
+          applicants: -1,
+          documents: -1,
+          teamMembers: -1,
+          aiAnalyses: -1,
+          voiceMinutes: 0,
+          hasAdvancedAnalytics: false,
+          hasTeamPortal: false,
+          hasDocuments: false,
+          hasPrioritySupport: false,
+          hasVoiceAssistant: false,
+          hasVoiceInterviews: false,
+        },
+        voiceCredits: { totalMinutesAvailable: 0, credits: [] },
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Get subscription
     const { data: subscription, error: subError } = await supabaseClient
       .from("subscriptions")

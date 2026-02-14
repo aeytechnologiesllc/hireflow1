@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
@@ -180,6 +181,28 @@ export default function AppLayout() {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
+  // ═══════════════════════════════════════════════════════
+  // CANDIDATES: 100% free access — bypass ALL subscription logic
+  // ═══════════════════════════════════════════════════════
+  if (user && role === 'candidate') {
+    return <CandidateLayout
+      user={user}
+      isMobile={isMobile}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      handleToggleSidebar={handleToggleSidebar}
+      handleNavigate={handleNavigate}
+      handleTouchStart={handleTouchStart}
+      handleTouchMove={handleTouchMove}
+      handleTouchEnd={handleTouchEnd}
+      mainContentRef={mainContentRef}
+    />;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // EMPLOYERS & TEAM: Subscription-gated access below
+  // ═══════════════════════════════════════════════════════
+
   // Show loading while subscription is loading (non-developers only)
   if (subLoading) {
     return <AuthLoadingScreen variant={loadingVariant} />;
@@ -202,15 +225,12 @@ export default function AppLayout() {
     return <AuthLoadingScreen variant={loadingVariant} message="Activating your subscription..." />;
   }
 
-  // Show onboarding wizard for new users (role-specific)
+  // Show onboarding wizard for employers only
   if (hookNeedsOnboarding) {
-    if (role === 'candidate') {
-      return <CandidateOnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
-    }
     return <OnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
   }
 
-  // Show expired overlay for expired trials
+  // Show expired overlay for expired trials (employers only)
   if (isExpired) {
     return <TrialExpiredOverlay />;
   }
@@ -255,6 +275,106 @@ export default function AppLayout() {
             onMenuClick={handleToggleSidebar}
             isMobile={isMobile}
           />
+          <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// CandidateLayout: Renders the full app layout for candidates
+// with independent onboarding (no subscription dependency)
+// ═══════════════════════════════════════════════════════
+function CandidateLayout({
+  user,
+  isMobile,
+  sidebarOpen,
+  setSidebarOpen,
+  handleToggleSidebar,
+  handleNavigate,
+  handleTouchStart,
+  handleTouchMove,
+  handleTouchEnd,
+  mainContentRef,
+}: {
+  user: { id: string };
+  isMobile: boolean;
+  sidebarOpen: boolean;
+  setSidebarOpen: (v: boolean) => void;
+  handleToggleSidebar: () => void;
+  handleNavigate: () => void;
+  handleTouchStart: (e: React.TouchEvent) => void;
+  handleTouchMove: (e: React.TouchEvent) => void;
+  handleTouchEnd: () => void;
+  mainContentRef: React.RefObject<HTMLDivElement>;
+}) {
+  const [candidateNeedsOnboarding, setCandidateNeedsOnboarding] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("onboarding_completed")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && !data.onboarding_completed) {
+          setCandidateNeedsOnboarding(true);
+        }
+        setOnboardingLoading(false);
+      });
+  }, [user.id]);
+
+  const handleOnboardingComplete = async () => {
+    await supabase
+      .from("profiles")
+      .update({ onboarding_completed: true })
+      .eq("user_id", user.id);
+    setCandidateNeedsOnboarding(false);
+  };
+
+  if (onboardingLoading) {
+    return <AuthLoadingScreen variant="candidate" />;
+  }
+
+  if (candidateNeedsOnboarding) {
+    return <CandidateOnboardingWizard onComplete={handleOnboardingComplete} />;
+  }
+
+  return (
+    <TooltipProvider>
+      <div
+        className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <OfflineIndicator />
+        <GlobalNotificationToasts />
+        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
+
+        {isMobile && sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <AppSidebar
+          isOpen={sidebarOpen}
+          isMobile={isMobile}
+          onToggle={handleToggleSidebar}
+          onNavigate={handleNavigate}
+        />
+        <div
+          ref={mainContentRef}
+          className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
+        >
+          <AppHeader onMenuClick={handleToggleSidebar} isMobile={isMobile} />
           <main className="flex-1 p-3 md:p-6 overflow-auto overflow-x-hidden w-full max-w-full">
             <Outlet />
           </main>

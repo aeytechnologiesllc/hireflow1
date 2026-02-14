@@ -790,6 +790,7 @@ export type Database = {
           job_title: string | null
           linkedin_url: string | null
           location: string | null
+          onboarding_completed: boolean | null
           phone: string | null
           portfolio_url: string | null
           resume_url: string | null
@@ -819,6 +820,7 @@ export type Database = {
           job_title?: string | null
           linkedin_url?: string | null
           location?: string | null
+          onboarding_completed?: boolean | null
           phone?: string | null
           portfolio_url?: string | null
           resume_url?: string | null
@@ -848,6 +850,7 @@ export type Database = {
           job_title?: string | null
           linkedin_url?: string | null
           location?: string | null
+          onboarding_completed?: boolean | null
           phone?: string | null
           portfolio_url?: string | null
           resume_url?: string | null
