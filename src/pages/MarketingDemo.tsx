@@ -224,7 +224,7 @@ export default function MarketingDemo() {
   }, [isPlaying, totalDuration]);
 
   return (
-    <div className="fixed inset-0 bg-background overflow-hidden">
+    <div className="dark fixed inset-0 bg-[hsl(220,18%,10%)] overflow-hidden">
       {/* Animated background */}
       <div className="absolute inset-0">
         <motion.div 
