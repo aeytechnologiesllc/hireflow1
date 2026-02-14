@@ -1,48 +1,122 @@
 
-# Fix Stripe Webhook Signature Verification for Deno
 
-## Problem
-Your Stripe webhook endpoint is set up correctly in the Stripe Dashboard, and the `STRIPE_WEBHOOK_SECRET` is already saved. However, the webhook edge function uses `stripe.webhooks.constructEvent()` (synchronous, Node.js crypto), which can fail in the Deno runtime. It needs to use the async version with Deno's SubtleCrypto provider.
+# Role-Based Subscription Gating
 
-Additionally, after your previous payment, the `sync-subscription` function was never called (zero logs), meaning the `onComplete` callback from the embedded checkout didn't fire successfully. This could be a timing issue or the Stripe component not supporting `onComplete` as expected with this version.
+## Summary
+Candidates are incorrectly blocked by subscription/trial logic meant only for employers. This fix ensures candidates always have free access, employers follow the trial/subscription model, and team members depend on their employer's subscription.
 
 ## Changes
 
-### 1. Fix webhook signature verification (`supabase/functions/stripe-webhook/index.ts`)
-Replace the synchronous `constructEvent` with the async Deno-compatible version:
+### 1. `supabase/functions/get-subscription/index.ts` -- Role check for candidates
+
+Add a role lookup at the top of the function. If the user is a candidate, return a static "active" response immediately -- no trial record creation, no usage queries, no voice credit provisioning.
 
 ```text
-// Before (may fail in Deno)
-event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+// After authenticating the user, before any subscription logic:
+const { data: roleData } = await supabaseAdmin
+  .from('user_roles')
+  .select('role')
+  .eq('user_id', user.id)
+  .single();
 
-// After (Deno-compatible)
-event = await stripe.webhooks.constructEventAsync(
-  body,
-  signature,
-  webhookSecret,
-  undefined,
-  Stripe.createSubtleCryptoProvider()
-);
+if (roleData?.role === 'candidate') {
+  // Return free unlimited access -- skip ALL employer logic
+  return Response with:
+    subscription: { status: 'active', plan_type: 'candidate_free', onboarding_completed: true }
+    usage: all zeros
+    limits: all unlimited (-1)
+    voiceCredits: { totalMinutesAvailable: 0, credits: [] }
+}
 ```
 
-### 2. Add retry logic to EmbeddedCheckoutDialog (`src/components/subscription/EmbeddedCheckoutDialog.tsx`)
-The `onComplete` callback may not fire reliably. Add a polling fallback: after the checkout form loads, periodically check if the subscription has been synced. Also add a manual "Refresh" button so users can trigger sync themselves if needed.
+This prevents trial records from ever being created for candidates.
 
-### 3. Manually fix your current subscription
-Since the webhook wasn't working when you paid, I'll note that once the webhook fix is deployed, future payments will work automatically. For your current payment, clicking "Refresh access" on the trial-expired screen should call `sync-subscription` which checks Stripe directly by email -- this should pick up your active subscription.
+### 2. `src/components/AppLayout.tsx` -- Bypass subscription gates for candidates
 
-## Technical Details
+After the auth loading check and developer redirect, add a candidate bypass **before** any subscription-related checks:
 
-### Webhook function changes:
-- Make the handler `async` for `constructEventAsync`
-- Use `Stripe.createSubtleCryptoProvider()` for Deno compatibility
-- Keep the fallback JSON parse when no webhook secret is configured (dev mode)
+```text
+// After: if (loading) return <AuthLoadingScreen />
+// After: developer redirect logic
 
-### EmbeddedCheckoutDialog changes:
-- Add a small delay (3 seconds) after `onComplete` fires before syncing, to give Stripe time to finalize
-- Add a "Having trouble? Click to refresh" link as manual fallback
-- Keep existing fallback sync on dialog close
+// NEW: Candidates bypass ALL subscription logic
+if (role === 'candidate') {
+  // Check candidate-specific onboarding (via profile, not subscription)
+  // Then render normal layout directly
+  return <TooltipProvider>...<Outlet />...</TooltipProvider>
+}
+
+// Only employers/team reach these checks:
+if (subLoading) return loading screen
+if (isSyncingSubscription) return sync screen
+if (hookNeedsOnboarding) return OnboardingWizard (employer only)
+if (isExpired) return TrialExpiredOverlay
+```
+
+For candidate onboarding, we check a profile field (`onboarding_completed`) instead of the subscription table, so it works independently.
+
+### 3. `src/components/AppLayout.tsx` -- Candidate onboarding via profile
+
+Since candidates no longer go through subscription logic, their onboarding wizard needs its own trigger. We'll use a simple profile query to check if onboarding is completed:
+
+```text
+// For candidates only:
+const [candidateNeedsOnboarding, setCandidateNeedsOnboarding] = useState(false);
+
+useEffect(() => {
+  if (role === 'candidate' && user) {
+    // Check profiles table for onboarding status
+    supabase.from('profiles').select('onboarding_completed')
+      .eq('user_id', user.id).single()
+      .then(({ data }) => {
+        if (data && !data.onboarding_completed) setCandidateNeedsOnboarding(true);
+      });
+  }
+}, [role, user]);
+```
+
+If `candidateNeedsOnboarding` is true, show `CandidateOnboardingWizard`. On completion, update profiles table and dismiss the wizard.
+
+### 4. `src/pages/TeamPortal.tsx` -- Check employer subscription
+
+Add employer subscription validation to the Team Portal. After fetching the team membership, check if the employer's subscription is active:
+
+```text
+// After fetching memberData with employer_id:
+const { data: employerSub } = await supabase
+  .from('subscriptions')
+  .select('status, plan_type')
+  .eq('user_id', memberData.employer_id)
+  .maybeSingle();
+
+if (!employerSub || employerSub.status === 'expired') {
+  setEmployerExpired(true);  // New state variable
+  return;
+}
+```
+
+When `employerExpired` is true, render a clean blocked screen:
+> "Your employer's subscription has expired. Please contact your account administrator."
+
+Team members never see billing UI -- just this informational message.
+
+### 5. Database: Add `onboarding_completed` to profiles (if not exists)
+
+A migration to add the column to the profiles table so candidate onboarding works independently of the subscriptions table:
+
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS onboarding_completed boolean DEFAULT false;
+```
 
 ## Files Changed
-1. `supabase/functions/stripe-webhook/index.ts` -- Fix `constructEvent` to async Deno-compatible version
-2. `src/components/subscription/EmbeddedCheckoutDialog.tsx` -- Add delay + manual refresh fallback
+1. `supabase/functions/get-subscription/index.ts` -- Add candidate role check, return free access
+2. `src/components/AppLayout.tsx` -- Candidate bypass before subscription gates, independent onboarding
+3. `src/pages/TeamPortal.tsx` -- Employer subscription check, expired screen
+4. Database migration -- Add `onboarding_completed` to profiles
+
+## Expected Result
+- **Candidates**: Always free access. Never see trial/subscription screens. Onboarding works via profile flag.
+- **Employers**: Trial and subscription enforced as before. No changes to billing logic.
+- **Team members**: Access depends on employer subscription. Clean "expired" message if employer lapses.
+- **No cross-role leakage**: Candidates never get trial records. Team members never see billing UI.
