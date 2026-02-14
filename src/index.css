@@ -131,6 +131,18 @@
   }
 }
 
+/* Global floating element containment */
+[data-radix-popper-content-wrapper] {
+  max-width: calc(100vw - 16px) !important;
+}
+
+[data-radix-menu-content],
+[data-radix-popper-content-wrapper] *,
+[role="dialog"] * {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -527,10 +539,7 @@
 
 /* Global mobile button sizing - smaller text and padding on small screens */
 @media (max-width: 640px) {
-  /* Flex containers wrap by default on mobile */
-  .flex {
-    flex-wrap: wrap;
-  }
+/* Flex containers: removed aggressive wrap rule to prevent icon+text breakage */
   
   /* Smaller buttons on mobile */
   button:not([data-size="icon"]), 
