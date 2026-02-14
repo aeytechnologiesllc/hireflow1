@@ -90,11 +90,10 @@ export function useSubscription() {
           countryCode,
           interval,
           successUrl: `${window.location.origin}/settings?subscription=success`,
-          cancelUrl: `${window.location.origin}/settings?subscription=canceled`,
         },
       });
       if (error) throw error;
-      return data;
+      return data as { clientSecret: string };
     },
   });
 

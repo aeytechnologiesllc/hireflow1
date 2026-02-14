@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
@@ -59,19 +60,20 @@ export function LimitReachedDialog({
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
 
   const limitInfo = limitLabels[limitType];
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
     try {
-      const { url } = await createCheckoutSession.mutateAsync({
+      const { clientSecret } = await createCheckoutSession.mutateAsync({
         planType,
         countryCode: pricing.countryCode,
         interval: billingInterval,
       });
-      if (url) {
-        window.open(url, "_blank");
+      if (clientSecret) {
+        setCheckoutClientSecret(clientSecret);
       }
     } catch (error) {
       console.error("Checkout error:", error);
@@ -82,6 +84,10 @@ export function LimitReachedDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <EmbeddedCheckoutDialog
+        clientSecret={checkoutClientSecret}
+        onClose={() => setCheckoutClientSecret(null)}
+      />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
