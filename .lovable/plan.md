@@ -1,125 +1,80 @@
 
 
-# Move OAuth Role Assignment to Backend
+# Premium Subscription Success Experience
 
-## Problem
-Google OAuth overwrites `raw_user_meta_data`, so the `handle_new_user` trigger defaults new users to `candidate`. The current fix uses `localStorage` + `onAuthStateChange` to correct this on the frontend, which is fragile and race-condition-prone.
+## Overview
+Replace the basic "Payment Successful!" screen and toast with a premium, celebratory modal that reinforces value and drives immediate action.
 
-## Solution
-Move role assignment entirely to the backend using a secure RPC function. Remove all frontend role correction logic.
+## Where It Triggers
 
-## Changes
+The success modal will be shown in two places where subscription activation happens:
 
-### 1. Database Migration -- Create `assign_user_role` RPC + Update trigger
+1. **EmbeddedCheckoutDialog** -- After Stripe embedded checkout completes (the `paymentComplete` state). Replace the current plain green checkmark screen with the new premium success component.
+2. **Settings.tsx** -- After Stripe redirect returns with `?subscription=success`. Replace the toast with the premium success modal.
 
-**Create a new `assign_user_role` function:**
-- Accepts a `p_role` text parameter
-- Uses `auth.uid()` to identify the caller
-- Only inserts a role if no role exists yet (never overwrites)
-- Validates input: only `'employer'` is accepted explicitly; everything else defaults to `'candidate'`
-- Marked `SECURITY DEFINER` so it bypasses RLS
+Both paths store a `subscription_success_shown` flag in localStorage keyed by user ID to prevent re-showing on refresh.
 
-**Modify `handle_new_user` trigger:**
-- Remove the `INSERT INTO user_roles` line
-- Keep only the `INSERT INTO profiles` line
-- For email/password signups, role will still come through via the new `/auth/callback` route calling the RPC (the `role` metadata is passed in the redirect URL)
+## New Component: `SubscriptionSuccessModal`
 
-### 2. New page: `src/pages/AuthCallback.tsx`
+**File**: `src/components/subscription/SubscriptionSuccessModal.tsx`
 
-A lightweight callback page mounted at `/auth/callback` that:
-1. Waits for the session to be established
-2. Reads `role` from URL query params (`?role=employer` or `?role=candidate`)
-3. Calls `supabase.rpc('assign_user_role', { p_role: role })` to assign the role on the backend
-4. Navigates to the appropriate dashboard (`/dashboard` for employers, `/apply` for candidates)
+A self-contained modal with:
 
-### 3. Update `src/App.tsx` -- Add callback route
+- **Dark glass backdrop** with subtle background blur
+- **Animated success checkmark** using the existing `PremiumOrb` component (mode="success") with a smooth scale-in entrance
+- **Headline**: Dynamic based on plan type (e.g., "Welcome to the Growth Plan!")
+- **Subtext**: "Your hiring engine is now fully unlocked."
+- **Benefits list** with staggered fade-in animation (using existing `staggerContainer`/`staggerItem` from `src/lib/animations.ts`):
+  - Unlimited job postings
+  - Advanced applicant filtering
+  - Team collaboration tools
+  - Interview scheduling
+  - Priority support
+- **Primary CTA**: "Start Posting Jobs" button routing to `/jobs`
+- **Secondary link**: "View Plan Details" routing to `/settings?tab=subscription`
+- **Subtle emerald sparkle particles** (adapted from the existing `RisingSparkles` pattern in PremiumCelebration but with emerald/teal colors instead of gold, and fewer particles for subtlety)
+- **Auto-dismiss** after 8 seconds if no user interaction (mouse movement or click resets the timer)
 
-Add: `<Route path="/auth/callback" element={<AuthCallback />} />`
-
-### 4. Update `src/hooks/useAuth.tsx` -- Remove localStorage logic
-
-**`signInWithGoogle` function:**
-- Remove `localStorage.setItem("intended_oauth_role", ...)`
-- Change `redirectTo` to include the role as a URL parameter: `/auth/callback?role=employer` or `/auth/callback?role=candidate`
-
-**`onAuthStateChange` handler:**
-- Remove the entire `intended_oauth_role` localStorage block (lines 61-83)
-- Keep `fetchUserRole()` and `checkTeamMembership()` calls
-
-### 5. Update `src/pages/Auth.tsx` -- Update Google redirect
-
-Change `handleGoogleSignIn` to pass redirect URL as `/auth/callback?role=employer` instead of `/dashboard`.
-
-### 6. Update `src/pages/CandidateAuth.tsx` -- Update Google redirect
-
-Change `handleGoogleSignIn` to pass redirect URL as `/auth/callback?role=candidate` instead of `/apply`.
-
-## Technical Details
-
-**New RPC function SQL:**
+### Props
 ```text
-create or replace function public.assign_user_role(p_role text)
-returns void
-language plpgsql
-security definer
-set search_path = 'public'
-as $$
-begin
-  if not exists (
-    select 1 from user_roles where user_id = auth.uid()
-  ) then
-    insert into user_roles (user_id, role)
-    values (
-      auth.uid(),
-      case when p_role = 'employer' then 'employer'::app_role
-           else 'candidate'::app_role
-      end
-    );
-  end if;
-end;
-$$;
+interface SubscriptionSuccessModalProps {
+  planType: string;          // "growth" | "business"
+  onClose: () => void;       // Callback when modal is dismissed
+}
 ```
 
-**Updated trigger (role assignment removed):**
-```text
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-BEGIN
-  INSERT INTO public.profiles (user_id, email, full_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data ->> 'full_name', '')
-  );
-  RETURN NEW;
-END;
-$$;
-```
+## Changes to Existing Files
 
-**Note on email/password signups:** These still pass `role` in `raw_user_meta_data`. Since the trigger no longer reads it, the `/auth/callback` route handles role assignment for all signup methods. The `signUp` function's `emailRedirectTo` will also be updated to point to `/auth/callback?role=<role>`.
+### 1. `src/components/subscription/EmbeddedCheckoutDialog.tsx`
+- When `paymentComplete` becomes true, instead of showing the inline checkmark screen, render `SubscriptionSuccessModal` with the synced plan type
+- The modal's `onClose` calls `handleOpenChange(false)` to close everything
+
+### 2. `src/pages/Settings.tsx`
+- Add state: `showSubscriptionSuccess` and `successPlanType`
+- In the existing `useEffect` for `?subscription=success`, after successful sync:
+  - Check localStorage for `subscription_success_shown_{userId}` -- if not set, show the modal and set the flag
+  - Remove the `toast.success()` call (keep `toast.error()` for failures as fallback)
+- Render `SubscriptionSuccessModal` when `showSubscriptionSuccess` is true
+
+## Visual Design Details
+
+- **Background**: Fixed overlay with `backdrop-blur-sm` and dark semi-transparent background
+- **Modal card**: `bg-gray-900/95 border border-emerald-500/20` with subtle emerald glow shadow
+- **Checkmark orb**: Uses existing `PremiumOrb` with `mode="success"` (emerald gradient)
+- **Benefits checkmarks**: Emerald-colored check icons
+- **CTA button**: Dark background with emerald glow effect (matching existing premium button style from `pulsingGlowWithScale` animation)
+- **Typography**: White headline, muted-foreground subtext
+- **Mobile**: Full-width with padding, scrollable if needed
 
 ## Files Changed
-1. Database migration -- `assign_user_role` RPC + updated `handle_new_user` trigger
-2. `src/pages/AuthCallback.tsx` -- New callback page
-3. `src/App.tsx` -- Add `/auth/callback` route
-4. `src/hooks/useAuth.tsx` -- Remove localStorage logic, update redirects
-5. `src/pages/Auth.tsx` -- Update Google OAuth redirect URL
-6. `src/pages/CandidateAuth.tsx` -- Update Google OAuth redirect URL
+1. **Create**: `src/components/subscription/SubscriptionSuccessModal.tsx`
+2. **Edit**: `src/components/subscription/EmbeddedCheckoutDialog.tsx` -- Use new modal instead of plain success screen
+3. **Edit**: `src/pages/Settings.tsx` -- Show modal instead of toast on redirect success
 
 ## What stays unchanged
-- Existing users' roles are never modified
-- Email/password signup continues to work (role passed via redirect URL)
-- Subscription logic untouched
-- Team member join flow untouched (no role passed, defaults to candidate)
+- Stripe checkout flow and sync logic
+- Subscription data fetching
+- Error handling (toast.error remains as fallback)
+- EmbeddedCheckout payment form itself
+- All other subscription components
 
-## Expected Result
-- Employer Portal + new Google user --> role = `employer` (immediately, no race condition)
-- Candidate Portal + new Google user --> role = `candidate` (immediately)
-- Existing users --> no change
-- No localStorage dependency
-- No frontend role correction
-- Backend authoritative
