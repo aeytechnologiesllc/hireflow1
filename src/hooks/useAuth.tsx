@@ -57,32 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(async () => {
           const { user: verifiedUser } = await validateSession();
           if (verifiedUser) {
-            // Handle OAuth role assignment for new users
-            const intendedRole = localStorage.getItem("intended_oauth_role") as AppRole | null;
-            if (intendedRole) {
-              localStorage.removeItem("intended_oauth_role");
-              
-              // Check if user already has a role
-              const { data: existingRole } = await supabase
-                .from("user_roles")
-                .select("role")
-                .eq("user_id", verifiedUser.id)
-                .maybeSingle();
-              
-              // If no role exists (new user via OAuth), insert the intended role
-              if (!existingRole) {
-                await supabase
-                  .from("user_roles")
-                  .insert({ user_id: verifiedUser.id, role: intendedRole });
-              } else if (existingRole.role !== intendedRole) {
-                // Trigger created wrong default -- update to intended role
-                await supabase
-                  .from("user_roles")
-                  .update({ role: intendedRole })
-                  .eq("user_id", verifiedUser.id);
-              }
-            }
-            
             fetchUserRole(verifiedUser.id);
             checkTeamMembership(verifiedUser.id);
           }
@@ -187,15 +161,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
-    // Store intended role in localStorage before OAuth redirect
-    if (role) {
-      localStorage.setItem("intended_oauth_role", role);
-    }
+    // Role is now passed via redirect URL to /auth/callback
+    const callbackUrl = `${window.location.origin}/auth/callback?role=${role || 'candidate'}`;
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectTo || `${window.location.origin}/`,
+        redirectTo: callbackUrl,
       },
     });
 

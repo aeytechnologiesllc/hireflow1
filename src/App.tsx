@@ -47,6 +47,7 @@ import CandidatePortalLanding from "./pages/CandidatePortalLanding";
 import CandidateAuth from "./pages/CandidateAuth";
 import VerifyDocument from "./pages/VerifyDocument";
 import OAuthGoogleCallback from "./pages/OAuthGoogleCallback";
+import AuthCallback from "./pages/AuthCallback";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import DeveloperDashboard from "./pages/DeveloperDashboard";
@@ -84,6 +85,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/try-job-creator" element={<GuestJobCreator />} />
                 
                 {/* Candidate Portal (separate entry point) */}

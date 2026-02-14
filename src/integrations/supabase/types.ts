@@ -1170,6 +1170,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_user_role: { Args: { p_role: string }; Returns: undefined }
       get_team_member_permissions: {
         Args: { _employer_id: string; _user_id: string }
         Returns: {
