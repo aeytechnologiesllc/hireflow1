@@ -175,7 +175,7 @@ export default function TrialExpiredOverlay() {
                     className={`w-full ${
                       plan.popular
                         ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/25"
-                        : "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-gray-600 hover:border-emerald-500/50"
                     }`}
                     onClick={() => handleUpgrade(plan.id)}
                     disabled={loading !== null}
