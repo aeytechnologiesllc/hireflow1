@@ -1,32 +1,48 @@
 
-# Fix: Consistent Dark Theme Across All Pages
+
+# Fix: Force Dark Theme on All Public/Auth Pages
 
 ## Problem
-The auth page (and other pages) are rendering in light/white mode because the `ThemeProvider` in `App.tsx` has `enableSystem` enabled. When a user's operating system is set to light mode, it overrides the `defaultTheme="dark"` setting, causing pages like `/auth` to appear white instead of dark.
+The auth pages (`/auth`, `/candidate/auth`, `/candidate`) use `bg-background`, which references the theme CSS variable. When a user has previously toggled to light theme in the dashboard, that preference is stored in `localStorage` by `next-themes`. So when they later visit the sign-in page, it renders in light/white mode instead of dark.
 
-## Root Cause
-In `src/App.tsx` line 77:
-```tsx
-<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-```
-The `enableSystem` prop tells `next-themes` to use the OS preference, which can be "light" -- overriding the intended dark default.
+Removing `enableSystem` (done previously) only prevents OS preference from overriding -- it doesn't prevent a saved "light" theme choice from applying to public pages.
 
 ## Solution
-Remove `enableSystem` from the `ThemeProvider` so the app always starts in dark mode. Users can still toggle the theme via the ThemeToggle component inside the dashboard, but the landing page, auth pages, and all other pages will default to dark and stay dark unless explicitly changed.
+Force these public pages to always render in dark mode by wrapping their content in a `<div className="dark">` container and replacing `bg-background` with explicit dark background colors. This ensures they are always dark regardless of the stored theme preference.
 
 ## Changes
 
-**File: `src/App.tsx`** (line 77)
-- Remove `enableSystem` from the `ThemeProvider` props
-- Change from: `<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>`
-- Change to: `<ThemeProvider attribute="class" defaultTheme="dark">`
+### 1. `src/pages/Auth.tsx` (line 362)
+- Change outer div from:
+  ```tsx
+  <div className="min-h-screen bg-background relative overflow-hidden">
+  ```
+  to:
+  ```tsx
+  <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white relative overflow-hidden">
+  ```
 
-This single change ensures:
-- Landing page stays dark (already has hardcoded dark styles as backup)
-- Auth pages (`/auth`, `/candidate/auth`) render in dark mode
-- Candidate portal landing renders in dark mode
-- Dashboard and all authenticated pages default to dark
-- The ThemeToggle in the dashboard still works for users who want to switch
-- The theme toggle only affects the logged-in experience, not public pages
+### 2. `src/pages/CandidateAuth.tsx` (line 273)
+- Change outer div from:
+  ```tsx
+  <div className="min-h-screen bg-background relative overflow-hidden">
+  ```
+  to:
+  ```tsx
+  <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white relative overflow-hidden">
+  ```
 
-No other file changes are needed.
+### 3. `src/pages/CandidatePortalLanding.tsx` (line 27)
+- Change outer div from:
+  ```tsx
+  <div className="min-h-screen bg-background relative overflow-hidden">
+  ```
+  to:
+  ```tsx
+  <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white relative overflow-hidden">
+  ```
+
+## How It Works
+- The `dark` class on the container forces all child elements using theme variables (like `text-foreground`, `bg-card`, `border-border`) to resolve to their dark theme values
+- The explicit `bg-[hsl(220,18%,10%)]` ensures the background is always dark, matching the landing page aesthetic
+- This approach is scoped -- the dashboard's theme toggle continues to work independently for authenticated pages
