@@ -74,6 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 await supabase
                   .from("user_roles")
                   .insert({ user_id: verifiedUser.id, role: intendedRole });
+              } else if (existingRole.role !== intendedRole) {
+                // Trigger created wrong default -- update to intended role
+                await supabase
+                  .from("user_roles")
+                  .update({ role: intendedRole })
+                  .eq("user_id", verifiedUser.id);
               }
             }
             
