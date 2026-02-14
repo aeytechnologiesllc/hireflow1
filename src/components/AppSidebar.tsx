@@ -184,7 +184,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
   return (
     <aside className={cn(
       "flex flex-col transition-all duration-300 sidebar-gradient-border z-50",
-      "bg-gradient-to-b from-card via-card to-card/95",
+      "bg-sidebar",
       // Desktop: keep in normal layout flow
       !isMobile && "relative min-h-screen shrink-0",
       // Desktop: collapsed or expanded width
@@ -196,8 +196,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
       
       {/* Subtle glow orbs */}
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 rounded-full blur-3xl animate-glow-pulse pointer-events-none" />
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent/15 rounded-full blur-3xl animate-glow-pulse pointer-events-none" style={{ animationDelay: '2s' }} />
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/10 rounded-full blur-3xl animate-glow-pulse pointer-events-none" />
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent/8 rounded-full blur-3xl animate-glow-pulse pointer-events-none" style={{ animationDelay: '2s' }} />
 
       {/* Logo */}
       <div className={cn(
