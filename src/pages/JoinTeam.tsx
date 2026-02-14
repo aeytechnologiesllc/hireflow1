@@ -286,7 +286,7 @@ export default function JoinTeam() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white">
         <div className="flex flex-col items-center gap-4">
           <StaggeredBarsLoader size="lg" />
           <p className="text-muted-foreground">Loading invitation...</p>
@@ -297,7 +297,7 @@ export default function JoinTeam() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto p-3 rounded-full bg-destructive/10 w-fit mb-4">
@@ -326,7 +326,7 @@ export default function JoinTeam() {
       : "View Only";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -77,7 +77,7 @@ export default function VerifyDocument() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
         <div className="text-center space-y-4">
           <StaggeredBarsLoader size="lg" />
           <p className="text-muted-foreground">Verifying document...</p>
@@ -88,7 +88,7 @@ export default function VerifyDocument() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="pt-6 text-center">
             <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
@@ -103,7 +103,7 @@ export default function VerifyDocument() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 py-12 px-4">
+    <div className="dark min-h-screen bg-gradient-to-b from-[hsl(220,18%,10%)] to-[hsl(220,18%,14%)] text-white py-12 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-4">

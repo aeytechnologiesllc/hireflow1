@@ -37,7 +37,7 @@ export function AuthLoadingScreen({ variant = "employer", message }: AuthLoading
   }, [messages.length]);
 
   return (
-    <div className="fixed inset-0 bg-background z-50 flex items-center justify-center overflow-hidden">
+    <div className="dark fixed inset-0 bg-[hsl(220,18%,10%)] z-50 flex items-center justify-center overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0">
         <GradientOrbs count={4} />
