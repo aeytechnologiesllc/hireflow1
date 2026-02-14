@@ -25,7 +25,13 @@ serve(async (req) => {
     let event: Stripe.Event;
     
     if (webhookSecret && signature) {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        webhookSecret,
+        undefined,
+        Stripe.createSubtleCryptoProvider()
+      );
     } else {
       event = JSON.parse(body);
     }

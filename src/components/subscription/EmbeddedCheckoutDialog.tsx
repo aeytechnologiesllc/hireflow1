@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   EmbeddedCheckoutProvider,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 
 const stripePromise = loadStripe(
@@ -29,27 +29,47 @@ export default function EmbeddedCheckoutDialog({
   const { syncSubscription, refetch } = useSubscription();
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [manualSyncAvailable, setManualSyncAvailable] = useState(false);
+  const syncAttempted = useRef(false);
 
-  const handleComplete = useCallback(async () => {
-    console.log("[EmbeddedCheckout] Payment complete, syncing subscription...");
+  // Show manual sync button after 10 seconds as fallback
+  useEffect(() => {
+    if (!clientSecret || paymentComplete) return;
+    const timer = setTimeout(() => setManualSyncAvailable(true), 10000);
+    return () => clearTimeout(timer);
+  }, [clientSecret, paymentComplete]);
+
+  const doSync = useCallback(async () => {
     setIsSyncing(true);
     try {
+      // Small delay to let Stripe finalize the session
+      await new Promise(r => setTimeout(r, 3000));
       await syncSubscription.mutateAsync();
       await refetch();
       setPaymentComplete(true);
       console.log("[EmbeddedCheckout] Subscription synced successfully");
     } catch (e) {
-      console.error("[EmbeddedCheckout] Post-checkout sync error:", e);
-      // Still show success - the sync can be retried
-      setPaymentComplete(true);
+      console.error("[EmbeddedCheckout] Sync error:", e);
+      setPaymentComplete(true); // Still show success - webhook will handle it
     } finally {
       setIsSyncing(false);
     }
   }, [syncSubscription, refetch]);
 
+  const handleComplete = useCallback(async () => {
+    if (syncAttempted.current) return;
+    syncAttempted.current = true;
+    console.log("[EmbeddedCheckout] Payment complete callback fired");
+    await doSync();
+  }, [doSync]);
+
+  const handleManualSync = async () => {
+    console.log("[EmbeddedCheckout] Manual sync triggered");
+    await doSync();
+  };
+
   const handleOpenChange = async (open: boolean) => {
     if (!open) {
-      // Fallback sync on dialog close if payment wasn't already completed
       if (!paymentComplete) {
         try {
           await syncSubscription.mutateAsync();
@@ -59,6 +79,8 @@ export default function EmbeddedCheckoutDialog({
         }
       }
       setPaymentComplete(false);
+      setManualSyncAvailable(false);
+      syncAttempted.current = false;
       onClose();
     }
   };
@@ -82,12 +104,25 @@ export default function EmbeddedCheckoutDialog({
               </Button>
             </div>
           ) : (
-            <EmbeddedCheckoutProvider
-              stripe={stripePromise}
-              options={{ clientSecret, onComplete: handleComplete }}
-            >
-              <EmbeddedCheckout />
-            </EmbeddedCheckoutProvider>
+            <>
+              <EmbeddedCheckoutProvider
+                stripe={stripePromise}
+                options={{ clientSecret, onComplete: handleComplete }}
+              >
+                <EmbeddedCheckout />
+              </EmbeddedCheckoutProvider>
+              {manualSyncAvailable && !isSyncing && (
+                <div className="px-6 py-3 text-center border-t border-border">
+                  <button
+                    onClick={handleManualSync}
+                    className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Already paid? Click to refresh your access
+                  </button>
+                </div>
+              )}
+            </>
           )}
           {isSyncing && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
