@@ -1,31 +1,32 @@
 
-# Fix: White Buttons on Landing Page
+# Fix: Consistent Dark Theme Across All Pages
 
 ## Problem
-The "Hire Talent" and "Find a Job" buttons on the landing page (`/`) use `variant="outline"`, which applies `bg-background` from the theme's CSS variables. The landing page uses hardcoded dark colors (e.g., `hsl(220,18%,7%)`) outside the theme system. When the page first loads, the CSS variable `--background` can briefly resolve to white before the dark theme kicks in, causing the buttons to flash white.
+The auth page (and other pages) are rendering in light/white mode because the `ThemeProvider` in `App.tsx` has `enableSystem` enabled. When a user's operating system is set to light mode, it overrides the `defaultTheme="dark"` setting, causing pages like `/auth` to appear white instead of dark.
+
+## Root Cause
+In `src/App.tsx` line 77:
+```tsx
+<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+```
+The `enableSystem` prop tells `next-themes` to use the OS preference, which can be "light" -- overriding the intended dark default.
 
 ## Solution
-Override the background color on those two buttons explicitly with the landing page's dark color scheme, so they never depend on the theme variable.
+Remove `enableSystem` from the `ThemeProvider` so the app always starts in dark mode. Users can still toggle the theme via the ThemeToggle component inside the dashboard, but the landing page, auth pages, and all other pages will default to dark and stay dark unless explicitly changed.
 
 ## Changes
 
-**File: `src/pages/Index.tsx`** (lines 331-347)
+**File: `src/App.tsx`** (line 77)
+- Remove `enableSystem` from the `ThemeProvider` props
+- Change from: `<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>`
+- Change to: `<ThemeProvider attribute="class" defaultTheme="dark">`
 
-- On the "Hire Talent" button (line 333): add `bg-[hsl(220,18%,7%)]` to override the default `bg-background`
-- On the "Find a Job" button (line 342): add `bg-[hsl(220,18%,7%)]` to override the default `bg-background`
+This single change ensures:
+- Landing page stays dark (already has hardcoded dark styles as backup)
+- Auth pages (`/auth`, `/candidate/auth`) render in dark mode
+- Candidate portal landing renders in dark mode
+- Dashboard and all authenticated pages default to dark
+- The ThemeToggle in the dashboard still works for users who want to switch
+- The theme toggle only affects the logged-in experience, not public pages
 
-This ensures the buttons always match the landing page's dark background regardless of theme loading state.
-
-## Technical Details
-
-Current button code:
-```tsx
-<Button variant="outline" className="border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]">
-```
-
-Updated button code:
-```tsx
-<Button variant="outline" className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]">
-```
-
-Same pattern applied to the "Find a Job" button with its emerald colors.
+No other file changes are needed.
