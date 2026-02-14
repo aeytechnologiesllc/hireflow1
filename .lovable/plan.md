@@ -1,68 +1,76 @@
 
+# Fix: Subscription Not Activating After Payment
 
-# Embed Stripe Checkout Inside the App
+## Root Cause Analysis
 
-## Overview
-Use your Stripe test publishable key (`pk_test_51SYwD8...`) to embed the Stripe Checkout form directly in a dialog, so users never leave HireFlow to pay.
+After thorough investigation, I found **multiple issues** preventing the subscription from activating after payment:
 
-## Changes
+### Issue 1: Sync Only Triggers on Dialog Close
+The `EmbeddedCheckoutDialog` only calls `syncSubscription` when the user manually closes the dialog (`handleOpenChange(false)`). If the user refreshes the page, navigates away, or if there's any interruption, sync never happens. The Stripe `EmbeddedCheckout` component supports an `onComplete` callback that fires when payment succeeds -- we're not using it.
 
-### 1. Update `stripe-checkout` edge function
-Switch to embedded mode by adding `ui_mode: "embedded"` and replacing `success_url`/`cancel_url` with `return_url`. Return `clientSecret` instead of `url`.
+### Issue 2: No Auto-Sync on Return
+The checkout sends a `return_url` with `?subscription=success`, but **no code on the Settings page** detects this parameter to trigger a sync. So even if the user lands back on the settings page after payment, nothing happens.
 
-### 2. Create `EmbeddedCheckoutDialog` component
-New file: `src/components/subscription/EmbeddedCheckoutDialog.tsx`
-- Uses `loadStripe` with the publishable key
-- Wraps `EmbeddedCheckout` inside `EmbeddedCheckoutProvider`
-- Renders in a large dialog (full-width on mobile)
-- Shows loading spinner while form loads
-- On close, syncs subscription state
-
-### 3. Update `useSubscription` hook
-Change `createCheckoutSession` mutation to return `clientSecret` instead of `url`.
-
-### 4. Update 5 checkout trigger points
-Replace `window.open(url, "_blank")` with opening the embedded dialog:
-
-- **SubscriptionSettings.tsx** -- `handleUpgrade` opens embedded dialog
-- **TrialExpiredOverlay.tsx** -- `handleUpgrade` opens embedded dialog
-- **UpgradePrompt.tsx** -- `handleUpgrade` opens embedded dialog
-- **LimitReachedDialog.tsx** -- `handleUpgrade` opens embedded dialog
-- **AvaVoiceButton.tsx** -- `handleUpgrade` opens embedded dialog
-
-Each file gets:
-- A `checkoutClientSecret` state variable
-- The `EmbeddedCheckoutDialog` component rendered with that secret
-- The handler sets the secret instead of opening a new tab
-
-### Technical Details
-
-**Edge function key change:**
+### Issue 3: Malformed Return URL
+The return URL is constructed incorrectly:
 ```text
-// Before
-session = stripe.checkout.sessions.create({
-  success_url: ...,
-  cancel_url: ...,
-});
-return { url: session.url }
+successUrl = "https://domain.com/settings?subscription=success"
+return_url = successUrl + "?session_id={CHECKOUT_SESSION_ID}"
+Result:  "...?subscription=success?session_id=..." (double ?)
+```
+This should use `&` for the second parameter.
 
-// After
-session = stripe.checkout.sessions.create({
-  ui_mode: "embedded",
-  return_url: successUrl + "?session_id={CHECKOUT_SESSION_ID}",
-});
-return { clientSecret: session.client_secret }
+### Issue 4: Webhook Not Configured
+The `stripe-webhook` edge function exists and is deployed, but **no webhook endpoint is registered in the Stripe Dashboard**. This means Stripe never notifies your backend about successful payments. The webhook is the most reliable way to activate subscriptions (it works even if the user closes their browser).
+
+### Database Evidence
+Your subscription record shows:
+- `status: expired`, `plan_type: trial`
+- `stripe_customer_id: null`, `stripe_subscription_id: null`
+- This confirms the webhook never fired and sync was never called
+
+## Fixes
+
+### 1. Update EmbeddedCheckoutDialog -- Use onComplete callback
+Add Stripe's `onComplete` callback to automatically trigger sync the moment payment succeeds, without waiting for the user to close the dialog. Also add a success state UI so the user knows payment went through.
+
+### 2. Fix Return URL in stripe-checkout edge function
+Change the double `?` to properly append with `&`:
+```text
+Before: successUrl + "?session_id=..."
+After:  successUrl + "&session_id=..."
 ```
 
-**Stripe publishable key:** Stored directly in the `EmbeddedCheckoutDialog` component since it's a public key (safe for frontend).
+### 3. Add Auto-Sync on Settings Page
+When the Settings page loads with `?subscription=success` in the URL, automatically call `syncSubscription` to update the database. This handles the case where the embedded checkout redirects the user.
+
+### 4. Webhook Configuration (User Action Required)
+You'll need to register the webhook endpoint in your Stripe Dashboard:
+- URL: Your backend webhook function URL
+- Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
+- Then save the webhook signing secret as a backend secret
+
+This is the most reliable path since it works server-to-server without depending on the user's browser.
 
 ## Files Changed
-1. `supabase/functions/stripe-checkout/index.ts` -- Embedded mode
-2. `src/components/subscription/EmbeddedCheckoutDialog.tsx` -- New component
-3. `src/hooks/useSubscription.ts` -- Return clientSecret
-4. `src/components/subscription/SubscriptionSettings.tsx` -- Use embedded dialog
-5. `src/components/subscription/TrialExpiredOverlay.tsx` -- Use embedded dialog
-6. `src/components/subscription/UpgradePrompt.tsx` -- Use embedded dialog
-7. `src/components/subscription/LimitReachedDialog.tsx` -- Use embedded dialog
-8. `src/components/AvaVoiceButton.tsx` -- Use embedded dialog
+1. `src/components/subscription/EmbeddedCheckoutDialog.tsx` -- Add onComplete callback and success UI
+2. `supabase/functions/stripe-checkout/index.ts` -- Fix return URL
+3. `src/pages/Settings.tsx` -- Add auto-sync on `?subscription=success`
 
+## Technical Details
+
+### EmbeddedCheckoutDialog Changes
+```text
+- Add onComplete callback to EmbeddedCheckoutProvider options
+- When onComplete fires: call syncSubscription, show success message
+- Keep the existing dialog-close sync as a fallback
+- Add a success state with a "Continue" button
+```
+
+### Settings Page Changes
+```text
+- On mount, check for ?subscription=success in URL
+- If found, call syncSubscription automatically
+- Show a toast notification for the result
+- Remove the query parameter from URL after handling
+```
