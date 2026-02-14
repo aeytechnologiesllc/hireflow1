@@ -202,7 +202,7 @@ export default function TrialExpiredOverlay() {
           <div className="flex items-center justify-center gap-4">
             <Button
               variant="outline"
-              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 bg-gray-800"
               onClick={handleRefreshAccess}
               disabled={syncing}
             >
