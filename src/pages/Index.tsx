@@ -330,7 +330,7 @@ export default function Index() {
               <Link to="/auth">
                 <Button 
                   variant="outline" 
-                  className="border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
+                  className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
                 >
                   <Briefcase className="mr-2 h-4 w-4" />
                   Hire Talent
@@ -339,7 +339,7 @@ export default function Index() {
               <Link to="/candidate">
                 <Button 
                   variant="outline" 
-                  className="border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
+                  className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
                 >
                   <User className="mr-2 h-4 w-4" />
                   Find a Job
