@@ -100,6 +100,17 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
       {/* Main content */}
       <div className={`relative z-10 w-full max-w-2xl mx-auto flex flex-col ${isMobile ? 'flex-1 px-4 pt-3 pb-2' : 'px-4 py-8 items-center justify-center min-h-screen'}`}>
         
+        {/* Step indicators - inside flex layout on mobile */}
+        <div className={`flex justify-center gap-2 ${isMobile ? 'pb-2' : 'hidden'}`}>
+          {[0, 1, 2, 3].map((i) => (
+            <motion.div
+              key={i}
+              animate={{ scale: i === step ? 1 : 0.8, opacity: i === step ? 1 : 0.5 }}
+              className={`h-2 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-primary' : 'w-2 bg-muted'}`}
+            />
+          ))}
+        </div>
+
         {/* Step content */}
         <div className={`${isMobile ? 'flex-1 flex flex-col min-h-0' : ''}`}>
           <AnimatePresence mode="wait">
@@ -418,16 +429,18 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
           </AnimatePresence>
         </div>
 
-        {/* Step indicators */}
-        <div className={`flex justify-center gap-2 ${isMobile ? 'pt-2' : 'mt-10'}`}>
-          {[0, 1, 2, 3].map((i) => (
-            <motion.div
-              key={i}
-              animate={{ scale: i === step ? 1 : 0.8, opacity: i === step ? 1 : 0.5 }}
-              className={`h-2 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-primary' : 'w-2 bg-muted'}`}
-            />
-          ))}
-        </div>
+        {/* Desktop step indicators */}
+        {!isMobile && (
+          <div className="flex justify-center gap-2 mt-10">
+            {[0, 1, 2, 3].map((i) => (
+              <motion.div
+                key={i}
+                animate={{ scale: i === step ? 1 : 0.8, opacity: i === step ? 1 : 0.5 }}
+                className={`h-2 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-primary' : 'w-2 bg-muted'}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
