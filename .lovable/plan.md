@@ -1,178 +1,57 @@
 
 
-# Mobile Onboarding Overhaul -- Zero-Scroll, Viewport-Fit Design
+# Mobile Onboarding — Final Viewport Fixes
 
-## The Core Problem
+## What Was Found
 
-Both onboarding wizards (Employer and Candidate) use `min-h-screen` with `overflow-y-auto`, allowing content to extend beyond the viewport. On mobile devices (especially smaller iPhones like SE and standard Android phones), elements overflow, buttons get pushed off-screen, and users must scroll to find the action button. The onboarding should feel like swiping through premium cards -- everything visible, action button always reachable.
+After thorough review of both onboarding wizards, the overall implementation is solid. The `h-[100dvh]`, `overflow-hidden`, and `mt-auto` pattern is correctly applied across all steps. However, three specific issues remain that could cause overflow on the smallest screens (iPhone SE at 375x667):
 
----
+### Issue 1: Employer Step 4 — Hard `min-h-[500px]` on LaunchSequence wrapper
+**File:** `OnboardingWizard.tsx`, line 810
+The LaunchSequence celebration step has `min-h-[500px]` which is a fixed minimum height. On an iPhone SE (667px viewport), after subtracting padding (top 12px + bottom 8px), progress dots (~28px), and the "swipe to navigate" text (~20px), there's only ~600px available. The 500px min-height itself fits, but it prevents the content from shrinking if needed and the wrapper doesn't use `flex-1` to fill remaining space properly.
 
-## Design Principles
+**Fix:** Replace `min-h-[500px]` with `flex-1` on mobile so it fills remaining viewport space naturally, keep `min-h-[500px]` on desktop only.
 
-1. **100dvh viewport lock** -- Use `h-[100dvh]` (dynamic viewport height) instead of `min-h-screen`. This respects the iOS Safari address bar and Android Chrome toolbar, giving us the actual visible area.
-2. **Flex column with pinned CTA** -- Every step uses `flex flex-col` with the action button area pinned at the bottom via `mt-auto`, so it is always visible regardless of content above.
-3. **Content scales to fit** -- Icons, text, and spacing shrink on mobile. No step should need scrolling.
-4. **Progressive disclosure** -- On mobile, show less text per card (shorter descriptions or hide them) so content fits.
+### Issue 2: Employer Step 3 — Plan cards can stack too tall
+**File:** `OnboardingWizard.tsx`, line 728
+Two plan cards stacked vertically with 3 features each can exceed available space on iPhone SE. The `flex-1 min-h-0` on the grid container is correct, but the cards themselves don't have `overflow-hidden` so they won't clip.
 
----
+**Fix:** Add `overflow-hidden` to the plan grid on mobile so if content is slightly too tall, it clips rather than overflowing the viewport.
 
-## Phase 1: Shared Layout Foundation (Both Wizards)
+### Issue 3: Candidate step indicators outside flex layout
+**File:** `CandidateOnboardingWizard.tsx`, lines 421-430
+The step indicator dots are rendered after the `flex-1` content container. This means they add extra height (~24px) that's outside the flex calculation, potentially pushing the CTA button slightly off-screen on very small viewports.
 
-### Changes to `OnboardingWizard.tsx`
-
-**Outer container:**
-- Change from `fixed inset-0 ... overflow-y-auto ... py-6 md:py-8` to `fixed inset-0 ... h-[100dvh] overflow-hidden py-4 md:py-8`
-- On mobile: `overflow-hidden` prevents any scrolling
-- Inner content wrapper: `flex flex-col h-full` so steps can use `flex-1` and `mt-auto`
-
-**Background orbs:**
-- Reduce mobile orb sizes from 400px/350px/200px to 200px/150px/100px via responsive classes
-- Keeps the premium ambient feel without wasting GPU on invisible pixels
-
-**Progress indicators:**
-- Reduce `mb-8` to `mb-4` on mobile
-- Reduce dot sizes slightly
-
-### Changes to `CandidateOnboardingWizard.tsx`
-
-**Add `useIsMobile` hook** -- Currently missing entirely.
-
-**Outer container:**
-- Change from `min-h-screen ... overflow-y-auto p-4` to `fixed inset-0 h-[100dvh] overflow-hidden p-4`
-- Same flex column structure as employer wizard
-
-**Background orbs:**
-- Reduce sizes on mobile (same approach)
+**Fix:** Move the step indicators inside the main flex container (before the content area) so they're part of the flex layout calculation and don't add unexpected height.
 
 ---
 
-## Phase 2: Employer Onboarding -- Per-Step Mobile Fixes
+## Changes
 
-### Step 0: Welcome ("Hire Smarter, Not Harder")
+### File 1: `src/components/subscription/OnboardingWizard.tsx`
 
-Current issues: 180px outer rotating ring + 120px core orb + large title + paragraph + button = too tall.
+- **Line 810**: Change `min-h-[500px]` to use `flex-1` on mobile:
+  - From: `className="flex flex-col items-center justify-center min-h-[500px] w-full"`
+  - To: `className={`flex flex-col items-center justify-center w-full ${isMobile ? 'flex-1' : 'min-h-[500px]'}`}`
 
-Mobile fix:
-- Reduce orb from 120px to 72px, remove the outer dashed ring and middle pulsing ring on mobile (keep just the core orb with glow)
-- Remove orbiting particles on mobile (they add visual noise on small screens)
-- Title: `text-2xl` on mobile (down from `text-4xl`)
-- Subtitle: `text-base` on mobile (down from `text-xl`)
-- Reduce `mb-8` spacing to `mb-4`
-- Button pinned at bottom with `mt-auto`
+- **Line 728**: Add `overflow-hidden` to the plan grid on mobile:
+  - From: `className={`grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-4xl ${isMobile ? 'flex-1 min-h-0' : 'mb-8'}`}`
+  - To: `className={`grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-4xl ${isMobile ? 'flex-1 min-h-0 overflow-hidden' : 'mb-8'}`}`
 
-### Step 1: What Makes Us Different (Feature Cards)
+### File 2: `src/components/subscription/CandidateOnboardingWizard.tsx`
 
-Current issues: 2x2 grid with full descriptions + stat badges + rotation dots + CTA = requires scrolling.
-
-Mobile fix:
-- Switch from 2x2 grid to a **single active card** display on mobile -- show only the currently highlighted feature card with full detail, with small dot indicators below showing which card is active
-- This eliminates the need to show all 4 cards at once
-- Auto-rotation still works (already implemented)
-- Tap dots to manually switch
-- Card content area is compact: icon + title + description + stat in one centered card
-- CTA pinned at bottom
-
-### Step 2: How AVA Works (Journey Timeline)
-
-Current issues: 5 timeline steps + benefit callout + CTA = too much content.
-
-Mobile fix:
-- Reduce timeline card padding from `p-3` to `p-2`
-- Reduce step circle from `w-12 h-12` to `w-9 h-9`
-- Reduce gap between steps from `gap-4` to `gap-2`
-- Move the "AVA Difference" benefit callout into a compact single-line format (icon + short text) instead of the full card
-- Reduce or hide description text on cards (show only title)
-- CTA pinned at bottom
-
-### Step 3: Pricing/Trial
-
-Current issues: Trial badge + title + billing toggle + 2 plan cards with feature lists + CTA = massive scroll on mobile.
-
-Mobile fix:
-- Plan cards: Show condensed version on mobile -- plan name, price, and top 3 features only (hide the rest behind a "and X more" label)
-- Reduce plan card padding from `p-4 md:p-6` to `p-3`
-- Feature list items: tighter spacing (`space-y-1` on mobile vs `space-y-2`)
-- Stack plans vertically (already single column on mobile) but with less vertical space
-- CTA pinned at bottom
-
-### Step 4: Launch Sequence
-
-This step already uses `fixed inset-0` and centers content -- it works fine on mobile. No changes needed.
+- **Lines 100-101 + 420-430**: Move the step indicators from after the content div to inside the main flex container, right after the opening `div`, before the content area. This ensures they're part of the flex layout calculation.
+  - The indicators should be placed similarly to how the Employer wizard does it (before the `AnimatePresence` content block)
 
 ---
 
-## Phase 3: Candidate Onboarding -- Per-Step Mobile Fixes
+## What stays unchanged
+- All desktop layouts
+- All animation logic
+- All step content and copy
+- Swipe gesture handling
+- LaunchSequence component itself
+- Background orbs and effects
 
-### Step 0: Welcome ("Welcome to HireFlow")
-
-Current issues: 28x28 icon + large title + subtitle + paragraph + button + step dots = too tall on smaller phones.
-
-Mobile fix:
-- Reduce icon from `w-28 h-28` to `w-16 h-16` on mobile
-- Inner briefcase icon from `w-12 h-12` to `w-8 h-8`
-- Title: `text-2xl` on mobile (down from `text-4xl`)
-- Subtitle: `text-base` on mobile (down from `text-xl`)
-- Hide or merge the secondary paragraph into the subtitle
-- Reduce `space-y-8` to `space-y-4` on mobile
-- CTA pinned at bottom
-
-### Step 1: Features Showcase (2x2 Grid)
-
-Current issues: 2x2 grid with descriptions + back/continue buttons = overflows.
-
-Mobile fix:
-- Same approach as employer Step 1: switch to **single active card** display on mobile with dot indicators
-- Keeps the auto-rotation behavior
-- Much less vertical space needed
-- Back/Continue buttons pinned at bottom
-
-### Step 2: How It Works (Timeline)
-
-Current issues: 4 timeline steps with connecting line + back/continue buttons.
-
-Mobile fix:
-- Reduce step circle from `w-12 h-12` to `w-9 h-9`
-- Reduce spacing between steps (`py-4` to `py-2`)
-- Shorter description text or hide on mobile (title is enough)
-- Title: `text-2xl` on mobile (down from `text-3xl`)
-- Buttons pinned at bottom
-
-### Step 3: Ready ("You're All Set!")
-
-Current issues: 32x32 success icon + title + description + pro tip card + back/start buttons.
-
-Mobile fix:
-- Reduce icon from `w-32 h-32` to `w-20 h-20` on mobile
-- CheckCircle2 from `w-16 h-16` to `w-10 h-10`
-- Title: `text-2xl` on mobile
-- Pro tip card: reduce padding and text size
-- Buttons pinned at bottom
-
----
-
-## Phase 4: Testing and Edge Cases
-
-- Test on iPhone SE (375x667) -- the smallest common iOS screen
-- Test on iPhone 14/15 Pro (393x852) -- standard iOS
-- Test on standard Android (360x800, 412x915)
-- Verify iOS Safari dynamic viewport (address bar show/hide) works with `100dvh`
-- Verify swipe gestures still work on employer wizard
-- Verify confetti on candidate completion doesn't cause layout shift
-- Verify LaunchSequence overlay doesn't conflict with viewport lock
-
----
-
-## Files Changed
-
-1. **`src/components/subscription/OnboardingWizard.tsx`** -- Viewport lock, per-step mobile layout fixes for all 5 steps
-2. **`src/components/subscription/CandidateOnboardingWizard.tsx`** -- Add `useIsMobile`, viewport lock, per-step mobile layout fixes for all 4 steps
-
-## Files NOT Changed
-
-- `LaunchSequence.tsx` -- Already uses `fixed inset-0`, works fine
-- `useSwipeGesture.ts` -- Works correctly
-- `use-mobile.tsx` -- Works correctly
-- No global CSS changes needed
-- No new dependencies
-
+## Expected result
+Every step of both onboarding wizards will fit within the viewport on all mobile devices, including iPhone SE (375x667), with zero scrolling and CTA buttons always visible.
