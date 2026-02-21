@@ -692,22 +692,22 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               >
                 {/* Trial badge */}
                 <motion.div
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 ${isMobile ? 'mb-2' : 'mb-6'}`}
+                  className={`flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 ${isMobile ? 'mb-1' : 'mb-6'}`}
                   animate={{ boxShadow: ["0 0 20px hsl(var(--primary) / 0.2)", "0 0 40px hsl(var(--primary) / 0.4)", "0 0 20px hsl(var(--primary) / 0.2)"] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
-                  <Zap className={`text-primary ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
-                  <span className={`font-semibold text-primary ${isMobile ? 'text-sm' : ''}`}>7-Day Free Trial</span>
+                  <Zap className={`text-primary ${isMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
+                  <span className={`font-semibold text-primary ${isMobile ? 'text-xs' : ''}`}>7-Day Free Trial</span>
                 </motion.div>
 
-                <h2 className={`font-bold text-foreground mb-1 ${isMobile ? 'text-2xl' : 'text-3xl'}`}>Try Everything Free</h2>
-                <p className={`text-muted-foreground ${isMobile ? 'mb-3 text-sm' : 'mb-6'}`}>Full access. No credit card. No commitment.</p>
+                <h2 className={`font-bold text-foreground ${isMobile ? 'text-xl mb-0.5' : 'text-3xl mb-1'}`}>Try Everything Free</h2>
+                <p className={`text-muted-foreground ${isMobile ? 'mb-2 text-xs' : 'mb-6'}`}>Full access. No credit card. No commitment.</p>
 
                 {/* Billing Toggle */}
-                <div className={`flex items-center gap-1 p-1 rounded-full bg-muted/50 border border-border ${isMobile ? 'mb-3' : 'mb-8'}`}>
+                <div className={`flex items-center gap-1 p-0.5 rounded-full bg-muted/50 border border-border ${isMobile ? 'mb-2' : 'mb-8'}`}>
                   <button
                     onClick={() => setBillingInterval("monthly")}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                       billingInterval === "monthly" ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -715,20 +715,20 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   </button>
                   <button
                     onClick={() => setBillingInterval("yearly")}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1 ${
                       billingInterval === "yearly" ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     Yearly
-                    <span className="text-xs bg-background/20 px-1.5 py-0.5 rounded-full">Save 20%</span>
+                    <span className="text-[10px] bg-background/20 px-1 py-0.5 rounded-full">Save 2 months</span>
                   </button>
                 </div>
 
                 {/* Plans */}
-                <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-4xl ${isMobile ? 'flex-1 min-h-0' : 'mb-8'}`}>
+                <div className={`grid grid-cols-1 md:grid-cols-3 gap-2 w-full max-w-4xl ${isMobile ? 'flex-1 min-h-0 overflow-hidden' : 'mb-8'}`}>
                   {PLANS.map((plan, idx) => {
-                    const mobileFeatures = isMobile ? plan.features.slice(0, 3) : plan.features;
-                    const hiddenCount = isMobile ? plan.features.length - 3 : 0;
+                    const mobileFeatures = isMobile ? plan.features.slice(0, 2) : plan.features;
+                    const hiddenCount = isMobile ? plan.features.length - 2 : 0;
                     return (
                       <motion.div
                         key={plan.name}
@@ -736,7 +736,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.1 }}
                         whileHover={!isMobile ? { scale: 1.02, y: -4 } : {}}
-                        className={`relative p-3 md:p-6 rounded-2xl border transition-all ${
+                        className={`relative ${isMobile ? 'p-2.5' : 'p-3 md:p-6'} rounded-2xl border transition-all ${
                           plan.popular
                             ? "border-primary/50 bg-gradient-to-b from-primary/10 to-transparent shadow-[0_0_30px_hsl(var(--primary)/0.15)]"
                             : "border-border bg-card/50 hover:border-muted-foreground/30"
@@ -757,10 +757,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                           </div>
                         )}
                         
-                        <h3 className={`font-bold text-foreground ${isMobile ? 'text-base mb-2 mt-1' : 'text-xl mb-4'}`}>{plan.name}</h3>
+                        <h3 className={`font-bold text-foreground ${isMobile ? 'text-sm mb-1 mt-1' : 'text-xl mb-4'}`}>{plan.name}</h3>
                         
                         <div className="flex items-baseline gap-1 mb-1">
-                          <span className={`font-bold text-foreground ${isMobile ? 'text-2xl' : 'text-4xl'}`}>{plan.price}</span>
+                          <span className={`font-bold text-foreground ${isMobile ? 'text-xl' : 'text-4xl'}`}>{plan.price}</span>
                           <span className="text-muted-foreground text-sm">{plan.period}</span>
                         </div>
                         
@@ -791,7 +791,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                     <Button
                       size="lg"
                       onClick={() => setStep(4)}
-                      className={`bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl font-medium shadow-lg shadow-primary/25 ${isMobile ? 'px-8 py-5 text-base h-auto' : 'px-10 py-7 text-lg h-auto'}`}
+                      className={`bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl font-medium shadow-lg shadow-primary/25 ${isMobile ? 'px-6 py-4 text-sm h-auto' : 'px-10 py-7 text-lg h-auto'}`}
                     >
                       Start My Free Trial <ChevronRight className="h-5 w-5 ml-2" />
                     </Button>
@@ -807,7 +807,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center min-h-[500px] w-full"
+                className={`flex flex-col items-center justify-center w-full ${isMobile ? 'flex-1' : 'min-h-[500px]'}`}
               >
                 <LaunchSequence onComplete={handleComplete} />
               </motion.div>
