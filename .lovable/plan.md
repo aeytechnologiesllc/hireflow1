@@ -1,68 +1,47 @@
 
-# Premium Job Creation Workflow UI/UX Upgrade
 
-## Overview
+# Personality Fit Scoring + Multi-Correct Quiz Questions
 
-Upgrade the workflow step (step 4) of CreateJob.tsx and simplify the AvaWorkflowGenerationOverlay animation. Two files changed.
+## What Changes
 
-## File 1: `src/components/AvaWorkflowGenerationOverlay.tsx`
+Two improvements to the quiz system:
 
-### Simplify Animation
-- Remove the neural network visualization entirely (SVG connection lines, NEURAL_NODES array, node circles, data pulse dots, energy pulses)
-- Keep only: central AVA orb with progress ring, single rotating orbit ring around it, subtle background particles (reduce from 60 to 20)
-- Remove the 3 floating content cards (Application Questions / Screening Quiz / Workflow Phases) and all typing animation logic
+### 1. Personality/Situational Questions: "Fit Scoring" Instead of Right/Wrong
 
-### Add Smart Status Messages
-- Add a rotating status message below the orb that cycles through:
-  - "Analyzing job role..." (0-3s)
-  - "Generating screening questions..." (3-6s)
-  - "Designing skill assessments..." (6-9s)
-  - "Building hiring workflow..." (9-13s)
-  - "Finalizing workflow..." (13s+)
-- Each message fades in/out with AnimatePresence
-- Replace the phase system (awakening/creation/completion) with a simpler timer-based message index
+Instead of removing scoring entirely, personality and situational questions get **fit-based scoring**. The AI generates a `fit_context` field that describes what the ideal answer looks like for the role (e.g., "Remote role requires independent work preference"). AVA then uses this context during analysis to assess role compatibility -- not pass/fail.
 
-### Layout Fix
-- Ensure the title section ("Creating your workflow" + job title) has explicit `mt-10` spacing from the orb container
-- Orb container gets a fixed height so it doesn't overlap text
+**Edge function (`ai-generate-workflow/index.ts`)** prompt changes:
+- For `personality` and `situational` types: generate `correct_answer: null` and add a new field `fit_context` (string) describing what the ideal trait/preference is for this role
+- Example: `{"type": "personality", "question": "You prefer to work independently", "options": ["Strongly Agree", "Agree", "Neutral", "Disagree"], "correct_answer": null, "fit_context": "This remote role benefits from independent workers. Agree/Strongly Agree indicates strong fit.", "category": "work_style"}`
 
-## File 2: `src/pages/CreateJob.tsx`
+**Quiz scoring (`QuizPhase.tsx`)** changes:
+- In `calculateResults()`: skip `personality`, `situational`, and `work_style` types from the correct/incorrect tally (they don't affect the quiz score percentage)
+- In `answersSummary`: store these as `questionType: "fit"` with `isCorrect: null` and include the `fit_context` so AVA's backend analysis can evaluate compatibility
+- The candidate's answers are still recorded and passed to AVA for qualitative analysis in `trigger-ava-analysis`
 
-### Generate Button States (lines ~1762-1804)
-- **Before generation**: Keep current gradient button with "✨ Generate with AVA"
-- **While generating**: Disabled, "Generating with AVA..." (already works)
-- **After generation** (`workflowGenerated === true`): Change to secondary/outline variant, "↻ Regenerate Workflow". Remove the pulsing glow animation wrapper when workflow is already generated
+**Quiz preview in CreateJob.tsx**: Show "Fit-based" badge instead of correct answer highlight for these question types.
 
-### Success Confirmation (after generation completes)
-- Add a success banner at the top of the generated workflow section (line ~1811):
-  ```
-  ✓ Workflow generated successfully
-  Your hiring process is ready to review.
-  ```
-- Uses a motion.div that fades in, with green accent styling
-- Auto-dismisses after 5 seconds or stays until user scrolls past
+### 2. Multi-Correct Answers for Knowledge Questions
 
-### Group Workflow Sections with Headers (lines ~1810-2227)
-- Add subtle section group headers above the cards:
-  - `APPLICATION` header above Application Questions card
-  - `SCREENING` header above Quiz Questions card  
-  - `ASSESSMENTS` header above Additional Workflow Steps card
-- Headers styled as: `text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60 mb-2`
+Allow some multiple-choice questions to have 2 correct answers (multi-select).
 
-### Collapse Additional Workflow Steps
-- Wrap the workflow steps card content in a Collapsible component (already imported via radix)
-- Default state: collapsed, showing just "Additional Assessments ▼" with step count
-- Expanded: shows full step list + Add Step button
+**Edge function prompt** changes:
+- Add a new type: `multi_select` -- 4 options, 2 correct answers (20-30 seconds)
+- `correct_answer` becomes an array for this type: `"correct_answers": ["Option A", "Option C"]`
+- Instruct AI to generate ~15-20% of knowledge questions as multi-select
 
-### Simplify Quiz Question Preview (lines ~1939-2005)
-- In the AccordionTrigger, simplify to show: `{index + 1}. {truncatedQuestion}` + `{time}s • {category}` on the right
-- Remove the large amber icon box from the trigger, use just text
-- Keep the expanded AccordionContent unchanged
+**QuizPhase.tsx** changes:
+- Update `QuizQuestion` interface: add `correct_answers?: string[]` field
+- For `multi_select` type: render checkboxes instead of radio buttons, allow selecting multiple options
+- `handleAnswerSelect` stores an array of selected indices for multi-select questions
+- `calculateResults()`: for multi-select, award full credit if all correct answers selected (no extras), partial credit (0.5) if at least one correct selected
+- UI: show "Select all that apply" hint on multi-select questions
 
-### Mobile Spacing
-- Add `gap-6` between the section group headers and cards
-- Ensure minimum `space-y-6` between all workflow section cards
+**CreateJob.tsx preview**: show multi-select questions with a "Multi-select" badge and list all correct answers.
 
 ## Files Changed
-1. `src/components/AvaWorkflowGenerationOverlay.tsx` — simplified animation, smart status messages, layout fix
-2. `src/pages/CreateJob.tsx` — button states, success banner, section headers, collapsible assessments, simplified quiz preview
+
+1. `supabase/functions/ai-generate-workflow/index.ts` -- update prompt for fit_context on personality questions, add multi_select type
+2. `src/pages/QuizPhase.tsx` -- fit scoring logic, multi-select UI + scoring
+3. `src/pages/CreateJob.tsx` -- preview badges for fit-based and multi-select questions
+
