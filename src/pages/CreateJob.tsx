@@ -100,6 +100,8 @@ import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvent
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { RefreshCw } from "lucide-react";
 
 interface ApplicationQuestion {
   id: string;
@@ -1758,49 +1760,65 @@ export default function CreateJob() {
                         </p>
                       </div>
 
-                      {/* Generate with AVA Button - Pink/Purple gradient */}
+                      {/* Generate with AVA Button */}
                       <div className="flex justify-center sm:justify-end pt-2">
-                        <motion.div
-                          className="relative w-full sm:w-auto"
-                          animate={{
-                            boxShadow: [
-                              "0 0 20px -5px rgba(217, 70, 239, 0.4)",
-                              "0 0 35px -5px rgba(217, 70, 239, 0.6)",
-                              "0 0 20px -5px rgba(217, 70, 239, 0.4)"
-                            ]
-                          }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }}
-                          style={{ borderRadius: "0.5rem" }}
-                        >
+                        {workflowGenerated ? (
                           <Button
                             onClick={generateWorkflow}
                             disabled={isGeneratingWorkflow}
-                            className={cn(
-                              "gap-2 px-6 py-4 sm:py-3 relative overflow-hidden w-full sm:w-auto",
-                              "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
-                              "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
-                              "text-white font-semibold",
-                              "border-0"
-                            )}
-                            size="lg"
+                            variant="outline"
+                            className="gap-2 px-5"
                           >
                             {isGeneratingWorkflow ? (
                               <>
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                                <span>Generating...</span>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Regenerating...</span>
                               </>
                             ) : (
                               <>
-                                <Sparkles className="h-5 w-5" />
-                                <span>Generate with AVA</span>
+                                <RefreshCw className="h-4 w-4" />
+                                <span>Regenerate Workflow</span>
                               </>
                             )}
                           </Button>
-                        </motion.div>
+                        ) : (
+                          <motion.div
+                            className="relative w-full sm:w-auto"
+                            animate={{
+                              boxShadow: [
+                                "0 0 20px -5px rgba(217, 70, 239, 0.4)",
+                                "0 0 35px -5px rgba(217, 70, 239, 0.6)",
+                                "0 0 20px -5px rgba(217, 70, 239, 0.4)"
+                              ]
+                            }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                            style={{ borderRadius: "0.5rem" }}
+                          >
+                            <Button
+                              onClick={generateWorkflow}
+                              disabled={isGeneratingWorkflow}
+                              className={cn(
+                                "gap-2 px-6 py-4 sm:py-3 relative overflow-hidden w-full sm:w-auto",
+                                "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
+                                "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
+                                "text-white font-semibold border-0"
+                              )}
+                              size="lg"
+                            >
+                              {isGeneratingWorkflow ? (
+                                <>
+                                  <Loader2 className="h-5 w-5 animate-spin" />
+                                  <span>Generating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-5 w-5" />
+                                  <span>Generate with AVA</span>
+                                </>
+                              )}
+                            </Button>
+                          </motion.div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -1809,9 +1827,25 @@ export default function CreateJob() {
 
               {/* Generated Workflow - Only show in create mode */}
               {!isEditMode && workflowGenerated && (
-                <>
-                  {/* Application Questions */}
-                  <Card className="bg-card border-border">
+                <div className="space-y-6">
+                  {/* Success banner */}
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="flex items-center gap-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10"
+                  >
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-emerald-300">Workflow generated successfully</p>
+                      <p className="text-xs text-emerald-300/60">Your hiring process is ready to review.</p>
+                    </div>
+                  </motion.div>
+
+                  {/* APPLICATION section */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Application</span>
+                    <Card className="bg-card border-border">
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">Application Questions</CardTitle>
@@ -1910,8 +1944,12 @@ export default function CreateJob() {
                     </CardContent>
                   </Card>
 
-                  {/* Quiz Questions */}
-                  <Card className="bg-card border-border">
+                  </div>
+
+                  {/* SCREENING section */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Screening</span>
+                    <Card className="bg-card border-border">
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -1939,21 +1977,14 @@ export default function CreateJob() {
                       <Accordion type="single" collapsible className="w-full space-y-3 sm:space-y-2">
                         {quizQuestions.map((q, index) => (
                           <AccordionItem key={q.id} value={q.id} className="border border-border/50 rounded-xl px-4 py-1 bg-secondary/30">
-                            <AccordionTrigger className="hover:no-underline py-4">
-                              <div className="flex items-center gap-4 text-left">
-                                <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
-                                  <span className="text-xs font-bold text-amber-400">{q.time_limit_seconds}s</span>
-                                </div>
-                                <div>
-                                  <span className="text-sm font-medium">
-                                    {index + 1}. {q.question.length > 60 ? `${q.question.substring(0, 60)}...` : q.question}
-                                  </span>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                      {q.category}
-                                    </Badge>
-                                  </div>
-                                </div>
+                            <AccordionTrigger className="hover:no-underline py-3">
+                              <div className="flex items-center justify-between w-full pr-2 text-left">
+                                <span className="text-sm font-medium">
+                                  {index + 1}. {q.question.length > 55 ? `${q.question.substring(0, 55)}...` : q.question}
+                                </span>
+                                <span className="text-xs text-muted-foreground shrink-0 ml-3">
+                                  {q.time_limit_seconds}s • {q.category}
+                                </span>
                               </div>
                             </AccordionTrigger>
                             <AccordionContent>
@@ -2006,95 +2037,100 @@ export default function CreateJob() {
                     </CardContent>
                   </Card>
 
-                  {/* Workflow Steps */}
-                  <Card className="bg-card border-border">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">Additional Workflow Steps</CardTitle>
-                          <CardDescription>
-                            {workflowSteps.length} additional evaluation steps
-                          </CardDescription>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              size="sm" 
-                              className={cn(
-                                "gap-2 px-4",
-                                "bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500",
-                                "hover:from-violet-400 hover:via-purple-400 hover:to-fuchsia-400",
-                                "text-white font-semibold shadow-lg shadow-purple-500/25",
-                                "border-0"
-                              )}
-                            >
-                              <Plus className="h-4 w-4" />
-                              Add Step
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-72 p-2 bg-card/95 backdrop-blur-md border-border/50">
-                            <div className="space-y-1">
-                              {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
-                                const Icon = info.icon;
-                                const alreadyAdded = workflowSteps.some(s => s.type === type);
-                                const isVoiceInterview = type === 'voice_interview';
-                                return (
-                                  <DropdownMenuItem
-                                    key={type}
-                                    onClick={() => addWorkflowStep(type)}
-                                    disabled={alreadyAdded}
-                                    className={cn(
-                                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
-                                      alreadyAdded 
-                                        ? "opacity-50" 
-                                        : isVoiceInterview
-                                          ? "hover:bg-violet-500/10"
-                                          : "hover:bg-primary/10"
-                                    )}
-                                  >
-                                    <div className={cn(
-                                      "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-                                      alreadyAdded 
-                                        ? "bg-secondary" 
-                                        : isVoiceInterview
-                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
-                                          : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
-                                    )}>
-                                      <Icon className={cn(
-                                        "h-5 w-5", 
-                                        alreadyAdded 
-                                          ? "text-muted-foreground" 
-                                          : isVoiceInterview 
-                                            ? "text-white" 
-                                            : "text-primary"
-                                      )} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm flex items-center gap-2">
-                                        {info.label}
-                                        {isVoiceInterview && !alreadyAdded && (
-                                          <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-1.5 py-0 border-0 shadow-sm">
-                                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                                            Premium
+                  </div>
+
+                  {/* ASSESSMENTS section */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Assessments</span>
+                    <Card className="bg-card border-border">
+                      <Collapsible defaultOpen={false}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                              <CardTitle className="text-lg">Additional Assessments</CardTitle>
+                              <Badge variant="secondary" className="text-xs">{workflowSteps.length}</Badge>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            </CollapsibleTrigger>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  className={cn(
+                                    "gap-2 px-4",
+                                    "bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500",
+                                    "hover:from-violet-400 hover:via-purple-400 hover:to-fuchsia-400",
+                                    "text-white font-semibold shadow-lg shadow-purple-500/25",
+                                    "border-0"
+                                  )}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Add Step
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-72 p-2 bg-card/95 backdrop-blur-md border-border/50">
+                                <div className="space-y-1">
+                                  {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
+                                    const Icon = info.icon;
+                                    const alreadyAdded = workflowSteps.some(s => s.type === type);
+                                    const isVoiceInterview = type === 'voice_interview';
+                                    return (
+                                      <DropdownMenuItem
+                                        key={type}
+                                        onClick={() => addWorkflowStep(type)}
+                                        disabled={alreadyAdded}
+                                        className={cn(
+                                          "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
+                                          alreadyAdded 
+                                            ? "opacity-50" 
+                                            : isVoiceInterview
+                                              ? "hover:bg-violet-500/10"
+                                              : "hover:bg-primary/10"
+                                        )}
+                                      >
+                                        <div className={cn(
+                                          "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
+                                          alreadyAdded 
+                                            ? "bg-secondary" 
+                                            : isVoiceInterview
+                                              ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
+                                              : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
+                                        )}>
+                                          <Icon className={cn(
+                                            "h-5 w-5", 
+                                            alreadyAdded 
+                                              ? "text-muted-foreground" 
+                                              : isVoiceInterview 
+                                                ? "text-white" 
+                                                : "text-primary"
+                                          )} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-sm flex items-center gap-2">
+                                            {info.label}
+                                            {isVoiceInterview && !alreadyAdded && (
+                                              <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-1.5 py-0 border-0 shadow-sm">
+                                                <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                                                Premium
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-muted-foreground truncate">{info.description}</div>
+                                        </div>
+                                        {alreadyAdded && (
+                                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] px-2">
+                                            Added
                                           </Badge>
                                         )}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground truncate">{info.description}</div>
-                                    </div>
-                                    {alreadyAdded && (
-                                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] px-2">
-                                        Added
-                                      </Badge>
-                                    )}
-                                  </DropdownMenuItem>
-                              );
-                            })}
-                            </div>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </CardHeader>
+                        <CollapsibleContent>
+                          <CardContent className="space-y-4 pt-0">
                       {/* Phase warning banner */}
                       {workflowSteps.length >= PHASE_WARNING_THRESHOLD && !phaseWarningDismissed && (
                         <Alert className="border-amber-500/30 bg-amber-500/10">
@@ -2221,9 +2257,12 @@ export default function CreateJob() {
                           })}
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
-                </>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
+                  </div>
+                </div>
               )}
             </motion.div>
           )}
