@@ -36,112 +36,185 @@ const STEPS = [
   },
 ];
 
-/* ── Step visuals ─────────────────────────────────────────────── */
+/* ── Glass card wrapper ──────────────────────────────────────── */
 
-function JobCardVisual() {
+function GlassCard({ children, isMobile }: { children: React.ReactNode; isMobile: boolean }) {
   return (
-    <motion.div
-      className="w-full max-w-[260px] mx-auto rounded-xl border border-primary/20 bg-card/50 p-4 space-y-3"
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.25, duration: 0.5 }}
+    <div
+      className={
+        isMobile
+          ? "bg-card/80 border border-white/[0.06] rounded-xl p-4 shadow-lg"
+          : "bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
+      }
     >
-      <div className="h-3 w-24 rounded bg-primary/30" />
-      <div className="h-2 w-40 rounded bg-muted/60" />
-      <div className="h-2 w-32 rounded bg-muted/40" />
-      <div className="flex items-center gap-2 pt-1">
-        <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center">
-          <Check className="h-3 w-3 text-primary" />
-        </div>
-        <span className="text-xs text-primary font-medium">Workflow generated</span>
-      </div>
-    </motion.div>
-  );
-}
-
-function FunnelVisual() {
-  const dots = [0, 1, 2, 3, 4];
-  return (
-    <div className="flex flex-col items-center gap-3 py-2">
-      {/* Entering candidates */}
-      <div className="flex gap-3">
-        {dots.map((i) => (
-          <motion.div
-            key={i}
-            className="w-7 h-7 rounded-full bg-muted/60 flex items-center justify-center"
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 + i * 0.08, duration: 0.4 }}
-          >
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Funnel indicator */}
-      <motion.div
-        className="flex items-center gap-2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-      >
-        <div className="h-px w-8 bg-primary/40" />
-        <Sparkles className="h-4 w-4 text-primary" />
-        <div className="h-px w-8 bg-primary/40" />
-      </motion.div>
-
-      {/* Filtered candidates */}
-      <div className="flex gap-3">
-        {[0, 1].map((i) => (
-          <motion.div
-            key={i}
-            className="w-7 h-7 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 + i * 0.1, duration: 0.4 }}
-          >
-            <User className="h-3.5 w-3.5 text-primary" />
-          </motion.div>
-        ))}
-      </div>
+      {children}
     </div>
   );
 }
 
-function LeaderboardVisual() {
+/* ── Step visuals ─────────────────────────────────────────────── */
+
+function JobCardVisual({ isMobile }: { isMobile: boolean }) {
+  return (
+    <GlassCard isMobile={isMobile}>
+      <div className="w-full max-w-[260px] mx-auto space-y-3">
+        {/* Title line */}
+        <motion.div
+          className="h-3 w-24 rounded bg-primary/30"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+        />
+        {/* Description lines */}
+        <motion.div
+          className="h-2 w-40 rounded bg-muted/60"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.3 }}
+        />
+        <motion.div
+          className="h-2 w-32 rounded bg-muted/40"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.3 }}
+        />
+        {/* Progress bar */}
+        <div className="h-1.5 w-full rounded-full bg-muted/20 overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-primary/50"
+            initial={{ width: 0 }}
+            animate={{ width: "100%" }}
+            transition={{ delay: 0.6, duration: 0.6, ease: "easeOut" }}
+          />
+        </div>
+        {/* Checkmark + text */}
+        <div className="flex items-center gap-2 pt-1">
+          <motion.div
+            className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1.2, type: "spring", stiffness: 400, damping: 15 }}
+          >
+            <Check className="h-3 w-3 text-primary" />
+          </motion.div>
+          <motion.span
+            className="text-xs text-primary font-medium"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, textShadow: ["0 0 0px transparent", "0 0 8px hsl(var(--primary) / 0.6)", "0 0 0px transparent"] }}
+            transition={{ opacity: { delay: 1.3, duration: 0.3 }, textShadow: { delay: 1.3, duration: 1, ease: "easeOut" } }}
+          >
+            Workflow generated
+          </motion.span>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function FunnelVisual({ isMobile }: { isMobile: boolean }) {
+  const allDots = [0, 1, 2, 3, 4];
+  const fadedOut = [1, 2, 4]; // indices that disappear
+  const kept = [0, 3]; // indices that stay
+
+  return (
+    <GlassCard isMobile={isMobile}>
+      <div className="flex flex-col items-center gap-3 py-2">
+        {/* All 5 candidates */}
+        <div className="flex gap-3">
+          {allDots.map((i) => (
+            <motion.div
+              key={i}
+              className="w-7 h-7 rounded-full flex items-center justify-center"
+              initial={{ opacity: 0, y: -12, scale: 1, backgroundColor: "hsl(var(--muted) / 0.6)", borderColor: "transparent", borderWidth: 0 }}
+              animate={{
+                opacity: fadedOut.includes(i) ? [0, 1, 1, 0] : 1,
+                y: 0,
+                scale: fadedOut.includes(i) ? [1, 1, 1, 0.5] : 1,
+                borderWidth: kept.includes(i) ? [0, 0, 0, 2] : 0,
+                borderColor: kept.includes(i) ? ["transparent", "transparent", "transparent", "hsl(var(--primary))"] : "transparent",
+                boxShadow: kept.includes(i) ? ["0 0 0px transparent", "0 0 0px transparent", "0 0 0px transparent", "0 0 12px hsl(var(--primary) / 0.4)"] : "none",
+              }}
+              transition={{
+                opacity: fadedOut.includes(i)
+                  ? { delay: 0.2 + i * 0.08, duration: 1.2, times: [0, 0.3, 0.7, 1] }
+                  : { delay: 0.2 + i * 0.08, duration: 0.4 },
+                y: { delay: 0.2 + i * 0.08, duration: 0.4 },
+                scale: fadedOut.includes(i)
+                  ? { delay: 0.2 + i * 0.08, duration: 1.2, times: [0, 0.3, 0.7, 1] }
+                  : undefined,
+                borderWidth: { delay: 1.2, duration: 0.3 },
+                borderColor: { delay: 1.2, duration: 0.3 },
+                boxShadow: { delay: 1.2, duration: 0.4, times: [0, 0, 0, 1] },
+              }}
+              style={{ backgroundColor: "hsl(var(--muted) / 0.6)" }}
+            >
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+            </motion.div>
+          ))}
+        </div>
+
+        {/* AVA spark */}
+        <motion.div
+          className="flex items-center gap-2"
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: [0, 1, 1], scale: [0.5, 1.3, 1] }}
+          transition={{ delay: 0.7, duration: 0.5, times: [0, 0.5, 1] }}
+        >
+          <div className="h-px w-8 bg-primary/40" />
+          <Sparkles className="h-4 w-4 text-primary" />
+          <div className="h-px w-8 bg-primary/40" />
+        </motion.div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function LeaderboardVisual({ isMobile }: { isMobile: boolean }) {
   const bars = [
     { score: 94, w: "85%", highlight: true },
     { score: 82, w: "70%", highlight: false },
     { score: 71, w: "58%", highlight: false },
   ];
   return (
-    <div className="w-full max-w-[260px] mx-auto space-y-2.5">
-      {bars.map((bar, i) => (
-        <motion.div
-          key={i}
-          className="flex items-center gap-3"
-          initial={{ opacity: 0, x: -16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.25 + i * 0.12, duration: 0.4 }}
-        >
-          <span className={`text-xs font-bold w-5 text-right ${bar.highlight ? "text-primary" : "text-muted-foreground"}`}>
-            #{i + 1}
-          </span>
-          <div className="flex-1 h-6 rounded-md bg-muted/30 overflow-hidden">
-            <motion.div
-              className={`h-full rounded-md ${bar.highlight ? "bg-primary/60" : "bg-muted/50"}`}
-              initial={{ width: 0 }}
-              animate={{ width: bar.w }}
-              transition={{ delay: 0.4 + i * 0.12, duration: 0.5, ease: "easeOut" }}
-              style={bar.highlight ? { boxShadow: "0 0 12px hsl(var(--primary) / 0.4)" } : {}}
-            />
-          </div>
-          <span className={`text-xs font-semibold w-8 ${bar.highlight ? "text-primary" : "text-muted-foreground"}`}>
-            {bar.score}%
-          </span>
-        </motion.div>
-      ))}
-    </div>
+    <GlassCard isMobile={isMobile}>
+      <div className="w-full max-w-[260px] mx-auto space-y-2.5">
+        {bars.map((bar, i) => (
+          <motion.div
+            key={i}
+            className="flex items-center gap-3"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.25 + i * 0.12, duration: 0.4 }}
+          >
+            <span className={`text-xs font-bold w-5 text-right ${bar.highlight ? "text-primary" : "text-muted-foreground"}`}>
+              #{i + 1}
+            </span>
+            <div className="flex-1 h-6 rounded-md bg-muted/30 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-md ${bar.highlight ? "bg-primary/60" : "bg-muted/50"}`}
+                initial={{ width: 0 }}
+                animate={{ width: bar.w }}
+                transition={{ delay: 0.4 + i * 0.12, duration: 0.5, ease: "easeOut" }}
+                style={bar.highlight ? { boxShadow: "0 0 12px hsl(var(--primary) / 0.4)" } : {}}
+              />
+            </div>
+            <span className={`text-xs font-semibold w-8 ${bar.highlight ? "text-primary" : "text-muted-foreground"}`}>
+              {bar.score}%
+            </span>
+            {/* Check icon for #1 */}
+            {bar.highlight && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1.0, type: "spring", stiffness: 400, damping: 15 }}
+              >
+                <Check className="h-3.5 w-3.5 text-primary" />
+              </motion.div>
+            )}
+          </motion.div>
+        ))}
+      </div>
+    </GlassCard>
   );
 }
 
@@ -205,6 +278,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         )}
       </div>
 
+      {/* Radial focus glow */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        style={{
+          width: isMobile ? 300 : 600,
+          height: isMobile ? 300 : 600,
+          background: "radial-gradient(ellipse at center, hsl(var(--primary) / 0.08) 0%, transparent 70%)",
+        }}
+      />
+
       {/* Ambient orbs */}
       {isMobile ? (
         <>
@@ -240,9 +323,9 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         style={{ willChange: "transform" }}
         {...(isMobile ? swipeProps : {})}
       >
-        {/* Progress: "Step X of 3" + thin bar */}
+        {/* Progress */}
         {step < contentSteps && (
-          <div className={`w-full max-w-xs mx-auto ${isMobile ? "mb-6" : "mb-10"}`}>
+          <div className={`w-full max-w-xs mx-auto ${isMobile ? "mb-6" : "mb-8"}`}>
             <p className="text-center text-xs text-muted-foreground font-medium mb-2">
               Step {step + 1} of {contentSteps}
             </p>
@@ -256,7 +339,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         {/* Step content */}
         <div className={`${isMobile ? "flex-1 flex flex-col min-h-0" : ""}`}>
           <AnimatePresence mode="wait">
-            {/* Steps 0-2: Content steps */}
+            {/* Steps 0-2 */}
             {step < contentSteps && (() => {
               const s = STEPS[step];
               const Icon = s.icon;
@@ -264,33 +347,44 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               return (
                 <motion.div
                   key={`step-${step}`}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -30 }}
-                  transition={{ duration: 0.4 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.25 }}
                   style={{ willChange: "transform" }}
                   className={`flex flex-col items-center text-center ${
                     isMobile ? "flex-1 justify-center" : ""
                   }`}
                 >
-                  {/* Icon orb */}
-                  <div
-                    className={`rounded-full flex items-center justify-center ${
-                      isMobile ? "w-16 h-16 mb-5" : "w-24 h-24 mb-8"
-                    }`}
-                    style={{
-                      background:
-                        "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
-                      boxShadow: "0 0 40px hsl(var(--primary) / 0.4)",
-                    }}
-                  >
-                    <Icon className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
+                  {/* Icon orb with outer glow ring */}
+                  <div className="relative">
+                    {/* Glow ring */}
+                    <div
+                      className={`absolute inset-0 rounded-full ${
+                        isMobile ? "-inset-1" : "-inset-2"
+                      }`}
+                      style={{
+                        background: "radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)",
+                      }}
+                    />
+                    <div
+                      className={`relative rounded-full flex items-center justify-center ${
+                        isMobile ? "w-16 h-16 mb-3" : "w-24 h-24 mb-5"
+                      }`}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
+                        boxShadow: "0 0 40px hsl(var(--primary) / 0.4)",
+                      }}
+                    >
+                      <Icon className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
+                    </div>
                   </div>
 
                   {/* Title */}
                   <h2
                     className={`font-bold text-foreground ${
-                      isMobile ? "text-2xl mb-2" : "text-4xl mb-3"
+                      isMobile ? "text-2xl mb-1.5" : "text-4xl mb-2"
                     }`}
                   >
                     {s.title}
@@ -299,17 +393,17 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   {/* Description */}
                   <p
                     className={`text-muted-foreground max-w-md mx-auto leading-relaxed ${
-                      isMobile ? "text-base mb-6" : "text-lg mb-10"
+                      isMobile ? "text-base mb-4" : "text-lg mb-6"
                     }`}
                   >
                     {s.description}
                   </p>
 
                   {/* Visual */}
-                  <Visual />
+                  <Visual isMobile={isMobile} />
 
-                  {/* Next button pinned to bottom on mobile */}
-                  <div className={isMobile ? "mt-auto pt-4 w-full flex justify-center" : "mt-10"}>
+                  {/* Next button */}
+                  <div className={isMobile ? "mt-auto pt-4 w-full flex justify-center" : "mt-6"}>
                     <Button
                       size="lg"
                       onClick={() => setStep(step + 1)}
@@ -327,10 +421,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             {step === 3 && (
               <motion.div
                 key="cta"
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -30 }}
-                transition={{ duration: 0.4 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.25 }}
                 className={`flex flex-col items-center text-center ${
                   isMobile ? "flex-1 justify-center" : ""
                 }`}
