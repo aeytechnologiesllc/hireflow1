@@ -4,6 +4,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Sparkles,
@@ -220,6 +221,8 @@ function LeaderboardVisual({ isMobile }: { isMobile: boolean }) {
 
 const STEP_VISUALS = [JobCardVisual, FunnelVisual, LeaderboardVisual];
 
+const ROLE_SUGGESTIONS = ["Software Engineer", "Customer Support", "Sales Associate", "Marketing Manager"];
+
 /* ── Main component ──────────────────────────────────────────── */
 
 interface OnboardingWizardProps {
@@ -228,6 +231,7 @@ interface OnboardingWizardProps {
 
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
+  const [jobRole, setJobRole] = useState("");
   const { completeOnboarding } = useSubscription();
   const isMobile = useIsMobile();
 
@@ -417,7 +421,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               );
             })()}
 
-            {/* Step 3: Final CTA */}
+            {/* Step 3: AI Magic Moment */}
             {step === 3 && (
               <motion.div
                 key="cta"
@@ -429,51 +433,77 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   isMobile ? "flex-1 justify-center" : ""
                 }`}
               >
-                {/* Celebratory orb */}
-                <div
-                  className={`rounded-full flex items-center justify-center ${
-                    isMobile ? "w-20 h-20 mb-6" : "w-28 h-28 mb-10"
-                  }`}
-                  style={{
-                    background:
-                      "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
-                    boxShadow: "0 0 60px hsl(var(--primary) / 0.5)",
-                  }}
-                >
-                  <Sparkles className={`text-white ${isMobile ? "h-9 w-9" : "h-12 w-12"}`} />
+                {/* Icon orb */}
+                <div className="relative">
+                  <div
+                    className={`absolute inset-0 rounded-full ${isMobile ? "-inset-1" : "-inset-2"}`}
+                    style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)" }}
+                  />
+                  <div
+                    className={`relative rounded-full flex items-center justify-center ${
+                      isMobile ? "w-16 h-16 mb-3" : "w-24 h-24 mb-5"
+                    }`}
+                    style={{
+                      background: "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
+                      boxShadow: "0 0 40px hsl(var(--primary) / 0.4)",
+                    }}
+                  >
+                    <Sparkles className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
+                  </div>
                 </div>
 
-                <h2
-                  className={`font-bold text-foreground ${
-                    isMobile ? "text-2xl mb-2" : "text-4xl mb-3"
-                  }`}
-                >
-                  You're Ready
+                <h2 className={`font-bold text-foreground ${isMobile ? "text-2xl mb-1.5" : "text-4xl mb-2"}`}>
+                  Create a Job with AVA
                 </h2>
-                <p
-                  className={`text-muted-foreground max-w-md mx-auto leading-relaxed ${
-                    isMobile ? "text-base mb-8" : "text-lg mb-12"
-                  }`}
-                >
-                  Post a job, let AVA handle screening, and interview only the best candidates.
+                <p className={`text-muted-foreground max-w-md mx-auto leading-relaxed ${isMobile ? "text-base mb-4" : "text-lg mb-6"}`}>
+                  Type the role you're hiring for
                 </p>
 
-                <div className={isMobile ? "mt-auto w-full flex flex-col items-center gap-3" : "flex flex-col items-center gap-4"}>
+                {/* Glass input card */}
+                <GlassCard isMobile={isMobile}>
+                  <div className="w-full max-w-[320px] mx-auto space-y-4">
+                    <Input
+                      value={jobRole}
+                      onChange={(e) => setJobRole(e.target.value)}
+                      placeholder="e.g. Software Engineer"
+                      className="bg-background/50 border-border/50 focus:border-primary/50 h-12 text-base"
+                    />
+                    {/* Suggestion chips */}
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {ROLE_SUGGESTIONS.map((role) => (
+                        <motion.button
+                          key={role}
+                          onClick={() => setJobRole(role)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                            jobRole === role
+                              ? "bg-primary/20 border-primary/50 text-primary"
+                              : "bg-muted/20 border-border/30 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                          }`}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {role}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </GlassCard>
+
+                <div className={isMobile ? "mt-auto pt-4 w-full flex flex-col items-center gap-3" : "mt-6 flex flex-col items-center gap-4"}>
                   <Button
                     size="lg"
                     onClick={handleComplete}
-                    disabled={completeOnboarding.isPending}
+                    disabled={completeOnboarding.isPending || !jobRole.trim()}
                     className={`group bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl font-semibold shadow-lg shadow-primary/30 ${
                       isMobile ? "px-8 py-5 text-base h-auto w-full max-w-xs" : "px-12 py-7 text-lg h-auto"
                     }`}
                   >
-                    {completeOnboarding.isPending ? "Setting up..." : "Create Your First Job with AVA"}
+                    {completeOnboarding.isPending ? "Setting up..." : "Generate Workflow"}
                     {!completeOnboarding.isPending && (
-                      <ChevronRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Takes less than 2 minutes. No credit card required.
+                    Takes less than 2 minutes
                   </p>
                 </div>
               </motion.div>
