@@ -157,12 +157,22 @@ Add motivation questions like:
 **PHASE 2: Timed Quiz (${config.quizMin}-${config.quizMax} questions)**
 Generate a MIX of question types:
 - multiple_choice: 4 options, 1 correct (15-30 seconds)
+- multi_select: 4 options, EXACTLY 2 correct answers (20-30 seconds). Generate ~15-20% of knowledge questions as this type. Use "correct_answers" (array) instead of "correct_answer".
 - true_false: True/False options (10-15 seconds)
 - short_answer: Brief text response (30-45 seconds)
-- personality: Behavioral/work style (20-30 seconds)
-- situational: Job scenario choices (25-35 seconds)
+- personality: Behavioral/work style preference (20-30 seconds). These are NOT right/wrong. Set correct_answer to null and add "fit_context" field describing ideal trait for this role.
+- situational: Job scenario choices (25-35 seconds). These are NOT right/wrong. Set correct_answer to null and add "fit_context" field describing ideal response for this role.
 
-Each quiz question must have: id, type, question, options (if applicable), correct_answer, time_limit_seconds, category
+IMPORTANT for personality & situational questions:
+- correct_answer MUST be null (these are preference-based, not right/wrong)
+- Add "fit_context" (string) describing what the ideal answer looks like for THIS specific role
+- Example: {"type": "personality", "question": "You prefer to work independently", "options": ["Strongly Agree", "Agree", "Neutral", "Disagree"], "correct_answer": null, "fit_context": "This remote role benefits from independent workers. Agree/Strongly Agree indicates strong fit.", "category": "work_style"}
+
+IMPORTANT for multi_select questions:
+- Use "correct_answers" (array of 2 option strings) instead of "correct_answer"
+- Example: {"type": "multi_select", "question": "Which are valid...", "options": ["A", "B", "C", "D"], "correct_answers": ["A", "C"], "time_limit_seconds": 25, "category": "technical"}
+
+Each quiz question must have: id, type, question, options (if applicable), correct_answer (null for personality/situational), time_limit_seconds, category
 
 **PHASE 3: Workflow Steps (${config.stepCount} steps)**
 ⚠️ IMPORTANT: Prefer the LOWER end of this range to avoid candidate drop-off.
@@ -286,10 +296,31 @@ IMPORTANT:
       }
     }
 
-    // Validate quiz questions - ensure each has a valid correct_answer
+    // Validate quiz questions - ensure each has valid answers
     if (workflowData.quiz_questions && Array.isArray(workflowData.quiz_questions)) {
       workflowData.quiz_questions = workflowData.quiz_questions.map((q: any, idx: number) => {
-        // Only validate questions with options (multiple choice, true/false)
+        // Skip validation for personality/situational - they have no correct answer
+        if (q.type === 'personality' || q.type === 'situational') {
+          q.correct_answer = null;
+          return q;
+        }
+        
+        // Validate multi_select questions
+        if (q.type === 'multi_select' && q.correct_answers && Array.isArray(q.correct_answers)) {
+          // Ensure all correct_answers match options
+          q.correct_answers = q.correct_answers.filter((ca: string) =>
+            q.options?.some((opt: string) => String(opt).toLowerCase().trim() === String(ca).toLowerCase().trim())
+          );
+          if (q.correct_answers.length < 2) {
+            console.warn(`Multi-select question ${idx + 1} has < 2 valid correct_answers. Converting to multiple_choice.`);
+            q.type = 'multiple_choice';
+            q.correct_answer = q.options?.[0] || '';
+            delete q.correct_answers;
+          }
+          return q;
+        }
+        
+        // Validate standard questions with options (multiple choice, true/false)
         if (q.options && Array.isArray(q.options) && q.options.length > 0) {
           const correctAnswer = q.correct_answer;
           
@@ -299,8 +330,7 @@ IMPORTANT:
           );
           
           if (matchIndex === -1) {
-            // No valid match found - default to first option
-            console.warn(`Quiz question ${idx + 1} has invalid correct_answer "${correctAnswer}". Options: [${q.options.join(', ')}]. Defaulting to first option: "${q.options[0]}"`);
+            console.warn(`Quiz question ${idx + 1} has invalid correct_answer "${correctAnswer}". Defaulting to first option.`);
             q.correct_answer = q.options[0];
           }
         }
