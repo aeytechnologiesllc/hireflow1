@@ -1,67 +1,99 @@
 
 
-# Mobile Onboarding Performance Optimization
+# Simplified 3-Step Employer Onboarding
 
-## Problem
-The onboarding screens are jittery and laggy on mobile devices and Telegram mini apps. The root cause is excessive GPU-heavy animations running simultaneously via Framer Motion.
+## What Changes
 
-## Key Performance Bottlenecks Identified
+Replace the current 5-step employer onboarding wizard (Welcome → Features → AVA Workflow → Pricing → Launch) with a streamlined 3-step flow + final CTA screen that explains the hiring process rather than listing features.
 
-### Employer Wizard (`OnboardingWizard.tsx`)
-1. **Scan line animation** (line 163-168): Animates `top` property from -10% to 110% infinitely — this triggers layout recalculations every frame instead of using GPU-composited transforms
-2. **Two floating orbs** (lines 172-181): Animating `scale` and `opacity` infinitely on large blurred elements (`blur-[120px]`, `blur-[100px]`) — blur is extremely expensive on mobile GPUs
-3. **Progress dot glow** (lines 204-213): Each active dot runs an infinite `opacity` animation with `filter: blur(6px)` — another blur compositing cost per frame
-4. **Step 0 core orb**: Infinite `boxShadow` animation (3 keyframes) — boxShadow changes trigger paint on every frame
-5. **Step 2 AVA orb**: Infinite `boxShadow` + `scale` animation simultaneously
-6. **Step 3 trial badge**: Infinite `boxShadow` animation with 3 keyframes
-7. **`backdrop-blur-md`** on timeline cards (line 490) — forces compositing layers on every card
+## New Structure
 
-### Candidate Wizard (`CandidateOnboardingWizard.tsx`)
-1. **Two floating orbs** (lines 88-97): Same blur + scale + opacity infinite animations
-2. **Step 0 icon**: `backdrop-blur-sm` on the icon container + `animate-pulse` on a blurred div + infinite `rotate` animation
-3. **Step 3 success icon**: Infinite `scale` animation on a blurred div + `backdrop-blur-sm`
+**Step 1: Post a Job**
+- Briefcase icon in a glowing orb
+- Title: "Post a Job"
+- Description: "Create a job in seconds. AVA automatically generates screening questions and assessments for the role."
+- Visual: Simple animated card showing a job form appearing/completing instantly (a mock job card that fades in with a checkmark)
 
-### LaunchSequence (`LaunchSequence.tsx`)
-4. **Scan line**: Same `top` property animation (layout trigger)
-5. **Two background orbs**: Large blurred elements animating infinitely
-6. **Multiple exhaust particles**: 4-8 particles each with individual infinite animations
+**Step 2: AVA Screens Candidates**
+- Sparkles icon in a glowing orb
+- Title: "AVA Screens Candidates"
+- Description: "Applicants complete assessments, skill tests, and optional voice interviews. AVA evaluates and ranks every candidate automatically."
+- Visual: 3 candidate avatars flowing through a filter/funnel — simple motion of dots entering and fewer exiting, keeping the dark/neon aesthetic
 
-## Solution: Mobile-Only Performance Mode
+**Step 3: Interview Only the Best**
+- Check/Trophy icon in a glowing orb
+- Title: "Interview Only the Best"
+- Description: "Review top candidates, compare scores, and interview only the most qualified applicants."
+- Visual: A mini ranking dashboard — 3 horizontal bars (like a leaderboard) with scores, top one highlighted with primary glow
 
-On mobile (`isMobile`), apply these optimizations while keeping desktop animations unchanged:
+**Final CTA Screen (Step 4):**
+- Strong CTA button: "Create Your First Job with AVA"
+- Subtext: "Takes less than 2 minutes. No credit card required."
+- Calls `handleComplete` directly (no LaunchSequence animation — keeping it fast and purposeful)
 
-### File 1: `OnboardingWizard.tsx`
+## Layout & Navigation
 
-1. **Remove scan line on mobile** — hide the `motion.div` that animates `top`. It's subtle and not worth the layout cost.
-2. **Make floating orbs static on mobile** — remove `animate` and `transition` props, keep them as static decorative blurs with fixed opacity. Use CSS `will-change: transform` and `transform: translateZ(0)` to promote to GPU layer.
-3. **Remove progress dot glow on mobile** — remove the inner `motion.div` with blur animation on the active dot. The colored bar is sufficient.
-4. **Replace `boxShadow` animations with static shadows on mobile** — for the core orb (step 0), AVA orb (step 2), and trial badge (step 3), use a single static `boxShadow` value instead of animating between 3 keyframes.
-5. **Remove `backdrop-blur-md`** from timeline cards on mobile — change to just `bg-card` (opaque background, no blur).
-6. **Add `will-change: transform`** to step transition containers for smoother AnimatePresence swaps.
+- Keep `h-[100dvh] overflow-hidden` viewport lock
+- Progress indicator changes from dots to "Step 1 of 3" text label (with a thin progress bar underneath)
+- One step per screen, swipe navigation preserved on mobile
+- Each step: icon + title + description + visual centered in viewport, CTA pinned at bottom via `mt-auto`
+- "Next" button with arrow on steps 1-3, final CTA on step 4
+- "Back" affordance via tapping progress or swiping right
 
-### File 2: `CandidateOnboardingWizard.tsx`
+## Animation Philosophy
 
-1. **Make floating orbs static on mobile** — same approach: remove `animate`/`transition`, keep as static decorative elements.
-2. **Remove `backdrop-blur-sm`** from icon containers on mobile.
-3. **Remove `animate-pulse`** on blurred decorative divs on mobile — use static opacity.
-4. **Remove infinite `rotate`** animation on the briefcase icon on mobile.
-5. **Simplify step 3 success glow** — remove the infinite `scale` animation on the blurred div.
+**Keep:**
+- Subtle background grid pattern
+- 2 static ambient orbs (already optimized for mobile)
+- Smooth step transitions (fade + slide via AnimatePresence)
+- Glow accents on icons and CTA button
+- Small floating particles (already optimized)
 
-### File 3: `LaunchSequence.tsx`
+**Remove:**
+- Scan line animation
+- Feature card rotator
+- SVG S-curve journey path
+- Pricing cards and billing toggle
+- LaunchSequence celebration
+- Complex orb animations (rotating rings, orbiting particles)
+- All `boxShadow` keyframe animations
 
-1. **Replace `top` scan line animation with `translateY`** on mobile — use `y` property instead of `top` to keep it on the compositor thread.
-2. **Make background orbs static on mobile** — remove infinite animations.
-3. **Reduce exhaust particles from 4/8 to 2/4 on mobile** — fewer concurrent animations.
+## Visual Style
 
-### General Approach
-- Every change is gated behind `isMobile` — desktop stays identical
-- Replace Framer Motion `animate` props with static CSS where possible on mobile
-- Eliminate all `backdrop-blur` on mobile (the single most expensive CSS property on mobile GPUs)
-- Eliminate all infinite `boxShadow` animations on mobile (triggers paint every frame)
-- Keep entrance/exit animations (fade, slide) — these are one-shot and fine
+- Dark background maintained
+- Each step's icon sits inside a 64px (mobile) / 96px (desktop) gradient orb with static glow shadow
+- Step visuals use simple Framer Motion entrance animations (fade-in + slight y-translate), no infinite loops
+- Cards/illustrations use `border-primary/20 bg-card/50` styling consistent with existing dark theme
+- Typography: title `text-2xl` mobile / `text-4xl` desktop, description `text-base` mobile / `text-lg` desktop
 
-## Files Changed
-1. `src/components/subscription/OnboardingWizard.tsx`
-2. `src/components/subscription/CandidateOnboardingWizard.tsx`
-3. `src/components/animations/LaunchSequence.tsx`
+## Technical Details
+
+### File: `src/components/subscription/OnboardingWizard.tsx`
+
+**Complete rewrite of step content** while keeping:
+- The outer container structure (viewport lock, background grid, static orbs)
+- `useSubscription`, `usePricing`, `useIsMobile`, `useSwipeGesture` hooks
+- `completeOnboarding.mutateAsync()` call
+- Swipe gesture integration
+
+**Remove:**
+- `HIREFLOW_FEATURES` array
+- `WORKFLOW_STEPS` array
+- `PLANS` array
+- `activeFeature` state + auto-rotation effect
+- `billingInterval` state
+- `LaunchSequence` import
+- All 5 existing step renders
+
+**Add:**
+- 3 new step definitions (icon, title, description)
+- 3 inline step visuals (simple motion components)
+- Step 4 as a CTA-only screen
+- "Step X of 3" progress indicator replacing dots
+
+**totalSteps** changes from 5 to 4 (3 content steps + 1 CTA).
+
+### No other files changed
+- `CandidateOnboardingWizard.tsx` — not part of this change (candidate flow is separate)
+- `LaunchSequence.tsx` — no longer imported, but file stays for potential reuse elsewhere
 
