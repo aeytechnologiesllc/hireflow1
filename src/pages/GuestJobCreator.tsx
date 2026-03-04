@@ -312,6 +312,10 @@ export default function GuestJobCreator() {
           experience_level: formData.experience_level,
           job_type: formData.job_type,
           existingContent: formData[field as keyof typeof formData],
+          description: formData.description,
+          responsibilities: formData.responsibilities,
+          requirements: formData.requirements,
+          skills_required: formData.skills_required,
         },
       });
 

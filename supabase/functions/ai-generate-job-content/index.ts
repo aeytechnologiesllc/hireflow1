@@ -13,6 +13,20 @@ interface JobContentRequest {
   job_type?: string;
   location?: string;
   existingContent?: string;
+  description?: string;
+  responsibilities?: string;
+  requirements?: string;
+  skills_required?: string | string[];
+}
+
+function buildContextBlock(fields: Record<string, string | undefined>): string {
+  const parts: string[] = [];
+  if (fields.description) parts.push(`Job Description:\n${fields.description}`);
+  if (fields.responsibilities) parts.push(`Responsibilities:\n${fields.responsibilities}`);
+  if (fields.requirements) parts.push(`Requirements:\n${fields.requirements}`);
+  if (fields.skills_required) parts.push(`Required Skills:\n${fields.skills_required}`);
+  if (parts.length === 0) return "";
+  return `\n\nHere is context from the job posting so far. Use this to generate content that is specifically aligned and cohesive with what has already been written:\n\n${parts.join("\n\n")}\n`;
 }
 
 serve(async (req) => {
@@ -22,7 +36,8 @@ serve(async (req) => {
 
   try {
     const body: JobContentRequest = await req.json();
-    const { field, title, department, experience_level, job_type, location, existingContent } = body;
+    const { field, title, department, experience_level, job_type, location, existingContent, description, responsibilities, requirements, skills_required } = body;
+    const skillsStr = Array.isArray(skills_required) ? skills_required.join(", ") : skills_required;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -71,7 +86,7 @@ Each responsibility should:
 - Focus on outcomes and impact
 
 ${existingContent ? `Improve upon these existing responsibilities: ${existingContent}` : ""}
-
+${buildContextBlock({ description })}
 FORMATTING RULES (MUST FOLLOW):
 - Each responsibility on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
@@ -92,7 +107,7 @@ Include:
 - Any certifications
 
 ${existingContent ? `Improve upon these existing requirements: ${existingContent}` : ""}
-
+${buildContextBlock({ description, responsibilities })}
 FORMATTING RULES (MUST FOLLOW):
 - Each requirement on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
@@ -109,7 +124,7 @@ Example of CORRECT format:
 Include both technical and soft skills appropriate for ${experience_level || "mid-level"} candidates.
 
 ${existingContent ? `Build upon these existing skills: ${existingContent}` : ""}
-
+${buildContextBlock({ description, responsibilities, requirements })}
 Return as a comma-separated list only.`;
     } else if (field === "benefits") {
       prompt = `List 5-8 attractive benefits for a ${title} position.
@@ -122,7 +137,7 @@ Include a mix of:
 - Unique perks
 
 ${existingContent ? `Build upon these existing benefits: ${existingContent}` : ""}
-
+${buildContextBlock({ description })}
 Return as a comma-separated list only.`;
     }
 
