@@ -1961,7 +1961,7 @@ export default function CreateJob() {
                           <div>
                             <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
                             <CardDescription>
-                              {quizQuestions.length} questions • ~{Math.ceil(quizQuestions.reduce((acc, q) => acc + q.time_limit_seconds, 0) / 60)} min total
+                              {quizQuestions.length} questions • ~{Math.ceil(quizQuestions.reduce((acc, q) => acc + (q.time_limit_seconds || 0), 0) / 60)} min total
                             </CardDescription>
                           </div>
                         </div>
