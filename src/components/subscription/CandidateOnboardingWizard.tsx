@@ -85,16 +85,25 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
     <div className={`fixed inset-0 z-50 flex flex-col bg-background ${isMobile ? 'h-[100dvh] overflow-hidden' : 'min-h-screen overflow-y-auto'}`}>
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.15, 0.1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className={`absolute top-[-10%] right-[-10%] bg-primary/20 rounded-full blur-[120px] ${isMobile ? 'w-[200px] h-[200px]' : 'w-[500px] h-[500px]'}`}
-        />
-        <motion.div 
-          animate={{ scale: [1.2, 1, 1.2], opacity: [0.08, 0.12, 0.08] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className={`absolute bottom-[-10%] left-[-10%] bg-accent/15 rounded-full blur-[100px] ${isMobile ? 'w-[150px] h-[150px]' : 'w-[400px] h-[400px]'}`}
-        />
+        {isMobile ? (
+          <>
+            <div className="absolute top-[-10%] right-[-10%] w-[200px] h-[200px] bg-primary/20 rounded-full blur-[120px] opacity-[0.12]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+            <div className="absolute bottom-[-10%] left-[-10%] w-[150px] h-[150px] bg-accent/15 rounded-full blur-[100px] opacity-[0.1]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+          </>
+        ) : (
+          <>
+            <motion.div 
+              animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.15, 0.1] }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px]"
+            />
+            <motion.div 
+              animate={{ scale: [1.2, 1, 1.2], opacity: [0.08, 0.12, 0.08] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-accent/15 rounded-full blur-[100px]"
+            />
+          </>
+        )}
       </div>
 
       {/* Main content */}
@@ -131,11 +140,15 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
                   className={`relative mx-auto ${isMobile ? 'w-16 h-16 mb-3' : 'w-28 h-28 mb-0'}`}
                 >
-                  <div className="absolute inset-0 bg-primary/30 rounded-full blur-xl animate-pulse" />
-                  <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 backdrop-blur-sm">
-                    <motion.div animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 4, repeat: Infinity }}>
-                      <Briefcase className={`text-primary ${isMobile ? 'w-8 h-8' : 'w-12 h-12'}`} />
-                    </motion.div>
+                  {!isMobile && <div className="absolute inset-0 bg-primary/30 rounded-full blur-xl animate-pulse" />}
+                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : 'backdrop-blur-sm'}`}>
+                    {isMobile ? (
+                      <Briefcase className="text-primary w-8 h-8" />
+                    ) : (
+                      <motion.div animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 4, repeat: Infinity }}>
+                        <Briefcase className="text-primary w-12 h-12" />
+                      </motion.div>
+                    )}
                   </div>
                 </motion.div>
 
@@ -360,12 +373,16 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                   transition={{ type: "spring", stiffness: 200 }}
                   className={`relative mx-auto ${isMobile ? 'w-20 h-20 mb-3' : 'w-32 h-32 mb-0'}`}
                 >
-                  <motion.div 
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute inset-0 bg-primary/20 rounded-full blur-xl" 
-                  />
-                  <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30">
+                  {isMobile ? (
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl opacity-60" />
+                  ) : (
+                    <motion.div 
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="absolute inset-0 bg-primary/20 rounded-full blur-xl" 
+                    />
+                  )}
+                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : ''}`}>
                     <motion.div
                       initial={{ scale: 0, rotate: -180 }}
                       animate={{ scale: 1, rotate: 0 }}
@@ -394,7 +411,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className={`bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl max-w-md mx-auto backdrop-blur-sm ${isMobile ? 'p-3' : 'p-6'}`}
+                  className={`bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl max-w-md mx-auto ${isMobile ? 'p-3' : 'p-6 backdrop-blur-sm'}`}
                 >
                   <div className="flex items-center gap-3 text-left">
                     <div className={`rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}>

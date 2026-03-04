@@ -160,25 +160,36 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             backgroundSize: "60px 60px",
           }}
         />
-        <motion.div
-          className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
-          initial={{ top: "-10%" }}
-          animate={{ top: "110%" }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-        />
+        {!isMobile && (
+          <motion.div
+            className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+            initial={{ top: "-10%" }}
+            animate={{ top: "110%" }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          />
+        )}
       </div>
 
       {/* Floating orbs - smaller on mobile */}
-      <motion.div
-        className={`absolute top-[10%] right-[15%] rounded-full bg-primary/20 blur-[120px] ${isMobile ? 'w-[200px] h-[200px]' : 'w-[400px] h-[400px]'}`}
-        animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.3, 0.2] }}
-        transition={{ duration: 8, repeat: Infinity }}
-      />
-      <motion.div
-        className={`absolute bottom-[10%] left-[10%] rounded-full bg-accent/15 blur-[100px] ${isMobile ? 'w-[150px] h-[150px]' : 'w-[350px] h-[350px]'}`}
-        animate={{ scale: [1.2, 1, 1.2], opacity: [0.15, 0.25, 0.15] }}
-        transition={{ duration: 6, repeat: Infinity }}
-      />
+      {isMobile ? (
+        <>
+          <div className="absolute top-[10%] right-[15%] w-[200px] h-[200px] rounded-full bg-primary/20 blur-[120px] opacity-[0.25]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+          <div className="absolute bottom-[10%] left-[10%] w-[150px] h-[150px] rounded-full bg-accent/15 blur-[100px] opacity-[0.12]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+        </>
+      ) : (
+        <>
+          <motion.div
+            className="absolute top-[10%] right-[15%] w-[400px] h-[400px] rounded-full bg-primary/20 blur-[120px]"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.3, 0.2] }}
+            transition={{ duration: 8, repeat: Infinity }}
+          />
+          <motion.div
+            className="absolute bottom-[10%] left-[10%] w-[350px] h-[350px] rounded-full bg-accent/15 blur-[100px]"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.15, 0.25, 0.15] }}
+            transition={{ duration: 6, repeat: Infinity }}
+          />
+        </>
+      )}
 
       {/* Main content */}
       <motion.div 
@@ -201,7 +212,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               }}
               whileHover={s < step ? { scale: 1.1 } : {}}
             >
-              {s === step && (
+              {s === step && !isMobile && (
                 <motion.div
                   className="absolute inset-0 rounded-full"
                   style={{
@@ -258,14 +269,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       background: "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
                       boxShadow: "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
                     }}
-                    animate={{
-                      boxShadow: [
-                        "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
-                        "0 0 100px hsl(var(--primary) / 0.7), inset 0 0 30px rgba(255,255,255,0.2)",
-                        "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
-                      ],
-                    }}
-                    transition={{ duration: 3, repeat: Infinity }}
+                    {...(!isMobile ? {
+                      animate: {
+                        boxShadow: [
+                          "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
+                          "0 0 100px hsl(var(--primary) / 0.7), inset 0 0 30px rgba(255,255,255,0.2)",
+                          "0 0 60px hsl(var(--primary) / 0.5), inset 0 0 30px rgba(255,255,255,0.1)",
+                        ],
+                      },
+                      transition: { duration: 3, repeat: Infinity }
+                    } : {})}
                   >
                     <Sparkles className={`text-white ${isMobile ? 'h-8 w-8' : 'h-12 w-12'}`} />
                   </motion.div>
@@ -460,8 +473,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                           background: "linear-gradient(135deg, hsl(160, 90%, 50%), hsl(160, 84%, 40%))",
                           boxShadow: "0 0 16px hsl(160 84% 45% / 0.5)",
                         }}
-                        animate={{ boxShadow: ["0 0 16px hsl(160 84% 45% / 0.4)", "0 0 28px hsl(160 84% 45% / 0.6)", "0 0 16px hsl(160 84% 45% / 0.4)"], scale: [1, 1.05, 1] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                        {...(!isMobile ? {
+                          animate: { boxShadow: ["0 0 16px hsl(160 84% 45% / 0.4)", "0 0 28px hsl(160 84% 45% / 0.6)", "0 0 16px hsl(160 84% 45% / 0.4)"], scale: [1, 1.05, 1] },
+                          transition: { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
+                        } : {})}
                         initial={{ opacity: 0, scale: 0.5 }}
                       >
                         <Sparkles className="h-4 w-4 text-white" />
@@ -487,7 +502,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                                 >
                                   {idx + 1}
                                 </div>
-                                <div className="flex-1 p-2 rounded-xl bg-card/80 backdrop-blur-md border border-primary/20">
+                                <div className={`flex-1 p-2 rounded-xl border border-primary/20 ${isMobile ? 'bg-card' : 'bg-card/80 backdrop-blur-md'}`}>
                                   <div className="flex items-center gap-2">
                                     <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center shrink-0">
                                       <Icon className="h-3 w-3 text-primary" />
@@ -693,8 +708,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 {/* Trial badge */}
                 <motion.div
                   className={`flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 ${isMobile ? 'mb-1' : 'mb-6'}`}
-                  animate={{ boxShadow: ["0 0 20px hsl(var(--primary) / 0.2)", "0 0 40px hsl(var(--primary) / 0.4)", "0 0 20px hsl(var(--primary) / 0.2)"] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  {...(!isMobile ? {
+                    animate: { boxShadow: ["0 0 20px hsl(var(--primary) / 0.2)", "0 0 40px hsl(var(--primary) / 0.4)", "0 0 20px hsl(var(--primary) / 0.2)"] },
+                    transition: { duration: 2, repeat: Infinity }
+                  } : {})}
                 >
                   <Zap className={`text-primary ${isMobile ? 'h-3.5 w-3.5' : 'h-5 w-5'}`} />
                   <span className={`font-semibold text-primary ${isMobile ? 'text-xs' : ''}`}>7-Day Free Trial</span>
