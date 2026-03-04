@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { 
@@ -34,7 +35,9 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer?: number;
-  correct_answer?: string | number;
+  correct_answer?: string | number | null;
+  correct_answers?: string[]; // For multi_select type
+  fit_context?: string; // For personality/situational fit-based scoring
   time_limit_seconds?: number;
   type?: string;
   category?: string;
@@ -64,16 +67,24 @@ interface AntiCheatViolation {
 
 interface QuizProgress {
   currentQuestionIndex: number;
-  answers: Record<string, number | string>;
+  answers: Record<string, number | string | number[]>;
   startedAt: string;
   violations: AntiCheatViolation[];
 }
 
 // Helper to detect question type
-const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'text' => {
+const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_select' | 'text' | 'fit' => {
   // If type is explicitly set to a text-based type, use text
   if (question.type === 'text' || question.type === 'open_ended' || question.type === 'short_answer' || question.type === 'long_answer') {
     return 'text';
+  }
+  // Personality/situational are fit-based (no right/wrong)
+  if (question.type === 'personality' || question.type === 'situational' || question.type === 'work_style') {
+    return 'fit';
+  }
+  // Multi-select questions
+  if (question.type === 'multi_select') {
+    return 'multi_select';
   }
   // If no options or empty options array, treat as text
   if (!question.options || question.options.length === 0) {
@@ -92,7 +103,7 @@ export default function QuizPhase() {
   const QUIZ_STORAGE_KEY = `quiz_progress_${id}_${stepId}`;
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number | string>>({});
+  const [answers, setAnswers] = useState<Record<string, number | string | number[]>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<{
@@ -317,6 +328,17 @@ export default function QuizPhase() {
     }));
   };
 
+  const handleMultiSelectToggle = (answerIndex: number) => {
+    if (!currentQuestion) return;
+    setAnswers(prev => {
+      const current = (prev[currentQuestion.id] as number[]) || [];
+      const updated = current.includes(answerIndex)
+        ? current.filter(i => i !== answerIndex)
+        : [...current, answerIndex];
+      return { ...prev, [currentQuestion.id]: updated };
+    });
+  };
+
   const handleTextAnswerChange = (text: string) => {
     if (!currentQuestion) return;
     setAnswers(prev => ({
@@ -325,11 +347,15 @@ export default function QuizPhase() {
     }));
   };
 
-  // Check if a question has been answered (works for both types)
+  // Check if a question has been answered (works for all types)
   const isQuestionAnswered = (questionId: string, question: QuizQuestion): boolean => {
     const answer = answers[questionId];
-    if (getQuestionType(question) === 'text') {
+    const qType = getQuestionType(question);
+    if (qType === 'text') {
       return typeof answer === 'string' && answer.trim().length > 0;
+    }
+    if (qType === 'multi_select') {
+      return Array.isArray(answer) && answer.length > 0;
     }
     return answer !== undefined;
   };
@@ -346,10 +372,29 @@ export default function QuizPhase() {
     
     questions.forEach(q => {
       const userAnswer = answers[q.id];
+      const qType = getQuestionType(q);
       
-      // Text questions are counted as "completed" - they get reviewed by AI/employer
-      if (getQuestionType(q) === 'text') {
-        // Text answers don't count toward the multiple choice score
+      // Text and fit questions don't count toward the scored total
+      if (qType === 'text' || qType === 'fit') {
+        return;
+      }
+      
+      // Multi-select scoring
+      if (qType === 'multi_select' && q.correct_answers && Array.isArray(q.correct_answers)) {
+        multipleChoiceCount++;
+        if (!Array.isArray(userAnswer) || userAnswer.length === 0) return;
+        
+        const selectedTexts = userAnswer.map(i => q.options?.[i]?.toLowerCase().trim());
+        const correctTexts = q.correct_answers.map(a => a.toLowerCase().trim());
+        
+        const allCorrectSelected = correctTexts.every(ct => selectedTexts.includes(ct));
+        const noExtras = selectedTexts.every(st => correctTexts.includes(st!));
+        
+        if (allCorrectSelected && noExtras) {
+          correct += 1; // Full credit
+        } else if (selectedTexts.some(st => correctTexts.includes(st!))) {
+          correct += 0.5; // Partial credit
+        }
         return;
       }
       
@@ -359,16 +404,12 @@ export default function QuizPhase() {
       // Get correct answer - handle both field names and formats
       let correctAnswerIndex: number | undefined;
       
-      // Check correctAnswer (camelCase) first
       if (q.correctAnswer !== undefined) {
         correctAnswerIndex = q.correctAnswer;
-      }
-      // Check correct_answer (snake_case) - could be text or index
-      else if (q.correct_answer !== undefined) {
+      } else if (q.correct_answer !== undefined && q.correct_answer !== null) {
         if (typeof q.correct_answer === 'number') {
           correctAnswerIndex = q.correct_answer;
         } else if (typeof q.correct_answer === 'string') {
-          // Find the index of the correct answer text in options
           correctAnswerIndex = q.options?.findIndex(
             opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
           );
@@ -381,12 +422,9 @@ export default function QuizPhase() {
       }
     });
     
-    // Score is based only on multiple-choice questions
     const score = multipleChoiceCount > 0 ? Math.round((correct / multipleChoiceCount) * 100) : 100;
     
-    // NOTE: local 'passed' is for UI display ONLY. Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH
-    // for the official pass/fail decision via weighted ai_score calculation
-    return { correct, total: multipleChoiceCount, score, passed: false }; // Always false locally - backend decides
+    return { correct, total: multipleChoiceCount, score, passed: false };
   }, [questions, answers, application?.jobs?.passing_score]);
 
   const handleFinishQuiz = useCallback(() => {
@@ -491,16 +529,51 @@ export default function QuizPhase() {
             selectedAnswer: null,
             selectedAnswerText: typeof userAnswer === 'string' ? userAnswer : 'Not answered',
             correctAnswer: null,
-            isCorrect: null, // Text answers are reviewed by AI/employer
+            isCorrect: null,
           };
         }
         
-        // Get correct answer - handle both field names and formats (same logic as calculateResults)
+        // Fit-based questions (personality/situational) - no right/wrong
+        if (questionType === 'fit') {
+          const answerIndex = typeof userAnswer === 'number' ? userAnswer : undefined;
+          return {
+            questionId: q.id,
+            question: q.question,
+            questionType: 'fit',
+            selectedAnswer: answerIndex,
+            selectedAnswerText: answerIndex !== undefined ? (q.options?.[answerIndex] || "Not answered") : "Not answered",
+            correctAnswer: null,
+            isCorrect: null, // Not scored - AVA evaluates qualitatively
+            fit_context: q.fit_context || null,
+          };
+        }
+        
+        // Multi-select questions
+        if (questionType === 'multi_select' && q.correct_answers) {
+          const selectedIndices = Array.isArray(userAnswer) ? userAnswer as number[] : [];
+          const selectedTexts = selectedIndices.map(i => q.options?.[i] || '');
+          const correctTexts = q.correct_answers;
+          
+          const allCorrectSelected = correctTexts.every(ct => selectedTexts.some(st => st.toLowerCase().trim() === ct.toLowerCase().trim()));
+          const noExtras = selectedTexts.every(st => correctTexts.some(ct => ct.toLowerCase().trim() === st.toLowerCase().trim()));
+          
+          return {
+            questionId: q.id,
+            question: q.question,
+            questionType: 'multi_select',
+            selectedAnswers: selectedTexts,
+            correctAnswers: correctTexts,
+            isCorrect: allCorrectSelected && noExtras,
+            isPartialCredit: !allCorrectSelected && selectedTexts.some(st => correctTexts.some(ct => ct.toLowerCase().trim() === st.toLowerCase().trim())),
+          };
+        }
+        
+        // Standard multiple choice
         let correctAnswerIndex: number | undefined;
         
         if (q.correctAnswer !== undefined) {
           correctAnswerIndex = q.correctAnswer;
-        } else if (q.correct_answer !== undefined) {
+        } else if (q.correct_answer !== undefined && q.correct_answer !== null) {
           if (typeof q.correct_answer === 'number') {
             correctAnswerIndex = q.correct_answer;
           } else if (typeof q.correct_answer === 'string') {
@@ -942,7 +1015,32 @@ export default function QuizPhase() {
                   {currentQuestion.question}
                 </h3>
                 
-                {getQuestionType(currentQuestion) === 'multiple_choice' ? (
+                {getQuestionType(currentQuestion) === 'multi_select' ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-3">Select all that apply</p>
+                    <div className="space-y-3">
+                      {currentQuestion.options?.map((option, index) => {
+                        const selected = Array.isArray(answers[currentQuestion.id]) && (answers[currentQuestion.id] as number[]).includes(index);
+                        return (
+                          <div
+                            key={index}
+                            className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
+                              selected
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:bg-muted/50"
+                            }`}
+                            onClick={() => handleMultiSelectToggle(index)}
+                          >
+                            <Checkbox checked={selected} />
+                            <Label className="flex-1 cursor-pointer text-foreground">
+                              {option}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (getQuestionType(currentQuestion) === 'multiple_choice' || getQuestionType(currentQuestion) === 'fit') ? (
                   <RadioGroup
                     value={answers[currentQuestion.id]?.toString() ?? ""}
                     onValueChange={(value) => handleAnswerSelect(parseInt(value))}

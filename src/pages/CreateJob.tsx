@@ -116,7 +116,9 @@ interface QuizQuestion {
   type: string;
   question: string;
   options?: string[];
-  correct_answer: string;
+  correct_answer: string | null;
+  correct_answers?: string[];
+  fit_context?: string;
   time_limit_seconds: number;
   category: string;
 }
@@ -1990,25 +1992,72 @@ export default function CreateJob() {
                             <AccordionContent>
                               <div className="pb-4 space-y-3">
                                 <div className="text-sm text-muted-foreground">{q.question}</div>
-                                {q.options && (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {q.options.map((opt, i) => (
-                                      <div
-                                        key={i}
-                                        className={cn(
-                                          "p-3 rounded-lg text-sm flex items-center gap-2",
-                                          opt === q.correct_answer
-                                            ? "bg-green-500/20 border border-green-500/50 text-green-400"
-                                            : "bg-secondary/50 border border-border/50"
-                                        )}
-                                      >
-                                        {opt === q.correct_answer && (
-                                          <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                        )}
-                                        {opt}
+                                {(q.type === 'personality' || q.type === 'situational') ? (
+                                  <div className="space-y-2">
+                                    <Badge variant="secondary" className="text-[10px] bg-blue-500/20 text-blue-400 border-blue-500/30">
+                                      Fit-based
+                                    </Badge>
+                                    {q.fit_context && (
+                                      <p className="text-xs text-muted-foreground italic">{q.fit_context}</p>
+                                    )}
+                                    {q.options && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {q.options.map((opt: string, i: number) => (
+                                          <div key={i} className="p-3 rounded-lg text-sm bg-secondary/50 border border-border/50">
+                                            {opt}
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
+                                    )}
+                                    <p className="text-xs text-muted-foreground">Preference-based — no correct answer. AVA evaluates role fit.</p>
                                   </div>
+                                ) : q.type === 'multi_select' && q.correct_answers ? (
+                                  <div className="space-y-2">
+                                    <Badge variant="secondary" className="text-[10px] bg-purple-500/20 text-purple-400 border-purple-500/30">
+                                      Multi-select
+                                    </Badge>
+                                    {q.options && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {q.options.map((opt: string, i: number) => (
+                                          <div
+                                            key={i}
+                                            className={cn(
+                                              "p-3 rounded-lg text-sm flex items-center gap-2",
+                                              q.correct_answers.includes(opt)
+                                                ? "bg-green-500/20 border border-green-500/50 text-green-400"
+                                                : "bg-secondary/50 border border-border/50"
+                                            )}
+                                          >
+                                            {q.correct_answers.includes(opt) && (
+                                              <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                            )}
+                                            {opt}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  q.options && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {q.options.map((opt: string, i: number) => (
+                                        <div
+                                          key={i}
+                                          className={cn(
+                                            "p-3 rounded-lg text-sm flex items-center gap-2",
+                                            opt === q.correct_answer
+                                              ? "bg-green-500/20 border border-green-500/50 text-green-400"
+                                              : "bg-secondary/50 border border-border/50"
+                                          )}
+                                        >
+                                          {opt === q.correct_answer && (
+                                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                          )}
+                                          {opt}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )
                                 )}
                                 <div className="flex items-center justify-end gap-2 pt-2">
                                   <Button
