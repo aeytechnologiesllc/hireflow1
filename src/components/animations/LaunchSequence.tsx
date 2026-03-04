@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Rocket, CheckCircle2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface LaunchSequenceProps {
   onComplete: () => void;
@@ -30,6 +31,7 @@ const phaseMessages: Record<Phase, { title: string; subtitle: string }> = {
 export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
   const [phase, setPhase] = useState<Phase>("init");
   const [statusItems, setStatusItems] = useState<string[]>([]);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Simple 3-phase sequence: init -> glow -> launch -> success
@@ -75,31 +77,44 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           }}
         />
         {/* Animated scan line */}
-        <motion.div
-          className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
-          initial={{ top: "-10%" }}
-          animate={{ top: "110%" }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-        />
+        {isMobile ? (
+          <motion.div
+            className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+            style={{ top: 0 }}
+            initial={{ y: "-10vh" }}
+            animate={{ y: "110vh" }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          />
+        ) : (
+          <motion.div
+            className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+            initial={{ top: "-10%" }}
+            animate={{ top: "110%" }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          />
+        )}
       </div>
 
       {/* Floating orbs - background ambiance */}
-      <motion.div
-        className="absolute top-[10%] right-[15%] w-[400px] h-[400px] rounded-full bg-primary/20 blur-[120px]"
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.2, 0.3, 0.2],
-        }}
-        transition={{ duration: 8, repeat: Infinity }}
-      />
-      <motion.div
-        className="absolute bottom-[10%] left-[10%] w-[350px] h-[350px] rounded-full bg-accent/15 blur-[100px]"
-        animate={{
-          scale: [1.2, 1, 1.2],
-          opacity: [0.15, 0.25, 0.15],
-        }}
-        transition={{ duration: 6, repeat: Infinity }}
-      />
+      {isMobile ? (
+        <>
+          <div className="absolute top-[10%] right-[15%] w-[200px] h-[200px] rounded-full bg-primary/20 blur-[120px] opacity-[0.25]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+          <div className="absolute bottom-[10%] left-[10%] w-[150px] h-[150px] rounded-full bg-accent/15 blur-[100px] opacity-[0.12]" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+        </>
+      ) : (
+        <>
+          <motion.div
+            className="absolute top-[10%] right-[15%] w-[400px] h-[400px] rounded-full bg-primary/20 blur-[120px]"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.3, 0.2] }}
+            transition={{ duration: 8, repeat: Infinity }}
+          />
+          <motion.div
+            className="absolute bottom-[10%] left-[10%] w-[350px] h-[350px] rounded-full bg-accent/15 blur-[100px]"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.15, 0.25, 0.15] }}
+            transition={{ duration: 6, repeat: Infinity }}
+          />
+        </>
+      )}
 
       {/* Status indicators during init */}
       <AnimatePresence mode="wait">
@@ -229,7 +244,7 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           {/* Subtle exhaust during glow and launch */}
           {(phase === "glow" || phase === "launch") && (
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center">
-              {[...Array(phase === "launch" ? 8 : 4)].map((_, i) => (
+              {[...Array(isMobile ? (phase === "launch" ? 4 : 2) : (phase === "launch" ? 8 : 4))].map((_, i) => (
                 <motion.div
                   key={i}
                   className="absolute rounded-full"
