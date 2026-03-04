@@ -1,35 +1,59 @@
 
 
-# Premium Onboarding UI Polish + "AI Magic Moment" CTA
+# Context-Aware AI Job Content Generation
 
-## Current State
+## Problem
 
-The `OnboardingWizard.tsx` already implements most of what's requested: glassmorphism cards, radial glow, meaning-driven step animations (JobCardVisual, FunnelVisual, LeaderboardVisual), 250ms transitions, mobile optimization, and "Create Your First Job with AVA" CTA. The code is well-structured.
+When generating responsibilities, requirements, or skills, the AI only receives the job title and metadata. It ignores already-filled fields (description, responsibilities, requirements), producing generic output that doesn't align with what the employer has already written.
 
-## What Actually Needs to Change
+## Solution
 
-The current implementation is solid. The main gap is the **"AI Magic Moment"** on the final screen -- instead of just a button, show a job role input with suggestions that makes it feel like you're already using the product.
+Pass all existing job content as context to the edge function, so each field generation builds on what's already been filled out.
 
-### 1. Replace Final CTA Screen (Step 4) with Job Role Input
+### 1. Frontend -- `src/pages/CreateJob.tsx` (and `GuestJobCreator.tsx`)
 
-Transform the current step 4 from a simple button into an interactive "Create a Job with AVA" screen:
+Update `generateField()` to send all existing form content alongside the field being generated:
 
-- Large heading: "Create a Job with AVA"
-- Subtext: "Type the role you're hiring for"
-- A glassmorphism-styled text input field
-- 4 quick-pick suggestion chips below: "Software Engineer", "Customer Support", "Sales Associate", "Marketing Manager"
-- Clicking a chip fills the input
-- Once a role is entered, show the CTA button: "Generate Workflow →"
-- Clicking it calls `handleComplete` (and optionally stores the role for pre-filling job creation)
+```typescript
+body: {
+  field,
+  title: formData.title,
+  department: formData.department,
+  experience_level: formData.experience_level,
+  job_type: formData.job_type,
+  existingContent: context || formData[field],
+  // NEW: send sibling fields as context
+  description: formData.description,
+  responsibilities: formData.responsibilities,
+  requirements: formData.requirements,
+  skills_required: formData.skills_required,
+}
+```
 
-This creates the "magic moment" where users feel they're already inside the product.
+### 2. Backend -- `supabase/functions/ai-generate-job-content/index.ts`
 
-### 2. Minor Layout Polish
+- Add `description`, `responsibilities`, `requirements`, `skills_required` to the request interface
+- For each field prompt, inject a "Context from existing job posting" section that includes whichever sibling fields are already filled:
+  - **Responsibilities**: uses description (if available)
+  - **Requirements**: uses description + responsibilities (if available)
+  - **Skills**: uses description + responsibilities + requirements (if available)
+  - **Benefits**: uses description (if available)
 
-- Tighten spacing between the visual card and CTA button on content steps
-- Ensure the icon orb glow ring is visible on all steps
+Example addition to the responsibilities prompt:
+```
+Here is context from the job posting so far:
+
+Job Description:
+[description text]
+
+Generate responsibilities that are specifically aligned with this description.
+```
+
+This ensures each successive field builds on what came before, producing cohesive, job-specific content instead of generic filler.
 
 ### Files Changed
 
-1. `src/components/subscription/OnboardingWizard.tsx` -- replace step 4 CTA with interactive job role input + suggestion chips
+1. `supabase/functions/ai-generate-job-content/index.ts` -- accept and use sibling field context in prompts
+2. `src/pages/CreateJob.tsx` -- pass all form fields in `generateField()` body
+3. `src/pages/GuestJobCreator.tsx` -- same change as CreateJob
 
