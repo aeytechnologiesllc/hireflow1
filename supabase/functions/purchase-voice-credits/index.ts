@@ -39,8 +39,14 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
+    // Use admin client for server-side validation (bypasses RLS for reliable checks)
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     // Verify user has Business or Enterprise subscription
-    const { data: subscription } = await supabaseClient
+    const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("plan_type, status")
       .eq("user_id", user.id)
@@ -51,7 +57,7 @@ serve(async (req) => {
     }
 
     // Check current voice credits balance - only allow purchase if under 60 minutes
-    const { data: activeCredits } = await supabaseClient
+    const { data: activeCredits } = await supabaseAdmin
       .from("voice_credits")
       .select("minutes_remaining")
       .eq("user_id", user.id)

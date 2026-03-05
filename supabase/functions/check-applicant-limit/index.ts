@@ -49,7 +49,7 @@ serve(async (req) => {
     if (limit === -1) {
       console.log("[check-applicant-limit] Unlimited applicants for plan:", planType);
       return new Response(
-        JSON.stringify({ limitReached: false, currentCount: 0, limit: -1 }),
+        JSON.stringify({ limitReached: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -65,7 +65,7 @@ serve(async (req) => {
     if (jobIds.length === 0) {
       console.log("[check-applicant-limit] No jobs found, allowing application");
       return new Response(
-        JSON.stringify({ limitReached: false, currentCount: 0, limit }),
+        JSON.stringify({ limitReached: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -83,9 +83,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           limitReached: true, 
-          currentCount, 
-          limit,
-          message: `This employer has reached their applicant limit (${currentCount}/${limit}). Please try again later or contact the employer.`
+          message: `This employer is not currently accepting new applications. Please try again later or contact the employer.`
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -93,7 +91,7 @@ serve(async (req) => {
 
     console.log(`[check-applicant-limit] Within limit: ${currentCount}/${limit}`);
     return new Response(
-      JSON.stringify({ limitReached: false, currentCount, limit }),
+      JSON.stringify({ limitReached: false }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
