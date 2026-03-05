@@ -251,24 +251,36 @@ serve(async (req) => {
     
     // Auto-provision for Trial users
     if (isTrial && totalVoiceMinutes <= 0) {
-      console.log("Trial user has no active voice credits - auto-provisioning trial allocation");
-
-      const trialEnd = subscription?.trial_end
-        ? new Date(subscription.trial_end)
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-      const { data: insertedCredit, error: insertError } = await supabaseAdmin
+      // Check if trial credits were EVER provisioned (any status, including exhausted)
+      const { data: existingTrialCredit } = await supabaseAdmin
         .from("voice_credits")
-        .insert({
-          user_id: user.id,
-          source: 'subscription',
-          minutes_granted: 15,
-          minutes_remaining: 15,
-          expires_at: trialEnd.toISOString(),
-          status: 'active',
-        })
-        .select("id, minutes_remaining, expires_at")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("source", "subscription")
+        .lte("minutes_granted", 15)
         .maybeSingle();
+
+      if (existingTrialCredit) {
+        console.log("Trial credits already provisioned previously - skipping auto-provision");
+      } else {
+        console.log("Trial user has no active voice credits - auto-provisioning trial allocation");
+
+        const trialEnd = subscription?.trial_end
+          ? new Date(subscription.trial_end)
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        const { data: insertedCredit, error: insertError } = await supabaseAdmin
+          .from("voice_credits")
+          .insert({
+            user_id: user.id,
+            source: 'subscription',
+            minutes_granted: 15,
+            minutes_remaining: 15,
+            expires_at: trialEnd.toISOString(),
+            status: 'active',
+          })
+          .select("id, minutes_remaining, expires_at")
+          .maybeSingle();
 
       if (insertError) {
         console.error("Failed to auto-provision trial voice credits", { user_id: user.id, error: insertError });
@@ -288,6 +300,7 @@ serve(async (req) => {
           (sum, credit) => sum + (credit.minutes_remaining || 0),
           0
         );
+        }
       }
     }
 

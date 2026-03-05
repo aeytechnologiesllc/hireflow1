@@ -86,6 +86,17 @@ serve(async (req) => {
       });
     }
 
+    // Deduplication: if multiple active subs exist, cancel all but the newest
+    if (allSubscriptions.length > 1) {
+      allSubscriptions.sort((a, b) => b.created - a.created);
+      const toCancel = allSubscriptions.slice(1);
+      for (const sub of toCancel) {
+        logStep("Canceling duplicate subscription", { id: sub.id, created: sub.created });
+        await stripe.subscriptions.cancel(sub.id);
+      }
+      logStep("Deduplication complete", { kept: allSubscriptions[0].id, canceled: toCancel.length });
+    }
+
     const subscription = allSubscriptions[0];
     logStep("Found Stripe subscription", { 
       subscriptionId: subscription.id, 
