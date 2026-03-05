@@ -153,11 +153,24 @@ serve(async (req) => {
         // Handle subscription renewal - grant new monthly credits for Business/Enterprise
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription && invoice.billing_reason === 'subscription_cycle') {
+          const invoiceId = invoice.id;
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
           const userId = subscription.metadata?.user_id;
           const planType = subscription.metadata?.plan_type;
 
           if (userId && (planType === 'business' || planType === 'enterprise')) {
+            // DUPLICATE PREVENTION: Use invoice ID as dedup key
+            const { data: existingInvoiceCredits } = await supabaseAdmin
+              .from("voice_credits")
+              .select("id")
+              .eq("stripe_payment_id", invoiceId)
+              .limit(1);
+
+            if (existingInvoiceCredits && existingInvoiceCredits.length > 0) {
+              console.log("Skipping duplicate invoice credit insert - already exists for invoice:", invoiceId);
+              break;
+            }
+
             const expiresAt = new Date();
             expiresAt.setMonth(expiresAt.getMonth() + 1); // Monthly reset
 
@@ -167,8 +180,9 @@ serve(async (req) => {
               minutes_granted: 30,
               minutes_remaining: 30,
               expires_at: expiresAt.toISOString(),
+              stripe_payment_id: invoiceId,
             });
-            console.log("Monthly Business voice credits (30 min) granted for user:", userId);
+            console.log("Monthly Business voice credits (30 min) granted for user:", userId, "invoice:", invoiceId);
           }
         }
         break;
@@ -222,9 +236,10 @@ serve(async (req) => {
             status: 'voided',
           }).eq('user_id', userId).eq('status', 'active');
 
+          // Keep the original plan_type so canceled users aren't reclassified as trial
           await supabaseAdmin.from("subscriptions").update({
             status: 'canceled',
-            plan_type: 'trial',
+            cancel_at_period_end: false,
           }).eq('user_id', userId);
 
           console.log("Subscription canceled and credits voided for user:", userId);
