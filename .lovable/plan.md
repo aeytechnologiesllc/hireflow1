@@ -1,93 +1,56 @@
 
 
-# Fix Subscription Security Gaps (Items 1-3)
+# Additional Gaps Worth Fixing
 
-Three targeted fixes to close the security and data integrity gaps identified in the audit.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
----
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-## Fix 1: Trial Voice Credits Exploit
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-**File:** `supabase/functions/get-subscription/index.ts` (lines 252-292)
-
-The trial auto-provisioning path inserts 15 minutes every time the balance hits 0, with no duplicate check. A user can exhaust credits, refresh, and get 15 more minutes infinitely.
-
-**Change:** Before inserting trial credits, check if a trial credit record already exists for this user (any status, including exhausted). If one exists, skip provisioning.
-
-```typescript
-// Before inserting, check if trial credits were EVER provisioned
-const { data: existingTrialCredit } = await supabaseAdmin
-  .from("voice_credits")
-  .select("id")
-  .eq("user_id", user.id)
-  .eq("source", "subscription")
-  .lte("minutes_granted", 15) // trial-sized allocation
-  .maybeSingle();
-
-if (existingTrialCredit) {
-  console.log("Trial credits already provisioned previously - skipping");
-} else {
-  // ...existing insert logic...
-}
-```
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
 ---
 
-## Fix 2: Webhook Signature Verification Fallback
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 26-37)
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-Currently, if `STRIPE_WEBHOOK_SECRET` or `signature` is missing, the webhook falls back to `JSON.parse(body)` -- allowing anyone to POST a fake event and get a free subscription.
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-**Change:** Remove the fallback. If secret or signature is missing, reject the request with a 401.
-
-```typescript
-if (!webhookSecret || !signature) {
-  console.error("Missing webhook secret or signature");
-  return new Response(JSON.stringify({ error: "Unauthorized" }), {
-    status: 401,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-const event = await stripe.webhooks.constructEventAsync(
-  body, signature, webhookSecret, undefined,
-  Stripe.createSubtleCryptoProvider()
-);
-```
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
 ---
 
-## Fix 3: Subscription Deduplication in Sync
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-**File:** `supabase/functions/sync-subscription/index.ts`
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
 
-After finding a Stripe customer, the function only picks the first active subscription. If a customer has multiple active subs (Growth + Business), it silently ignores the duplicate.
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
 
-**Change:** After retrieving all active/trialing subscriptions, if there are more than one, cancel all but the most recent one in Stripe, then sync the remaining one.
-
-```typescript
-if (allSubscriptions.length > 1) {
-  // Sort by created date descending, keep newest
-  allSubscriptions.sort((a, b) => b.created - a.created);
-  const toCancel = allSubscriptions.slice(1);
-  for (const sub of toCancel) {
-    logStep("Canceling duplicate subscription", { id: sub.id });
-    await stripe.subscriptions.cancel(sub.id);
-  }
-}
-const subscription = allSubscriptions[0];
-```
+**Severity:** Low — defense-in-depth improvement.
 
 ---
 
-## Summary
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
 
-| Fix | File | Risk Addressed |
-|-----|------|---------------|
-| 1 | get-subscription/index.ts | Infinite free voice minutes for trial users |
-| 2 | stripe-webhook/index.ts | Fake webhook events granting free subscriptions |
-| 3 | sync-subscription/index.ts | Customers double-charged with duplicate subs |
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
 
-All three are edge function changes only -- no database migrations, no frontend changes.
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 
