@@ -16,7 +16,7 @@ const STATE_TIMINGS = {
 
 export function useAvaPersonality(): UseAvaPersonalityReturn {
   const [state, setState] = useState<PersonalityState>('active');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
   const clearTimer = useCallback(() => {

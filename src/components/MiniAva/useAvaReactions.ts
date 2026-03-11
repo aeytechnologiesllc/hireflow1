@@ -20,7 +20,7 @@ interface UseAvaReactionsReturn {
 export function useAvaReactions(): UseAvaReactionsReturn {
   const [expression, setExpression] = useState<AvaExpression>('neutral');
   const [isAnimating, setIsAnimating] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearReactionTimeout = useCallback(() => {
     if (timeoutRef.current) {

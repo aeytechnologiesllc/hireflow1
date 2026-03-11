@@ -94,7 +94,7 @@ export default function TypingTestPhase() {
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typedTextRef = useRef<string>("");
   const startTimeRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);

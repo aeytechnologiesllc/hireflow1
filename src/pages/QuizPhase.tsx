@@ -126,7 +126,7 @@ export default function QuizPhase() {
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
   // Refs for timer cleanup and stable callbacks
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFinishingRef = useRef(false);
   const currentQuestionIndexRef = useRef(currentQuestionIndex);
   const questionsLengthRef = useRef(0);
