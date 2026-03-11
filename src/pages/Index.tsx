@@ -152,6 +152,20 @@ const scaleIn = {
 
 export default function Index() {
   const [selectedFeature, setSelectedFeature] = useState<typeof features[0] | null>(null);
+  const navigate = useNavigate();
+  const { user, role } = useAuth();
+
+  // In Natively app wrapper, skip landing page entirely
+  useEffect(() => {
+    const isNatively = !!(window as any).natively || navigator.userAgent.includes('Natively');
+    if (!isNatively) return;
+
+    if (user) {
+      navigate(role === 'candidate' ? '/applications' : '/dashboard', { replace: true });
+    } else {
+      navigate('/auth', { replace: true });
+    }
+  }, [user, role, navigate]);
 
   return (
     <div className="min-h-screen bg-[hsl(220,18%,7%)] overflow-x-hidden">
