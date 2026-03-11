@@ -397,7 +397,7 @@ export default function Auth() {
               <Briefcase className="h-3.5 w-3.5" />
               Employer Portal
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="mt-3 text-sm text-muted-foreground hidden sm:block">
               Looking for work?{" "}
               <Link to="/candidate" className="text-primary hover:underline">
                 Go to Candidate Portal →
