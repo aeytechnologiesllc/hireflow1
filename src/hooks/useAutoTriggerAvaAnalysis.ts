@@ -23,7 +23,7 @@ export function useAutoTriggerAvaAnalysis({
   debounceMs = 1500, // 1.5 second debounce
 }: UseAutoTriggerAvaAnalysisOptions) {
   const lastTriggerTimeRef = useRef<number>(0);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<boolean>(false);
   
   const triggerAnalysis = useCallback(async (force: boolean = true) => {

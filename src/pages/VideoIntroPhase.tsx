@@ -62,7 +62,7 @@ export default function VideoIntroPhase() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading } = useQuery({

@@ -36,8 +36,8 @@ export default function MarketingDemo() {
   const [audioDurations, setAudioDurations] = useState<number[]>([]);
   const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const sceneTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sceneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Calculate total duration based on actual audio or fallbacks
   const totalDuration = audioDurations.length > 0 

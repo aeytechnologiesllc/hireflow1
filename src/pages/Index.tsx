@@ -321,10 +321,10 @@ export default function Index() {
               ))}
             </motion.div>
             
-            {/* Role Selection Section */}
+            {/* Role Selection Section - hidden on mobile (employer-only mobile experience) */}
             <motion.div
               variants={fadeInUp}
-              className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4"
+              className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
             >
               <div className="text-sm text-gray-400 mr-2">I want to:</div>
               <Link to="/auth">
@@ -588,7 +588,7 @@ export default function Index() {
             <span>•</span>
             <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
             <span>•</span>
-            <Link to="/candidate" className="hover:text-emerald-400 transition-colors">Candidate Portal</Link>
+            <Link to="/candidate" className="hidden sm:inline hover:text-emerald-400 transition-colors">Candidate Portal</Link>
           </div>
         </div>
       </motion.footer>
