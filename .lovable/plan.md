@@ -1,33 +1,56 @@
 
 
-# Skip Landing Page in Native App (Natively)
+# Additional Gaps Worth Fixing
 
-## Industry Standard
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-Every major hiring/job app follows the same pattern:
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-- **Indeed, LinkedIn, Monster, Glassdoor, ZipRecruiter** — native apps **never** show a marketing landing page. On first launch you see either a brief onboarding carousel (2-3 value prop slides) or go straight to login/signup. Returning logged-in users land directly on their dashboard.
-- The marketing landing page is a **web-only concept** — it exists for SEO, Google Ads, and browser visitors who haven't committed yet. App store users have already "committed" by downloading.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-## Recommended Approach for HireFlow
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-Detect whether the app is running inside Natively (wrapped WebView) and skip the landing page:
+---
 
-```text
-Browser (desktop/mobile):
-  / → Landing Page (Index.tsx) → /auth → /dashboard
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-Natively App:
-  / → Redirect to /auth (if not logged in) or /dashboard (if logged in)
-```
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-## Implementation
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-1. **Detect Natively context** — Natively injects a `window.natively` object or a user-agent marker. Use this to detect we're in the app wrapper.
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
-2. **Update `Index.tsx`** — Add a check at the top: if running in Natively and not logged in → redirect to `/auth`. If logged in → redirect to `/dashboard` (or `/applications` for candidates).
+---
 
-3. **No changes to desktop** — The landing page continues to work exactly as-is for browser visitors.
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-This is ~10 lines of code in `Index.tsx` — a simple `useEffect` redirect based on the Natively detection.
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 
