@@ -792,8 +792,8 @@ export default function Auth() {
               </motion.div>
             )}
 
-            {/* Footer link */}
-            <p className="text-center text-sm text-muted-foreground mt-6">
+            {/* Footer link - hidden on mobile (employer-only mobile experience) */}
+            <p className="text-center text-sm text-muted-foreground mt-6 hidden sm:block">
               Are you a job seeker?{" "}
               <Link to="/candidate" className="text-primary hover:underline">
                 Visit the candidate portal
