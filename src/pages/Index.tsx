@@ -321,10 +321,10 @@ export default function Index() {
               ))}
             </motion.div>
             
-            {/* Role Selection Section */}
+            {/* Role Selection Section - hidden on mobile (employer-only mobile experience) */}
             <motion.div
               variants={fadeInUp}
-              className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4"
+              className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
             >
               <div className="text-sm text-gray-400 mr-2">I want to:</div>
               <Link to="/auth">
