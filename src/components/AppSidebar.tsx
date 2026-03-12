@@ -165,6 +165,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
     { icon: User, label: "Profile", to: "/profile" },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   // Determine which nav items to show
