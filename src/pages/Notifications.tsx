@@ -9,8 +9,6 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { Notification } from "@/hooks/useNotifications";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const notificationIcons: Record<string, React.ElementType> = {
   message: MessageSquare,
