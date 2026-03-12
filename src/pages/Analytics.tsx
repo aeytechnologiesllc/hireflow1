@@ -287,10 +287,17 @@ export default function Analytics() {
                           ))}
                         </Pie>
                         <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--card))", 
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px"
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const { name, value } = payload[0].payload;
+                            const color = payload[0].payload.fill || payload[0].color;
+                            return (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card/95 backdrop-blur-sm shadow-xl border border-border/50">
+                                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                <span className="text-sm text-muted-foreground">{name}</span>
+                                <span className="text-sm font-semibold text-foreground tabular-nums">{value}</span>
+                              </div>
+                            );
                           }}
                         />
                       </PieChart>
