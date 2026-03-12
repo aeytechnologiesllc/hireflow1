@@ -395,12 +395,12 @@ function CandidateLayout({
       >
         <OfflineIndicator />
         <GlobalNotificationToasts />
-        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[60px] md:blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[60px] md:blur-[150px] pointer-events-none" />
 
         {isMobile && sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+            className="fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
             onClick={() => setSidebarOpen(false)}
           />
         )}
