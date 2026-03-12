@@ -285,7 +285,7 @@ export default function Applicants() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchApplications(), refetchStats()]);
   }, [refetchApplications, refetchStats]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
+  
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [shortlistDialogOpen, setShortlistDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
