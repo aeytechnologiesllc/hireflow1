@@ -75,8 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         const { user: verifiedUser } = await validateSession();
         if (verifiedUser) {
-          fetchUserRole(verifiedUser.id);
-          checkTeamMembership(verifiedUser.id);
+          await Promise.all([
+            fetchUserRole(verifiedUser.id),
+            checkTeamMembership(verifiedUser.id),
+          ]);
         }
       }
 

@@ -15,9 +15,10 @@ import SubscriptionSettings from "@/components/subscription/SubscriptionSettings
 import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { useSubscription } from "@/hooks/useSubscription";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
-  const { user, role } = useAuth();
+  const { user, role, loading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
@@ -42,6 +43,7 @@ export default function Settings() {
 
   // Handle subscription success callback from Stripe
   useEffect(() => {
+    if (!user) return;
     const subscriptionParam = searchParams.get("subscription");
     
     if (subscriptionParam === "success" && !syncAttempted.current) {
@@ -52,19 +54,16 @@ export default function Settings() {
       syncSubscription.mutateAsync()
         .then((result) => {
           console.log("[Settings] Subscription synced:", result);
-          // Show premium modal instead of toast (once per activation)
           const storageKey = `subscription_success_shown_${user?.id}`;
           if (!localStorage.getItem(storageKey)) {
             localStorage.setItem(storageKey, "true");
             setSuccessPlanType(result?.subscription?.plan_type || "growth");
             setShowSubscriptionSuccess(true);
           }
-          // Clear the URL parameter
           setSearchParams((prev) => {
             prev.delete("subscription");
             return prev;
           });
-          // Refetch subscription data
           refetch();
         })
         .catch((error) => {
@@ -83,13 +82,22 @@ export default function Settings() {
         return prev;
       });
     }
-  }, [searchParams, setSearchParams, syncSubscription, refetch]);
+  }, [searchParams, setSearchParams, syncSubscription, refetch, user]);
 
   useEffect(() => {
     if (emailPrefs) {
       setLocalPrefs(emailPrefs);
     }
   }, [emailPrefs]);
+
+  if (loading || !user || role === null) {
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
 
   const handlePrefChange = async (key: keyof EmailPreferences, value: boolean) => {
     setLocalPrefs(prev => ({ ...prev, [key]: value }));
