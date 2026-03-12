@@ -273,12 +273,13 @@ export default function Settings() {
               <CardDescription>Configure how you receive email notifications</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Email Notifications</p>
                   <p className="text-sm text-muted-foreground">Master toggle for all email notifications</p>
                 </div>
                 <Switch 
+                  className="shrink-0"
                   checked={localPrefs.email_notifications_enabled}
                   onCheckedChange={(checked) => handlePrefChange("email_notifications_enabled", checked)}
                   disabled={prefsLoading || updatePrefs.isPending}
