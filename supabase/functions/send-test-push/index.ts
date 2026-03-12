@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Send test notification via OneSignal
+    // Send test notification via OneSignal using include_aliases (current API)
     const payload = {
       app_id: ONESIGNAL_APP_ID,
-      include_external_user_ids: [user.id],
+      include_aliases: { external_id: [user.id] },
+      target_channel: "push",
       headings: { en: "🎉 HireFlow Connected!" },
       contents: { en: "Push notifications are working. You'll receive hiring updates here." },
       ios_badgeType: "Increase",

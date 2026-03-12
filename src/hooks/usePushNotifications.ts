@@ -4,15 +4,10 @@ import { useAuth } from "@/hooks/useAuth";
 
 declare global {
   interface Window {
-    natively?: {
-      notifications: {
-        getPermissionStatus: (callback: (status: string) => void) => void;
-        requestPermission: (callback: (granted: boolean) => void) => void;
-      };
-      onesignal: {
-        setExternalUserId: (userId: string, callback?: (success: boolean) => void) => void;
-        getPlayerId: (callback: (playerId: string | null) => void) => void;
-      };
+    NativelyNotifications?: new () => {
+      requestPermission: (fallbackToSettings: boolean, callback: (resp: { status: boolean }) => void) => void;
+      setExternalId: (options: { externalId: string }, callback: (resp: { status: boolean }) => void) => void;
+      getOneSignalId: (callback: (resp: { playerId: string | null }) => void) => void;
     };
   }
 }
@@ -21,23 +16,28 @@ export function usePushNotifications() {
   const { user } = useAuth();
 
   const registerDevice = useCallback(async () => {
-    if (!user || !window.natively) return;
+    if (!user || !window.NativelyNotifications) return;
 
     try {
+      const notifications = new window.NativelyNotifications();
+
       // Request permission
-      window.natively.notifications.requestPermission((granted) => {
-        if (!granted) {
+      notifications.requestPermission(false, (permResp) => {
+        if (!permResp.status) {
           console.log("[Push] Permission denied");
           return;
         }
 
+        console.log("[Push] Permission granted");
+
         // Set external user ID for OneSignal (maps to our auth user ID)
-        window.natively.onesignal.setExternalUserId(user.id, (success) => {
-          console.log("[Push] External user ID set:", success);
+        notifications.setExternalId({ externalId: user.id }, (extResp) => {
+          console.log("[Push] External user ID set:", extResp.status);
         });
 
-        // Get the player ID and store it
-        window.natively.onesignal.getPlayerId(async (playerId) => {
+        // Get the OneSignal player/subscription ID and store it
+        notifications.getOneSignalId(async (idResp) => {
+          const playerId = idResp.playerId;
           if (!playerId) {
             console.log("[Push] No player ID available yet");
             return;
@@ -72,7 +72,7 @@ export function usePushNotifications() {
 
   // Auto-register on login when running in Natively
   useEffect(() => {
-    if (user && window.natively) {
+    if (user && window.NativelyNotifications) {
       // Small delay to let Natively bridge initialize
       const timer = setTimeout(registerDevice, 1500);
       return () => clearTimeout(timer);
