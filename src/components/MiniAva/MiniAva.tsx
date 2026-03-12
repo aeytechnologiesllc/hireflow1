@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState, useEffect } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { PersonalityState } from './useAvaPersonality';
 import type { AvaExpression } from './useAvaReactions';
 
