@@ -8,6 +8,7 @@ import { useAvaReactions } from './useAvaReactions';
 import { triggerAvaReaction } from '@/hooks/useAvaEvents';
 import { useAvaVoice } from '@/hooks/useAvaVoice';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Mic, MicOff, X } from 'lucide-react';
 import { toast } from 'sonner';
 
