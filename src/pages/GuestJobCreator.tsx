@@ -461,7 +461,7 @@ export default function GuestJobCreator() {
 
   if (authLoading) {
     return (
-      <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
+      <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
         <StaggeredBarsLoader size="lg" />
       </div>
     );
