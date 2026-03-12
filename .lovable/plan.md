@@ -1,56 +1,42 @@
 
 
-# Additional Gaps Worth Fixing
+## Make Clickable Tiles Visually Obvious on Mobile (Touch Devices)
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+### Problem
+The `card-interactive` class only uses `hover:` states, which don't exist on touch devices. On mobile, clickable cards look identical to static ones — no visual affordance.
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+### Solution
+Add always-visible cues to `card-interactive` that signal "this is tappable" without relying on hover:
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+1. **Update `.card-interactive` in `src/index.css`**
+   - Add a subtle right chevron-like border accent (via a slightly brighter left or right border) — always visible
+   - Add `active:scale-[0.98]` for tactile press feedback on touch (replaces the translate approach on mobile)
+   - Add a persistent subtle inner glow/shadow so interactive cards are visually distinct from static ones
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+2. **Add a chevron icon to clickable cards** in key pages
+   - On mobile viewports, append a small `ChevronRight` icon (muted color) to the card's main row, signaling tappability
+   - Apply to: `Jobs.tsx`, `Applicants.tsx`, `Dashboard.tsx`, `Notifications.tsx`, `Documents.tsx`, `Interviews.tsx`
 
----
+### Specific CSS change
+```css
+.card-interactive {
+  @apply transition-all duration-200 cursor-pointer
+         border-border/70
+         hover:border-primary/50 hover:-translate-y-[1px]
+         hover:shadow-[0_4px_20px_-4px_hsl(var(--primary)/0.15)]
+         active:scale-[0.98] active:shadow-none;
+  /* Always-visible subtle glow on interactive cards */
+  box-shadow: inset 0 0 0 0.5px hsl(var(--primary) / 0.08);
+}
+```
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
-
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
-
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
-
----
-
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+### Files to change
+- `src/index.css` — update `.card-interactive` with persistent visual cue + active press scale
+- `src/pages/Jobs.tsx` — add `ChevronRight` indicator on mobile
+- `src/pages/Applicants.tsx` — same
+- `src/pages/Dashboard.tsx` — same for clickable cards
+- `src/pages/Notifications.tsx` — same
+- `src/pages/Documents.tsx` — same  
+- `src/pages/Interviews.tsx` — same
+- `src/components/documents/DocumentRequestCard.tsx` — same
 
