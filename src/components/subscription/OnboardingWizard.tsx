@@ -259,7 +259,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   return (
     <div
       className={`fixed inset-0 z-50 flex flex-col bg-background ${
-        isMobile ? "h-[100dvh] overflow-hidden" : "overflow-y-auto"
+        isMobile ? "h-[100dvh] overflow-y-auto" : "overflow-y-auto"
       }`}
     >
       {/* Background grid */}

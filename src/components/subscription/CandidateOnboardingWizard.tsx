@@ -82,7 +82,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col bg-background ${isMobile ? 'h-[100dvh] overflow-hidden' : 'min-h-screen overflow-y-auto'}`}>
+    <div className={`fixed inset-0 z-50 flex flex-col bg-background ${isMobile ? 'h-[100dvh] overflow-y-auto' : 'min-h-screen overflow-y-auto'}`}>
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {isMobile ? (

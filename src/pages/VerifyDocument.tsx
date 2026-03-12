@@ -103,7 +103,7 @@ export default function VerifyDocument() {
   }
 
   return (
-    <div className="dark min-h-screen bg-gradient-to-b from-[hsl(220,18%,10%)] to-[hsl(220,18%,14%)] text-white py-12 px-4">
+    <div className="dark min-h-[100dvh] bg-gradient-to-b from-[hsl(220,18%,10%)] to-[hsl(220,18%,14%)] text-white py-12 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-4">

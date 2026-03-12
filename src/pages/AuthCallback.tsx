@@ -62,7 +62,7 @@ export default function AuthCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p className="text-destructive">{error}</p>
           <a href="/auth" className="text-primary hover:underline">

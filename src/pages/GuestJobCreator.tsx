@@ -468,7 +468,7 @@ export default function GuestJobCreator() {
   }
 
   return (
-    <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white">
+    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,18%,10%)]/90 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">

@@ -83,7 +83,7 @@ export default function OAuthGoogleCallback() {
   }, [navigate]);
 
   return (
-    <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white">
+    <div className="dark min-h-[100dvh] flex items-center justify-center bg-[hsl(220,18%,10%)] text-white">
       <div className="text-center space-y-4 p-8">
         {status === "loading" && (
           <div className="flex flex-col items-center gap-4">
