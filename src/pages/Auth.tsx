@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Sparkles, Check, Circle, Briefcase, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import hireflowLogo from "@/assets/hireflow-logo.png";
+import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
