@@ -327,6 +327,19 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
             onNavigate={onNavigate}
           />
         </div>
+        {/* App version */}
+        {collapsed && !isMobile ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="text-[10px] text-muted-foreground/50 text-center py-2">v{appVersion}</p>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-card/95 backdrop-blur-sm border-primary/20">
+              HireFlow v{appVersion}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <p className="text-[10px] text-muted-foreground/50 text-center py-2">HireFlow v{appVersion}</p>
+        )}
       </div>
     </aside>
   );
