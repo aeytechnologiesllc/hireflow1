@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Sparkles, Check, Circle, Briefcase, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import hireflowLogo from "@/assets/hireflow-logo.png";
+import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
@@ -357,7 +357,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white relative overflow-hidden">
+    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white relative overflow-y-auto">
       {/* Background grid pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03]"
@@ -368,13 +368,13 @@ export default function Auth() {
       />
 
       {/* Gradient orbs */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 py-4 sm:py-8 relative z-10">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4 sm:mb-8"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
@@ -387,11 +387,11 @@ export default function Auth() {
           className="max-w-md mx-auto"
         >
           {/* Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-4 sm:mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-accent/40 rounded-xl blur-lg" />
-                <img src={hireflowLogo} alt="HireFlow" className="h-12 w-12 rounded-xl relative" />
+                <img src={appIcon} alt="HireFlow" className="h-12 w-12 rounded-xl relative" />
               </div>
               <span className="text-2xl font-bold text-foreground">HireFlow</span>
             </div>
@@ -408,7 +408,7 @@ export default function Auth() {
           </div>
 
           {/* Auth Card */}
-          <div className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-8">
+          <div className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
             {/* Google Sign In Button */}
             <Button
               type="button"
@@ -454,7 +454,7 @@ export default function Auth() {
 
             {/* Tabs - only show when not in password reset flows */}
             {!showForgotPassword && !isResettingPassword && (
-              <div className="flex mb-8 bg-muted/50 rounded-xl p-1">
+              <div className="flex mb-5 sm:mb-8 bg-muted/50 rounded-xl p-1">
                 <button
                   onClick={() => setActiveTab("signin")}
                   className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${

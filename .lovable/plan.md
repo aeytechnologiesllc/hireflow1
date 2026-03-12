@@ -1,42 +1,56 @@
 
 
-## Plan: Fix Auth Pages — Fit-to-Screen on Mobile + Update Icon
+# Additional Gaps Worth Fixing
 
-### Problem
-Both `/auth` and `/candidate/auth` pages use `min-h-screen` with `overflow-hidden` on the outer container. Combined with generous spacing (`py-8`, `mb-8`, `p-8` card padding), the content overflows the viewport on phones and Natively web views — and the `overflow-hidden` prevents scrolling. The sign-up form (3 fields + password requirements) is worst affected.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-Additionally, both pages still import the old `hireflow-logo.png` instead of the new `app-icon-new.png`.
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-### Solution
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-**Layout strategy**: Use `min-h-[100dvh]` (dynamic viewport height — accounts for mobile browser chrome and Natively safe areas) with `overflow-y-auto` as a safety net. Tighten spacing on mobile so content fits without needing to scroll in most cases.
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-### Changes to both `src/pages/Auth.tsx` and `src/pages/CandidateAuth.tsx`
+---
 
-1. **Swap icon import**: `hireflow-logo.png` → `app-icon-new.png`
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-2. **Outer container**: Change `min-h-screen overflow-hidden` → `min-h-[100dvh] overflow-y-auto`
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-3. **Reduce mobile spacing**:
-   - Container padding: `py-8` → `py-4 sm:py-8`
-   - "Back to Home" link: `mb-8` → `mb-4 sm:mb-8`
-   - Logo section: `mb-8` → `mb-4 sm:mb-8`
-   - Card padding: `p-8` → `p-5 sm:p-8`
-   - Tab bar margin: `mb-8` → `mb-5 sm:mb-8`
-   - Form heading margins: tighten `mb-6` → `mb-4 sm:mb-6`
-   - Input height: keep `h-12` (good touch target)
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-4. **Reduce gradient orb sizes on mobile** (GPU + overflow): `w-[500px] h-[500px]` → `w-[300px] h-[300px] sm:w-[500px] sm:h-[500px]`
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
-5. **Version bump**: `package.json` → `1.2.0`
+---
 
-### Files
-- `src/pages/Auth.tsx` — layout + icon fix
-- `src/pages/CandidateAuth.tsx` — layout + icon fix
-- `package.json` — version bump
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-### What stays unchanged
-- All auth logic, validation, Google sign-in, password reset flow
-- Desktop appearance (changes only affect mobile breakpoints)
-- All other pages
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 
