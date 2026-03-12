@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useJob } from "@/hooks/useJobs";
