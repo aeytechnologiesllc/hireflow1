@@ -88,7 +88,7 @@ export default function VerifyDocument() {
 
   if (!data) {
     return (
-      <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
+      <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="pt-6 text-center">
             <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
