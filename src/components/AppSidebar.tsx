@@ -141,6 +141,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
     { icon: UserPlus, label: "Team", to: "/team" },
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   // Team member navigation - always show all tabs, actions are controlled on individual pages
