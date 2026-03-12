@@ -15,11 +15,22 @@ import SubscriptionSettings from "@/components/subscription/SubscriptionSettings
 import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { useSubscription } from "@/hooks/useSubscription";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
-  const { user, role } = useAuth();
+  const { user, role, loading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  if (loading || !user || role === null) {
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
