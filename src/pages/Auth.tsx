@@ -357,7 +357,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white relative overflow-hidden">
+    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white relative overflow-y-auto">
       {/* Background grid pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03]"
