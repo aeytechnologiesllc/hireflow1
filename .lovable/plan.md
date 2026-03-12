@@ -1,56 +1,37 @@
 
 
-# Additional Gaps Worth Fixing
+# Google Play Store Graphics — Generation Plan
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+Google Play requires these graphics for your store listing:
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+## Required Assets
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+| Asset | Size | Status |
+|-------|------|--------|
+| **App icon** | 512×512 PNG | ✅ Already have `app-icon.png` (1024×1024, Google will resize) |
+| **Feature graphic** | 1024×500 PNG | ❌ Need to generate |
+| **Phone screenshots** | 1080×1920 (min 2, recommend 4-8) | ❌ Need to generate |
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+## What I'll Build
 
----
+### 1. Feature Graphic Generator Page
+A utility page at `/generate-graphics` that uses the AI image generation API (Nano banana pro model) to create:
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+- **Feature graphic (1024×500)**: A branded banner with the HireFlow logo, tagline "AI-Powered Hiring Platform", and dark premium aesthetic matching the app's branding (dark background, emerald/teal accents)
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+### 2. Screenshot Capture Helper
+Since screenshots need to show actual app UI, the best approach is:
+- I'll create a **screenshot helper page** that renders key app screens in a phone frame mockup at the correct 1080×1920 resolution
+- Screens to capture: Dashboard, Job Creation, Applicant Pipeline, AI Analysis, Candidate Portal, Messages
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+### 3. Implementation
+- Create an edge function `generate-store-graphics` that calls the AI image generation API to produce the feature graphic
+- Create a simple `/store-graphics` page with a button to generate and download each asset
+- The feature graphic will be generated with the prompt describing HireFlow's dark premium branding with the glowing emerald "H" lettermark
 
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
-
----
-
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+### Technical Details
+- Uses `google/gemini-3-pro-image-preview` model for high-quality image generation
+- Feature graphic generated via AI with specific branding instructions
+- All images downloadable as PNG files at exact required dimensions
+- For screenshots: render app screens in a canvas at 1080×1920 and export as PNG
 
