@@ -138,7 +138,7 @@ serve(async (req) => {
           interval: interval,
         },
       },
-      return_url: `${successUrl || `${req.headers.get("origin")}/settings?subscription=success`}&session_id={CHECKOUT_SESSION_ID}`,
+      return_url: `${successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`}&session_id={CHECKOUT_SESSION_ID}`,
       metadata: {
         user_id: user.id,
         plan_type: planType,
