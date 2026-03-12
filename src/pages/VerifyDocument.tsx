@@ -77,7 +77,7 @@ export default function VerifyDocument() {
 
   if (loading) {
     return (
-      <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
+      <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
         <div className="text-center space-y-4">
           <StaggeredBarsLoader size="lg" />
           <p className="text-muted-foreground">Verifying document...</p>
