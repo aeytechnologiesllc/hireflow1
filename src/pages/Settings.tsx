@@ -286,12 +286,13 @@ export default function Settings() {
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">New Applications</p>
                   <p className="text-sm text-muted-foreground">Get notified when someone applies to your jobs</p>
                 </div>
                 <Switch 
+                  className="shrink-0"
                   checked={localPrefs.email_new_applications}
                   onCheckedChange={(checked) => handlePrefChange("email_new_applications", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
