@@ -602,6 +602,7 @@ export default function CandidateAuth() {
                       placeholder="John Doe"
                       value={signUpName}
                       onChange={(e) => setSignUpName(e.target.value)}
+                      onFocus={scrollFormIntoView}
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
