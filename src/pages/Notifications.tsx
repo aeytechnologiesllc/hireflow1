@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useDeleteAllNotifications } from "@/hooks/useNotifications";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,6 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { Notification } from "@/hooks/useNotifications";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const notificationIcons: Record<string, React.ElementType> = {
   message: MessageSquare,
@@ -88,12 +86,6 @@ export default function Notifications() {
   const markAllAsRead = useMarkAllNotificationsAsRead();
   const deleteAll = useDeleteAllNotifications();
   
-  // Mobile pull-to-refresh
-  const isMobile = useIsMobile();
-  const handleRefresh = useCallback(async () => {
-    await refetchNotifications();
-  }, [refetchNotifications]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
 
   // Track if we've already auto-marked as read this session
   const hasAutoMarkedRef = useRef(false);
@@ -122,8 +114,7 @@ export default function Notifications() {
   };
 
   return (
-    <div className="space-y-6" {...(isMobile ? pullHandlers : {})}>
-      {isMobile && <PullIndicator />}
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

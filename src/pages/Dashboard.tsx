@@ -10,7 +10,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -466,9 +466,6 @@ export default function Dashboard() {
     }
   }, [isEmployer, refetchJobStats, refetchAppStats, refetchJobs, refetchCandidateApps, refetchInterviews]);
   
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({
-    onRefresh: handleRefresh,
-  });
 
   // Test onboarding handler
   const handleTestOnboarding = async () => {
@@ -609,10 +606,7 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      {...(isMobile ? pullHandlers : {})}
     >
-      {/* Pull to refresh indicator */}
-      {isMobile && <PullIndicator />}
       {/* Test Onboarding Button - Development Only */}
       {isEmployer && (
         <div className="flex justify-end">

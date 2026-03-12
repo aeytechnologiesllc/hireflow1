@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useJob } from "@/hooks/useJobs";
@@ -285,7 +285,7 @@ export default function Applicants() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchApplications(), refetchStats()]);
   }, [refetchApplications, refetchStats]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
+  
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [shortlistDialogOpen, setShortlistDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<ApplicationWithCandidate | null>(null);
@@ -465,9 +465,7 @@ export default function Applicants() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      {...(isMobile ? pullHandlers : {})}
     >
-      {isMobile && <PullIndicator />}
       {/* Header */}
       <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

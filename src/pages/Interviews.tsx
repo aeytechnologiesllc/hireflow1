@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview, useDeleteInterview } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -281,7 +281,7 @@ export default function Interviews() {
   const handleRefresh = useCallback(async () => {
     await refetch();
   }, [refetch]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
+  
 
   // Real-time subscription for interview updates
   useEffect(() => {
@@ -426,8 +426,7 @@ export default function Interviews() {
     : [];
 
   return (
-    <div className="space-y-6" {...(isMobile ? pullHandlers : {})}>
-      {isMobile && <PullIndicator />}
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
