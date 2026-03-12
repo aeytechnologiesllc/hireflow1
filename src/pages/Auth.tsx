@@ -722,9 +722,9 @@ export default function Auth() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="mb-6">
+                <div className="mb-3 sm:mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Create an employer account</h2>
-                  <p className="text-muted-foreground text-sm mt-1">
+                  <p className="text-muted-foreground text-sm mt-1 hidden sm:block">
                     Start hiring with Ava-powered tools
                   </p>
                 </div>
