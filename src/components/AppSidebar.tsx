@@ -191,7 +191,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       // Desktop: collapsed or expanded width
       !isMobile && (collapsed ? "w-16" : "w-64"),
       // Mobile: fixed overlay drawer (only rendered when open)
-      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]"
+      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]",
+      "pb-[env(safe-area-inset-bottom,8px)]"
     )}>
       {/* Animated gradient background overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
