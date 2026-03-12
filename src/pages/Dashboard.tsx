@@ -504,13 +504,15 @@ export default function Dashboard() {
     if (checklistDismissed) return false;
     if (!isEmployer) return false;
     if (isTeamMember) return false;
+    // Don't show while data is still loading to prevent flash
+    if (isLoadingJobs || isLoadingAppStats) return false;
     
     const hasJobs = (jobs?.length || 0) > 0;
     const hasApplicants = (appStats?.total || 0) > 0;
     
     // Show if missing jobs OR applicants (new user experience)
     return !hasJobs || !hasApplicants;
-  }, [checklistDismissed, isEmployer, isTeamMember, jobs, appStats]);
+  }, [checklistDismissed, isEmployer, isTeamMember, isLoadingJobs, isLoadingAppStats, jobs, appStats]);
   
   const handleOpenBlueprintDialog = (applicationId: string) => {
     setBlueprintApplicationId(applicationId);

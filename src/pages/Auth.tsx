@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,13 @@ import { motion } from "framer-motion";
 import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+
+// Detect if running inside a WebView (Natively or generic)
+const isWebView = () => {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return !!(window as any).natively || /wv|WebView/i.test(ua) || (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua));
+};
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
 
@@ -57,6 +64,8 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const inWebView = isWebView();
+  const formRef = useRef<HTMLDivElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -85,6 +94,28 @@ export default function Auth() {
 
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
+
+  // Scroll submit button into view when keyboard opens on mobile
+  const scrollFormIntoView = useCallback(() => {
+    setTimeout(() => {
+      const submitBtn = formRef.current?.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }, 300);
+  }, []);
+
+  // Reset Google loading state when user returns from OAuth redirect
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isGoogleLoading) {
+        // Give a moment for auth state to settle, then reset
+        setTimeout(() => setIsGoogleLoading(false), 1000);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isGoogleLoading]);
 
   // Detect password reset mode from URL and listen for PASSWORD_RECOVERY event
   useEffect(() => {
@@ -408,49 +439,53 @@ export default function Auth() {
           </div>
 
           {/* Auth Card */}
-          <div className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
-            {/* Google Sign In Button */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading || isLoading}
-              className="w-full h-12 mb-6 bg-card hover:bg-muted border-border"
-            >
-              {isGoogleLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-              )}
-              Continue with Google
-            </Button>
+          <div ref={formRef} className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
+            {/* Google Sign In Button - hidden in WebView where Google blocks OAuth */}
+            {!inWebView && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGoogleSignIn}
+                  disabled={isGoogleLoading || isLoading}
+                  className="w-full h-12 mb-6 bg-card hover:bg-muted border-border"
+                >
+                  {isGoogleLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      />
+                    </svg>
+                  )}
+                  Continue with Google
+                </Button>
 
-            {/* Divider - hidden on mobile for tighter layout */}
-            <div className="relative mb-3 sm:mb-6 hidden sm:block">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card/50 px-2 text-muted-foreground">or continue with email</span>
-              </div>
-            </div>
+                {/* Divider - hidden on mobile for tighter layout */}
+                <div className="relative mb-3 sm:mb-6 hidden sm:block">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card/50 px-2 text-muted-foreground">or continue with email</span>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Tabs - only show when not in password reset flows */}
             {!showForgotPassword && !isResettingPassword && (
@@ -662,6 +697,7 @@ export default function Auth() {
                       placeholder="you@example.com"
                       value={signInEmail}
                       onChange={(e) => setSignInEmail(e.target.value)}
+                      onFocus={scrollFormIntoView}
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
@@ -675,6 +711,7 @@ export default function Auth() {
                         placeholder="••••••••"
                         value={signInPassword}
                         onChange={(e) => setSignInPassword(e.target.value)}
+                        onFocus={scrollFormIntoView}
                         required
                         className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
                       />
@@ -738,6 +775,7 @@ export default function Auth() {
                       placeholder="John Doe"
                       value={signUpName}
                       onChange={(e) => setSignUpName(e.target.value)}
+                      onFocus={scrollFormIntoView}
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
@@ -750,6 +788,7 @@ export default function Auth() {
                       placeholder="you@example.com"
                       value={signUpEmail}
                       onChange={(e) => setSignUpEmail(e.target.value)}
+                      onFocus={scrollFormIntoView}
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
@@ -763,6 +802,7 @@ export default function Auth() {
                         placeholder="••••••••"
                         value={signUpPassword}
                         onChange={(e) => setSignUpPassword(e.target.value)}
+                        onFocus={scrollFormIntoView}
                         required
                         className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
                       />
