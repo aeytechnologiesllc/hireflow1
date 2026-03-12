@@ -513,36 +513,26 @@ export default function Applicants() {
 
       {/* Stats */}
       <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
-            <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.total || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
-            <p className="text-xl sm:text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Reviewing</p>
-            <p className="text-xl sm:text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Interview</p>
-            <p className="text-xl sm:text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border col-span-2 sm:col-span-1">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Hired</p>
-            <p className="text-xl sm:text-2xl font-bold text-primary">{stats?.hired || 0}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
+          <p className="text-xl sm:text-2xl font-bold text-foreground">{stats?.total || 0}</p>
+        </div>
+        <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
+          <p className="text-xl sm:text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
+        </div>
+        <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">Reviewing</p>
+          <p className="text-xl sm:text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
+        </div>
+        <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">Interview</p>
+          <p className="text-xl sm:text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
+        </div>
+        <div className="rounded-lg bg-secondary/50 p-3 sm:p-4 col-span-2 sm:col-span-1">
+          <p className="text-xs sm:text-sm text-muted-foreground">Hired</p>
+          <p className="text-xl sm:text-2xl font-bold text-primary">{stats?.hired || 0}</p>
+        </div>
       </motion.div>
 
       {/* Filters */}
