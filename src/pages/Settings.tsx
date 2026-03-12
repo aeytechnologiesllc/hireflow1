@@ -272,79 +272,79 @@ export default function Settings() {
               <CardTitle className="text-lg">Notifications</CardTitle>
               <CardDescription>Configure how you receive email notifications</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
+            <CardContent className="space-y-4 px-5 sm:px-6">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Email Notifications</p>
                   <p className="text-sm text-muted-foreground">Master toggle for all email notifications</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_notifications_enabled}
                   onCheckedChange={(checked) => handlePrefChange("email_notifications_enabled", checked)}
                   disabled={prefsLoading || updatePrefs.isPending}
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">New Applications</p>
                   <p className="text-sm text-muted-foreground">Get notified when someone applies to your jobs</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_new_applications}
                   onCheckedChange={(checked) => handlePrefChange("email_new_applications", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Messages</p>
                   <p className="text-sm text-muted-foreground">Get notified when you receive messages</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_messages}
                   onCheckedChange={(checked) => handlePrefChange("email_messages", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Interview Reminders</p>
                   <p className="text-sm text-muted-foreground">Receive reminders before scheduled interviews</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_interview_reminders}
                   onCheckedChange={(checked) => handlePrefChange("email_interview_reminders", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Document Updates</p>
                   <p className="text-sm text-muted-foreground">Get notified about document signatures</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_document_updates}
                   onCheckedChange={(checked) => handlePrefChange("email_document_updates", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Phase Updates</p>
                   <p className="text-sm text-muted-foreground">Get notified when candidates complete phases</p>
                 </div>
                 <Switch 
-                  className="shrink-0"
+                  className="shrink-0 ml-3"
                   checked={localPrefs.email_phase_updates}
                   onCheckedChange={(checked) => handlePrefChange("email_phase_updates", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
@@ -359,21 +359,21 @@ export default function Settings() {
               <CardTitle className="text-lg">Privacy</CardTitle>
               <CardDescription>Manage your privacy preferences</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
+            <CardContent className="space-y-4 px-5 sm:px-6">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Profile Visibility</p>
                   <p className="text-sm text-muted-foreground">Allow employers to find your profile</p>
                 </div>
-                <Switch className="shrink-0" defaultChecked />
+                <Switch className="shrink-0 ml-3" defaultChecked />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Activity Status</p>
                   <p className="text-sm text-muted-foreground">Show when you're actively looking for jobs</p>
                 </div>
-                <Switch className="shrink-0" defaultChecked />
+                <Switch className="shrink-0 ml-3" defaultChecked />
               </div>
             </CardContent>
           </Card>
