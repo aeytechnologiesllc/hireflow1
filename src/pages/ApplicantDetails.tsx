@@ -36,7 +36,6 @@ import {
 import { 
   ApplicantHeader, 
   ApplicantQuickActions, 
-  ApplicantAISummary,
   CollapsibleSection 
 } from "@/components/applicant";
 import {
@@ -1693,6 +1692,7 @@ export default function ApplicantDetails() {
         avatarUrl={profile?.avatar_url}
         aiScore={application.ai_score}
         status={application.status}
+        submittedDate={format(new Date(application.created_at), "M/d/yyyy")}
         onBack={() => navigate("/applicants")}
         onAvatarClick={() => setShowAvatarLightbox(true)}
       />
@@ -1712,20 +1712,8 @@ export default function ApplicantDetails() {
         isMobile={isMobile}
       />
 
-      {/* Ava's AI Summary - Always visible condensed version */}
-      <ApplicantAISummary
-        summary={application.ai_analysis}
-        fullAnalysis={application.ai_analysis}
-        aiScore={application.ai_score}
-        trustLevel={application.ai_score !== null && application.ai_score !== undefined 
-          ? application.ai_score >= 80 ? "high" : application.ai_score >= 60 ? "medium" : "low"
-          : "medium"}
-        isAnalyzing={isAnalyzing}
-        onReanalyze={hasValidApplicationData && !isRejected ? handleReanalyze : undefined}
-      />
-
-      {/* Schedule Interview Button - Visible when no active interview */}
-      {canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
+      {/* Schedule Interview Button - Visible when no active interview and not rejected */}
+      {!isRejected && canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
         <Button 
           onClick={handleScheduleInterviewClick}
           className="gap-1.5"
@@ -1793,28 +1781,11 @@ export default function ApplicantDetails() {
                 )}
               </div>
               
-              {/* Autopilot Rejection Reason */}
-              {application.rejected_by_type === 'ava' && (
-                <div className="bg-background/50 rounded-lg p-3 border border-muted">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">Ava's Assessment</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">
-                        {phaseAnalysis || (
-                          application.ai_score !== null && job?.passing_score
-                            ? `Score of ${application.ai_score}% did not meet the passing threshold of ${job.passing_score}%.`
-                            : "This candidate did not meet the requirements for this position."
-                        )}
-                      </p>
-                      {job?.passing_score && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Passing threshold: <span className="font-medium">{job.passing_score}%</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              {/* Passing threshold hint */}
+              {application.rejected_by_type === 'ava' && job?.passing_score && (
+                <p className="text-xs text-muted-foreground">
+                  Passing threshold: <span className="font-medium">{job.passing_score}%</span>
+                </p>
               )}
             </CardContent>
           </Card>
@@ -2286,16 +2257,14 @@ export default function ApplicantDetails() {
         </motion.div>
       )}
 
-      {/* Applicant Info - Animated */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
-      >
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          {/* Phase Tags - Clickable */}
-          <div className="flex flex-wrap gap-2 mb-6">
+      {/* Phase Tags - Clickable */}
+      {workflowBadges.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+        >
+          <div className="flex flex-wrap gap-2">
             {workflowBadges.map((badge) => {
               const Icon = badge.icon;
               return (
@@ -2333,24 +2302,8 @@ export default function ApplicantDetails() {
               );
             })}
           </div>
-
-          {/* Name & Details */}
-          <h2 className="text-2xl font-bold text-foreground">{applicantDisplayName}</h2>
-          <p className="text-muted-foreground mt-1">
-            Applied for {job?.title || "Unknown Position"} at {profile?.company_name || "Company"}
-          </p>
-          
-          <div className="flex items-center gap-2 mt-2 text-muted-foreground text-sm">
-            <Mail className="h-4 w-4" />
-            <span>{profile?.email}</span>
-          </div>
-          
-          <p className="text-muted-foreground text-sm mt-1">
-            Submitted on {format(new Date(application.created_at), "M/d/yyyy")}
-          </p>
-        </CardContent>
-      </Card>
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* AVA's Analysis - Animated */}
       <motion.div

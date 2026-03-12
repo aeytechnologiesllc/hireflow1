@@ -12,6 +12,7 @@ interface ApplicantHeaderProps {
   avatarUrl?: string | null;
   aiScore?: number | null;
   status: string;
+  submittedDate?: string | null;
   onBack: () => void;
   onAvatarClick?: () => void;
   className?: string;
@@ -38,6 +39,7 @@ export function ApplicantHeader({
   avatarUrl,
   aiScore,
   status,
+  submittedDate,
   onBack,
   onAvatarClick,
   className,
@@ -117,6 +119,11 @@ export function ApplicantHeader({
               </span>
             )}
           </div>
+          {submittedDate && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Submitted on {submittedDate}
+            </p>
+          )}
         </div>
       </div>
     </div>
