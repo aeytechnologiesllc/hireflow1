@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
