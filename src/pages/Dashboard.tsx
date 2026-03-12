@@ -466,9 +466,6 @@ export default function Dashboard() {
     }
   }, [isEmployer, refetchJobStats, refetchAppStats, refetchJobs, refetchCandidateApps, refetchInterviews]);
   
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({
-    onRefresh: handleRefresh,
-  });
 
   // Test onboarding handler
   const handleTestOnboarding = async () => {
