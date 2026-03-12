@@ -306,7 +306,7 @@ export default function CandidateAuth() {
             <div className="inline-flex items-center gap-3 mb-4">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-accent/40 rounded-xl blur-lg" />
-                <img src={hireflowLogo} alt="HireFlow" className="h-12 w-12 rounded-xl relative" />
+                <img src={appIcon} alt="HireFlow" className="h-12 w-12 rounded-xl relative" />
               </div>
               <span className="text-2xl font-bold text-foreground">HireFlow</span>
             </div>
