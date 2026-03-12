@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { version as appVersion } from "../../package.json";
 
 interface NavItemProps {
   icon: React.ElementType;
