@@ -24,6 +24,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSendingTestPush, setIsSendingTestPush] = useState(false);
+  const { sendTestNotification } = usePushNotifications();
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
   const [successPlanType, setSuccessPlanType] = useState("growth");
