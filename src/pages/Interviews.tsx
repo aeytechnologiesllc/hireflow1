@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview, useDeleteInterview } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent } from "@/components/ui/card";
