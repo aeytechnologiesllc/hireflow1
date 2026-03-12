@@ -465,9 +465,7 @@ export default function Applicants() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      {...(isMobile ? pullHandlers : {})}
     >
-      {isMobile && <PullIndicator />}
       {/* Header */}
       <motion.div variants={staggerItem} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

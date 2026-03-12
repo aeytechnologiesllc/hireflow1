@@ -606,10 +606,7 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      {...(isMobile ? pullHandlers : {})}
     >
-      {/* Pull to refresh indicator */}
-      {isMobile && <PullIndicator />}
       {/* Test Onboarding Button - Development Only */}
       {isEmployer && (
         <div className="flex justify-end">
