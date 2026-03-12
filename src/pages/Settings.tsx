@@ -312,12 +312,13 @@ export default function Settings() {
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Interview Reminders</p>
                   <p className="text-sm text-muted-foreground">Receive reminders before scheduled interviews</p>
                 </div>
                 <Switch 
+                  className="shrink-0"
                   checked={localPrefs.email_interview_reminders}
                   onCheckedChange={(checked) => handlePrefChange("email_interview_reminders", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
