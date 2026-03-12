@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Calendar,
   Clock,
+  ChevronRight,
 } from "lucide-react";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
@@ -217,6 +218,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               <span className="text-xs hidden sm:inline">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
           </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0" />
         </div>
       </CardContent>
     </Card>

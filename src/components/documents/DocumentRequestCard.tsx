@@ -10,6 +10,7 @@ import {
   Download,
   Trash2,
   Calendar,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -242,6 +243,7 @@ export function DocumentRequestCard({
                   </Button>
                 )}
               </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center" />
             </div>
           </div>
         </CardContent>

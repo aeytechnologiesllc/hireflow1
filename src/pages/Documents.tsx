@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -395,6 +395,7 @@ export default function Documents() {
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
+              <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block" />
             </div>
           </div>
         </CardContent>

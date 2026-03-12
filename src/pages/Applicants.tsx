@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square, Trash2 } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square, Trash2, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -258,8 +258,9 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
                   </div>
                 </div>
               );
-            })()}
+              })()}
           </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 ml-1" />
         </div>
       </CardContent>
     </Card>
