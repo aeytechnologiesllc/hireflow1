@@ -299,12 +299,13 @@ export default function Settings() {
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Messages</p>
                   <p className="text-sm text-muted-foreground">Get notified when you receive messages</p>
                 </div>
                 <Switch 
+                  className="shrink-0"
                   checked={localPrefs.email_messages}
                   onCheckedChange={(checked) => handlePrefChange("email_messages", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
