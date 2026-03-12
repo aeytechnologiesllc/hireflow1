@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,13 @@ import { motion } from "framer-motion";
 import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+
+// Detect if running inside a WebView (Natively or generic)
+const isWebView = () => {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return !!(window as any).natively || /wv|WebView/i.test(ua) || (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua));
+};
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
 
