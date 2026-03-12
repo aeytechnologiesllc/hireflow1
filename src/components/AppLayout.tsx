@@ -117,7 +117,9 @@ export default function AppLayout() {
           prev.delete("session_id");
           return prev;
         });
+        // Refetch immediately, then again after a short delay for consistency
         await refetch();
+        setTimeout(() => refetch(), 500);
         if (result?.synced) {
           toast.success("Subscription activated! Welcome to HireFlow 🎉", { duration: 3000 });
           // Navigate to dashboard if currently on settings or blocked

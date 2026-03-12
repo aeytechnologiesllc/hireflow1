@@ -77,12 +77,17 @@ serve(async (req) => {
       });
     }
 
-    // Get subscription
-    const { data: subscription, error: subError } = await supabaseClient
+    // Get subscription — use admin client for consistent reads after sync writes
+    const { data: subscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (subError) {
+      console.error("Error fetching subscription:", subError);
+    }
+    console.log("Subscription read result:", { status: subscription?.status, plan_type: subscription?.plan_type });
 
     // Calculate actual usage from tables
     const { count: jobsCount } = await supabaseAdmin
