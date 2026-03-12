@@ -1,82 +1,56 @@
 
-What’s going wrong right now (root causes)
 
-1) Mobile paywall isn’t scrollable  
-- The expired-trial payment screen is a fixed fullscreen overlay centered with no vertical overflow handling.
-- On small screens, the card height exceeds viewport, so lower plan/action content is inaccessible.
+# Additional Gaps Worth Fixing
 
-2) You did pay, but access didn’t unlock in-app  
-- Your payment account is `vivdnxt@gmail.com` (not `viddnxt...`), and there is an active Stripe subscription (`sub_1T9xA7JoMc2msNl4O980OpID`).
-- But your backend subscription row is still `trial + expired`, so app gating keeps showing paywall.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-3) Auto-update path is currently broken  
-- Webhook logs show signature verification failure (“No signatures found matching expected signature”), so automatic DB activation didn’t run.
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-4) Fallback sync path is not reliable enough  
-- In checkout UI, sync result is treated as success even when `synced: false` (false-positive success state).
-- No observed sync function calls in current user network snapshot during the stuck state.
-- There is “pending sync” recovery logic in layout, but the flag is never actually set anywhere, so that recovery path is effectively dead.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-5) Redirect/congrats flow mismatch  
-- Checkout return URL is wired to `/settings?subscription=success`, not dashboard-first.
-- Success handling is concentrated in Settings; if flow occurs elsewhere or callback timing misses, user can land back in purchase UI and feel looped.
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-6) Welcome toast behavior is too sticky for this context  
-- “Welcome back” toast is shown from auth and not tuned for quick-dismiss behavior during immediate gated-screen transitions.
+---
 
-Implementation plan
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-1. Fix mobile paywall scrolling first (critical UX blocker)
-- Update `TrialExpiredOverlay` to mobile-safe scroll:
-  - outer container: `overflow-y-auto`, `items-start` on mobile, safe vertical padding.
-  - inner card: viewport-aware max-height to keep CTAs reachable.
-- Preserve desktop centered behavior.
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-2. Make subscription activation deterministic (no false positives)
-- In `EmbeddedCheckoutDialog`:
-  - only mark payment complete when `syncSubscription` returns `synced === true`.
-  - add timed retry sequence (short backoff) before exposing manual refresh.
-  - never show success modal if backend still not synced.
-- Keep manual “I already paid — Refresh access” as hard fallback.
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-3. Globalize success handling (not Settings-only)
-- Move/duplicate `subscription=success` handling into `AppLayout` so it works from any route.
-- After successful sync:
-  - clear query params
-  - unlock access immediately
-  - route user to `/dashboard` if they came from blocked state
-  - show success feedback once.
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
-4. Repair backend auto-sync channel
-- Validate webhook signing secret for the current endpoint and rotate it if mismatched.
-- Keep strict signature verification (secure), but improve logs for fast diagnosis.
-- Ensure this path updates subscription row reliably so UI unlocks even without manual refresh.
+---
 
-5. Fix welcome toast timing
-- Shorten welcome toast display duration (quick smooth fade, ~1.2–1.8s) in:
-  - `src/pages/Auth.tsx`
-  - `src/pages/CandidateAuth.tsx`
-- Keep warnings/errors at normal readable durations.
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-Technical details (files to touch)
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
 
-- `src/components/subscription/TrialExpiredOverlay.tsx`
-- `src/components/subscription/EmbeddedCheckoutDialog.tsx`
-- `src/components/AppLayout.tsx`
-- `src/pages/Settings.tsx` (de-duplicate with global success handler)
-- `src/pages/Auth.tsx`
-- `src/pages/CandidateAuth.tsx`
-- `supabase/functions/stripe-checkout/index.ts` (return flow consistency)
-- `supabase/functions/sync-subscription/index.ts` (result semantics for retries)
-- `supabase/functions/stripe-webhook/index.ts` + secret config verification
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
 
-Validation checklist (end-to-end)
+**Severity:** Low — defense-in-depth improvement.
 
-- Mobile 390x844: paywall fully scrollable; all plan/actions reachable.
-- Complete checkout once:
-  - app unlocks immediately (no “pay again” loop)
-  - user ends on dashboard with success feedback
-  - backend subscription row becomes active with Stripe IDs.
-- Simulate delayed webhook:
-  - retry sync path still unlocks correctly.
-- Confirm welcome toast appears quickly and dismisses quickly/smoothly.
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+

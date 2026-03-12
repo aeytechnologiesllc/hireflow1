@@ -89,7 +89,7 @@ export function useSubscription() {
           planType,
           countryCode,
           interval,
-          successUrl: `${window.location.origin}/settings?subscription=success`,
+          successUrl: `${window.location.origin}/dashboard?subscription=success`,
         },
       });
       if (error) throw error;

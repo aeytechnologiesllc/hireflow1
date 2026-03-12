@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, Outlet, useLocation } from "react-router-dom";
+import { useNavigate, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -24,10 +24,12 @@ const SWIPE_MIN_DISTANCE = 80; // px to trigger open
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading, role, signOut } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
   const syncAttemptedRef = useRef(false);
+  const globalSyncAttemptedRef = useRef(false);
   
   // Check if we need to sync subscription on mount (after checkout return)
   const [isSyncingSubscription, setIsSyncingSubscription] = useState(() => {
@@ -97,7 +99,44 @@ export default function AppLayout() {
     touchStartY.current = null;
   }, []);
 
-  const isExpired = subscription?.status === 'expired' ||
+  // Global subscription=success handler (works from any route, not just Settings)
+  useEffect(() => {
+    if (!user || globalSyncAttemptedRef.current) return;
+    const subscriptionParam = searchParams.get("subscription");
+    if (subscriptionParam !== "success") return;
+    
+    globalSyncAttemptedRef.current = true;
+    console.log("[AppLayout] Global subscription=success detected, syncing...");
+    
+    syncSubscription.mutateAsync()
+      .then(async (result) => {
+        console.log("[AppLayout] Global sync result:", result);
+        // Clear query params
+        setSearchParams((prev) => {
+          prev.delete("subscription");
+          prev.delete("session_id");
+          return prev;
+        });
+        await refetch();
+        if (result?.synced) {
+          toast.success("Subscription activated! Welcome to HireFlow 🎉", { duration: 3000 });
+          // Navigate to dashboard if currently on settings or blocked
+          if (location.pathname === "/settings" || isExpiredCheck) {
+            navigate("/dashboard", { replace: true });
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("[AppLayout] Global sync error:", error);
+        setSearchParams((prev) => {
+          prev.delete("subscription");
+          prev.delete("session_id");
+          return prev;
+        });
+      });
+  }, [user, searchParams]);
+
+  const isExpiredCheck = subscription?.status === 'expired' ||
                     (subscription?.status === 'trialing' && 
                      subscription?.trial_end && 
                      new Date(subscription.trial_end) < new Date());
@@ -231,7 +270,7 @@ export default function AppLayout() {
   }
 
   // Show expired overlay for expired trials (employers only)
-  if (isExpired) {
+  if (isExpiredCheck) {
     return <TrialExpiredOverlay />;
   }
 

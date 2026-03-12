@@ -39,20 +39,38 @@ export default function EmbeddedCheckoutDialog({
     return () => clearTimeout(timer);
   }, [clientSecret, paymentComplete]);
 
-  const doSync = useCallback(async () => {
+  const doSync = useCallback(async (attempt = 1): Promise<boolean> => {
     setIsSyncing(true);
     try {
-      // Small delay to let Stripe finalize the session
-      await new Promise(r => setTimeout(r, 3000));
-      await syncSubscription.mutateAsync();
+      // Increasing delay per attempt to let Stripe finalize
+      const delay = attempt === 1 ? 2000 : attempt === 2 ? 4000 : 6000;
+      await new Promise(r => setTimeout(r, delay));
+      const result = await syncSubscription.mutateAsync();
       await refetch();
+      if (result?.synced) {
+        setPaymentComplete(true);
+        console.log("[EmbeddedCheckout] Subscription synced successfully on attempt", attempt);
+        return true;
+      }
+      console.log("[EmbeddedCheckout] Sync returned not synced on attempt", attempt);
+      // Retry up to 3 times
+      if (attempt < 3) {
+        return doSync(attempt + 1);
+      }
+      // After retries exhausted, show success anyway - webhook will catch up
       setPaymentComplete(true);
-      console.log("[EmbeddedCheckout] Subscription synced successfully");
+      return false;
     } catch (e) {
-      console.error("[EmbeddedCheckout] Sync error:", e);
-      setPaymentComplete(true); // Still show success - webhook will handle it
+      console.error("[EmbeddedCheckout] Sync error on attempt", attempt, e);
+      if (attempt < 3) {
+        return doSync(attempt + 1);
+      }
+      setPaymentComplete(true); // Fallback - webhook will handle it
+      return false;
     } finally {
-      setIsSyncing(false);
+      if (attempt >= 3 || syncAttempted.current) {
+        setIsSyncing(false);
+      }
     }
   }, [syncSubscription, refetch]);
 

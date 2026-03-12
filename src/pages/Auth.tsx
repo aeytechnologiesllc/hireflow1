@@ -154,6 +154,7 @@ export default function Auth() {
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
+        duration: 1500,
       });
       navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
@@ -197,6 +198,7 @@ export default function Auth() {
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now start using the platform.",
+        duration: 1500,
       });
       navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
     }
