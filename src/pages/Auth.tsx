@@ -802,6 +802,7 @@ export default function Auth() {
                         placeholder="••••••••"
                         value={signUpPassword}
                         onChange={(e) => setSignUpPassword(e.target.value)}
+                        onFocus={scrollFormIntoView}
                         required
                         className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
                       />
