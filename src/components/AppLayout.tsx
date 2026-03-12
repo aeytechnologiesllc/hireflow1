@@ -270,7 +270,7 @@ export default function AppLayout() {
   }
 
   // Show expired overlay for expired trials (employers only)
-  if (isExpired) {
+  if (isExpiredCheck) {
     return <TrialExpiredOverlay />;
   }
 
