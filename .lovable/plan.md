@@ -1,39 +1,56 @@
 
 
-## Plan: Premium Pull-to-Refresh Redesign
+# Additional Gaps Worth Fixing
 
-### Problem
-The current pull-to-refresh uses a static `ArrowDown` icon with abrupt CSS transitions — no spring physics, no smooth snap-back, and the indicator feels cheap and jarring.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Solution — Phantom Wallet-style pull-to-refresh
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-Replace the indicator with a **minimal glowing orb** that uses spring physics via Framer Motion. No arrow icon, no bordered circle — just a subtle luminous dot that grows and pulses as you pull, then smoothly animates into a spinning state on release.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-### Changes — `src/hooks/usePullToRefresh.tsx`
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-1. **Remove** `Loader2` and `ArrowDown` icon imports
-2. **Import** `motion, useSpring, useTransform` from `framer-motion`
-3. **Replace PullIndicator** with a premium orb design:
-   - A small (8px → 28px) glowing circle using `bg-primary` with a soft `box-shadow` glow
-   - `useSpring` for the vertical position — gives elastic snap-back when released without reaching threshold
-   - Progress ring (SVG `<circle>` with `strokeDashoffset`) that fills as you pull — shows threshold clearly
-   - On refresh: orb pulses gently with `animate={{ scale: [1, 1.15, 1] }}` loop + rotation on the ring
-   - On release (below threshold): spring animates back to `translateY(0)` with `stiffness: 400, damping: 30`
-4. **Smooth pullProgress reset**: Instead of instantly setting `setPullProgress(0)`, animate it down via spring so the orb shrinks smoothly
-5. **Add haptic at threshold crossing**: Fire a light haptic when `pullProgress` crosses the threshold (not just on release), giving tactile feedback that "you've pulled enough"
-6. **Version bump** to `1.2.1`
+---
 
-### Visual Design
-- Idle: invisible
-- Pulling (0-80%): Small translucent primary-colored dot fades in, progress ring fills around it
-- Pulling (80-100%): Dot is fully opaque, ring complete, subtle glow intensifies — user knows they can release
-- Refreshing: Dot pulses smoothly, ring rotates — no janky spinner icon
-- Complete: Dot shrinks and fades out with spring easing
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-### Files
-- `src/hooks/usePullToRefresh.tsx` — full redesign of indicator + spring physics
-- `package.json` — bump to `1.2.1`
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-### No changes needed to consumers
-The hook API (`handlers`, `PullIndicator`, `isRefreshing`, `pullProgress`) stays identical — Dashboard, Jobs, Applicants, Interviews, Notifications all work without edits.
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+
+---
+
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { hapticMedium } from "@/lib/haptics";
-import { Loader2, ArrowDown } from "lucide-react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { hapticLight, hapticMedium } from "@/lib/haptics";
 
 interface UsePullToRefreshOptions {
   onRefresh: () => Promise<void> | void;
@@ -29,8 +29,8 @@ export function usePullToRefresh({
   const startY = useRef<number | null>(null);
   const currentY = useRef<number | null>(null);
   const isAtTop = useRef(true);
+  const crossedThreshold = useRef(false);
 
-  // Check if scroll is at top
   const checkScrollPosition = useCallback(() => {
     isAtTop.current = window.scrollY <= 0;
   }, []);
@@ -45,6 +45,7 @@ export function usePullToRefresh({
     if (isRefreshing || !isAtTop.current) return;
     startY.current = e.touches[0].clientY;
     currentY.current = startY.current;
+    crossedThreshold.current = false;
   }, [isRefreshing]);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
@@ -53,12 +54,20 @@ export function usePullToRefresh({
     currentY.current = e.touches[0].clientY;
     const delta = currentY.current - startY.current;
 
-    // Only track downward pulls
     if (delta > 0) {
       const progress = Math.min(delta / maxPull, 1);
       setPullProgress(progress);
+
+      // Haptic when crossing threshold
+      const thresholdProgress = threshold / maxPull;
+      if (progress >= thresholdProgress && !crossedThreshold.current) {
+        crossedThreshold.current = true;
+        hapticLight();
+      } else if (progress < thresholdProgress && crossedThreshold.current) {
+        crossedThreshold.current = false;
+      }
     }
-  }, [isRefreshing, maxPull]);
+  }, [isRefreshing, maxPull, threshold]);
 
   const onTouchEnd = useCallback(async () => {
     if (isRefreshing || startY.current === null) return;
@@ -75,41 +84,106 @@ export function usePullToRefresh({
       }
     }
 
-    // Reset
     startY.current = null;
     currentY.current = null;
     setPullProgress(0);
   }, [isRefreshing, threshold, onRefresh]);
 
   const PullIndicator: React.FC = () => {
+    const motionProgress = useMotionValue(pullProgress);
+    const springY = useSpring(motionProgress, { stiffness: 400, damping: 30 });
+    const translateY = useTransform(springY, [0, 1], [0, 60]);
+    const scale = useTransform(springY, [0, 0.3, 1], [0.3, 0.6, 1]);
+    const opacity = useTransform(springY, [0, 0.08, 0.15], [0, 0, 1]);
+
+    useEffect(() => {
+      motionProgress.set(pullProgress);
+    }, [pullProgress, motionProgress]);
+
+    const thresholdRatio = threshold / maxPull;
+    const pastThreshold = pullProgress >= thresholdRatio;
+
+    // SVG ring
+    const ringSize = 28;
+    const strokeWidth = 2;
+    const radius = (ringSize - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const ringProgress = Math.min(pullProgress / thresholdRatio, 1);
+    const dashOffset = circumference - ringProgress * circumference;
+
     if (pullProgress === 0 && !isRefreshing) return null;
 
-    const translateY = isRefreshing ? 40 : pullProgress * 60;
-    const rotation = isRefreshing ? 0 : pullProgress * 180;
-    const scale = 0.5 + pullProgress * 0.5;
-    const opacity = pullProgress > 0.1 || isRefreshing ? 1 : 0;
-
     return (
-      <div
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-opacity duration-150"
-        style={{ opacity }}
+      <motion.div
+        className="fixed top-16 left-1/2 z-50 pointer-events-none"
+        style={{
+          x: "-50%",
+          y: translateY,
+          scale,
+          opacity: isRefreshing ? 1 : opacity,
+        }}
       >
-        <div
-          className="w-10 h-10 rounded-full bg-background border border-border shadow-lg flex items-center justify-center transition-transform duration-150"
-          style={{
-            transform: `translateY(${translateY}px) scale(${scale})`,
-          }}
-        >
-          {isRefreshing ? (
-            <Loader2 className="w-5 h-5 text-primary animate-spin" />
-          ) : (
-            <ArrowDown 
-              className="w-5 h-5 text-primary transition-transform"
-              style={{ transform: `rotate(${rotation}deg)` }}
+        <div className="relative flex items-center justify-center" style={{ width: ringSize, height: ringSize }}>
+          {/* Glow */}
+          <motion.div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `radial-gradient(circle, hsl(var(--primary) / ${pastThreshold || isRefreshing ? 0.5 : 0.25}) 0%, transparent 70%)`,
+              transform: "scale(2.5)",
+            }}
+            animate={isRefreshing ? { opacity: [0.4, 0.8, 0.4] } : undefined}
+            transition={isRefreshing ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : undefined}
+          />
+
+          {/* Progress ring */}
+          <svg
+            width={ringSize}
+            height={ringSize}
+            className="absolute inset-0 -rotate-90"
+          >
+            {/* Track */}
+            <circle
+              cx={ringSize / 2}
+              cy={ringSize / 2}
+              r={radius}
+              fill="none"
+              stroke="hsl(var(--primary) / 0.15)"
+              strokeWidth={strokeWidth}
             />
-          )}
+            {/* Fill */}
+            <motion.circle
+              cx={ringSize / 2}
+              cy={ringSize / 2}
+              r={radius}
+              fill="none"
+              stroke="hsl(var(--primary))"
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={isRefreshing ? 0 : dashOffset}
+              animate={isRefreshing ? { rotate: 360 } : undefined}
+              transition={isRefreshing ? { duration: 1.2, repeat: Infinity, ease: "linear" } : undefined}
+              style={{ transformOrigin: "center" }}
+            />
+          </svg>
+
+          {/* Core orb */}
+          <motion.div
+            className="rounded-full bg-primary"
+            style={{ width: 8, height: 8 }}
+            animate={
+              isRefreshing
+                ? { scale: [1, 1.3, 1], opacity: [0.8, 1, 0.8] }
+                : { scale: pastThreshold ? 1.2 : 1, opacity: pastThreshold ? 1 : 0.7 }
+            }
+            transition={
+              isRefreshing
+                ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                : { type: "spring", stiffness: 300, damping: 20 }
+            }
+          />
         </div>
-      </div>
+      </motion.div>
     );
   };
 
