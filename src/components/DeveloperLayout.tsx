@@ -105,9 +105,9 @@ export default function DeveloperLayout() {
         <OfflineIndicator />
         <GlobalNotificationToasts />
         
-        {/* Premium gradient orbs with developer theme */}
-        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-orange-500/15 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-red-500/12 rounded-full blur-[100px] md:blur-[150px] pointer-events-none" />
+        {/* Premium gradient orbs with developer theme - hidden on mobile for WebView GPU savings */}
+        <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-orange-500/15 rounded-full md:blur-[150px] pointer-events-none" />
+        <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-red-500/12 rounded-full md:blur-[150px] pointer-events-none" />
         
         {/* Mobile overlay backdrop */}
         {isMobile && sidebarOpen && (
