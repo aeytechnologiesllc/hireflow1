@@ -8,6 +8,7 @@ import { useAvaReactions } from './useAvaReactions';
 import { triggerAvaReaction } from '@/hooks/useAvaEvents';
 import { useAvaVoice } from '@/hooks/useAvaVoice';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Mic, MicOff, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ export default function MiniAvaContainer() {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const { subscription } = useSubscription();
+  const isMobile = useIsMobile();
   
   // Personality and reactions
   const { state: personalityState, wake } = useAvaPersonality();
@@ -282,14 +284,16 @@ export default function MiniAvaContainer() {
               aria-label="Talk to Ava"
             />
             
-            {/* Soft shadow beneath orb */}
-            <div 
-              className="absolute inset-0 rounded-full blur-xl opacity-30 pointer-events-none"
-              style={{
-                background: 'hsl(160, 84%, 39%)',
-                transform: 'translateY(4px) scale(0.8)',
-              }}
-            />
+            {/* Soft shadow beneath orb — skip on mobile for GPU savings */}
+            {!isMobile && (
+              <div 
+                className="absolute inset-0 rounded-full blur-xl opacity-30 pointer-events-none"
+                style={{
+                  background: 'hsl(160, 84%, 39%)',
+                  transform: 'translateY(4px) scale(0.8)',
+                }}
+              />
+            )}
             
             <div className="pointer-events-none">
               <MiniAva

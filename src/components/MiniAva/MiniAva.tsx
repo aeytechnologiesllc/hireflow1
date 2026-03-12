@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState, useEffect } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { PersonalityState } from './useAvaPersonality';
 import type { AvaExpression } from './useAvaReactions';
 
@@ -35,13 +36,14 @@ export default function MiniAva({
 }: MiniAvaProps) {
   const [isDimming, setIsDimming] = useState(false);
   const [showEyes, setShowEyes] = useState(false);
+  const isMobile = useIsMobile();
 
-  // Micro-awareness: random glow dim (blink equivalent) every 8-12 seconds
+  // Micro-awareness: random glow dim — slower on mobile to reduce re-renders
   useEffect(() => {
     if (personalityState === 'sleeping') return;
     
     const scheduleDim = () => {
-      const delay = 8000 + Math.random() * 4000;
+      const delay = isMobile ? (15000 + Math.random() * 10000) : (8000 + Math.random() * 4000);
       return setTimeout(() => {
         setIsDimming(true);
         setTimeout(() => setIsDimming(false), 200);
@@ -51,7 +53,7 @@ export default function MiniAva({
     
     const timeoutId = scheduleDim();
     return () => clearTimeout(timeoutId);
-  }, [personalityState]);
+  }, [personalityState, isMobile]);
 
   // Show eyes on interaction (hover)
   useEffect(() => {

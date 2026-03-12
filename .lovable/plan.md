@@ -1,66 +1,56 @@
 
 
-## Plan: Mobile Performance Optimization + Auto-Version Bumping
+# Additional Gaps Worth Fixing
 
-### Problem
-On iPhone 15 Pro Max, the app feels laggy due to:
-1. **All 46 pages loaded eagerly** — massive initial JS bundle parsed on every load
-2. **Continuous Framer Motion animations** running even when not visible (FloatingParticles, GradientOrbs, MiniAva blink timer)
-3. **`backdrop-blur`** on AppHeader and sidebar overlays — notoriously GPU-expensive on iOS Safari
-4. **Large gradient blur orbs** (`blur-[100px]`/`blur-[150px]`) in AppLayout — constant GPU compositing cost
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Solution — 4 targeted changes, no visual/functional regressions
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
----
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-#### 1. Re-introduce React.lazy for non-critical routes
-Keep the 5 most-used pages eager (Dashboard, Jobs, Applicants, Messages, Documents). Lazy-load the remaining ~40 pages. This cuts initial JS parse time significantly on mobile.
-
-**File:** `src/App.tsx`
-- Keep eager: Dashboard, Jobs, Applicants, ApplicantDetails, Messages, Documents, Auth, Index
-- Wrap the rest with `React.lazy()` + a minimal `<Suspense>` fallback (not the heavy AuthLoadingScreen — just a simple div)
-
-#### 2. Skip decorative animations on mobile
-Disable FloatingParticles and GradientOrbs when on mobile. The gradient blur orbs in AppLayout already provide ambient background. The particles add GPU load with no functional value on a phone.
-
-**File:** `src/components/animations/AuthLoadingScreen.tsx`
-- Import `useIsMobile`, skip rendering FloatingParticles/GradientOrbs on mobile (keep the StaggeredBarsLoader)
-
-**File:** `src/components/AppLayout.tsx` (both employer and candidate layouts)
-- Remove `backdrop-blur-sm` from the mobile sidebar overlay (keep `bg-black/60` — the opacity alone is sufficient)
-- The gradient orbs are already `200px`/`150px` on mobile which is fine, but reduce blur from `blur-[100px]` to `blur-[60px]` on mobile for lower GPU cost
-
-**File:** `src/components/AppHeader.tsx`
-- Change `backdrop-blur-sm` to `backdrop-blur-[2px]` — lighter blur, still looks frosted, much cheaper
-
-#### 3. Throttle MiniAva idle animations
-The blink timer runs a `setTimeout` loop every 8-12s even when the orb is off-screen. On mobile, we can increase the interval and skip the shadow blur div.
-
-**File:** `src/components/MiniAva/MiniAvaContainer.tsx`
-- Remove the decorative blur shadow div beneath the orb on mobile (the `blur-xl` div)
-
-**File:** `src/components/MiniAva/MiniAva.tsx`
-- Increase blink interval from 8-12s to 15-25s on mobile (less frequent re-renders)
-
-#### 4. Auto-version system
-The version is already read from `package.json` and displayed in the sidebar. Create a simple `src/lib/appVersion.ts` that exports the version, and bump the patch version in `package.json` with this change. For ongoing changes, the version in `package.json` will be incremented with each update.
-
-**File:** `package.json` — bump version from `1.0.0` to `1.1.0`
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
 ---
 
-### Files Modified
-- `src/App.tsx` — lazy-load non-critical routes
-- `src/components/animations/AuthLoadingScreen.tsx` — skip particles on mobile
-- `src/components/AppLayout.tsx` — lighter blur on mobile
-- `src/components/AppHeader.tsx` — reduce backdrop-blur intensity
-- `src/components/MiniAva/MiniAvaContainer.tsx` — remove shadow blur on mobile
-- `src/components/MiniAva/MiniAva.tsx` — slower blink interval on mobile
-- `package.json` — bump to v1.1.0
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-### What stays unchanged
-- All UI appearance (changes are invisible or near-invisible)
-- All functionality, routing, auth flow
-- Desktop experience (optimizations target mobile only where possible)
-- Sidebar version display (already reads from package.json)
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+
+---
+
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

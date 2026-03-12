@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
@@ -24,6 +25,7 @@ const candidateMessages = [
 
 export function AuthLoadingScreen({ variant = "employer", message }: AuthLoadingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
+  const isMobile = useIsMobile();
   const messages = variant === "employer" ? employerMessages : candidateMessages;
   
   // If a custom message is provided, show only that message
@@ -38,11 +40,13 @@ export function AuthLoadingScreen({ variant = "employer", message }: AuthLoading
 
   return (
     <div className="dark fixed inset-0 bg-[hsl(220,18%,10%)] z-50 flex items-center justify-center overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0">
-        <GradientOrbs count={4} />
-        <FloatingParticles count={30} intensity="subtle" />
-      </div>
+      {/* Background effects — skip on mobile for GPU savings */}
+      {!isMobile && (
+        <div className="absolute inset-0">
+          <GradientOrbs count={4} />
+          <FloatingParticles count={30} intensity="subtle" />
+        </div>
+      )}
 
       {/* Subtle grid pattern */}
       <div 
