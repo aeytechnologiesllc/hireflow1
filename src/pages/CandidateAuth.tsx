@@ -302,7 +302,7 @@ export default function CandidateAuth() {
           className="max-w-md mx-auto"
         >
           {/* Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-4 sm:mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-accent/40 rounded-xl blur-lg" />
