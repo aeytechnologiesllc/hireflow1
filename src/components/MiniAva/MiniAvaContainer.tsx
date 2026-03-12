@@ -17,6 +17,7 @@ export default function MiniAvaContainer() {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const { subscription } = useSubscription();
+  const isMobile = useIsMobile();
   
   // Personality and reactions
   const { state: personalityState, wake } = useAvaPersonality();
