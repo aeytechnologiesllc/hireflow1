@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import hireflowLogo from "@/assets/hireflow-logo.png";
+import hireflowLogo from "@/assets/app-icon-new.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { version as appVersion } from "../../package.json";
 
