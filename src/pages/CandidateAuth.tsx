@@ -96,6 +96,27 @@ export default function CandidateAuth() {
     }
   }, [user, authLoading, navigate]);
 
+  // Scroll submit button into view when keyboard opens on mobile
+  const scrollFormIntoView = useCallback(() => {
+    setTimeout(() => {
+      const submitBtn = formRef.current?.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }, 300);
+  }, []);
+
+  // Reset Google loading state when user returns from OAuth redirect
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isGoogleLoading) {
+        setTimeout(() => setIsGoogleLoading(false), 1000);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isGoogleLoading]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
