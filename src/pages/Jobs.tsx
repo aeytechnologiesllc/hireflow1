@@ -80,7 +80,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
 
   return (
     <Card 
-      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+      className="bg-card border-border card-interactive"
       onClick={() => onCardClick(job)}
     >
       <CardContent className="p-4 sm:p-6">

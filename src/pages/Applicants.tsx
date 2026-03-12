@@ -137,7 +137,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
   return (
     <Card 
-      className={`bg-card border-border hover:border-primary/50 transition-colors cursor-pointer ${isSelected ? "ring-2 ring-primary border-primary" : ""}`}
+      className={`bg-card border-border card-interactive ${isSelected ? "ring-2 ring-primary border-primary" : ""}`}
       onClick={handleCardClick}
     >
       <CardContent className="p-4 sm:p-6">

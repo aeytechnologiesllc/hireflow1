@@ -349,7 +349,7 @@ export default function Documents() {
     const StatusIcon = status.icon;
 
     return (
-      <Card key={doc.id} className="bg-card border-border hover:border-primary/50 transition-colors">
+      <Card key={doc.id} className="bg-card border-border card-interactive">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

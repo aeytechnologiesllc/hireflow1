@@ -100,7 +100,7 @@ export function DocumentRequestCard({
       transition={{ duration: 0.2 }}
     >
       <Card className={cn(
-        "bg-card border-border hover:border-primary/50 transition-all duration-300",
+        "bg-card border-border card-interactive",
         isOverdue && "border-destructive/50"
       )}>
         <CardContent className="p-3 sm:p-4">

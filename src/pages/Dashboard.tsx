@@ -347,12 +347,12 @@ function ApplicationCard({ application, onOpenBlueprint }: { application: Applic
 
   return (
     <Card 
-      className={`bg-card border-border transition-all cursor-pointer ${
+      className={`bg-card border-border card-interactive ${
         displayState.isRejected 
           ? "border-destructive/30 opacity-75" 
           : displayState.showActionButton 
             ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5" 
-            : "hover:border-primary/50"
+            : ""
       }`}
       onClick={() => {
         if (!displayState.isRejected) {
