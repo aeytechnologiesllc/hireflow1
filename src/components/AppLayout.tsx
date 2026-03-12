@@ -279,7 +279,7 @@ export default function AppLayout() {
   return (
     <TooltipProvider>
       <div 
-        className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full"
+        className="h-[100dvh] bg-background relative overflow-x-hidden flex w-full"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -388,7 +388,7 @@ function CandidateLayout({
   return (
     <TooltipProvider>
       <div
-        className="min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full"
+        className="h-[100dvh] bg-background relative overflow-x-hidden flex w-full"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
