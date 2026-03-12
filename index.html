@@ -37,7 +37,9 @@
     <meta name="keywords" content="hiring, recruitment, AI interviews, candidate screening, HR software, applicant tracking" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://hireflow.ai" />
-    <!-- Video compression removed - recording only mode -->
+    <!-- Natively JS SDK for native app bridge (push notifications, etc.) -->
+    <script>function nativelyOnLoad() { window.nativelyLoaded = true; }</script>
+    <script async onload="nativelyOnLoad()" src="https://cdn.jsdelivr.net/npm/natively@2.20.0/natively-frontend.min.js"></script>
   </head>
 
   <body>

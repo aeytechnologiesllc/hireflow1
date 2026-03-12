@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -45,7 +44,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Send test notification via OneSignal using include_aliases (current API)
+    // Check if the user has any registered push subscriptions
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: subs } = await supabaseAdmin
+      .from("push_subscriptions")
+      .select("player_id")
+      .eq("user_id", user.id);
+
+    const subCount = subs?.length ?? 0;
+    console.log(`[test-push] User ${user.id} has ${subCount} push subscription(s)`);
+
+    // Send test notification via OneSignal
     const payload = {
       app_id: ONESIGNAL_APP_ID,
       include_aliases: { external_id: [user.id] },
@@ -66,17 +79,27 @@ Deno.serve(async (req) => {
     });
 
     const result = await response.json();
+    console.log("[test-push] OneSignal response:", JSON.stringify(result));
 
     if (!response.ok) {
-      console.error("OneSignal test push error:", result);
       return new Response(
-        JSON.stringify({ error: "Failed to send test notification", details: result }),
+        JSON.stringify({ error: "OneSignal API error", details: result, stored_subscriptions: subCount }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    const recipients = result.recipients ?? 0;
+
     return new Response(
-      JSON.stringify({ success: true, message: "Test notification sent!", onesignal_id: result.id }),
+      JSON.stringify({
+        success: true,
+        message: recipients > 0
+          ? "Test notification sent!"
+          : "Notification created but 0 recipients matched. The device may not have its external_id mapped yet — try re-registering.",
+        onesignal_id: result.id,
+        recipients,
+        stored_subscriptions: subCount,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
