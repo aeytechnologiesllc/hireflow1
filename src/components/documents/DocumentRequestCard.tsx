@@ -10,6 +10,7 @@ import {
   Download,
   Trash2,
   Calendar,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
