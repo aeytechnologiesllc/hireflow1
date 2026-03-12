@@ -36,7 +36,6 @@ import {
 import { 
   ApplicantHeader, 
   ApplicantQuickActions, 
-  ApplicantAISummary,
   CollapsibleSection 
 } from "@/components/applicant";
 import {
