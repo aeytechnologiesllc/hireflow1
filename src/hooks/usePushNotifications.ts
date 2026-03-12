@@ -46,8 +46,8 @@ export function usePushNotifications() {
           console.log("[Push] Player ID:", playerId);
 
           // Upsert into push_subscriptions
-          const { error } = await supabase
-            .from("push_subscriptions" as string)
+          const { error } = await (supabase as any)
+            .from("push_subscriptions")
             .upsert(
               {
                 user_id: user.id,
