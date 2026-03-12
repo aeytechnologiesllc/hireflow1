@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
