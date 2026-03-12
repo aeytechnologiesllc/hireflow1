@@ -3,7 +3,7 @@ import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsR
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle, Trash2 } from "lucide-react";
+import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle, Trash2, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
