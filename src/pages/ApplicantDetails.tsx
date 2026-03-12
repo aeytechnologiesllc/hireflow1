@@ -1693,6 +1693,7 @@ export default function ApplicantDetails() {
         avatarUrl={profile?.avatar_url}
         aiScore={application.ai_score}
         status={application.status}
+        submittedDate={format(new Date(application.created_at), "M/d/yyyy")}
         onBack={() => navigate("/applicants")}
         onAvatarClick={() => setShowAvatarLightbox(true)}
       />
