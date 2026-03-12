@@ -442,8 +442,8 @@ export default function Auth() {
               Continue with Google
             </Button>
 
-            {/* Divider */}
-            <div className="relative mb-6">
+            {/* Divider - hidden on mobile for tighter layout */}
+            <div className="relative mb-3 sm:mb-6 hidden sm:block">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border" />
               </div>
