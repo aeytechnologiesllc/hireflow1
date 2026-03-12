@@ -1782,28 +1782,11 @@ export default function ApplicantDetails() {
                 )}
               </div>
               
-              {/* Autopilot Rejection Reason */}
-              {application.rejected_by_type === 'ava' && (
-                <div className="bg-background/50 rounded-lg p-3 border border-muted">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">Ava's Assessment</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">
-                        {phaseAnalysis || (
-                          application.ai_score !== null && job?.passing_score
-                            ? `Score of ${application.ai_score}% did not meet the passing threshold of ${job.passing_score}%.`
-                            : "This candidate did not meet the requirements for this position."
-                        )}
-                      </p>
-                      {job?.passing_score && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Passing threshold: <span className="font-medium">{job.passing_score}%</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              {/* Passing threshold hint */}
+              {application.rejected_by_type === 'ava' && job?.passing_score && (
+                <p className="text-xs text-muted-foreground">
+                  Passing threshold: <span className="font-medium">{job.passing_score}%</span>
+                </p>
               )}
             </CardContent>
           </Card>
