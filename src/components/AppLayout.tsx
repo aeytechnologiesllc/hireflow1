@@ -16,6 +16,7 @@ import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // Edge swipe detection constants
 const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
