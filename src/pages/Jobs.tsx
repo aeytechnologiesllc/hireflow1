@@ -243,7 +243,7 @@ export default function Jobs() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchJobs(), refetchStats()]);
   }, [refetchJobs, refetchStats]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
+  
   const [selectedJob, setSelectedJob] = useState<JobWithApplicationCount | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
