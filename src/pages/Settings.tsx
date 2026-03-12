@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, CreditCard, Loader2 } from "lucide-react";
+import { User, CreditCard, Loader2, Bell } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
 import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
@@ -23,6 +24,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSendingTestPush, setIsSendingTestPush] = useState(false);
+  const { sendTestNotification } = usePushNotifications();
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
   const [successPlanType, setSuccessPlanType] = useState("growth");
@@ -252,6 +255,32 @@ export default function Settings() {
                   className="bg-background font-mono text-sm" 
                   disabled 
                 />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Test Push Notification</p>
+                  <p className="text-sm text-muted-foreground">Send a test push to your device</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSendingTestPush}
+                  onClick={async () => {
+                    setIsSendingTestPush(true);
+                    try {
+                      await sendTestNotification();
+                      toast.success("Test notification sent! Check your device.");
+                    } catch {
+                      toast.error("Failed to send test notification");
+                    } finally {
+                      setIsSendingTestPush(false);
+                    }
+                  }}
+                >
+                  {isSendingTestPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bell className="h-4 w-4 mr-2" />}
+                  {isSendingTestPush ? "Sending..." : "Send Test"}
+                </Button>
               </div>
               <Separator />
               <div className="flex items-center justify-between">

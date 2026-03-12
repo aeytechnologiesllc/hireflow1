@@ -1,94 +1,56 @@
 
 
-## Push Notifications Integration Plan
+# Additional Gaps Worth Fixing
 
-### Current Notification System
-HireFlow already has a robust in-app + email notification system. The `notifications` table captures events, `GlobalNotificationToasts` shows real-time in-app toasts, and `send-notification-email` sends emails via Resend. Push notifications will add a third delivery channel alongside these.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Notification Events That Will Trigger Push Notifications
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-**For Employers:**
-- New application received
-- Document signed by candidate
-- Phase completed by candidate
-- Reschedule requested by candidate
-- Voice minutes low / exhausted
-- Candidate ready for interview
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-**For Candidates:**
-- Application status updates (rejected, hired, offered)
-- Interview scheduled / cancelled / rescheduled
-- New message from employer
-- Document sent for signing
-- Document requested
-- Phase advanced
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
 ---
 
-### Phase 1: Store OneSignal Credentials
-- Add `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` as secrets
-- These will be used by edge functions to call the OneSignal API
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-### Phase 2: Create `send-push-notification` Edge Function
-- New edge function that accepts `user_id`, `title`, `message`, and optional `url`
-- Looks up the user's OneSignal `player_id` (external user ID) from a new `push_subscriptions` table
-- Calls the OneSignal REST API to deliver the push notification
-- Respects user notification preferences (same as email)
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-### Phase 3: Database - `push_subscriptions` Table
-- New table: `push_subscriptions` with columns: `id`, `user_id`, `player_id` (OneSignal player ID), `platform` (ios/android/web), `created_at`
-- RLS: users can manage their own subscriptions
-- This table maps HireFlow users to their OneSignal device IDs
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-### Phase 4: Frontend - Register Device on Login
-- After authentication, call the Natively OneSignal JS bridge to get the player ID
-- Upsert the player ID into `push_subscriptions` table
-- Use Natively's `window.natively.notifications` API to register the device
-
-### Phase 5: Hook Push Notifications into Existing Events
-- Modify `send-notification-email` to also call `send-push-notification` after sending email (or create a unified `send-notification` dispatcher)
-- Alternatively, add a database trigger on `notifications` INSERT that calls the push function
-- The trigger approach is cleaner -- every notification row insertion automatically triggers a push
-
-### Phase 6: Test Notification Endpoint
-- Create a `send-test-push` edge function
-- Accepts a `user_id` and sends a test push notification ("HireFlow is connected! Push notifications are working.")
-- Add a "Send Test Notification" button in Settings for easy testing
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
 ---
 
-### Technical Details
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-**OneSignal API call pattern:**
-```text
-POST https://onesignal.com/api/v1/notifications
-Headers: Authorization: Basic <REST_API_KEY>
-Body: {
-  app_id: <APP_ID>,
-  include_external_user_ids: [<user_id>],
-  headings: { en: "title" },
-  contents: { en: "message" },
-  url: "<deep_link>"
-}
-```
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
 
-**Natively JS bridge for device registration:**
-```text
-window.natively.notifications.getPermissionStatus()
-window.natively.notifications.requestPermission()
-// OneSignal external user ID is set via Natively's OneSignal integration
-// which maps to the user's auth ID
-```
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
 
-**Database trigger approach (preferred):**
-A Postgres trigger on `notifications` INSERT calls `send-push-notification` via `pg_net` HTTP extension, so every notification automatically gets a push sent without modifying existing code.
+**Severity:** Low — defense-in-depth improvement.
 
-### Implementation Order
-1. Store secrets (ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY)
-2. Create `push_subscriptions` table with RLS
-3. Create `send-push-notification` edge function
-4. Create `send-test-push` edge function
-5. Add frontend device registration logic (Natively bridge)
-6. Add database trigger on `notifications` table to auto-send pushes
-7. Add "Send Test Notification" button in Settings
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 
