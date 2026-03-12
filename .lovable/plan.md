@@ -1,56 +1,64 @@
 
 
-# Additional Gaps Worth Fixing
+## Research: Why HireFlow Lags in Natively on Android + Pull-to-Refresh Conflict
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+### Why the app lags in Natively (Android)
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+Natively wraps your web app in an **Android WebView** (not a full browser). WebViews have significantly weaker rendering performance than Chrome, especially for:
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+1. **`backdrop-blur` / CSS blur filters** — These are GPU-compositing-heavy. Your `AppHeader` uses `backdrop-blur-[2px]` on mobile and `backdrop-blur-sm` on desktop. The `DeveloperLayout` header also uses `backdrop-blur-xl`. Every frame during scroll forces the GPU to re-composite blurred layers. On Android WebView, this causes visible jank.
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+2. **Large blurred gradient orbs** — Both `AppLayout` and `CandidateLayout` render two `blur-[60px]` gradient divs on mobile (200px and 150px). These persist during scroll and consume GPU resources continuously.
 
----
+3. **Framer Motion animations running during scroll** — Components like `FloatingParticles`, the MiniAva mascot, and various `motion.div` elements with infinite `repeat` animations compete for the JS thread during scroll events. Android WebView's JS engine is slower than Chrome's.
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+4. **Custom touch handlers on the root container** — The edge-swipe detection (`onTouchStart/Move/End` on the root div) and the pull-to-refresh touch handlers both intercept touch events on every frame, adding JS overhead during scroll.
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+5. **No hardware acceleration hints** — The blurred orbs and animated elements don't use `transform: translateZ(0)` or `will-change` to promote layers to the GPU compositor.
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+**Natively does NOT have an SDK you need to install** for performance. It's a WebView wrapper — the performance depends entirely on how lightweight your web app is. There's no magic SDK fix. The fix is optimizing the web app itself for WebView constraints.
 
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+### Pull-to-Refresh Conflict
 
----
+You're right. **Natively has its own native pull-to-refresh** (documented in their Style settings: "Drag to the bottom to refresh the page"). Your custom `usePullToRefresh` hook adds a competing JS-based pull-to-refresh with touch interception, Framer Motion spring physics, SVG ring animation, and haptic calls — all firing during the same downward swipe gesture. This creates:
 
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
+- **Double pull-to-refresh** — native one + yours
+- **Touch event contention** — your JS handler processes every `touchmove` before the native handler can act
+- **Animation overhead** — your green orb + SVG ring animate via Framer Motion during what should be a simple native gesture
 
 ---
 
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+## Plan: Disable Custom Pull-to-Refresh + Performance Hardening
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+### 1. Remove custom pull-to-refresh from all pages
 
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+**Files**: `src/pages/Dashboard.tsx`, `src/pages/Jobs.tsx`, `src/pages/Applicants.tsx`, `src/pages/Interviews.tsx`, `src/pages/Notifications.tsx`
 
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+- Remove `usePullToRefresh` import and usage
+- Remove `pullHandlers` spread on container divs
+- Remove `<PullIndicator />` rendering
+- Let Natively's native pull-to-refresh handle page refresh (it reloads the WebView page)
 
----
+### 2. Remove the hook file
 
-## Recommended Implementation Order
+**File**: `src/hooks/usePullToRefresh.tsx` — Delete entirely. No other files depend on it beyond the 5 pages above.
 
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+### 3. Performance optimizations for Android WebView
 
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+**File**: `src/components/AppHeader.tsx`
+- Remove `backdrop-blur-[2px]` on mobile — change to `bg-card` (solid, no blur) on mobile, keep blur on desktop only: `bg-card md:bg-card/80 md:backdrop-blur-sm`
+
+**File**: `src/components/AppLayout.tsx` (both EmployerLayout and CandidateLayout)
+- Remove the two gradient orb divs on mobile (hide with `hidden md:block`) — they add no functional value and hurt scroll performance in WebView
+- Keep them on desktop where GPU is not constrained
+
+**File**: `src/components/DeveloperLayout.tsx`
+- Same: remove `backdrop-blur-xl` from header on mobile, hide gradient orbs on mobile
+
+### Summary of changes
+- 5 page files: remove pull-to-refresh usage
+- 1 hook file: delete `usePullToRefresh.tsx`
+- 3 layout/header files: remove mobile blur and gradient orbs
+
+No design changes on desktop. Mobile-only performance optimizations.
 
