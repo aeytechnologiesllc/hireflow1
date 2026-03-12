@@ -190,9 +190,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       !isMobile && "relative min-h-screen shrink-0",
       // Desktop: collapsed or expanded width
       !isMobile && (collapsed ? "w-16" : "w-64"),
-      // Mobile: fixed overlay drawer (only rendered when open)
-      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]",
-      "pb-[env(safe-area-inset-bottom,8px)]"
+      // Mobile: fixed overlay drawer with full height
+      isMobile && "fixed left-0 top-0 min-h-[100dvh] h-[100dvh] translate-x-0 w-[280px] max-w-[85vw]",
     )}>
       {/* Animated gradient background overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
@@ -203,7 +202,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
 
       {/* Logo */}
       <div className={cn(
-        "relative z-10 h-16 flex items-center",
+        "relative z-10 h-16 flex items-center shrink-0",
         collapsed && !isMobile ? "justify-center px-2" : "gap-3 px-6"
       )}>
         <div className="relative shrink-0">
@@ -235,7 +234,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
 
       {/* Role indicator badge */}
       {(!collapsed || isMobile) && (
-        <div className="relative z-10 px-6 pb-2">
+        <div className="relative z-10 px-6 pb-2 shrink-0">
           <Badge 
             variant="outline" 
             className={cn(
@@ -255,7 +254,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       {collapsed && !isMobile && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="relative z-10 flex justify-center pb-2">
+            <div className="relative z-10 flex justify-center pb-2 shrink-0">
               <div 
                 className={cn(
                   "w-2 h-2 rounded-full",
@@ -275,11 +274,11 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       )}
 
       {/* Gradient divider */}
-      <div className="relative z-10 mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="relative z-10 mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent shrink-0" />
 
       {/* Collapse Toggle - Desktop only */}
       {!isMobile && (
-        <div className={cn("relative z-10 px-2 py-2 flex", collapsed ? "justify-center" : "justify-end")}>
+        <div className={cn("relative z-10 px-2 py-2 flex shrink-0", collapsed ? "justify-center" : "justify-end")}>
           <Button
             variant="ghost"
             size="icon"
@@ -291,8 +290,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="relative z-10 flex-1 p-2 space-y-1 overflow-y-auto">
+      {/* Navigation - scrollable area */}
+      <nav className="relative z-10 flex-1 p-2 space-y-1 overflow-y-auto min-h-0">
         {navItems.map((item) => (
           <NavItem
             key={item.to}
@@ -307,8 +306,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
         ))}
       </nav>
 
-      {/* Bottom section with gradient divider */}
-      <div className="relative z-10">
+      {/* Bottom section - sticky, never scrolls away */}
+      <div className="relative z-10 shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
         <div className="mx-4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
         <div className="p-2 space-y-1">
           <NavItem 
