@@ -12,6 +12,7 @@ interface ApplicantHeaderProps {
   avatarUrl?: string | null;
   aiScore?: number | null;
   status: string;
+  submittedDate?: string | null;
   onBack: () => void;
   onAvatarClick?: () => void;
   className?: string;
