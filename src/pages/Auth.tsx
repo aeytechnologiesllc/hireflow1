@@ -454,7 +454,7 @@ export default function Auth() {
 
             {/* Tabs - only show when not in password reset flows */}
             {!showForgotPassword && !isResettingPassword && (
-              <div className="flex mb-8 bg-muted/50 rounded-xl p-1">
+              <div className="flex mb-5 sm:mb-8 bg-muted/50 rounded-xl p-1">
                 <button
                   onClick={() => setActiveTab("signin")}
                   className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
