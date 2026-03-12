@@ -360,12 +360,12 @@ export default function Settings() {
               <CardDescription>Manage your privacy preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Profile Visibility</p>
                   <p className="text-sm text-muted-foreground">Allow employers to find your profile</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch className="shrink-0" defaultChecked />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
