@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Calendar,
   Clock,
+  ChevronRight,
 } from "lucide-react";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
