@@ -86,12 +86,6 @@ export default function Notifications() {
   const markAllAsRead = useMarkAllNotificationsAsRead();
   const deleteAll = useDeleteAllNotifications();
   
-  // Mobile pull-to-refresh
-  const isMobile = useIsMobile();
-  const handleRefresh = useCallback(async () => {
-    await refetchNotifications();
-  }, [refetchNotifications]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
 
   // Track if we've already auto-marked as read this session
   const hasAutoMarkedRef = useRef(false);
