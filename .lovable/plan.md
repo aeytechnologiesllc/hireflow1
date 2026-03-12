@@ -1,56 +1,49 @@
 
 
-# Additional Gaps Worth Fixing
+## Issues Identified
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+### 1. Dashboard checklist flashes on every login
+The `GettingStartedChecklist` shows/hides based on `jobs` and `appStats` data. On login, these queries start as `undefined` (loading), so `showGettingStarted` evaluates to `true` (since `!hasJobs || !hasApplicants` is true when data is undefined/null). Once data loads a moment later, the checklist disappears. This flash happens every login.
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+**Fix**: Add loading guards — don't show checklist while data is still loading.
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+### 2. Auth form button hidden behind keyboard on mobile
+The auth page uses `min-h-[100dvh]` with `overflow-y-auto`, but when the virtual keyboard opens on mobile, the sign-in button is pushed below the visible area. The page doesn't auto-scroll to keep the focused input and submit button visible.
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+**Fix**: Add `onFocus` scroll-into-view behavior to auth input fields so the form scrolls up when the keyboard opens, keeping the button visible.
 
----
+### 3. Google Sign-In fails in Natively (Android WebView)
+This is a known Google policy: **Google blocks OAuth sign-in from embedded WebViews** (Android's `WebView` class). The error "disallowed_useragent" or "does not comply with Google's secure browser policy" is intentional — Google requires OAuth to happen in the system browser or Chrome Custom Tabs, not inside a WebView.
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+**Natively supports this** via their "External URLs" or deep-link settings. The OAuth URL (`accounts.google.com`) must be configured to open in the **external system browser** instead of the in-app WebView. This is a Natively configuration change, not a code change. However, we can also detect WebView and hide the Google button, showing a helpful message instead.
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+**Fix**: Detect WebView environment and either:
+- Open Google OAuth via Natively's `openExternalURL` bridge (if available), or
+- Hide the Google sign-in button in WebView and show a note explaining to use email/password instead
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+### 4. Loading spinner stuck after failed Google sign-in
+When Google OAuth fails and the user navigates back, `isGoogleLoading` stays `true` because it's only reset in the error callback, but when the user manually navigates back from Google's page, no error callback fires — the component just remounts with `isGoogleLoading` still in its initial `false` state... Actually, the issue is that the page redirects to Google, and when the user comes back, the auth state listener fires but may leave the page in a limbo state. The `AuthLoadingScreen` could be showing because `authLoading` is `true` during the session check.
 
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
+**Fix**: Add a timeout or visibility-change listener to reset loading state when the user returns from an OAuth attempt.
 
 ---
 
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+## Plan
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+### File: `src/pages/Dashboard.tsx`
+- In the `showGettingStarted` memo, add: if `isLoadingJobs` or `isLoadingAppStats`, return `false`. This prevents the checklist from flashing while data loads.
 
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+### File: `src/pages/Auth.tsx`
+- Add a ref-based scroll helper: when an input receives focus, scroll its container to ensure the submit button is visible. Use `scrollIntoView` on the form's submit button after a short delay (to wait for keyboard animation).
+- Reset `isGoogleLoading` on `visibilitychange` event (when user returns from Google OAuth tab/browser).
 
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+### File: `src/pages/CandidateAuth.tsx`
+- Same scroll-into-view fix for input focus.
+- Same `visibilitychange` reset for Google loading state.
 
----
+### File: `src/hooks/useAuth.tsx`
+- Add WebView detection utility. In WebView environments, configure Google OAuth to use `window.open` or show a fallback message.
 
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+### Files: `src/pages/Auth.tsx` and `src/pages/CandidateAuth.tsx`
+- Detect Natively WebView (check `window.natively` or user-agent for `wv`/`WebView`). If in WebView, hide Google sign-in button and show a subtle note: "Use email sign-in on the app" — OR — use Natively's JS bridge to open the OAuth URL externally.
 
