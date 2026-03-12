@@ -25,6 +25,7 @@ const candidateMessages = [
 
 export function AuthLoadingScreen({ variant = "employer", message }: AuthLoadingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
+  const isMobile = useIsMobile();
   const messages = variant === "employer" ? employerMessages : candidateMessages;
   
   // If a custom message is provided, show only that message
