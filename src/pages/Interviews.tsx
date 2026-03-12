@@ -71,8 +71,7 @@ function InterviewCard({
 
   return (
     <Card className={`
-      bg-card border-border transition-all
-      ${isUpcoming ? "hover:border-primary/50" : ""} 
+      bg-card border-border ${isUpcoming ? "card-interactive" : "transition-all"} 
       ${needsAction ? "border-amber-500/50 ring-1 ring-amber-500/20" : ""}
     `}>
       <CardContent className="p-4 sm:p-6">

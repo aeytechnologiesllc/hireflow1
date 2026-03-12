@@ -343,10 +343,10 @@ export default function TeamPortal() {
               transition={{ delay: 0.1 * (index + 3) }}
             >
               <Card
-                className={`cursor-pointer transition-all hover:shadow-md ${
+                className={`${
                   action.enabled
-                    ? "hover:border-primary/50"
-                    : "opacity-50 cursor-not-allowed"
+                    ? "card-interactive"
+                    : "opacity-50 cursor-not-allowed transition-all"
                 }`}
                 onClick={action.enabled ? action.onClick : undefined}
               >

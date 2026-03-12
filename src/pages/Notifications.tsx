@@ -30,7 +30,7 @@ function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps)
   const content = (
     <Card 
       className={cn(
-        "bg-card border-border hover:border-primary/50 transition-colors cursor-pointer",
+        "bg-card border-border card-interactive",
         !notification.is_read && "border-l-4 border-l-primary"
       )}
       onClick={() => !notification.is_read && onMarkAsRead(notification.id)}

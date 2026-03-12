@@ -232,6 +232,13 @@
     box-shadow: var(--shadow-glow);
   }
 
+  .card-interactive {
+    @apply transition-all duration-200 cursor-pointer
+           hover:border-primary/50 hover:-translate-y-[1px]
+           hover:shadow-[0_4px_20px_-4px_hsl(var(--primary)/0.15)]
+           active:translate-y-0 active:shadow-none;
+  }
+
   .ava-orb-glow {
     filter:
       drop-shadow(0 0 14px hsl(var(--accent) / 0.38))
