@@ -29,6 +29,7 @@ export default function AppLayout() {
   const { user, loading, role, signOut } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
+  usePushNotifications(); // Auto-registers device for push notifications in Natively
   const syncAttemptedRef = useRef(false);
   const globalSyncAttemptedRef = useRef(false);
   
