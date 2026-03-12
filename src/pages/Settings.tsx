@@ -259,6 +259,32 @@ export default function Settings() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
+                  <p className="font-medium text-foreground">Test Push Notification</p>
+                  <p className="text-sm text-muted-foreground">Send a test push to your device</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSendingTestPush}
+                  onClick={async () => {
+                    setIsSendingTestPush(true);
+                    try {
+                      await sendTestNotification();
+                      toast.success("Test notification sent! Check your device.");
+                    } catch {
+                      toast.error("Failed to send test notification");
+                    } finally {
+                      setIsSendingTestPush(false);
+                    }
+                  }}
+                >
+                  {isSendingTestPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bell className="h-4 w-4 mr-2" />}
+                  {isSendingTestPush ? "Sending..." : "Send Test"}
+                </Button>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="font-medium text-foreground">Sign Out</p>
                   <p className="text-sm text-muted-foreground">Sign out of your account on this device</p>
                 </div>
