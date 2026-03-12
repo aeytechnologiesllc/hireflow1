@@ -170,6 +170,7 @@ export default function CandidateAuth() {
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now apply for jobs.",
+        duration: 1500,
       });
       setWelcomeName(signUpName);
       setShowWelcome(true);

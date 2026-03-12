@@ -76,7 +76,7 @@ export default function TrialExpiredOverlay() {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsl(220, 18%, 7%)" }}>
+    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center overflow-y-auto p-4 py-8 md:py-4" style={{ background: "hsl(220, 18%, 7%)" }}>
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
         onClose={() => setCheckoutClientSecret(null)}
@@ -88,9 +88,9 @@ export default function TrialExpiredOverlay() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-3xl"
+        className="w-full max-w-3xl my-auto"
       >
-        <div className="p-8 rounded-2xl border border-gray-800 bg-gray-900/50 backdrop-blur-sm text-center">
+        <div className="p-6 md:p-8 rounded-2xl border border-gray-800 bg-gray-900/50 backdrop-blur-sm text-center">
           <div className="flex justify-center mb-6">
             <motion.div 
               className="p-4 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30"
