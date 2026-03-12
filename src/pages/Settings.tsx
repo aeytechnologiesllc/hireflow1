@@ -359,21 +359,21 @@ export default function Settings() {
               <CardTitle className="text-lg">Privacy</CardTitle>
               <CardDescription>Manage your privacy preferences</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
+            <CardContent className="space-y-4 px-5 sm:px-6">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Profile Visibility</p>
                   <p className="text-sm text-muted-foreground">Allow employers to find your profile</p>
                 </div>
-                <Switch className="shrink-0" defaultChecked />
+                <Switch className="shrink-0 ml-3" defaultChecked />
               </div>
               <Separator />
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Activity Status</p>
                   <p className="text-sm text-muted-foreground">Show when you're actively looking for jobs</p>
                 </div>
-                <Switch className="shrink-0" defaultChecked />
+                <Switch className="shrink-0 ml-3" defaultChecked />
               </div>
             </CardContent>
           </Card>
