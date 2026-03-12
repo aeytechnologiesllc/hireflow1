@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useState, useEffect } from "react";
-import avaOrb from "@/assets/ava-orb.png";
 
 interface FirstJobTooltipProps {
   show: boolean;
@@ -47,22 +46,10 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="absolute z-50 bottom-full mb-3 left-1/2 -translate-x-1/2"
+          className="absolute z-50 bottom-full mb-3 right-0 w-[calc(100vw-48px)] max-w-[300px]"
         >
-          {/* Integrated card-style tooltip */}
-          <div className="relative bg-card/95 backdrop-blur-sm text-foreground px-4 py-3 rounded-xl shadow-lg min-w-[280px] max-w-[320px] w-max border border-border">
-            <div className="flex items-start gap-3">
-              {/* AVA orb icon */}
-              <motion.img 
-                src={avaOrb} 
-                alt="" 
-                className="w-6 h-6 shrink-0 mt-0.5 opacity-80"
-                animate={{ 
-                  scale: [1, 1.03, 1],
-                }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              />
-              
+          <div className="relative bg-card/95 backdrop-blur-sm text-foreground px-4 py-3 rounded-xl shadow-lg border border-border">
+            <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   Your job is on <span className="text-primary font-medium">Autopilot</span>. 
@@ -78,8 +65,8 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
               </button>
             </div>
             
-            {/* Arrow pointing down */}
-            <div className="absolute w-2.5 h-2.5 bg-card rotate-45 bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 border-r border-b border-border" />
+            {/* Arrow pointing down, aligned to right side near the button */}
+            <div className="absolute w-2.5 h-2.5 bg-card rotate-45 bottom-0 right-6 translate-y-1/2 border-r border-b border-border" />
           </div>
         </motion.div>
       )}
