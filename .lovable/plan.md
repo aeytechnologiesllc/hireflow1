@@ -1,56 +1,22 @@
 
 
-# Additional Gaps Worth Fixing
+## Diagnosis: This is our code issue, not Stripe
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+Stripe test mode works identically to live mode. The payment went through successfully (confirmed in logs: `sub_1T9xUiJoMc2msNl4hCXvLk6d`, status `active`, Growth plan, $29). The problem is entirely on our side — two bugs:
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+### Bug 1: `get-subscription` reads with the wrong client
+Line 81 of `get-subscription/index.ts` queries the `subscriptions` table using `supabaseClient` (anon/user-auth key). But `sync-subscription` writes using `supabaseAdmin` (service role). Due to RLS or read-consistency differences between these two client contexts, the read returns stale data (`trial/expired`) even after sync successfully wrote `growth/active`.
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+**Fix**: Change line 81 from `supabaseClient` to `supabaseAdmin`. The function already verifies the user's identity via `auth.getUser()`, so this is safe. Every other query in this function already uses `supabaseAdmin`.
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+### Bug 2: Webhook signature mismatch (secondary)
+The `STRIPE_WEBHOOK_SECRET` stored in secrets doesn't match what Stripe is sending. This means the automatic webhook path (which would update the DB without needing client-side sync) is completely broken. The client-side `sync-subscription` fallback works, but the read bug above prevents the UI from seeing the updated data.
 
----
+**Fix**: You'll need to update the webhook signing secret from your Stripe Dashboard (Developers → Webhooks → select the endpoint → Signing secret). But fixing Bug 1 alone will resolve the immediate "trial expired" issue since the sync-subscription path is working correctly.
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+### Changes
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+1. **`supabase/functions/get-subscription/index.ts`** — Change subscription query from `supabaseClient` to `supabaseAdmin` on line 81, add error logging for `subError`
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
-
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
-
----
-
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+2. **`src/components/AppLayout.tsx`** — Add a delayed second `refetch()` (500ms) after sync success as insurance, and invalidate the query cache before refetching
 
