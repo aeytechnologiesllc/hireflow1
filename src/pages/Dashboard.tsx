@@ -226,7 +226,7 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
 
   return (
     <Card 
-      className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer"
+      className="bg-card border-border card-interactive"
       onClick={handleCardClick}
     >
       <CardContent className="p-3 md:p-6">
