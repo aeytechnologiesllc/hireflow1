@@ -35,6 +35,7 @@ import {
   Rocket,
   Download,
   ClipboardList,
+  ChevronRight,
 } from "lucide-react";
 import { FeatureDiscoveryTooltip } from "@/components/FeatureDiscoveryTooltip";
 import {
