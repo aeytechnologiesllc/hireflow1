@@ -1,56 +1,43 @@
 
 
-# Additional Gaps Worth Fixing
+## Make Clickable Tiles Visually Interactive
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+### Problem
+Clickable cards across the app (Jobs, Applicants, Dashboard, Notifications, Documents, etc.) only have `hover:border-primary/50` and `cursor-pointer` -- subtle cues that don't clearly communicate interactivity, especially on the dark theme.
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+### Approach
+Add a layered hover effect to all clickable cards: a slight upward lift (`hover:-translate-y-[1px]`), a soft glow shadow, and a subtle background brightness shift. This maintains the premium dark aesthetic while making interactivity unmistakable.
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+Since these cards all use the shared `<Card>` component from `src/components/ui/card.tsx`, the cleanest approach is to create a reusable CSS class or a variant pattern, then apply it consistently.
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+### Implementation
 
----
+**1. Add a shared utility class in `src/index.css`**
+```css
+.card-interactive {
+  @apply transition-all duration-200 cursor-pointer 
+         hover:border-primary/50 hover:-translate-y-[1px] 
+         hover:shadow-[0_4px_20px_-4px_hsl(var(--primary)/0.15)]
+         active:translate-y-0 active:shadow-none;
+}
+```
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+**2. Apply `card-interactive` to all clickable Card instances across ~12 files:**
+- `src/pages/Jobs.tsx` -- JobCard
+- `src/pages/Applicants.tsx` -- ApplicantCard
+- `src/pages/Dashboard.tsx` -- stat cards, recent applicant cards
+- `src/pages/Notifications.tsx` -- notification cards
+- `src/pages/Documents.tsx` -- document cards
+- `src/pages/Interviews.tsx` -- interview cards
+- `src/pages/Messages.tsx` -- conversation list items
+- `src/pages/TeamPortal.tsx` -- action cards
+- `src/components/GettingStartedChecklist.tsx` -- checklist items
+- `src/components/documents/DocumentRequestCard.tsx`
+- `src/components/subscription/LimitReachedDialog.tsx`
+- Any other clickable Card with `cursor-pointer`
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+Replace verbose inline classes like `hover:border-primary/50 transition-colors cursor-pointer` with just `card-interactive`, keeping any additional conditional classes (like selection rings) alongside it.
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
-
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
-
----
-
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+### Result
+Every clickable tile gets a consistent, premium hover treatment: border glow + micro-lift + shadow bloom + snappy active press-back. Non-clickable cards remain static, creating clear visual hierarchy.
 
