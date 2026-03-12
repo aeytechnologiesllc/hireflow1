@@ -352,7 +352,7 @@ export default function CandidateAuth() {
           </div>
 
           {/* Auth Card */}
-          <div className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
+          <div ref={formRef} className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
             {showForgotPassword ? (
               /* Forgot Password View */
               <motion.div
