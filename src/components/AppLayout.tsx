@@ -24,10 +24,12 @@ const SWIPE_MIN_DISTANCE = 80; // px to trigger open
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading, role, signOut } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
   const syncAttemptedRef = useRef(false);
+  const globalSyncAttemptedRef = useRef(false);
   
   // Check if we need to sync subscription on mount (after checkout return)
   const [isSyncingSubscription, setIsSyncingSubscription] = useState(() => {
