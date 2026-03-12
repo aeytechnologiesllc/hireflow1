@@ -153,6 +153,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   const candidateNavItems: NavItemProps[] = [
