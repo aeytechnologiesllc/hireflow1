@@ -338,12 +338,13 @@ export default function Settings() {
                 />
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Phase Updates</p>
                   <p className="text-sm text-muted-foreground">Get notified when candidates complete phases</p>
                 </div>
                 <Switch 
+                  className="shrink-0"
                   checked={localPrefs.email_phase_updates}
                   onCheckedChange={(checked) => handlePrefChange("email_phase_updates", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
