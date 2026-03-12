@@ -290,9 +290,9 @@ export default function AppLayout() {
         {/* Global notification toasts listener */}
         <GlobalNotificationToasts />
         
-        {/* Premium gradient orbs - lighter blur on mobile for GPU savings */}
-        <div className="absolute top-0 right-0 w-[200px] h-[200px] md:w-[600px] md:h-[600px] bg-primary/15 rounded-full blur-[60px] md:blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[150px] h-[150px] md:w-[500px] md:h-[500px] bg-accent/12 rounded-full blur-[60px] md:blur-[150px] pointer-events-none" />
+        {/* Premium gradient orbs - hidden on mobile for WebView GPU savings */}
+        <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
+        <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
         
         {/* Mobile overlay backdrop — no blur on mobile for performance */}
         {isMobile && sidebarOpen && (
