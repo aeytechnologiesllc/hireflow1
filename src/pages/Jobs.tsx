@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs, useJobStats, useDeleteJob, useCreateJob } from "@/hooks/useJobs";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useSubscription } from "@/hooks/useSubscription";
