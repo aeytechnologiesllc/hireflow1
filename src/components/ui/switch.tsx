@@ -12,10 +12,6 @@ const Switch = React.forwardRef<
       "peer group relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full border overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=unchecked]:border-[rgba(255,255,255,0.06)] data-[state=unchecked]:bg-[rgba(255,255,255,0.08)] data-[state=checked]:border-transparent data-[state=checked]:shadow-[0_0_8px_rgba(0,210,160,0.4)]",
       className,
     )}
-    style={{
-      background:
-        undefined, // handled below via data attribute
-    }}
     {...props}
     ref={ref}
   >
