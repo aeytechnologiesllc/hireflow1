@@ -85,7 +85,10 @@ export function FeatureDiscoveryTooltip({
   useEffect(() => {
     const alreadyDismissed = localStorage.getItem(storageKey) === "dismissed";
     if (!alreadyDismissed) {
-      const timer = setTimeout(() => setIsVisible(true), delayMs);
+      const timer = setTimeout(() => {
+        setIsVisible(true);
+        localStorage.setItem(storageKey, "dismissed");
+      }, delayMs);
       return () => clearTimeout(timer);
     }
   }, [storageKey, delayMs]);
