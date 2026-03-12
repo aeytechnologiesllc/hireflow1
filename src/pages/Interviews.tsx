@@ -281,7 +281,7 @@ export default function Interviews() {
   const handleRefresh = useCallback(async () => {
     await refetch();
   }, [refetch]);
-  const { handlers: pullHandlers, PullIndicator } = usePullToRefresh({ onRefresh: handleRefresh });
+  
 
   // Real-time subscription for interview updates
   useEffect(() => {
