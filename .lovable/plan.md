@@ -1,56 +1,61 @@
 
 
-# Additional Gaps Worth Fixing
+## Plan: Clean Up Applicant Details Page — Reduce Clutter and Redundancy
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+### Problem
+The page shows too many overlapping sections with redundant information, especially for rejected candidates. The current order is:
+1. Header (name, score gauge)
+2. Quick Actions (Message, ...)
+3. **ApplicantAISummary** (Ava's Summary with score, confidence, expandable text)
+4. **Schedule Interview button** (visible even for rejected candidates)
+5. **Rejected Banner** (with Reconsider button + Ava's Assessment)
+6. **Candidate Journey** (with big REJECTED stamp)
+7. Processing Mode indicator
+8. Applicant Details card (name, email again — redundant with header)
+9. **AVA's Analysis** (CondensedAIAnalysis with score ring, phase-by-phase — redundant with #3)
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+Score appears 3 times. Name appears twice. Analysis text appears in two places.
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+### Solution — Consolidate into a clean hierarchy
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+**Remove ApplicantAISummary from the top.** The full AVA's Analysis section lower down is more complete and already has the score ring, phase-by-phase breakdown, and hiring signal. Having both is the core redundancy.
 
----
+**Hide Schedule Interview button for rejected candidates.** Add `!isRejected` to the condition.
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+**Move Rejected Banner above the Candidate Journey** (it already is, but tighten up — remove the separate Ava's Assessment sub-card when the same info is in the CondensedAIAnalysis below).
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+**Remove the redundant Applicant Details card** (lines ~2260-2353). The header already shows name, email, and score. The submission date can move into the header subtitle.
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+**Revised order for rejected candidates:**
+```text
+1. Header (name, email, score gauge, submitted date)
+2. Quick Actions (Message, Notes, Dossier)
+3. Rejected Banner (compact — who rejected, reason, Reconsider button)
+4. Candidate Journey (with REJECTED stamp — keep)
+5. Processing Mode (keep — one line)
+6. AVA's Analysis (the one comprehensive section with score ring + phases)
+```
 
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+### Changes to `src/pages/ApplicantDetails.tsx`
 
----
+1. **Remove ApplicantAISummary render** (lines 1715-1725) — delete entirely. The CondensedAIAnalysis section is the single source of truth for analysis display.
 
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+2. **Add `!isRejected` to Schedule Interview button condition** (line 1728) — rejected candidates should not see this.
 
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+3. **Remove the redundant Applicant Details card** (lines ~2260-2353) — name, email, submission date are already in the header. Move "Submitted on" date into ApplicantHeader as a subtitle.
 
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+4. **Update ApplicantHeader** to accept and display `submittedDate` prop.
 
-**Severity:** Low — defense-in-depth improvement.
+5. **Simplify the Rejected Banner** — remove the nested "Ava's Assessment" sub-card (lines 1797-1818) since the same info is in CondensedAIAnalysis. Keep it to: "Rejected by Ava at [phase]" + Reconsider button, one compact card.
 
----
+### Files Modified
+- `src/pages/ApplicantDetails.tsx` — remove redundant sections, add rejection guard to interview button
+- `src/components/applicant/ApplicantHeader.tsx` — add optional `submittedDate` prop
 
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
+### What stays unchanged
+- CondensedAIAnalysis component (the comprehensive analysis section)
+- Candidate Journey slider with REJECTED stamp
+- All dialogs, routing, mobile behavior
+- Processing mode indicator
+- Quick Actions
 
