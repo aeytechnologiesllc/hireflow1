@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { version as appVersion } from "../../package.json";
 
 interface NavItemProps {
   icon: React.ElementType;
@@ -190,7 +191,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       // Desktop: collapsed or expanded width
       !isMobile && (collapsed ? "w-16" : "w-64"),
       // Mobile: fixed overlay drawer (only rendered when open)
-      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]"
+      isMobile && "fixed left-0 top-0 h-full translate-x-0 w-[280px] max-w-[85vw]",
+      "pb-[env(safe-area-inset-bottom,8px)]"
     )}>
       {/* Animated gradient background overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 animate-sidebar-gradient pointer-events-none" />
@@ -325,6 +327,19 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
             onNavigate={onNavigate}
           />
         </div>
+        {/* App version */}
+        {collapsed && !isMobile ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="text-[10px] text-muted-foreground/50 text-center py-2">v{appVersion}</p>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-card/95 backdrop-blur-sm border-primary/20">
+              HireFlow v{appVersion}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <p className="text-[10px] text-muted-foreground/50 text-center py-2">HireFlow v{appVersion}</p>
+        )}
       </div>
     </aside>
   );
