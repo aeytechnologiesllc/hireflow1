@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 const Terms = () => {
   return (
-    <div className="dark min-h-screen bg-[hsl(220,18%,10%)] text-white">
+    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white">
       {/* Header */}
       <header className="border-b border-border/40 bg-[hsl(220,18%,10%)]/95 backdrop-blur supports-[backdrop-filter]:bg-[hsl(220,18%,10%)]/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">

@@ -1,71 +1,56 @@
 
 
-## Plan: Android WebView / Natively Scroll & Viewport Fix
+# Additional Gaps Worth Fixing
 
-### Problem
-Several layout containers use patterns that break scrolling on Android WebView:
-- `overflow-hidden` on scroll-blocking containers
-- `min-h-screen` (uses `100vh` which is static on Android and doesn't account for browser chrome)
-- Missing `height: 100%` on `html/body/#root` chain, so flex children can't calculate bounded heights
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Changes
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-**1. `src/index.css` — Global foundation (line 152-155)**
-Add `height: 100%` to `html, body, #root` so the flex layout chain works on Android WebView. Keep `overflow-x: hidden`.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-```css
-html, body, #root {
-  height: 100%;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-body {
-  overflow-y: auto;
-}
-```
+---
 
-**2. `src/components/DeveloperLayout.tsx` (line 100)**
-Change `min-h-screen bg-background relative overflow-hidden overflow-x-hidden flex w-full`
-→ `h-[100dvh] bg-background relative overflow-x-hidden flex w-full`
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-Same fix already applied to AppLayout — DeveloperLayout was missed.
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-**3. `src/components/subscription/OnboardingWizard.tsx` (line 261-263)**
-Mobile branch uses `overflow-hidden` which blocks scroll on longer step content.
-Change: `isMobile ? "h-[100dvh] overflow-hidden"` → `isMobile ? "h-[100dvh] overflow-y-auto"`
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-**4. `src/components/subscription/CandidateOnboardingWizard.tsx` (line 85)**
-Same fix: `isMobile ? 'h-[100dvh] overflow-hidden'` → `isMobile ? 'h-[100dvh] overflow-y-auto'`
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
-**5. `src/pages/CandidatePortalLanding.tsx` (line 27)**
-Change `min-h-screen ... overflow-hidden` → `min-h-[100dvh] ... overflow-y-auto`
+---
 
-**6. `src/pages/Index.tsx` (line 171)**
-Change `min-h-screen ... overflow-x-hidden` → `min-h-[100dvh] ... overflow-x-hidden`
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
 
-**7. `src/pages/NotFound.tsx` (line 12)**
-Change `min-h-screen` → `min-h-[100dvh]`
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
 
-**8. `src/pages/AuthCallback.tsx` (line 65)**
-Change `min-h-screen` → `min-h-[100dvh]`
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
 
-**9. `src/pages/OAuthGoogleCallback.tsx` (line 86)**
-Change `min-h-screen` → `min-h-[100dvh]`
+**Severity:** Low — defense-in-depth improvement.
 
-**10. `src/pages/GuestJobCreator.tsx` (lines 464, 471)**
-Change `min-h-screen` → `min-h-[100dvh]`
+---
 
-**11. `src/pages/Terms.tsx` (line 7)**
-Change `min-h-screen` → `min-h-[100dvh]`
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
 
-**12. `src/pages/VerifyDocument.tsx` (lines 80, 91, 106)**
-Change `min-h-screen` → `min-h-[100dvh]`
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
 
-### Summary
-- 12 files touched
-- All `min-h-screen` → `min-h-[100dvh]` (dynamic viewport units for Android)
-- All scroll-blocking `overflow-hidden` on page-level containers → `overflow-y-auto`
-- Global `height: 100%` chain on html/body/#root for proper flex layout in WebView
-- No logic or API changes — CSS only
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

@@ -168,7 +168,7 @@ export default function Index() {
   }, [user, role, navigate]);
 
   return (
-    <div className="min-h-screen bg-[hsl(220,18%,7%)] overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-[hsl(220,18%,7%)] overflow-x-hidden">
       {/* Navigation */}
       <motion.nav 
         initial={{ y: -100, opacity: 0 }}
