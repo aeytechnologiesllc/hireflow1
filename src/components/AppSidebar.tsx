@@ -141,6 +141,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
     { icon: UserPlus, label: "Team", to: "/team" },
     { icon: BarChart3, label: "Analytics", to: "/analytics" },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   // Team member navigation - always show all tabs, actions are controlled on individual pages
@@ -151,6 +153,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   const candidateNavItems: NavItemProps[] = [
@@ -161,6 +165,8 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
     { icon: User, label: "Profile", to: "/profile" },
+    { icon: Bell, label: "Notifications", to: "/notifications", badge: unreadNotifications || 0 },
+    { icon: Settings, label: "Settings", to: "/settings" },
   ];
 
   // Determine which nav items to show
