@@ -615,6 +615,7 @@ export default function CandidateAuth() {
                       placeholder="you@example.com"
                       value={signUpEmail}
                       onChange={(e) => setSignUpEmail(e.target.value)}
+                      onFocus={scrollFormIntoView}
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
