@@ -131,7 +131,7 @@ function StatCard({ title, value, subtitle, icon: Icon, color, isLoading, index 
       transition={{ duration: 0.3 }}
       className="h-full"
     >
-      <Card className={`relative overflow-hidden h-full bg-gradient-to-br ${config.gradientFrom} to-card/80 backdrop-blur-sm border-l-4 ${config.border} border border-border/50 shadow-lg shadow-black/5 hover:border-border transition-all duration-300`}>
+      <Card className={`relative overflow-hidden h-full bg-gradient-to-br ${config.gradientFrom} to-card/80 backdrop-blur-sm border-l-4 ${config.border} border border-transparent shadow-sm transition-all duration-300`}>
         <CardContent className="pt-4 md:pt-5 pb-4 md:pb-5 px-4 md:px-6">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
