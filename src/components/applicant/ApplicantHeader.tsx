@@ -39,6 +39,7 @@ export function ApplicantHeader({
   avatarUrl,
   aiScore,
   status,
+  submittedDate,
   onBack,
   onAvatarClick,
   className,
