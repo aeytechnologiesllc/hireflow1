@@ -2258,16 +2258,14 @@ export default function ApplicantDetails() {
         </motion.div>
       )}
 
-      {/* Applicant Info - Animated */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
-      >
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          {/* Phase Tags - Clickable */}
-          <div className="flex flex-wrap gap-2 mb-6">
+      {/* Phase Tags - Clickable */}
+      {workflowBadges.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+        >
+          <div className="flex flex-wrap gap-2">
             {workflowBadges.map((badge) => {
               const Icon = badge.icon;
               return (
@@ -2305,24 +2303,8 @@ export default function ApplicantDetails() {
               );
             })}
           </div>
-
-          {/* Name & Details */}
-          <h2 className="text-2xl font-bold text-foreground">{applicantDisplayName}</h2>
-          <p className="text-muted-foreground mt-1">
-            Applied for {job?.title || "Unknown Position"} at {profile?.company_name || "Company"}
-          </p>
-          
-          <div className="flex items-center gap-2 mt-2 text-muted-foreground text-sm">
-            <Mail className="h-4 w-4" />
-            <span>{profile?.email}</span>
-          </div>
-          
-          <p className="text-muted-foreground text-sm mt-1">
-            Submitted on {format(new Date(application.created_at), "M/d/yyyy")}
-          </p>
-        </CardContent>
-      </Card>
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* AVA's Analysis - Animated */}
       <motion.div

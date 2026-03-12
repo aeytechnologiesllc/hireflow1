@@ -119,6 +119,11 @@ export function ApplicantHeader({
               </span>
             )}
           </div>
+          {submittedDate && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Submitted on {submittedDate}
+            </p>
+          )}
         </div>
       </div>
     </div>
