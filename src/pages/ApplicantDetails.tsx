@@ -1713,20 +1713,8 @@ export default function ApplicantDetails() {
         isMobile={isMobile}
       />
 
-      {/* Ava's AI Summary - Always visible condensed version */}
-      <ApplicantAISummary
-        summary={application.ai_analysis}
-        fullAnalysis={application.ai_analysis}
-        aiScore={application.ai_score}
-        trustLevel={application.ai_score !== null && application.ai_score !== undefined 
-          ? application.ai_score >= 80 ? "high" : application.ai_score >= 60 ? "medium" : "low"
-          : "medium"}
-        isAnalyzing={isAnalyzing}
-        onReanalyze={hasValidApplicationData && !isRejected ? handleReanalyze : undefined}
-      />
-
-      {/* Schedule Interview Button - Visible when no active interview */}
-      {canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
+      {/* Schedule Interview Button - Visible when no active interview and not rejected */}
+      {!isRejected && canScheduleInterviews && (!scheduledInterview || scheduledInterview.status === "cancelled" || scheduledInterview.status === "completed") && (
         <Button 
           onClick={handleScheduleInterviewClick}
           className="gap-1.5"
