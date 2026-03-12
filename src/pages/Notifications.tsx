@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useDeleteAllNotifications } from "@/hooks/useNotifications";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
