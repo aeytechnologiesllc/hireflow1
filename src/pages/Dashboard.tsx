@@ -425,7 +425,7 @@ function ApplicationCard({ application, onOpenBlueprint }: { application: Applic
               </Badge>
             )}
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 animate-fade-in" />
         </div>
       </CardContent>
     </Card>
