@@ -331,7 +331,7 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
               </div>
               <span className="text-xs hidden md:inline">Created {format(new Date(job.created_at), "MM/dd/yyyy")}</span>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 mt-2" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 mt-2 animate-fade-in" />
           </div>
         </div>
       </CardContent>
