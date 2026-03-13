@@ -226,6 +226,9 @@ export default function Auth() {
         description: errorMessage,
       });
     } else {
+      // Assign employer role immediately after signup
+      await supabase.rpc("assign_user_role", { p_role: "employer" });
+      
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now start using the platform.",
