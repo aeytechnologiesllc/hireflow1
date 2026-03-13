@@ -260,7 +260,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
               );
               })()}
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 ml-1" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 ml-1 animate-fade-in" />
         </div>
       </CardContent>
     </Card>
