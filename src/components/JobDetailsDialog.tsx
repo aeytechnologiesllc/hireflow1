@@ -93,7 +93,7 @@ export default function JobDetailsDialog({
             {job.requirements && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground">Requirements</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{job.requirements}</p>
+                <div className="text-muted-foreground">{renderFormattedText(job.requirements)}</div>
               </div>
             )}
 
