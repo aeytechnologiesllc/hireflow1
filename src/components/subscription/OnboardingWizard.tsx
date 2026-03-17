@@ -233,8 +233,10 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
   const [jobRole, setJobRole] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { completeOnboarding } = useSubscription();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   const totalSteps = 4; // 3 content + 1 CTA
   const contentSteps = 3;
@@ -253,8 +255,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   );
 
   const handleComplete = async () => {
-    await completeOnboarding.mutateAsync();
-    onComplete();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await completeOnboarding.mutateAsync();
+      onComplete();
+      navigate(`/jobs/create?title=${encodeURIComponent(jobRole.trim())}&source=onboarding`, { replace: true });
+    } catch (error) {
+      console.error("[OnboardingWizard] completion error:", error);
+      setIsSubmitting(false);
+    }
   };
 
   return (
