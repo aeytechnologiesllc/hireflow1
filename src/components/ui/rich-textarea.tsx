@@ -29,23 +29,21 @@ const RichTextarea = React.forwardRef<HTMLTextAreaElement, RichTextareaProps>(
 
       if (type === "bold") {
         if (start === end) {
-          // No selection — insert placeholder
-          newText = text.slice(0, start) + "**bold text**" + text.slice(end);
+          newText = text.slice(0, start) + "****" + text.slice(end);
           newCursorPos = start + 2;
         } else {
           const selected = text.slice(start, end);
-          // Toggle: if already wrapped, unwrap
           if (text.slice(start - 2, start) === "**" && text.slice(end, end + 2) === "**") {
             newText = text.slice(0, start - 2) + selected + text.slice(end + 2);
             newCursorPos = end - 2;
           } else {
             newText = text.slice(0, start) + "**" + selected + "**" + text.slice(end);
-            newCursorPos = end + 4;
+            newCursorPos = end + 2;
           }
         }
       } else if (type === "italic") {
         if (start === end) {
-          newText = text.slice(0, start) + "_italic text_" + text.slice(end);
+          newText = text.slice(0, start) + "__" + text.slice(end);
           newCursorPos = start + 1;
         } else {
           const selected = text.slice(start, end);
@@ -54,7 +52,7 @@ const RichTextarea = React.forwardRef<HTMLTextAreaElement, RichTextareaProps>(
             newCursorPos = end - 1;
           } else {
             newText = text.slice(0, start) + "_" + selected + "_" + text.slice(end);
-            newCursorPos = end + 2;
+            newCursorPos = end + 1;
           }
         }
       } else if (type === "bullet") {
