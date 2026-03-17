@@ -293,6 +293,7 @@ const getEstimatedCompletionTime = (
 export default function CreateJob() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isEditMode = !!id;
   const { role } = useAuth();
   const { data: profile } = useProfile();
