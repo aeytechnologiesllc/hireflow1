@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -12,6 +13,7 @@ import {
   Trophy,
   ChevronRight,
   Check,
+  Loader2,
   ArrowRight,
   User,
 } from "lucide-react";
@@ -232,8 +234,10 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
   const [jobRole, setJobRole] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { completeOnboarding } = useSubscription();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   const totalSteps = 4; // 3 content + 1 CTA
   const contentSteps = 3;
@@ -252,8 +256,16 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   );
 
   const handleComplete = async () => {
-    await completeOnboarding.mutateAsync();
-    onComplete();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await completeOnboarding.mutateAsync();
+      onComplete();
+      navigate(`/jobs/create?title=${encodeURIComponent(jobRole.trim())}&source=onboarding`, { replace: true });
+    } catch (error) {
+      console.error("[OnboardingWizard] completion error:", error);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -492,14 +504,21 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                   <Button
                     size="lg"
                     onClick={handleComplete}
-                    disabled={completeOnboarding.isPending || !jobRole.trim()}
+                    disabled={isSubmitting || !jobRole.trim()}
                     className={`group bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl font-semibold shadow-lg shadow-primary/30 ${
                       isMobile ? "px-8 py-5 text-base h-auto w-full max-w-xs" : "px-12 py-7 text-lg h-auto"
                     }`}
                   >
-                    {completeOnboarding.isPending ? "Setting up..." : "Generate Workflow"}
-                    {!completeOnboarding.isPending && (
-                      <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Preparing your job...
+                      </>
+                    ) : (
+                      <>
+                        Generate Workflow
+                        <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </>
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground">

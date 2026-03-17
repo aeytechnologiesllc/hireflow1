@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -293,6 +293,7 @@ const getEstimatedCompletionTime = (
 export default function CreateJob() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isEditMode = !!id;
   const { role } = useAuth();
   const { data: profile } = useProfile();
@@ -479,6 +480,20 @@ export default function CreateJob() {
       }
     }
   }, [isEditMode]);
+
+  // Pre-fill title from onboarding handoff
+  useEffect(() => {
+    if (isEditMode) return;
+    const guestData = localStorage.getItem("guestJobData");
+    if (guestData) return; // guest draft takes precedence
+    const titleParam = searchParams.get("title");
+    const source = searchParams.get("source");
+    if (titleParam && source === "onboarding" && !formData.title) {
+      setFormData(prev => ({ ...prev, title: titleParam }));
+      // Clean up query params
+      setSearchParams(prev => { prev.delete("title"); prev.delete("source"); return prev; }, { replace: true });
+    }
+  }, [isEditMode, searchParams]);
 
   // Subscribe to AVA form commands for voice-controlled job creation
   useEffect(() => {
