@@ -1300,12 +1300,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="requirements"
                       placeholder="List the required skills, experience, and qualifications..."
-                      className="bg-background min-h-[120px]"
+                      className="min-h-[120px]"
+                      style={{ minHeight: 120 }}
                       value={formData.requirements}
-                      onChange={(e) => handleChange("requirements", e.target.value)}
+                      onChange={(val) => handleChange("requirements", val)}
                     />
                   </div>
 
