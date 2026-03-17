@@ -26,6 +26,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { renderFormattedText } from "@/lib/formatText";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
