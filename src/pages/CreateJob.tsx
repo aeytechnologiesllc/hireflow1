@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextarea } from "@/components/ui/rich-textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -1243,12 +1244,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="description"
                       placeholder="Describe the role, team, and what makes this opportunity exciting..."
-                      className="bg-background min-h-[150px]"
+                      className="min-h-[150px]"
+                      style={{ minHeight: 150 }}
                       value={formData.description}
-                      onChange={(e) => handleChange("description", e.target.value)}
+                      onChange={(val) => handleChange("description", val)}
                     />
                   </div>
 
@@ -1270,12 +1272,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="responsibilities"
                       placeholder="List the key responsibilities and day-to-day tasks..."
-                      className="bg-background min-h-[120px]"
+                      className="min-h-[120px]"
+                      style={{ minHeight: 120 }}
                       value={formData.responsibilities}
-                      onChange={(e) => handleChange("responsibilities", e.target.value)}
+                      onChange={(val) => handleChange("responsibilities", val)}
                     />
                   </div>
 
@@ -1297,12 +1300,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="requirements"
                       placeholder="List the required skills, experience, and qualifications..."
-                      className="bg-background min-h-[120px]"
+                      className="min-h-[120px]"
+                      style={{ minHeight: 120 }}
                       value={formData.requirements}
-                      onChange={(e) => handleChange("requirements", e.target.value)}
+                      onChange={(val) => handleChange("requirements", val)}
                     />
                   </div>
 
@@ -1560,12 +1564,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="benefits"
                       placeholder="Health insurance, 401k, Remote work, Unlimited PTO..."
-                      className="bg-background min-h-[80px] sm:min-h-[60px] resize-none"
+                      className="min-h-[80px] sm:min-h-[60px]"
+                      style={{ minHeight: 80 }}
                       value={formData.benefits}
-                      onChange={(e) => handleChange("benefits", e.target.value)}
+                      onChange={(val) => handleChange("benefits", val)}
                     />
                     <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">Separate benefits with commas</p>
                   </div>
