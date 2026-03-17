@@ -1,58 +1,56 @@
 
 
-## Replace Markdown RichTextarea with TipTap WYSIWYG Editor
+# Additional Gaps Worth Fixing
 
-### Problem
-The current `RichTextarea` is a plain `<textarea>` that inserts markdown characters (`**`, `_`, `• `). Users see raw markdown symbols instead of live formatting. Bold and italic appear broken because the textarea cannot render rich text.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Approach
-Replace the markdown-based `RichTextarea` with a proper WYSIWYG editor using TipTap. TipTap renders a contenteditable div where bold/italic/lists display instantly — no markdown symbols visible.
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-### Data format change
-- **Current**: plain text with markdown markers (`**bold**`, `_italic_`, `• bullets`)
-- **New**: HTML strings (`<strong>bold</strong>`, `<em>italic</em>`, `<ul><li>bullets</li></ul>`)
-- The `onChange` callback will emit HTML instead of markdown text
-- Existing jobs with markdown content will still display (the `renderFormattedText` utility handles those; we'll also add HTML rendering support)
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-### Files to change
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-**1. `src/components/ui/rich-textarea.tsx`** — Full rewrite
-- Replace textarea + manual markdown logic with TipTap editor
-- Keep same props interface: `value: string`, `onChange: (value: string) => void`
-- Use `@tiptap/react` + `@tiptap/starter-kit`
-- Toolbar with Bold, Italic, BulletList buttons that call `editor.chain().focus().toggleBold().run()` etc.
-- Active state highlighting (green glow when bold/italic is active)
-- Dark theme styling matching existing UI — same border, focus ring, rounded corners
-- Emit `editor.getHTML()` on content change
+---
 
-**2. `src/lib/formatText.tsx`** — Update renderer
-- Add HTML detection: if content starts with `<` tags, render via `dangerouslySetInnerHTML` (sanitized)
-- Keep existing markdown parsing as fallback for older content
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-**3. `src/components/JobDetailsDialog.tsx`** — Already uses `renderFormattedText`, no changes needed
-**4. `src/pages/CreateJob.tsx`** — Already uses `RichTextarea` component and `renderFormattedText` in review step, no changes needed beyond the component swap
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-### TipTap editor component structure
-```
-<div class="rounded-md border ...">
-  <EditorContent editor={editor} class="px-3 py-2 min-h-[150px] prose prose-invert" />
-  <div class="border-t flex gap-0.5 px-2 py-1">
-    <BoldButton active={editor.isActive('bold')} />
-    <ItalicButton active={editor.isActive('italic')} />
-    <BulletListButton active={editor.isActive('bulletList')} />
-  </div>
-</div>
-```
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-### Dependencies
-- `@tiptap/react` — React bindings
-- `@tiptap/starter-kit` — Bold, italic, lists, etc. bundled
-- `@tiptap/pm` — ProseMirror peer dependency
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
 
-### What this achieves
-- Bold/italic/lists work instantly with visual feedback (true WYSIWYG)
-- No markdown symbols ever visible to users
-- Same dark theme, green focus ring, toolbar placement
-- Backwards compatible — old markdown content still renders via fallback
-- Same component API so CreateJob.tsx needs zero logic changes
+---
+
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

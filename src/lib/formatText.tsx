@@ -1,34 +1,35 @@
 import React from "react";
 
 /**
+ * Detects if a string contains HTML tags (from TipTap WYSIWYG editor).
+ */
+function isHTML(text: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(text);
+}
+
+/**
  * Parses inline markdown (bold, italic) within a single text segment.
  * Converts **bold** → <strong> and _italic_ → <em>.
+ * Legacy fallback for old markdown content.
  */
 function parseInline(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  // Match **bold** or _italic_ (non-greedy)
   const regex = /(\*\*(.+?)\*\*)|(_(.+?)_)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
-    // Push text before match
     if (match.index > lastIndex) {
       nodes.push(text.slice(lastIndex, match.index));
     }
-
     if (match[2]) {
-      // Bold
       nodes.push(<strong key={`b-${match.index}`}>{match[2]}</strong>);
     } else if (match[4]) {
-      // Italic
       nodes.push(<em key={`i-${match.index}`}>{match[4]}</em>);
     }
-
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining text
   if (lastIndex < text.length) {
     nodes.push(text.slice(lastIndex));
   }
@@ -37,12 +38,24 @@ function parseInline(text: string): React.ReactNode[] {
 }
 
 /**
- * Renders a plain-text string with basic markdown formatting as React elements.
- * Supports: **bold**, _italic_, and • bullet lines.
+ * Renders formatted text as React elements.
+ * - HTML content (from TipTap): rendered via dangerouslySetInnerHTML with prose styling
+ * - Legacy markdown content: parsed into React elements
  */
 export function renderFormattedText(text: string | null | undefined): React.ReactNode {
   if (!text) return null;
 
+  // HTML content from TipTap editor
+  if (isHTML(text)) {
+    return (
+      <div
+        className="prose prose-sm max-w-none prose-strong:text-inherit prose-em:text-inherit prose-p:text-inherit prose-li:text-inherit prose-p:my-0.5 prose-ul:my-1 prose-ol:my-1 [&_ul]:list-disc [&_ul]:pl-5"
+        dangerouslySetInnerHTML={{ __html: text }}
+      />
+    );
+  }
+
+  // Legacy markdown fallback
   const lines = text.split("\n");
 
   return (
@@ -62,8 +75,7 @@ export function renderFormattedText(text: string | null | undefined): React.Reac
         return (
           <React.Fragment key={i}>
             {content}
-            {i < lines.length - 1 && !isBullet && "\n"}
-            {i < lines.length - 1 && isBullet && "\n"}
+            {i < lines.length - 1 && "\n"}
           </React.Fragment>
         );
       })}

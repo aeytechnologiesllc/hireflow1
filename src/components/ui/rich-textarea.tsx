@@ -1,148 +1,143 @@
 import * as React from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import { Bold, Italic, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface RichTextareaProps
-  extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> {
+export interface RichTextareaProps {
   value?: string;
   onChange?: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  rows?: number;
+  disabled?: boolean;
 }
 
-const RichTextarea = React.forwardRef<HTMLTextAreaElement, RichTextareaProps>(
-  ({ className, value = "", onChange, onFocus, onBlur, ...props }, ref) => {
-    const internalRef = React.useRef<HTMLTextAreaElement>(null);
-    const textareaRef = (ref as React.RefObject<HTMLTextAreaElement>) || internalRef;
+const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
+  ({ className, value = "", onChange, placeholder, rows = 6, disabled }, ref) => {
+    const isUpdatingRef = React.useRef(false);
+
+    const editor = useEditor({
+      extensions: [StarterKit],
+      content: value || "",
+      editable: !disabled,
+      editorProps: {
+        attributes: {
+          class: cn(
+            "w-full bg-transparent px-3 py-2 text-sm focus:outline-none",
+            "prose prose-sm max-w-none",
+            "prose-strong:text-foreground prose-em:text-foreground prose-p:text-foreground prose-li:text-foreground",
+            "prose-ul:my-1 prose-ol:my-1 prose-p:my-0.5 prose-li:my-0",
+            "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+            disabled && "cursor-not-allowed opacity-50"
+          ),
+          style: `min-height: ${rows * 1.5}rem`,
+          "data-placeholder": placeholder || "",
+        },
+      },
+      onUpdate: ({ editor: ed }) => {
+        if (isUpdatingRef.current) return;
+        const html = ed.getHTML();
+        // TipTap returns <p></p> for empty content
+        const cleaned = html === "<p></p>" ? "" : html;
+        onChange?.(cleaned);
+      },
+    });
+
+    // Sync external value changes into editor
+    React.useEffect(() => {
+      if (!editor) return;
+      const currentHTML = editor.getHTML();
+      const normalizedCurrent = currentHTML === "<p></p>" ? "" : currentHTML;
+      if (value !== normalizedCurrent) {
+        isUpdatingRef.current = true;
+        editor.commands.setContent(value || "");
+        isUpdatingRef.current = false;
+      }
+    }, [value, editor]);
+
     const [focused, setFocused] = React.useState(false);
 
-    const showToolbar = focused || (value && value.length > 0);
+    React.useEffect(() => {
+      if (!editor) return;
+      const onFocus = () => setFocused(true);
+      const onBlur = () => setFocused(false);
+      editor.on("focus", onFocus);
+      editor.on("blur", onBlur);
+      return () => {
+        editor.off("focus", onFocus);
+        editor.off("blur", onBlur);
+      };
+    }, [editor]);
 
-    const applyFormat = (type: "bold" | "italic" | "bullet") => {
-      const el = textareaRef.current;
-      if (!el) return;
-
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const text = value;
-
-      let newText = text;
-      let newCursorPos = end;
-
-      if (type === "bold") {
-        if (start === end) {
-          newText = text.slice(0, start) + "****" + text.slice(end);
-          newCursorPos = start + 2;
-        } else {
-          const selected = text.slice(start, end);
-          if (text.slice(start - 2, start) === "**" && text.slice(end, end + 2) === "**") {
-            newText = text.slice(0, start - 2) + selected + text.slice(end + 2);
-            newCursorPos = end - 2;
-          } else {
-            newText = text.slice(0, start) + "**" + selected + "**" + text.slice(end);
-            newCursorPos = end + 2;
-          }
-        }
-      } else if (type === "italic") {
-        if (start === end) {
-          newText = text.slice(0, start) + "__" + text.slice(end);
-          newCursorPos = start + 1;
-        } else {
-          const selected = text.slice(start, end);
-          if (text[start - 1] === "_" && text[end] === "_") {
-            newText = text.slice(0, start - 1) + selected + text.slice(end + 1);
-            newCursorPos = end - 1;
-          } else {
-            newText = text.slice(0, start) + "_" + selected + "_" + text.slice(end);
-            newCursorPos = end + 1;
-          }
-        }
-      } else if (type === "bullet") {
-        // Find the start of the current line
-        const beforeCursor = text.slice(0, start);
-        const lineStart = beforeCursor.lastIndexOf("\n") + 1;
-        const afterSelection = text.slice(end);
-        const lineEnd = afterSelection.indexOf("\n");
-        const blockEnd = lineEnd === -1 ? text.length : end + lineEnd;
-
-        const block = text.slice(lineStart, blockEnd);
-        const lines = block.split("\n");
-
-        const allBulleted = lines.every((l) => l.trimStart().startsWith("• "));
-
-        const newLines = lines.map((l) => {
-          if (allBulleted) {
-            return l.replace(/^(\s*)• /, "$1");
-          }
-          return l.trimStart().startsWith("• ") ? l : "• " + l;
-        });
-
-        newText = text.slice(0, lineStart) + newLines.join("\n") + text.slice(blockEnd);
-        newCursorPos = lineStart + newLines.join("\n").length;
-      }
-
-      onChange?.(newText);
-
-      // Restore focus & cursor after React re-render
-      requestAnimationFrame(() => {
-        el.focus();
-        el.setSelectionRange(newCursorPos, newCursorPos);
-      });
-    };
+    if (!editor) return null;
 
     return (
       <div
+        ref={ref}
         className={cn(
           "rounded-md border border-input bg-background ring-offset-background transition-colors",
           focused && "ring-2 ring-ring ring-offset-2",
           className
         )}
       >
-        <textarea
-          ref={textareaRef}
-          className="flex w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-          onFocus={(e) => {
-            setFocused(true);
-            onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            // Delay to allow toolbar clicks to fire
-            setTimeout(() => setFocused(false), 150);
-            onBlur?.(e);
-          }}
-          {...props}
-        />
-        {showToolbar && (
-          <div className="flex items-center gap-0.5 px-2 py-1 border-t border-border/50">
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => applyFormat("bold")}
-              className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title="Bold"
-            >
-              <Bold className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => applyFormat("italic")}
-              className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title="Italic"
-            >
-              <Italic className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => applyFormat("bullet")}
-              className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title="Bullet list"
-            >
-              <List className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
+        <EditorContent editor={editor} />
+
+        {/* Empty state placeholder */}
+        <style>{`
+          .tiptap p.is-editor-empty:first-child::before {
+            content: attr(data-placeholder);
+            float: left;
+            color: hsl(var(--muted-foreground));
+            pointer-events: none;
+            height: 0;
+          }
+        `}</style>
+
+        <div className="flex items-center gap-0.5 px-2 py-1 border-t border-border/50">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={cn(
+              "h-6 w-6 inline-flex items-center justify-center rounded transition-colors",
+              editor.isActive("bold")
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+            title="Bold"
+          >
+            <Bold className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={cn(
+              "h-6 w-6 inline-flex items-center justify-center rounded transition-colors",
+              editor.isActive("italic")
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+            title="Italic"
+          >
+            <Italic className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={cn(
+              "h-6 w-6 inline-flex items-center justify-center rounded transition-colors",
+              editor.isActive("bulletList")
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+            title="Bullet list"
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     );
   }
