@@ -11,6 +11,8 @@ export interface RichTextareaProps {
   className?: string;
   rows?: number;
   disabled?: boolean;
+  id?: string;
+  style?: React.CSSProperties;
 }
 
 const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
