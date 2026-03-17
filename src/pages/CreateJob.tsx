@@ -1564,12 +1564,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="benefits"
                       placeholder="Health insurance, 401k, Remote work, Unlimited PTO..."
-                      className="bg-background min-h-[80px] sm:min-h-[60px] resize-none"
+                      className="min-h-[80px] sm:min-h-[60px]"
+                      style={{ minHeight: 80 }}
                       value={formData.benefits}
-                      onChange={(e) => handleChange("benefits", e.target.value)}
+                      onChange={(val) => handleChange("benefits", val)}
                     />
                     <p className="text-sm sm:text-xs text-muted-foreground leading-relaxed">Separate benefits with commas</p>
                   </div>
