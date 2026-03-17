@@ -1244,12 +1244,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="description"
                       placeholder="Describe the role, team, and what makes this opportunity exciting..."
-                      className="bg-background min-h-[150px]"
+                      className="min-h-[150px]"
+                      style={{ minHeight: 150 }}
                       value={formData.description}
-                      onChange={(e) => handleChange("description", e.target.value)}
+                      onChange={(val) => handleChange("description", val)}
                     />
                   </div>
 
