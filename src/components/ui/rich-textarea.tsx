@@ -16,7 +16,7 @@ export interface RichTextareaProps {
 }
 
 const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
-  ({ className, value = "", onChange, placeholder, rows = 6, disabled }, ref) => {
+  ({ className, value = "", onChange, placeholder, rows = 6, disabled, id, style }, ref) => {
     const isUpdatingRef = React.useRef(false);
 
     const editor = useEditor({
