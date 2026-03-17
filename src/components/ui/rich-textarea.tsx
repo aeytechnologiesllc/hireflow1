@@ -77,6 +77,8 @@ const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
     return (
       <div
         ref={ref}
+        id={id}
+        style={style}
         className={cn(
           "rounded-md border border-input bg-background ring-offset-background transition-colors",
           focused && "ring-2 ring-ring ring-offset-2",
