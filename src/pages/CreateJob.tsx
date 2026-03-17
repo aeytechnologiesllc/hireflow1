@@ -2366,7 +2366,7 @@ export default function CreateJob() {
                   {formData.description && (
                     <div>
                       <h4 className="font-semibold mb-2">Description</h4>
-                      <p className="text-muted-foreground text-sm whitespace-pre-wrap">{formData.description}</p>
+                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.description)}</div>
                     </div>
                   )}
 
