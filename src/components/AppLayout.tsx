@@ -270,7 +270,7 @@ export default function AppLayout() {
 
   // Show onboarding wizard for employers only
   if (hookNeedsOnboarding) {
-    return <OnboardingWizard onComplete={() => completeOnboarding.mutate()} />;
+    return <OnboardingWizard onComplete={() => {/* navigation handled inside wizard */}} />;
   }
 
   // Show expired overlay for expired trials (employers only)

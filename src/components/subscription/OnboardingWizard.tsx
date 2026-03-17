@@ -13,6 +13,7 @@ import {
   Trophy,
   ChevronRight,
   Check,
+  Loader2,
   ArrowRight,
   User,
 } from "lucide-react";
