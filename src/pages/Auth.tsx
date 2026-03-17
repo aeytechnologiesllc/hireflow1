@@ -16,7 +16,10 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 const isWebView = () => {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent || "";
-  return !!(window as any).natively || /wv|WebView/i.test(ua) || (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua));
+  if (/Natively\//.test(ua)) return true;
+  if (/wv/i.test(ua)) return true;
+  if (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua)) return true;
+  return false;
 };
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];

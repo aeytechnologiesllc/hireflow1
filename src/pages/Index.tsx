@@ -157,7 +157,7 @@ export default function Index() {
 
   // In Natively app wrapper, skip landing page entirely
   useEffect(() => {
-    const isNatively = !!(window as any).natively || navigator.userAgent.includes('Natively');
+    const isNatively = /Natively\//.test(navigator.userAgent);
     if (!isNatively) return;
 
     if (user) {
