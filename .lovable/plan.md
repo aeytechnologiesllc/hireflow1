@@ -1,38 +1,56 @@
 
 
-## Fix Rich Formatting Toolbar — Full Gap Analysis
+# Additional Gaps Worth Fixing
 
-### Gap 1: No-selection inserts phantom text (the reported bug)
-When clicking Bold/Italic with no text selected, it inserts `**bold text**` or `_italic text_` — literal placeholder strings. **Fix**: insert only the markers (`****` / `__`) and place cursor between them.
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-### Gap 2: Markdown is never rendered anywhere (critical)
-This is the bigger problem. Job descriptions are displayed using `whitespace-pre-wrap` with no markdown parsing — in `JobDetailsDialog.tsx`, `GuestJobCreator.tsx`, `CreateJob.tsx` review step, `ApplicantDetails.tsx`, etc. So even when bold/italic *is* applied correctly, users will see raw `**text**` and `_text_` on job listings. Bullets work because `• ` renders visually as-is.
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-**Fix**: Create a small `renderFormattedText()` utility that converts `**bold**` → `<strong>`, `_italic_` → `<em>`, and `• ` lines into proper elements. Use it in all display locations.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-### Gap 3: Cursor position off after wrapping selection with bold
-When wrapping selected text in `**`, `newCursorPos = end + 4` places the cursor 4 chars after original end — but only 2 chars were added before the selection end. The cursor lands 2 chars past the closing `**`. Should be `end + 2` to land right after the closing markers. Same issue exists for italic (`end + 2` should be `end + 1`). Minor but causes selection to jump.
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
-### Implementation
+---
 
-**File 1: `src/components/ui/rich-textarea.tsx`**
-- Bold no-selection: insert `****`, cursor at `start + 2`
-- Italic no-selection: insert `__`, cursor at `start + 1`  
-- Fix cursor positions for wrap-selection cases
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-**File 2: `src/lib/formatText.tsx`** (new)
-- Simple function: `renderFormattedText(text: string): React.ReactNode`
-- Splits by lines, handles `• ` bullets, replaces `**...**` with `<strong>`, `_..._` with `<em>`
-- Returns array of React elements
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-**Files 3-5: Display locations** — replace raw `{text}` with `{renderFormattedText(text)}` in:
-- `src/components/JobDetailsDialog.tsx` (description, requirements, responsibilities)
-- `src/pages/CreateJob.tsx` (review step preview)
-- `src/components/JobApplicationDialog.tsx` or wherever candidates see job details
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-### What this achieves
-- Bold/Italic buttons work intuitively (no phantom text)
-- Formatted text actually renders as bold/italic everywhere it's displayed
-- Bullet points continue working as before
-- No heavy dependencies — pure string-to-React-element conversion
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+
+---
+
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

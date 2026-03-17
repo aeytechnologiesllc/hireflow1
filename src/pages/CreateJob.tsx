@@ -26,6 +26,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { renderFormattedText } from "@/lib/formatText";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
@@ -2366,21 +2367,21 @@ export default function CreateJob() {
                   {formData.description && (
                     <div>
                       <h4 className="font-semibold mb-2">Description</h4>
-                      <p className="text-muted-foreground text-sm whitespace-pre-wrap">{formData.description}</p>
+                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.description)}</div>
                     </div>
                   )}
 
                   {formData.responsibilities && (
                     <div>
                       <h4 className="font-semibold mb-2">Responsibilities</h4>
-                      <p className="text-muted-foreground text-sm whitespace-pre-wrap">{formData.responsibilities}</p>
+                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.responsibilities)}</div>
                     </div>
                   )}
 
                   {formData.requirements && (
                     <div>
                       <h4 className="font-semibold mb-2">Requirements</h4>
-                      <p className="text-muted-foreground text-sm whitespace-pre-wrap">{formData.requirements}</p>
+                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.requirements)}</div>
                     </div>
                   )}
 

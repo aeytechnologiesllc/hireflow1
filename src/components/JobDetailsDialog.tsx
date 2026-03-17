@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MapPin, Briefcase, DollarSign, Clock, Calendar, Users, Building } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { renderFormattedText } from "@/lib/formatText";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface JobDetailsDialogProps {
@@ -85,14 +86,14 @@ export default function JobDetailsDialog({
             {/* Description */}
             <div className="space-y-2">
               <h3 className="font-semibold text-foreground">About the Role</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{job.description}</p>
+              <div className="text-muted-foreground">{renderFormattedText(job.description)}</div>
             </div>
 
             {/* Requirements */}
             {job.requirements && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground">Requirements</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{job.requirements}</p>
+                <div className="text-muted-foreground">{renderFormattedText(job.requirements)}</div>
               </div>
             )}
 
@@ -100,7 +101,7 @@ export default function JobDetailsDialog({
             {job.responsibilities && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground">Responsibilities</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{job.responsibilities}</p>
+                <div className="text-muted-foreground">{renderFormattedText(job.responsibilities)}</div>
               </div>
             )}
 
