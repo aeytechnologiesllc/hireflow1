@@ -1272,12 +1272,13 @@ export default function CreateJob() {
                         Generate
                       </Button>
                     </div>
-                    <Textarea
+                    <RichTextarea
                       id="responsibilities"
                       placeholder="List the key responsibilities and day-to-day tasks..."
-                      className="bg-background min-h-[120px]"
+                      className="min-h-[120px]"
+                      style={{ minHeight: 120 }}
                       value={formData.responsibilities}
-                      onChange={(e) => handleChange("responsibilities", e.target.value)}
+                      onChange={(val) => handleChange("responsibilities", val)}
                     />
                   </div>
 
