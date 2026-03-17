@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MapPin, Briefcase, DollarSign, Clock, Calendar, Users, Building } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { renderFormattedText } from "@/lib/formatText";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface JobDetailsDialogProps {
