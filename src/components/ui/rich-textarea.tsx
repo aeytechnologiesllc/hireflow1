@@ -11,10 +11,12 @@ export interface RichTextareaProps {
   className?: string;
   rows?: number;
   disabled?: boolean;
+  id?: string;
+  style?: React.CSSProperties;
 }
 
 const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
-  ({ className, value = "", onChange, placeholder, rows = 6, disabled }, ref) => {
+  ({ className, value = "", onChange, placeholder, rows = 6, disabled, id, style }, ref) => {
     const isUpdatingRef = React.useRef(false);
 
     const editor = useEditor({
@@ -75,6 +77,8 @@ const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
     return (
       <div
         ref={ref}
+        id={id}
+        style={style}
         className={cn(
           "rounded-md border border-input bg-background ring-offset-background transition-colors",
           focused && "ring-2 ring-ring ring-offset-2",
