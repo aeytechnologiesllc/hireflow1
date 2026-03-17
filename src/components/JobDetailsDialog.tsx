@@ -101,7 +101,7 @@ export default function JobDetailsDialog({
             {job.responsibilities && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground">Responsibilities</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{job.responsibilities}</p>
+                <div className="text-muted-foreground">{renderFormattedText(job.responsibilities)}</div>
               </div>
             )}
 
