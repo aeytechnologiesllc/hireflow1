@@ -1,56 +1,71 @@
 
+Fix the onboarding CTA so it behaves like a guided handoff into job creation instead of just dismissing onboarding.
 
-# Additional Gaps Worth Fixing
+What’s broken
+- In `src/components/subscription/OnboardingWizard.tsx`, clicking “Generate Workflow” only calls `completeOnboarding.mutateAsync()` and then `onComplete()`.
+- In `src/components/AppLayout.tsx`, `onComplete` is wired to `completeOnboarding.mutate()` again, so onboarding is effectively completed twice and the app simply falls back to the current route, which is why users land on `/dashboard`.
+- The selected role (for example, “Software Engineer”) lives only in `jobRole` local state and is never passed into the job creation page.
+- There is minimal visible feedback before the pending state kicks in, so users click multiple times.
 
-## Gap 1: `check-applicant-limit` Has No Authentication (Security)
+Implementation plan
 
-**File:** `supabase/functions/check-applicant-limit/index.ts`  
-**Config:** `verify_jwt = false`
+1. Fix the flow ownership
+- Move the post-onboarding navigation responsibility into the onboarding completion path.
+- Update `OnboardingWizard` so “Generate Workflow”:
+  - immediately enters a local submitting/loading state,
+  - persists the selected role for the next screen,
+  - completes onboarding once,
+  - navigates to `/jobs/create`.
 
-This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
+2. Pass the selected role into job creation
+- Use a lightweight handoff mechanism that fits the current app:
+  - either query params like `/jobs/create?title=Software%20Engineer&from=onboarding`
+  - or navigation state/localStorage as fallback.
+- Preferred approach: query param for the title, because it is simple, shareable, and avoids hidden state.
 
-**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
+3. Pre-fill Create Job cleanly
+- In `src/pages/CreateJob.tsx`, add a small initialization effect that reads the onboarding handoff value only when:
+  - not in edit mode,
+  - no guest job draft is being restored,
+  - the title is still empty.
+- Pre-fill only the job title field so the employer lands on Step 1 with the selected role already typed in, ready to continue filling the rest.
 
----
+4. Keep users on the first step, not the dashboard
+- After onboarding, route straight to `/jobs/create`.
+- Do not auto-generate the full workflow yet unless explicitly intended; based on your description, the correct behavior is:
+  - take them to Create Job,
+  - prefill the chosen title,
+  - let them complete the rest.
 
-## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
+5. Improve feedback on button press
+- Add an immediate local loading state in `OnboardingWizard` so the CTA changes as soon as it’s clicked, even before the mutation finishes.
+- Visually disable repeated clicks right away.
+- Optionally tweak the button copy from “Setting up...” to something clearer like “Opening job creator...” or “Preparing your job...”.
 
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
+Files to update
+- `src/components/subscription/OnboardingWizard.tsx`
+  - add navigation
+  - add immediate loading state
+  - persist/pass selected role
+  - avoid relying solely on parent callback for completion
+- `src/components/AppLayout.tsx`
+  - simplify onboarding completion wiring so it does not trigger a second completion mutation
+- `src/pages/CreateJob.tsx`
+  - read onboarding title handoff
+  - prefill title on first load only
 
-When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
+Technical notes
+- Best route shape: `/jobs/create?title=Software%20Engineer&source=onboarding`
+- Guard precedence in `CreateJob.tsx` should be:
+  1. edit mode existing job
+  2. guest restored draft
+  3. onboarding prefill
+- The onboarding CTA should set loading immediately in component state, not only depend on `completeOnboarding.isPending`, to remove the “I clicked but nothing happened” feel.
 
-**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
-
----
-
-## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
-
-**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
-
-The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
-
-**Severity:** Low — defense-in-depth improvement.
-
----
-
-## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
-
-**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
-
-When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
-
-**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
-
----
-
-## Recommended Implementation Order
-
-| Priority | Gap | Risk |
-|----------|-----|------|
-| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
-| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
-| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
-| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
-
-Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
-
+Expected result
+- User types/selects “Software Engineer”
+- Clicks “Generate Workflow”
+- Button immediately shows loading and blocks repeat clicks
+- User is taken to `/jobs/create`
+- Step 1 opens with “Software Engineer” already filled in the title field
+- They continue creating the job from there instead of being dumped back on the dashboard
