@@ -344,30 +344,32 @@ export default function Index() {
             </motion.div>
             
             {/* Role Selection Section - hidden on mobile (employer-only mobile experience) */}
-            <motion.div
-              variants={fadeInUp}
-              className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <div className="text-sm text-gray-400 mr-2">I want to:</div>
-              <Link to="/auth">
-                <Button 
-                  variant="outline" 
-                  className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
-                >
-                  <Briefcase className="mr-2 h-4 w-4" />
-                  Hire Talent
-                </Button>
-              </Link>
-              <Link to="/candidate">
-                <Button 
-                  variant="outline" 
-                  className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  Find a Job
-                </Button>
-              </Link>
-            </motion.div>
+            {!isNatively && (
+              <motion.div
+                variants={fadeInUp}
+                className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
+              >
+                <div className="text-sm text-gray-400 mr-2">I want to:</div>
+                <Link to="/auth">
+                  <Button 
+                    variant="outline" 
+                    className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
+                  >
+                    <Briefcase className="mr-2 h-4 w-4" />
+                    Hire Talent
+                  </Button>
+                </Link>
+                <Link to="/candidate">
+                  <Button 
+                    variant="outline" 
+                    className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Find a Job
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
           </motion.div>
         </div>
       </section>
