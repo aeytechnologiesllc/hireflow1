@@ -1,57 +1,56 @@
 
 
-## Current Issues & Plan
+# Additional Gaps Worth Fixing
 
-### Problem Summary
+## Gap 1: `check-applicant-limit` Has No Authentication (Security)
 
-1. **Build is broken** — `@tiptap/react` is imported in `rich-textarea.tsx` but missing from `package.json`. Nothing deploys until this is fixed, which is why you see none of the Google sign-in changes live.
+**File:** `supabase/functions/check-applicant-limit/index.ts`  
+**Config:** `verify_jwt = false`
 
-2. **Google Sign-In in Natively** — The code for the compact G button IS already written in `Auth.tsx` (lines 450-470). It will appear once the build is fixed. However, the current implementation uses `supabase.auth.signInWithOAuth` directly instead of the Lovable Cloud managed `lovable.auth.signInWithOAuth`. This needs to be updated for Google OAuth to work properly.
+This function accepts an `employerId` from the request body with zero authentication. Anyone can call it to enumerate employer IDs and discover how many applicants each employer has, their plan type, and whether they've hit limits. While it doesn't expose sensitive data directly, it leaks business intelligence (plan tier, applicant counts).
 
-3. **"Back to Home" is a dead loop** — The link goes to `/`, but `Index.tsx` detects Natively and immediately redirects back to `/auth`. So clicking it does nothing visible.
-
----
-
-### Fix 1: Restore `@tiptap/react` dependency
-
-Add `@tiptap/react@^2.11.5` back to `package.json`. This unblocks the entire build.
-
-### Fix 2: Update Google Sign-In to use Lovable Cloud managed OAuth
-
-**Files: `src/pages/Auth.tsx`, `src/pages/CandidateAuth.tsx`, `src/hooks/useAuth.tsx`**
-
-- Use the Configure Social Login tool to generate the Lovable Cloud auth module
-- Replace `supabase.auth.signInWithOAuth` calls with `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })`
-- This ensures Google OAuth works correctly in all environments including Natively WebViews
-
-### Fix 3: Fix "Back to Home" button behavior in Natively
-
-**File: `src/pages/Auth.tsx`**
-
-The "Back to Home" `<Link to="/">` currently navigates to Index.tsx, which detects Natively and redirects right back to `/auth` — a dead loop.
-
-Fix: When in Natively (`inWebView` is true), change the link behavior. Instead of linking to `/`, it should either:
-- Navigate to `/` but with a query param like `?showLanding=true` that Index.tsx respects by skipping the auto-redirect
-- This lets the user see the landing page content
-
-**File: `src/pages/Index.tsx`**
-
-- Update the Natively redirect logic (lines 159-168) to check for `?showLanding=true` — if present, skip the auto-redirect and show the landing page
-- When in Natively, hide the "Looking for work?" candidate portal link and any candidate-related CTAs since this is employer-focused only
-- Keep the Sign In / Get Started buttons pointing to `/auth`
+**Fix:** Either add JWT verification or at minimum validate the caller. Since this is likely called during the public application flow (candidate applying), the simplest fix is to stop returning the plan details and just return `limitReached: true/false`.
 
 ---
 
-### Technical Details
+## Gap 2: `invoice.paid` Webhook Has No Duplicate Protection (Voice Credits)
 
-```text
-Current flow (broken):
-  Auth.tsx "Back to Home" → / → Index.tsx detects Natively → redirects to /auth → loop
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 152-175)
 
-Fixed flow:
-  Auth.tsx "Back to Home" → /?showLanding=true → Index.tsx sees param, shows landing
-  Index.tsx in Natively: hides candidate links, employer-only content
-```
+When `invoice.paid` fires for subscription renewals, it inserts 30 voice minutes with no duplicate check. Stripe can retry webhook deliveries, and each retry would insert another 30 minutes. The `checkout.session.completed` handler (line 62-72) correctly checks for duplicates via `stripe_payment_id`, but the `invoice.paid` handler does not.
 
-All three fixes will ship together. The build fix unblocks deployment, then the Google and navigation fixes go live.
+**Fix:** Use the invoice ID as a dedup key — check if a voice credit with that `stripe_payment_id` already exists before inserting.
+
+---
+
+## Gap 3: `purchase-voice-credits` Uses Anon Key for Subscription Check (Bypass Risk)
+
+**File:** `supabase/functions/purchase-voice-credits/index.ts` (lines 43-51)
+
+The function checks if the user has a Business subscription using the anon-key Supabase client (RLS-scoped). This is actually fine for reading, but the voice credits balance check (lines 54-63) also uses the anon client. Since `voice_credits` RLS allows users to view their own credits, this works — but if a user somehow had a stale session or RLS was misconfigured, they could bypass the 60-minute cap. Using the admin client for this server-side validation would be more robust.
+
+**Severity:** Low — defense-in-depth improvement.
+
+---
+
+## Gap 4: Webhook `customer.subscription.deleted` Resets to `trial` (Logic Bug)
+
+**File:** `supabase/functions/stripe-webhook/index.ts` (lines 215-232)
+
+When a subscription is canceled in Stripe, the webhook sets `plan_type: 'trial'`. This means a user who cancels their paid plan gets reclassified as a trial user — potentially re-triggering trial auto-provisioning logic (15 free voice minutes) if they've never had trial credits before. They should be set to `expired` or `canceled`, not `trial`.
+
+**Fix:** Change `plan_type: 'trial'` to `plan_type: subscription.metadata?.plan_type || 'growth'` and keep `status: 'canceled'`. Or introduce a dedicated `'free'` plan type for post-cancellation.
+
+---
+
+## Recommended Implementation Order
+
+| Priority | Gap | Risk |
+|----------|-----|------|
+| High | Gap 2: `invoice.paid` duplicate credits | Double-billing voice minutes on webhook retry |
+| High | Gap 4: Canceled → trial logic bug | Free voice credits after cancellation |
+| Medium | Gap 1: `check-applicant-limit` info leak | Business intelligence exposure |
+| Low | Gap 3: Anon key for server-side checks | Defense-in-depth |
+
+Gaps 2 and 4 are quick fixes in `stripe-webhook/index.ts`. Gap 1 is a minor change to strip sensitive fields from the response. Gap 3 is optional hardening.
 

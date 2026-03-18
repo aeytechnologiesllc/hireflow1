@@ -163,17 +163,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
-    // Role is now passed via redirect URL to /auth/callback
-    const callbackUrl = `${window.location.origin}/auth/callback?role=${role || 'candidate'}`;
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: callbackUrl,
-      },
-    });
+    try {
+      const { lovable } = await import("@/integrations/lovable/index");
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
 
-    return { error: error as Error | null };
+      if (result.error) {
+        return { error: result.error as Error };
+      }
+
+      // After successful OAuth, assign role if needed
+      if (role) {
+        setTimeout(async () => {
+          await supabase.rpc("assign_user_role", { p_role: role });
+        }, 0);
+      }
+
+      return { error: null };
+    } catch (err) {
+      return { error: err as Error };
+    }
   };
 
   const signOut = async () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -155,17 +155,21 @@ export default function Index() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
 
-  // In Natively app wrapper, skip landing page entirely
+  // In Natively app wrapper, skip landing page unless explicitly requested
+  const [searchParams] = useSearchParams();
+  const isNatively = /Natively\//.test(navigator.userAgent);
+  const showLanding = searchParams.get('showLanding') === 'true';
+
   useEffect(() => {
-    const isNatively = /Natively\//.test(navigator.userAgent);
     if (!isNatively) return;
+    if (showLanding) return; // User explicitly wants to see landing page
 
     if (user) {
       navigate(role === 'candidate' ? '/applications' : '/dashboard', { replace: true });
     } else {
       navigate('/auth', { replace: true });
     }
-  }, [user, role, navigate]);
+  }, [user, role, navigate, isNatively, showLanding]);
 
   return (
     <div className="min-h-[100dvh] bg-[hsl(220,18%,7%)] overflow-x-hidden">
@@ -187,9 +191,11 @@ export default function Index() {
             <span className="text-xl font-bold text-white">HireFlow</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Link to="/candidate" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors hidden sm:block">
-              Looking for work? →
-            </Link>
+            {!isNatively && (
+              <Link to="/candidate" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors hidden sm:block">
+                Looking for work? →
+              </Link>
+            )}
             <Link to="/auth">
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-transparent">
                 Sign In
@@ -338,30 +344,32 @@ export default function Index() {
             </motion.div>
             
             {/* Role Selection Section - hidden on mobile (employer-only mobile experience) */}
-            <motion.div
-              variants={fadeInUp}
-              className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <div className="text-sm text-gray-400 mr-2">I want to:</div>
-              <Link to="/auth">
-                <Button 
-                  variant="outline" 
-                  className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
-                >
-                  <Briefcase className="mr-2 h-4 w-4" />
-                  Hire Talent
-                </Button>
-              </Link>
-              <Link to="/candidate">
-                <Button 
-                  variant="outline" 
-                  className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  Find a Job
-                </Button>
-              </Link>
-            </motion.div>
+            {!isNatively && (
+              <motion.div
+                variants={fadeInUp}
+                className="mt-12 hidden sm:flex flex-col sm:flex-row items-center justify-center gap-4"
+              >
+                <div className="text-sm text-gray-400 mr-2">I want to:</div>
+                <Link to="/auth">
+                  <Button 
+                    variant="outline" 
+                    className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
+                  >
+                    <Briefcase className="mr-2 h-4 w-4" />
+                    Hire Talent
+                  </Button>
+                </Link>
+                <Link to="/candidate">
+                  <Button 
+                    variant="outline" 
+                    className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Find a Job
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
           </motion.div>
         </div>
       </section>
