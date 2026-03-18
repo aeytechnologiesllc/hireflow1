@@ -191,9 +191,11 @@ export default function Index() {
             <span className="text-xl font-bold text-white">HireFlow</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Link to="/candidate" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors hidden sm:block">
-              Looking for work? →
-            </Link>
+            {!isNatively && (
+              <Link to="/candidate" className="text-sm text-gray-400 hover:text-emerald-400 transition-colors hidden sm:block">
+                Looking for work? →
+              </Link>
+            )}
             <Link to="/auth">
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-transparent">
                 Sign In
