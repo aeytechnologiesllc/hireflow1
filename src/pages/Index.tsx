@@ -155,17 +155,21 @@ export default function Index() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
 
-  // In Natively app wrapper, skip landing page entirely
+  // In Natively app wrapper, skip landing page unless explicitly requested
+  const [searchParams] = useSearchParams();
+  const isNatively = /Natively\//.test(navigator.userAgent);
+  const showLanding = searchParams.get('showLanding') === 'true';
+
   useEffect(() => {
-    const isNatively = /Natively\//.test(navigator.userAgent);
     if (!isNatively) return;
+    if (showLanding) return; // User explicitly wants to see landing page
 
     if (user) {
       navigate(role === 'candidate' ? '/applications' : '/dashboard', { replace: true });
     } else {
       navigate('/auth', { replace: true });
     }
-  }, [user, role, navigate]);
+  }, [user, role, navigate, isNatively, showLanding]);
 
   return (
     <div className="min-h-[100dvh] bg-[hsl(220,18%,7%)] overflow-x-hidden">

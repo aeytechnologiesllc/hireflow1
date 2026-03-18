@@ -410,7 +410,7 @@ export default function Auth() {
 
       <div className="container mx-auto px-4 py-4 sm:py-8 relative z-10">
         <Link
-          to="/"
+          to={inWebView ? "/?showLanding=true" : "/"}
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4 sm:mb-8"
         >
           <ArrowLeft className="h-4 w-4" />
