@@ -12,32 +12,51 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       const roleFromUrl = searchParams.get("role");
 
-      // Wait for session to be established (OAuth redirect brings tokens in URL hash)
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // If tokens are in the URL hash (OAuth redirect), extract and set the session
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
 
-      if (sessionError || !session) {
-        // Session might not be ready yet — listen for auth state change
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (session?.user) {
-            subscription.unsubscribe();
-            await assignRoleAndRedirect(session.user.id, roleFromUrl);
-          }
+      if (accessToken && refreshToken) {
+        const { data, error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
         });
 
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          subscription.unsubscribe();
-          setError("Authentication timed out. Please try again.");
-        }, 10000);
+        if (setSessionError || !data.session) {
+          setError("Failed to establish session. Please try again.");
+          return;
+        }
+
+        await assignRoleAndRedirect(data.session.user.id, roleFromUrl);
         return;
       }
 
-      await assignRoleAndRedirect(session.user.id, roleFromUrl);
+      // Fallback: check if session already exists
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        await assignRoleAndRedirect(session.user.id, roleFromUrl);
+        return;
+      }
+
+      // Last resort: listen for auth state change
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          subscription.unsubscribe();
+          await assignRoleAndRedirect(session.user.id, roleFromUrl);
+        }
+      });
+
+      // Timeout after 15 seconds
+      setTimeout(() => {
+        subscription.unsubscribe();
+        setError("Authentication timed out. Please try again.");
+      }, 15000);
     };
 
     const assignRoleAndRedirect = async (userId: string, roleFromUrl: string | null) => {
       try {
-        // Call the secure RPC to assign role (only inserts if no role exists)
         const { error: rpcError } = await supabase.rpc("assign_user_role", {
           p_role: roleFromUrl === "employer" ? "employer" : "candidate",
         });

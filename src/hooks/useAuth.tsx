@@ -10,7 +10,7 @@ interface AuthContextType {
   role: AppRole | null;
   isTeamMember: boolean;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: (redirectTo?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
