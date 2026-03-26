@@ -164,13 +164,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
     try {
-      const { lovable } = await import("@/integrations/lovable/index");
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectTo || window.location.origin,
+        },
       });
 
-      if (result.error) {
-        return { error: result.error as Error };
+      if (error) {
+        return { error: error as Error };
       }
 
       // After successful OAuth, assign role if needed
