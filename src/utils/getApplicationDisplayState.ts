@@ -25,10 +25,10 @@ export const phaseActionConfig: Record<string, { icon: React.ElementType; label:
   portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio" },
 };
 
-export function getPhaseType(phase: string, workflowSteps?: any[]): string {
+export function getPhaseType(phase: string, workflowSteps?: Array<{ id?: string; key?: string; slug?: string; type?: string }>): string {
   // Prefer explicit type from job workflow configuration when available
   if (workflowSteps && Array.isArray(workflowSteps)) {
-    const step = workflowSteps.find((s: any) => s?.id === phase || s?.key === phase || s?.slug === phase);
+    const step = workflowSteps.find((s) => s?.id === phase || s?.key === phase || s?.slug === phase);
     if (step && typeof step.type === "string") {
       return step.type;
     }
@@ -80,7 +80,7 @@ export interface ApplicationDisplayState {
 export function getApplicationDisplayState(application: ApplicationWithJob): ApplicationDisplayState {
   const phase = application.phase || "application";
   const job = application.jobs;
-  const phaseType = getPhaseType(phase, (job as any)?.workflow_steps as any[]);
+  const phaseType = getPhaseType(phase, job?.workflow_steps as Array<{ id: string; type: string }> | undefined);
   
   // Get interview status for this application
   const latestInterview = application.latestInterview;

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -162,7 +163,6 @@ export default function QuizPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[QuizPhase] Application updated via realtime:', payload);
         // Only invalidate if quiz hasn't started yet
         if (!quizInitialized) {
           queryClient.invalidateQueries({ queryKey: ["quiz-application", id] });
@@ -180,7 +180,7 @@ export default function QuizPhase() {
     if (!application?.jobs) return [];
     
     // First check workflow_steps for quiz config
-    const workflowSteps = application.jobs.workflow_steps as any[] | null;
+    const workflowSteps = application.jobs.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
     const quizStep = workflowSteps?.find(s => s.id === stepId || s.type === "quiz");
     
     if (quizStep?.config?.questions) {
@@ -200,8 +200,7 @@ export default function QuizPhase() {
       if (savedProgress) {
         try {
           const progress: QuizProgress = JSON.parse(savedProgress);
-          console.log('[QuizPhase] Restoring saved progress:', progress);
-          
+
           setCurrentQuestionIndex(progress.currentQuestionIndex);
           setAnswers(progress.answers);
           setViolations(progress.violations || []);
@@ -245,7 +244,6 @@ export default function QuizPhase() {
       details,
     };
     setViolations(prev => [...prev, violation]);
-    console.log('[QuizPhase] Violation recorded:', violation);
   }, []);
 
   // Anti-cheating: Tab/Window visibility detection
@@ -625,34 +623,35 @@ export default function QuizPhase() {
 
       // Build the full phases list to find the next phase
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = application.jobs?.quiz_questions as any[] | undefined;
-      
+      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+
       // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = workflowSteps.find((step: any) => step.type === 'voice_interview');
-      
+      const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
+      const voiceInterviewStep = typedSteps.find((step) => step.type === 'voice_interview');
+
       const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
-      
+
       // Add quiz phase if quiz_questions exist (before workflow steps)
       if (quizQuestions && quizQuestions.length > 0) {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
-      
+
       // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
+      typedSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
-      
+
       // Add Review phase
       allPhases.push({ id: "review", type: "review", title: "Review" });
-      
+
       // Add voice_interview AFTER Review if it exists
       if (voiceInterviewStep) {
-        allPhases.push({ 
-          id: (voiceInterviewStep as any).id, 
-          type: "voice_interview", 
-          title: (voiceInterviewStep as any).title || "Ava Interview" 
+        allPhases.push({
+          id: voiceInterviewStep.id,
+          type: "voice_interview",
+          title: voiceInterviewStep.title || "Ava Interview"
         });
       }
       
@@ -744,8 +743,7 @@ export default function QuizPhase() {
         
         try {
           const { data: analysisResult } = await analysisPromise;
-          console.log("[QuizPhase] Backend analysis result:", analysisResult);
-          
+
           // Check the backend's decision
           if (analysisResult?.decision === "rejected") {
             setEvaluationState("failed");

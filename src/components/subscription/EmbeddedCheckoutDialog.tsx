@@ -49,10 +49,8 @@ export default function EmbeddedCheckoutDialog({
       await refetch();
       if (result?.synced) {
         setPaymentComplete(true);
-        console.log("[EmbeddedCheckout] Subscription synced successfully on attempt", attempt);
         return true;
       }
-      console.log("[EmbeddedCheckout] Sync returned not synced on attempt", attempt);
       // Retry up to 3 times
       if (attempt < 3) {
         return doSync(attempt + 1);
@@ -77,12 +75,10 @@ export default function EmbeddedCheckoutDialog({
   const handleComplete = useCallback(async () => {
     if (syncAttempted.current) return;
     syncAttempted.current = true;
-    console.log("[EmbeddedCheckout] Payment complete callback fired");
     await doSync();
   }, [doSync]);
 
   const handleManualSync = async () => {
-    console.log("[EmbeddedCheckout] Manual sync triggered");
     await doSync();
   };
 

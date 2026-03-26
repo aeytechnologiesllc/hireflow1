@@ -61,21 +61,18 @@ export function detectResumeUrl(
 ): string | null {
   // Priority 1: Use canonical resume_url field if it exists and is valid
   if (resumeUrlField && typeof resumeUrlField === 'string' && resumeUrlField.trim()) {
-    console.log('[detectResumeUrl] Using canonical resume_url field:', resumeUrlField);
     return resumeUrlField.trim();
   }
 
   // Priority 2: Look for resume in applicationAnswers
   const answers = parsedNotes?.applicationAnswers;
   if (!answers || !Array.isArray(answers)) {
-    console.log('[detectResumeUrl] No applicationAnswers found');
     return null;
   }
 
   // First pass: Look for answers that are file URLs AND have resume-related question text
   for (const answer of answers) {
     if (isFileUrl(answer.answer) && isResumeQuestion(answer.question)) {
-      console.log('[detectResumeUrl] Found resume in applicationAnswers (resume question):', answer.answer);
       return answer.answer;
     }
   }
@@ -87,12 +84,10 @@ export function detectResumeUrl(
   for (const answer of answers) {
     if (answer.answer && typeof answer.answer === 'string' && 
         answer.answer.toLowerCase().includes('/resumes/')) {
-      console.log('[detectResumeUrl] Found file in resumes bucket:', answer.answer);
       return answer.answer;
     }
   }
 
-  console.log('[detectResumeUrl] No resume URL found');
   return null;
 }
 

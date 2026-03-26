@@ -19,8 +19,6 @@ export interface EvaluationResult {
  */
 export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
   try {
-    console.log("[triggerAvaAnalysis] Calling backend trigger-ava-analysis for application:", applicationId);
-    
     const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
       body: {
         applicationId,
@@ -33,7 +31,6 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
       return;
     }
 
-    console.log("[triggerAvaAnalysis] Backend analysis completed successfully:", data);
   } catch (error) {
     console.error("[triggerAvaAnalysis] Unexpected error:", error);
   }
@@ -52,8 +49,6 @@ export async function evaluatePhaseSubmission(
   passingScore: number = 60
 ): Promise<EvaluationResult> {
   try {
-    console.log("[evaluatePhaseSubmission] Triggering backend analysis for:", applicationId);
-    
     // Trigger the backend analysis
     await triggerAvaAnalysis(applicationId);
     
@@ -80,13 +75,6 @@ export async function evaluatePhaseSubmission(
     // Use the BACKEND score for pass/fail decision, not local calculation
     const backendScore = application?.ai_score;
     const passed = backendScore !== null && backendScore >= passingScore;
-    
-    console.log("[evaluatePhaseSubmission] Backend result:", { 
-      backendScore, 
-      passingScore, 
-      passed,
-      status: application?.status 
-    });
     
     return {
       score: backendScore,

@@ -217,9 +217,9 @@ export default function InterviewSchedulingWizard({
   // This effect just checks if tokens were updated after returning from OAuth
   useEffect(() => {
     if (open) {
-      const storedToken = localStorage.getItem("google_access_token");
-      const tokenExpiry = localStorage.getItem("google_token_expiry");
-      
+      const storedToken = sessionStorage.getItem("google_access_token");
+      const tokenExpiry = sessionStorage.getItem("google_token_expiry");
+
       if (storedToken && tokenExpiry) {
         const expiry = new Date(tokenExpiry);
         if (expiry > new Date()) {
@@ -232,9 +232,9 @@ export default function InterviewSchedulingWizard({
 
   // Check for stored Google tokens
   useEffect(() => {
-    const storedToken = localStorage.getItem("google_access_token");
-    const tokenExpiry = localStorage.getItem("google_token_expiry");
-    
+    const storedToken = sessionStorage.getItem("google_access_token");
+    const tokenExpiry = sessionStorage.getItem("google_token_expiry");
+
     if (storedToken && tokenExpiry) {
       const expiry = new Date(tokenExpiry);
       if (expiry > new Date()) {
@@ -242,7 +242,7 @@ export default function InterviewSchedulingWizard({
         setIsGoogleConnected(true);
       } else {
         // Try to refresh
-        const refreshToken = localStorage.getItem("google_refresh_token");
+        const refreshToken = sessionStorage.getItem("google_refresh_token");
         if (refreshToken) {
           refreshGoogleToken(refreshToken);
         }
@@ -263,8 +263,8 @@ export default function InterviewSchedulingWizard({
 
       if (error) throw error;
 
-      localStorage.setItem("google_access_token", data.access_token);
-      localStorage.setItem(
+      sessionStorage.setItem("google_access_token", data.access_token);
+      sessionStorage.setItem(
         "google_token_expiry",
         new Date(Date.now() + data.expires_in * 1000).toISOString()
       );
@@ -273,9 +273,9 @@ export default function InterviewSchedulingWizard({
       setIsGoogleConnected(true);
     } catch (error) {
       console.error("Token refresh failed:", error);
-      localStorage.removeItem("google_access_token");
-      localStorage.removeItem("google_refresh_token");
-      localStorage.removeItem("google_token_expiry");
+      sessionStorage.removeItem("google_access_token");
+      sessionStorage.removeItem("google_refresh_token");
+      sessionStorage.removeItem("google_token_expiry");
     }
   };
 
@@ -302,7 +302,7 @@ export default function InterviewSchedulingWizard({
     localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify(stateToSave));
 
     // Store current URL to return after OAuth
-    localStorage.setItem("google_oauth_return_url", window.location.pathname + window.location.search);
+    sessionStorage.setItem("google_oauth_return_url", window.location.pathname + window.location.search);
 
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
@@ -390,7 +390,7 @@ export default function InterviewSchedulingWizard({
         const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
         await notifyInterviewScheduled(
           appData.candidate_id,
-          (appData.jobs as any)?.title || jobTitle || "Position",
+          (appData.jobs as { title?: string } | null)?.title || jobTitle || "Position",
           format(scheduledAt, "EEEE, MMMM d, yyyy"),
           formatTimeToAMPM(selectedTime),
           undefined
@@ -800,9 +800,9 @@ export default function InterviewSchedulingWizard({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                      localStorage.removeItem("google_access_token");
-                                      localStorage.removeItem("google_refresh_token");
-                                      localStorage.removeItem("google_token_expiry");
+                                      sessionStorage.removeItem("google_access_token");
+                                      sessionStorage.removeItem("google_refresh_token");
+                                      sessionStorage.removeItem("google_token_expiry");
                                       setIsGoogleConnected(false);
                                       setGoogleAccessToken(null);
                                     }}

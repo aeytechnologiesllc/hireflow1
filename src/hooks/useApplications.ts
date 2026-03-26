@@ -112,7 +112,7 @@ export function useEmployerApplications() {
       if (appError) throw appError;
 
       // Filter to only show applications for jobs owned by effective employer
-      const filtered = (applications as any[]).filter(
+      const filtered = (applications as ApplicationWithCandidate[]).filter(
         (app) => app.jobs?.employer_id === effectiveEmployerId
       );
 
@@ -165,7 +165,7 @@ export function useApplicationStats() {
 
       if (error) throw error;
 
-      const myApps = (data as any[]).filter(
+      const myApps = (data as Array<{ status: string; jobs: { employer_id: string } | null }>).filter(
         (app) => app.jobs?.employer_id === effectiveEmployerId
       );
 
@@ -229,7 +229,7 @@ export function useCreateApplication() {
             .single();
 
           if (jobDetails) {
-            const companyName = (jobDetails as any).profiles?.company_name;
+            const companyName = (jobDetails as { profiles?: { company_name?: string } | null }).profiles?.company_name;
             
             // Notify candidate their application was received
             notifyApplicationReceived(user!.id, jobDetails.title, companyName);
@@ -284,7 +284,7 @@ export function useUpdateApplication() {
               .single();
 
             if (job) {
-              const companyName = (job as any).profiles?.company_name;
+              const companyName = (job as { profiles?: { company_name?: string } | null }).profiles?.company_name;
 
               // Status changed to rejected
               if (updates.status === "rejected" && currentApp.status !== "rejected") {

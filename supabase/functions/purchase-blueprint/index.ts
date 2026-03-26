@@ -13,7 +13,7 @@ const logStep = (step: string, details?: unknown) => {
 };
 
 // $1.99 Improvement Blueprint price ID
-const BLUEPRINT_PRICE_ID = "price_1SilejJoMc2msNl4FjnsSEb4";
+const BLUEPRINT_PRICE_ID = Deno.env.get("STRIPE_BLUEPRINT_PRICE_ID") || "price_1SilejJoMc2msNl4FjnsSEb4";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

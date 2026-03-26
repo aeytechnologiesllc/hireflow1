@@ -133,12 +133,10 @@ async function fallbackGeolocation(): Promise<string | null> {
     if (response.ok) {
       const countryCode = await response.text();
       if (countryCode && countryCode.length === 2) {
-        console.log('Fallback geolocation detected:', countryCode);
         return countryCode.trim().toUpperCase();
       }
     }
   } catch (err) {
-    console.log('Fallback geolocation failed:', err);
   }
   return null;
 }
@@ -155,39 +153,31 @@ export function usePricing(): PricingData {
         if (cached && cached !== 'XX' && cached !== 'unknown') {
           setCountryCode(cached);
           setIsLoading(false);
-          console.log('Using cached country:', cached);
           // Still try to update in background
         }
 
         // Call geolocate-ip edge function
         const { data, error } = await supabase.functions.invoke("geolocate-ip");
         
-        console.log('Edge function response:', { data, error });
-
         if (!error && data?.countryCode && data.countryCode !== 'XX') {
           const code = data.countryCode;
           setCountryCode(code);
           localStorage.setItem("user_country", code);
-          console.log('Country detected via edge function:', code);
           setIsLoading(false);
           return;
         }
 
         // Edge function failed or returned XX - try client-side fallback
-        console.log('Edge function returned XX or failed, trying fallback...');
         const fallbackCode = await fallbackGeolocation();
         
         if (fallbackCode) {
           setCountryCode(fallbackCode);
           localStorage.setItem("user_country", fallbackCode);
-          console.log('Country detected via fallback:', fallbackCode);
         } else {
           // Last resort - default to US
-          console.log('All geolocation methods failed, defaulting to US');
           setCountryCode("US");
         }
       } catch (err) {
-        console.log("Geolocation failed, using default:", err);
         // Try fallback even on error
         const fallbackCode = await fallbackGeolocation();
         if (fallbackCode) {

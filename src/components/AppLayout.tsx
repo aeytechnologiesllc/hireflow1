@@ -108,11 +108,9 @@ export default function AppLayout() {
     if (subscriptionParam !== "success") return;
     
     globalSyncAttemptedRef.current = true;
-    console.log("[AppLayout] Global subscription=success detected, syncing...");
-    
+
     syncSubscription.mutateAsync()
       .then(async (result) => {
-        console.log("[AppLayout] Global sync result:", result);
         // Clear query params
         setSearchParams((prev) => {
           prev.delete("subscription");
@@ -172,16 +170,12 @@ export default function AppLayout() {
     if (syncTimestamp > thirtyMinutesAgo) {
       syncAttemptedRef.current = true;
       setIsSyncingSubscription(true);
-      console.log("[AppLayout] Pending subscription sync detected, syncing...");
-      
       syncSubscription.mutateAsync()
         .then((result) => {
           localStorage.removeItem("pending_subscription_sync");
           if (result?.synced) {
             toast.success("Subscription activated!");
             refetch();
-          } else {
-            console.log("[AppLayout] Sync result:", result?.message);
           }
         })
         .catch((error) => {

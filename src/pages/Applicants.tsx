@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication, useDeleteApplication } from "@/hooks/useApplications";
 
+import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useJob } from "@/hooks/useJobs";
@@ -79,7 +80,9 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
           if (parsed.candidateName) return parsed.candidateName;
           if (parsed.candidateEmail) return parsed.candidateEmail;
         }
-      } catch {}
+      } catch {
+        /* JSON.parse of application.notes failed; fall through to profile name fallback below */
+      }
     }
     return profile?.full_name || profile?.email || "Unknown Candidate";
   })();
@@ -110,7 +113,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
     
     // Look up in job workflow_steps
     if (job?.workflow_steps && Array.isArray(job.workflow_steps)) {
-      const step = (job.workflow_steps as any[]).find((s) => s.id === phase);
+      const step = (job.workflow_steps as Array<{ id: string; title?: string }>).find((s) => s.id === phase);
       if (step?.title) {
         return step.title;
       }
@@ -314,7 +317,6 @@ export default function Applicants() {
           table: 'applications',
         },
         (payload) => {
-          console.log('Applications updated in real-time:', payload);
           queryClient.invalidateQueries({ queryKey: ["applications", "employer"] });
           queryClient.invalidateQueries({ queryKey: ["applications", "stats"] });
         }
@@ -334,7 +336,7 @@ export default function Applicants() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateApplication.mutateAsync({ id, status: status as any });
+      await updateApplication.mutateAsync({ id, status: status as Tables<"applications">["status"] });
       toast.success(`Application status updated to ${status}`);
     } catch (error) {
       toast.error("Failed to update application status");

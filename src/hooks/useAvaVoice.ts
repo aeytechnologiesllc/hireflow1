@@ -136,14 +136,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     
     // CRITICAL: Don't start silence detection if Ava is still generating a response
     if (isResponseActiveRef.current) {
-      console.log('[AvaVoice] Skipping silence detection - response still active');
       return;
     }
     
     clearSilenceTimer();
     candidateSilenceStartRef.current = Date.now();
-    console.log('[AvaVoice] Starting silence detection timer (response complete)');
-    
+
     silenceTimerRef.current = window.setInterval(() => {
       if (!candidateSilenceStartRef.current || isInterviewEndedRef.current) {
         clearSilenceTimer();
@@ -152,7 +150,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       
       // CRITICAL: Don't nudge if Ava is currently generating/speaking
       if (isResponseActiveRef.current) {
-        console.log('[AvaVoice] Silence check skipped - response active');
         return;
       }
       
@@ -161,8 +158,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // After threshold, send a nudge message to Ava
       if (silenceSeconds >= SILENCE_NUDGE_THRESHOLD_S && silenceNudgeCountRef.current < 3) {
         silenceNudgeCountRef.current += 1;
-        console.log(`[AvaVoice] Candidate silent for ${silenceSeconds}s, nudging Ava (nudge #${silenceNudgeCountRef.current})`);
-        
+
         // Reset silence start to avoid repeated nudges too quickly
         candidateSilenceStartRef.current = Date.now();
         
@@ -194,7 +190,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     clearProcessingTimeout();
     
     processingTimeoutRef.current = window.setTimeout(() => {
-      console.warn('Ava response timeout - stuck detected');
       setState(s => ({ ...s, isStuck: true }));
       toast({
         variant: 'destructive',
@@ -239,12 +234,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const handleConnectionLost = useCallback(async () => {
     // Don't attempt reconnect if interview already ended
     if (isInterviewEndedRef.current) {
-      console.log('Interview ended, not attempting reconnection');
       return;
     }
-    
+
     const attempts = reconnectAttemptsRef.current;
-    console.log(`Connection lost. Attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS}`);
     
     if (attempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttemptsRef.current += 1;
@@ -319,7 +312,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // IMPORTANT: Only stop mic stream if we created it (not external)
     // If externalMicStream was provided, the video recorder owns that stream
     if (micStreamRef.current && !optionsRef.current.externalMicStream) {
-      console.log('[AvaVoice] Stopping internal mic stream');
       micStreamRef.current.getTracks().forEach(track => track.stop());
     }
     micStreamRef.current = null;
@@ -395,14 +387,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       }
     }
     
-    console.log('Voice session response:', { 
-      hasError: !!response.error, 
-      hasData: !!response.data,
-      dataError: response.data?.error,
-      errorMessage: errorMessage,
-      rawError: response.error?.message
-    });
-    
     if (response.error || !response.data?.client_secret?.value) {
       throw new Error(errorMessage || 'Failed to get voice session');
     }
@@ -411,16 +395,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
 
     setState(s => ({ ...s, voiceNameUsed }));
-    console.log('[AvaVoice] Session created with voice:', voiceNameUsed);
-
-    console.log('Got ephemeral key, creating peer connection');
 
     // Create audio context for playback
     audioContextRef.current = new AudioContext({ sampleRate: 24000 });
     audioQueueRef.current = new AudioQueue(
       audioContextRef.current,
       (playing) => {
-        console.log('[AvaVoice] AudioQueue playing state:', playing);
         // CRITICAL: When audio starts playing, clear isProcessing to show "Speaking" not "Thinking"
         setState(s => ({ 
           ...s, 
@@ -436,10 +416,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // Monitor WebRTC connection state
     pcRef.current.onconnectionstatechange = () => {
       const connectionState = pcRef.current?.connectionState;
-      console.log('WebRTC connection state:', connectionState);
-      
+
       if (connectionState === 'disconnected' || connectionState === 'failed') {
-        console.warn('WebRTC connection lost:', connectionState);
         if (!isInterviewEndedRef.current) {
           handleConnectionLost();
         }
@@ -452,10 +430,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // Monitor ICE connection state
     pcRef.current.oniceconnectionstatechange = () => {
       const iceState = pcRef.current?.iceConnectionState;
-      console.log('ICE connection state:', iceState);
-      
+
       if (iceState === 'disconnected' || iceState === 'failed') {
-        console.warn('ICE connection issue:', iceState);
         if (!isInterviewEndedRef.current) {
           handleConnectionLost();
         }
@@ -475,21 +451,14 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     let ms: MediaStream;
     if (optionsRef.current.externalMicStream) {
       ms = optionsRef.current.externalMicStream;
-      console.log('[AvaVoice] Using external mic stream for WebRTC (shared with video recorder)');
     } else {
       ms = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('[AvaVoice] Created new mic stream for WebRTC');
     }
     micStreamRef.current = ms;
     
     const audioTrack = ms.getAudioTracks()[0];
     if (audioTrack) {
       pcRef.current.addTrack(audioTrack);
-      console.log('[AvaVoice] Audio track added to peer connection', {
-        label: audioTrack.label,
-        enabled: audioTrack.enabled,
-        readyState: audioTrack.readyState
-      });
     } else {
       console.error('[AvaVoice] No audio track found on mic stream!');
     }
@@ -525,7 +494,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     
     // Monitor data channel health
     dcRef.current.addEventListener('close', () => {
-      console.warn('Data channel closed');
       if (state.isConnected && !isInterviewEndedRef.current) {
         handleConnectionLost();
       }
@@ -544,12 +512,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     });
 
     dcRef.current.addEventListener('open', () => {
-      console.log('Data channel opened');
       lastActivityRef.current = Date.now();
-      
+
       // Start session timer for voice minute tracking
       sessionStartTimeRef.current = Date.now();
-      console.log('[AvaVoice] Session started at:', new Date(sessionStartTimeRef.current).toISOString());
       
       setState(s => ({ 
         ...s, 
@@ -569,7 +535,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // Use 1.5s delay for better audio stability and synchronization
       setTimeout(() => {
         if (dcRef.current?.readyState === 'open') {
-          console.log('Triggering AVA to greet first, mode:', optionsRef.current.mode);
           dcRef.current.send(JSON.stringify({ type: 'response.create' }));
           // Don't start processing timeout immediately - wait for first audio
           // This prevents premature "taking too long" alerts on connection
@@ -579,7 +544,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     dcRef.current.addEventListener('message', async (e) => {
       const event = JSON.parse(e.data);
-      console.log('Received event:', event.type);
       lastActivityRef.current = Date.now();
 
       switch (event.type) {
@@ -587,13 +551,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           // Response generation started - mark as active to prevent silence detection
           isResponseActiveRef.current = true;
           clearSilenceTimer(); // Don't check for silence while Ava is generating
-          console.log('[AvaVoice] Response started - silence detection paused');
           break;
           
         case 'response.done':
           // Full response complete - now safe to start silence detection
           isResponseActiveRef.current = false;
-          console.log('[AvaVoice] Response complete - starting silence detection');
           // Small delay to ensure audio playback has finished
           setTimeout(() => {
             if (!isInterviewEndedRef.current) {
@@ -618,19 +580,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
           // This ensures the UI shows "Speaking" not "Thinking"
           // Also mark hasReceivedFirstAudio so the loading overlay can hide
-          console.log('[AvaVoice] Audio delta received - setting isSpeaking=true, isProcessing=false, hasReceivedFirstAudio=true');
-          setState(s => {
-            if (s.isProcessing || !s.isSpeaking || !s.hasReceivedFirstAudio) {
-              console.log('[AvaVoice] State transition: isProcessing', s.isProcessing, '-> false, isSpeaking', s.isSpeaking, '-> true, hasReceivedFirstAudio -> true');
-            }
-            return { ...s, isSpeaking: true, isProcessing: false, isStuck: false, hasReceivedFirstAudio: true };
-          });
+          setState(s => ({ ...s, isSpeaking: true, isProcessing: false, isStuck: false, hasReceivedFirstAudio: true }));
           break;
 
         case 'response.audio.done':
           // Audio chunk done - but DON'T start silence detection here!
           // Wait for response.done which fires after the complete response
-          console.log('[AvaVoice] Audio done event received, setting isSpeaking false after buffer');
           setTimeout(() => {
             setState(s => ({ ...s, isSpeaking: false }));
             // NOTE: Silence detection is NOT started here anymore - moved to response.done
@@ -654,12 +609,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           if (event.name && event.arguments) {
             try {
               const args = JSON.parse(event.arguments);
-              console.log('Tool call:', event.name, args);
               
               // For schedule_interview, inject Google Calendar tokens
               if (event.name === 'schedule_interview') {
-                const googleAccessToken = localStorage.getItem("google_access_token");
-                const googleRefreshToken = localStorage.getItem("google_refresh_token");
+                const googleAccessToken = sessionStorage.getItem("google_access_token");
+                const googleRefreshToken = sessionStorage.getItem("google_refresh_token");
                 if (googleRefreshToken) {
                   args.google_refresh_token = googleRefreshToken;
                   args.google_access_token = googleAccessToken;
@@ -683,7 +637,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                 
                 // Check for interview end
                 if (event.name === 'end_interview' && toolResult?.evaluation) {
-                  console.log('Interview ending, waiting for Ava to finish speaking...');
                   isInterviewEndedRef.current = true;
                   clearProcessingTimeout();
                   clearSilenceTimer(); // Stop all silence detection immediately
@@ -701,8 +654,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                     const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000);
                     
                     if (sessionDurationMs >= 5000) {
-                      console.log(`[AvaVoice] End interview - deducting ${sessionDurationMinutes} minutes for applicationId: ${optionsRef.current.applicationId}`);
-                      
                       // Fire and forget - don't block interview end on deduction
                       supabase.functions.invoke('deduct-voice-minutes', {
                         body: { 
@@ -712,8 +663,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                       }).then(({ data, error }) => {
                         if (error) {
                           console.error('[AvaVoice] Failed to deduct voice minutes on end_interview:', error);
-                        } else {
-                          console.log('[AvaVoice] Voice minutes deducted on end_interview:', data);
                         }
                       });
                     }
@@ -733,14 +682,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                         checkCount++;
                         const queueLength = audioQueueRef.current?.length || 0;
                         
-                        console.log(`Waiting for audio... Queue=${queueLength}, Empty=${emptyCount}, Check=${checkCount}`);
-                        
                         // Check if audio queue is empty
                         if (queueLength === 0) {
                           emptyCount++;
                           // After 3 consecutive empty checks (300ms), proceed
                           if (emptyCount >= 3) {
-                            console.log('Audio queue empty for 300ms, proceeding');
                             clearInterval(checkInterval);
                             resolve();
                             return;
@@ -750,8 +696,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                         }
                         
                         if (checkCount >= maxChecks) {
-                          // Timeout after 5 seconds to prevent long wait
-                          console.log('Audio wait timeout (5s), proceeding with interview end');
                           clearInterval(checkInterval);
                           resolve();
                         }
@@ -761,13 +705,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   
                   // Wait for Ava to finish, then trigger end
                   waitForAudioComplete().then(() => {
-                    console.log('Ava finished speaking, triggering interview end...');
                     optionsRef.current.onInterviewEnd?.(toolResult.evaluation);
                     
                     // Auto-disconnect after callback completes
                     setTimeout(() => {
-                      console.log('Auto-disconnecting Ava after interview end...');
-                      
                       // Close data channel
                       dcRef.current?.close();
                       dcRef.current = null;
@@ -810,15 +751,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                 }
 
                 // Handle flag_inconsistency - Ava may want to ask a follow-up
-                if (event.name === 'flag_inconsistency' && toolResult?.follow_up) {
-                  console.log('Inconsistency flagged, follow-up:', toolResult.follow_up);
-                }
-
-                // Handle take_interview_note - just acknowledge
-                if (event.name === 'take_interview_note') {
-                  console.log('Interview note recorded');
-                }
-
                 // Send tool result back to model
                 if (dcRef.current?.readyState === 'open') {
                   dcRef.current.send(JSON.stringify({
@@ -887,7 +819,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     };
 
     await pcRef.current.setRemoteDescription(answer);
-    console.log('WebRTC connection established');
   }, [handleConnectionLost, startConnectionQualityMonitoring, startProcessingTimeout, clearProcessingTimeout, toast, state.isConnected]);
 
   // Public connect function
@@ -928,8 +859,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       
       // Only deduct if session was at least 5 seconds (avoid connection test deductions)
       if (sessionDurationMs >= 5000) {
-        console.log(`[AvaVoice] Disconnect - Duration: ${sessionDurationMinutes} minute(s). Deducting voice credits...`);
-        
         try {
           // Pass applicationId if in interview mode so we deduct from employer
           const { data, error } = await supabase.functions.invoke('deduct-voice-minutes', {
@@ -941,14 +870,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           
           if (error) {
             console.error('[AvaVoice] Failed to deduct voice minutes:', error);
-          } else {
-            console.log('[AvaVoice] Voice minutes deducted:', data);
           }
         } catch (err) {
           console.error('[AvaVoice] Error calling deduct-voice-minutes:', err);
         }
-      } else {
-        console.log('[AvaVoice] Session too short (<5s), skipping deduction');
       }
       
       sessionStartTimeRef.current = null;
@@ -978,7 +903,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
   // Manual retry connection
   const retryConnection = useCallback(async () => {
-    console.log('Manual retry connection requested');
     reconnectAttemptsRef.current = 0;
     isInterviewEndedRef.current = false;
     isResponseActiveRef.current = false;
@@ -994,12 +918,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   // Nudge Ava when she seems stuck
   const nudgeAva = useCallback(() => {
     if (!dcRef.current || dcRef.current.readyState !== 'open') {
-      console.warn('Cannot nudge - data channel not ready');
       return;
     }
-    
-    console.log('Nudging Ava to continue...');
-    
+
     // Send a response.create to prompt Ava
     dcRef.current.send(JSON.stringify({ type: 'response.create' }));
     

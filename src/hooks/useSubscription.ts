@@ -188,7 +188,6 @@ export function useSubscription() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'voice_credits', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          console.log('[useSubscription] voice_credits change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ['subscription', user.id] });
         }
       )

@@ -324,7 +324,6 @@ export default function Applications() {
           filter: `candidate_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log("Application updated:", payload);
           refetch();
         }
       )

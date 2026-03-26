@@ -87,7 +87,7 @@ export function usePendingActionsCount() {
             return !!notes.salesSimulationResult;
           }
           if (phase.includes("voice_interview")) {
-            return !!(app as any).voice_interview_result;
+            return !!app.voice_interview_result;
           }
           return false;
         })();

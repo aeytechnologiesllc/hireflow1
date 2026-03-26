@@ -235,7 +235,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   const getDocumentCode = () => {
-    return (document as any)?.document_code || `DOC-${document?.id.slice(0, 6).toUpperCase()}`;
+    return document?.document_code || `DOC-${document?.id.slice(0, 6).toUpperCase()}`;
   };
 
   const getVerificationUrl = () => {
@@ -539,7 +539,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       pdf.text("Candidate:", margin, yPosition);
       try {
         pdf.addImage(candidateSignature, "PNG", margin, yPosition + 2, 50, 15);
-      } catch {}
+      } catch {
+        /* Signature image embedding is non-critical; PDF still generates without it */
+      }
       yPosition += 25;
     }
 
@@ -548,7 +550,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       pdf.text("Employer:", margin, yPosition);
       try {
         pdf.addImage(employerSignature, "PNG", margin, yPosition + 2, 50, 15);
-      } catch {}
+      } catch {
+        /* Signature image embedding is non-critical; PDF still generates without it */
+      }
       yPosition += 25;
     }
 

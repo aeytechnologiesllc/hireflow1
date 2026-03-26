@@ -155,14 +155,11 @@ export default function VoiceInterviewPhase() {
       // (it may be stale in the closure)
       const blob = await stopRecording();
       if (blob && blob.size > 0) {
-        console.log('Recording stopped, uploading...', blob.size, 'bytes');
         const url = await uploadRecording(blob);
         if (!url) {
           console.error('Failed to upload recording');
           toast.error("Video upload failed, but interview results were saved");
         }
-      } else {
-        console.log('No recording blob available or empty');
       }
 
       // STOP CAMERA after recording is handled
@@ -199,7 +196,7 @@ export default function VoiceInterviewPhase() {
       triggerAvaAnalysis(applicationId!).catch(console.error);
 
       // Notify employer: email + in-app notification
-      const employerId = (appData?.jobs as any)?.employer_id;
+      const employerId = (appData?.jobs as { employer_id?: string } | null)?.employer_id;
       if (employerId) {
         // Email notification
         import("@/utils/emailNotifications").then(({ notifyPhaseCompleted }) => {
@@ -308,7 +305,6 @@ export default function VoiceInterviewPhase() {
         table: 'applications',
         filter: `id=eq.${applicationId}`,
       }, (payload) => {
-        console.log('[VoiceInterviewPhase] Application updated via realtime:', payload);
         // Refetch application data when it changes (e.g., phase reset)
         loadApplicationData();
       })
@@ -430,10 +426,8 @@ export default function VoiceInterviewPhase() {
     if (isConnected && interviewStarted && cameraTestPassed && !isRecording) {
       const avaAudioEl = getAvaAudioElement();
       const started = startRecording(avaAudioEl);
-      if (started) {
-        console.log('Video recording started');
-      } else {
-        console.warn('Failed to start video recording');
+      if (!started) {
+        console.error('Failed to start video recording');
       }
     }
   }, [isConnected, interviewStarted, cameraTestPassed, isRecording, startRecording, getAvaAudioElement]);

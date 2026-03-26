@@ -206,7 +206,7 @@ const playAchievementSound = () => {
       oscillator.stop(audioContext.currentTime + 1);
     });
   } catch (e) {
-    // Audio not supported or blocked
+    /* Celebration sound effect is non-critical; audio may be unsupported or blocked by browser autoplay policy */
   }
 };
 

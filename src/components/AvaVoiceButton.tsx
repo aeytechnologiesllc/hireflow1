@@ -41,13 +41,10 @@ export default function AvaVoiceButton() {
     return match ? match[1] : undefined;
   }, [location.pathname]);
 
-  const handleTranscript = useCallback((text: string, role: "user" | "assistant") => {
-    console.log(`[${role}]: ${text}`);
+  const handleTranscript = useCallback((_text: string, _role: "user" | "assistant") => {
   }, []);
 
   const handleToolCall = useCallback((toolName: string, result: any) => {
-    console.log("Tool call result:", toolName, result);
-
     if (result?.success || result?.action) {
       if (toolName === 'open_applicant_page' && result.action === 'navigate' && result.route) {
         navigate(result.route);
@@ -153,8 +150,8 @@ export default function AvaVoiceButton() {
     }
   }, [queryClient, currentApplicationId, navigate]);
 
-  const googleAccessToken = localStorage.getItem("google_access_token");
-  const googleRefreshToken = localStorage.getItem("google_refresh_token");
+  const googleAccessToken = sessionStorage.getItem("google_access_token");
+  const googleRefreshToken = sessionStorage.getItem("google_refresh_token");
   const googleCalendarConnected = !!googleAccessToken;
 
   const {

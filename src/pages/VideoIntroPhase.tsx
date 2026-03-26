@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ export default function VideoIntroPhase() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | null>(null);
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -93,7 +94,6 @@ export default function VideoIntroPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[VideoIntroPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["video-intro-application", id] });
       })
       .subscribe();
@@ -104,7 +104,7 @@ export default function VideoIntroPhase() {
   }, [id, queryClient]);
 
   const videoConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
       maxDuration: videoStep?.config?.maxDuration || 60,
@@ -228,23 +228,23 @@ export default function VideoIntroPhase() {
       const videoUrl = urlData.publicUrl;
 
       // 3. Build phases list to determine next phase
-      const workflowSteps = application.jobs?.workflow_steps as any[] || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
-      
+      const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
+      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+
       // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = workflowSteps.find((step: any) => step.type === 'voice_interview');
-      
+      const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
+
       const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
-      
+
       // Add quiz phase if quiz_questions exist
       if (quizQuestions && quizQuestions.length > 0) {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
-      
+
       // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
+      workflowSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
       
@@ -367,7 +367,7 @@ export default function VideoIntroPhase() {
             if (decision === "advanced") {
               setEvaluationState("passed");
             } else if (decision === "rejected") {
-              setEvaluationState("failed" as any); // EvaluationScreen handles "failed"
+              setEvaluationState("failed"); // EvaluationScreen handles "failed"
             } else {
               // Fallback: check application status
               const { data: updatedApp } = await supabase
@@ -377,7 +377,7 @@ export default function VideoIntroPhase() {
                 .single();
               
               if (updatedApp?.status === "rejected") {
-                setEvaluationState("failed" as any);
+                setEvaluationState("failed");
               } else {
                 setEvaluationState("passed");
               }
@@ -442,7 +442,7 @@ export default function VideoIntroPhase() {
                   if (decision === "advanced") {
                     setEvaluationState("passed");
                   } else if (decision === "rejected") {
-                    setEvaluationState("failed" as any);
+                    setEvaluationState("failed");
                   } else {
                     const { data: updatedApp } = await supabase
                       .from("applications")
@@ -451,7 +451,7 @@ export default function VideoIntroPhase() {
                       .single();
                     
                     if (updatedApp?.status === "rejected") {
-                      setEvaluationState("failed" as any);
+                      setEvaluationState("failed");
                     } else {
                       setEvaluationState("passed");
                     }
@@ -492,7 +492,7 @@ export default function VideoIntroPhase() {
   const handleStartNextPhase = () => {
     if (!nextPhaseInfo || !application) return;
     
-    const workflowSteps = application.jobs?.workflow_steps as any[] || [];
+    const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
     const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
     
     if (nextStep) {

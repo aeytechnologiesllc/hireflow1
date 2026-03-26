@@ -60,7 +60,7 @@ export function useUpdateInvitation() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { data, error } = await supabase
         .from("team_invitations")
-        .update({ status: status as any })
+        .update({ status: status as Tables<"team_invitations">["status"] })
         .eq("id", id)
         .select()
         .single();

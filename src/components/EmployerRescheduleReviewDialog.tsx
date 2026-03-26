@@ -89,8 +89,8 @@ export function EmployerRescheduleReviewDialog({
       if (error) throw error;
 
       // Create notification for candidate
-      const candidateId = (interview?.applications as any)?.candidate_id;
-      const jobTitle = (interview?.applications as any)?.jobs?.title || "Interview";
+      const candidateId = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.candidate_id;
+      const jobTitle = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.jobs?.title || "Interview";
       
       if (candidateId) {
         await supabase.from("notifications").insert({
@@ -151,8 +151,8 @@ export function EmployerRescheduleReviewDialog({
       if (error) throw error;
 
       // Create notification for candidate
-      const candidateId = (interview?.applications as any)?.candidate_id;
-      const jobTitle = (interview?.applications as any)?.jobs?.title || "Interview";
+      const candidateId = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.candidate_id;
+      const jobTitle = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.jobs?.title || "Interview";
       const scheduledAt = interview?.scheduled_at;
       
       if (candidateId) {

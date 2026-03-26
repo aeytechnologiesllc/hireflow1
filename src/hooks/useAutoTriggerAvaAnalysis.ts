@@ -28,14 +28,12 @@ export function useAutoTriggerAvaAnalysis({
   
   const triggerAnalysis = useCallback(async (force: boolean = true) => {
     if (!applicationId || inFlightRef.current) {
-      console.log("[useAutoTriggerAvaAnalysis] Skip: no appId or already in flight");
       return;
     }
     
     // Check cooldown
     const now = Date.now();
     if (now - lastTriggerTimeRef.current < cooldownMs) {
-      console.log("[useAutoTriggerAvaAnalysis] Skip: within cooldown period");
       return;
     }
     
@@ -43,16 +41,12 @@ export function useAutoTriggerAvaAnalysis({
     lastTriggerTimeRef.current = now;
     
     try {
-      console.log("[useAutoTriggerAvaAnalysis] Triggering analysis for:", applicationId, "force:", force);
-      
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: { applicationId, force },
       });
       
       if (error) {
         console.error("[useAutoTriggerAvaAnalysis] Error:", error);
-      } else {
-        console.log("[useAutoTriggerAvaAnalysis] Analysis triggered successfully:", data);
       }
     } catch (err) {
       console.error("[useAutoTriggerAvaAnalysis] Exception:", err);
@@ -72,7 +66,6 @@ export function useAutoTriggerAvaAnalysis({
     
     if (application.status === "pending" && 
         candidateSubmissionPhases.includes(application.phase || "")) {
-      console.log("[useAutoTriggerAvaAnalysis] Skipping - in candidate submission phase, autopilot will handle");
       return;
     }
     
@@ -88,7 +81,6 @@ export function useAutoTriggerAvaAnalysis({
     const needsAnalysis = !application.ai_analysis || !application.ai_score;
     
     if (!needsAnalysis) {
-      console.log("[useAutoTriggerAvaAnalysis] Analysis already present, skipping");
       return;
     }
     
@@ -109,11 +101,8 @@ export function useAutoTriggerAvaAnalysis({
     );
     
     if (!hasMeaningfulData) {
-      console.log("[useAutoTriggerAvaAnalysis] No meaningful data yet, skipping");
       return;
     }
-    
-    console.log("[useAutoTriggerAvaAnalysis] Conditions met - scheduling analysis trigger");
     
     // Debounce the trigger
     if (debounceTimerRef.current) {
@@ -127,8 +116,6 @@ export function useAutoTriggerAvaAnalysis({
   
   useEffect(() => {
     if (!applicationId || !enabled) return;
-    
-    console.log("[useAutoTriggerAvaAnalysis] Setting up realtime subscription for:", applicationId);
     
     const channel = supabase
       .channel(`auto-ava-analysis-${applicationId}`)
@@ -146,24 +133,20 @@ export function useAutoTriggerAvaAnalysis({
           
           // Skip if this update IS the ai_analysis being set (avoid loop)
           if (newData.ai_analysis && !oldData.ai_analysis) {
-            console.log("[useAutoTriggerAvaAnalysis] Skipping - ai_analysis just arrived");
             return;
           }
           
           // Skip if ai_score just got set
           if (newData.ai_score !== null && oldData.ai_score === null) {
-            console.log("[useAutoTriggerAvaAnalysis] Skipping - ai_score just arrived");
             return;
           }
           
-          console.log("[useAutoTriggerAvaAnalysis] Application updated, checking if analysis needed");
           checkAndTrigger(newData);
         }
       )
       .subscribe();
     
     return () => {
-      console.log("[useAutoTriggerAvaAnalysis] Cleaning up subscription");
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -184,7 +167,6 @@ export function useAutoTriggerAvaAnalysis({
         .single();
       
       if (data) {
-        console.log("[useAutoTriggerAvaAnalysis] Initial check for application:", applicationId);
         checkAndTrigger(data);
       }
     };

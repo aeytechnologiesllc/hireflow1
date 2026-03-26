@@ -337,7 +337,7 @@ export function useSendDocumentPackage() {
         .eq("package_id", packageId);
 
       const totalItems = (docCount || 0) + (reqCount || 0);
-      const jobTitle = (pkg.applications as any)?.jobs?.title || "the position";
+      const jobTitle = (pkg.applications as { jobs?: { title?: string; employer_id?: string } | null } | null)?.jobs?.title || "the position";
 
       // Create notification for candidate
       await supabase.from("notifications").insert({
@@ -352,7 +352,7 @@ export function useSendDocumentPackage() {
       // Send email notification asynchronously
       (async () => {
         try {
-          const employerId = (pkg.applications as any)?.jobs?.employer_id;
+          const employerId = (pkg.applications as { jobs?: { title?: string; employer_id?: string } | null } | null)?.jobs?.employer_id;
           if (employerId) {
             const { data: profile } = await supabase
               .from("profiles")

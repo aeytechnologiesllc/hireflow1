@@ -151,7 +151,6 @@ export const compressVideo = async (
   const compressionRatio = blob.size / originalSize;
   if (compressionRatio < 0.01) {
     // Less than 1% of original is suspicious - likely corruption
-    console.warn(`Suspicious compression ratio: ${originalSize} → ${blob.size} (${(compressionRatio * 100).toFixed(2)}%)`);
     throw new Error("Compression produced an unusually small file. The output may be corrupted. Please try recording directly.");
   }
   

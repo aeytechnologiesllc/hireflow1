@@ -43,8 +43,6 @@ export function GlobalNotificationToasts() {
             type: string;
           };
 
-          console.log("New notification received:", notification);
-
           // Invalidate notifications query to update counts
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
 

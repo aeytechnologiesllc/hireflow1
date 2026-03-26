@@ -30,7 +30,6 @@ function parseNotes(notes: string | Record<string, any> | null): Record<string, 
     try {
       return JSON.parse(notes);
     } catch {
-      console.log("[parseNotes] Failed to parse notes string:", notes.substring(0, 100));
       return {};
     }
   }
@@ -49,8 +48,6 @@ function hasCompletedPhase(
 ): boolean {
   const parsedNotes = parseNotes(notes);
   
-  console.log(`[hasCompletedPhase] phaseId=${phaseId}, phaseType=${phaseType}, notesType=${typeof notes}, notesKeys=${Object.keys(parsedNotes).join(",")}`);
-
   // Check completion based on phase type
   switch (phaseType) {
     case "application":
@@ -59,7 +56,6 @@ function hasCompletedPhase(
       const hasApplicationAnswers = Array.isArray(parsedNotes.applicationAnswers) && 
         parsedNotes.applicationAnswers.length > 0 &&
         parsedNotes.applicationAnswers.some((a: any) => a.answer && a.answer.trim() !== "");
-      console.log(`[hasCompletedPhase] application phase: hasApplicationAnswers=${hasApplicationAnswers}, answersCount=${parsedNotes.applicationAnswers?.length || 0}`);
       return hasApplicationAnswers;
     
     case "typing_test":
@@ -106,47 +102,37 @@ function getNextPhase(
   workflowSteps: WorkflowStep[],
   hasQuizQuestions: boolean
 ): WorkflowStep | null {
-  console.log(`[getNextPhase] currentPhaseId=${currentPhaseId}, hasQuiz=${hasQuizQuestions}, workflowStepsCount=${workflowSteps.length}`);
-  
   // If currently at "application" phase
   if (currentPhaseId === "application") {
     // If job has quiz questions, next phase is the quiz
     if (hasQuizQuestions) {
-      console.log("[getNextPhase] application -> quiz (job has quiz questions)");
       return { id: "quiz", type: "quiz", title: "Quiz" };
     }
     // Otherwise, go to first workflow step
     if (workflowSteps.length > 0) {
-      console.log(`[getNextPhase] application -> ${workflowSteps[0].id} (first workflow step)`);
       return workflowSteps[0];
     }
-    console.log("[getNextPhase] application -> null (no more phases)");
     return null;
   }
   
   // If currently at "quiz" phase, go to first workflow step
   if (currentPhaseId === "quiz") {
     if (workflowSteps.length > 0) {
-      console.log(`[getNextPhase] quiz -> ${workflowSteps[0].id} (first workflow step)`);
       return workflowSteps[0];
     }
-    console.log("[getNextPhase] quiz -> null (no workflow steps)");
     return null;
   }
   
   // Otherwise, find current position in workflow_steps
   const currentIndex = workflowSteps.findIndex(s => s.id === currentPhaseId);
   if (currentIndex === -1) {
-    console.log(`[getNextPhase] ${currentPhaseId} not found in workflow_steps`);
     return null;
   }
   if (currentIndex >= workflowSteps.length - 1) {
-    console.log(`[getNextPhase] ${currentPhaseId} is the last workflow step`);
     return null;
   }
   
   const nextStep = workflowSteps[currentIndex + 1];
-  console.log(`[getNextPhase] ${currentPhaseId} -> ${nextStep.id}`);
   return nextStep;
 }
 
@@ -171,8 +157,6 @@ export async function processAutopilotCatchUp(
   };
 
   try {
-    console.log("[processAutopilotCatchUp] Starting catch-up for job:", jobId);
-
     // Fetch job details to get workflow steps, passing score, required WPM, and quiz questions
     const { data: job, error: jobError } = await supabase
       .from("jobs")
@@ -187,18 +171,15 @@ export async function processAutopilotCatchUp(
 
     // SAFETY: Never run catch-up unless the job is actually in auto mode.
     if (job.processing_mode !== "auto") {
-      console.log("[processAutopilotCatchUp] Job is not in auto mode; skipping catch-up.");
       return result;
     }
 
     const workflowSteps = (job.workflow_steps as unknown as WorkflowStep[]) || [];
     const passingScore = job.passing_score || 60;
     const requiredWpm = job.required_wpm || 35;
-    const quizQuestions = job.quiz_questions as unknown as any[] | null;
+    const quizQuestions = job.quiz_questions as unknown as Array<Record<string, unknown>> | null;
     const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
     const hasTypingTest = workflowSteps.some(step => step.type === 'typing_test');
-
-    console.log(`[processAutopilotCatchUp] Job config: passingScore=${passingScore}, requiredWpm=${requiredWpm}, hasQuiz=${hasQuizQuestions}, hasTypingTest=${hasTypingTest}, workflowStepsCount=${workflowSteps.length}`);
 
     // Fetch employer profile for company name
     const { data: employerProfile } = await supabase
@@ -224,11 +205,8 @@ export async function processAutopilotCatchUp(
     }
 
     if (!applications || applications.length === 0) {
-      console.log("[processAutopilotCatchUp] No pending applications to process");
       return result;
     }
-
-    console.log(`[processAutopilotCatchUp] Found ${applications.length} applications to process`);
 
     // Process each application
     for (const application of applications) {
@@ -248,16 +226,12 @@ export async function processAutopilotCatchUp(
           currentPhaseType = currentPhase?.type || "unknown";
         }
         
-        console.log(`[processAutopilotCatchUp] Application ${application.id} at phase=${currentPhaseId}, type=${currentPhaseType}`);
-
         // FIRST: Check AI score - reject immediately if below threshold (regardless of phase completion)
         let aiScore = application.ai_score;
         
         // Run AI analysis via backend function if no score exists
         // The backend function computes the weighted overall score (resume + quiz + voice + portfolio)
         if (aiScore === null || aiScore === undefined) {
-          console.log(`[processAutopilotCatchUp] Running AI analysis via backend for application ${application.id}`);
-          
           const { error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
             body: {
               applicationId: application.id,
@@ -279,13 +253,9 @@ export async function processAutopilotCatchUp(
           aiScore = updated?.ai_score ?? null;
         }
 
-        console.log(`[processAutopilotCatchUp] Application ${application.id} score: ${aiScore}, passing: ${passingScore}`);
-
         // Check if score is below threshold - REJECT regardless of phase completion
         if (aiScore !== null && aiScore < passingScore) {
           const rejectionReason = `Overall Ava score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
-          
-          console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - score ${aiScore} below passing ${passingScore}`);
           
           const { error: rejectError } = await supabase
             .from("applications")
@@ -303,7 +273,6 @@ export async function processAutopilotCatchUp(
             result.failed++;
           } else {
             result.rejected++;
-            console.log(`[processAutopilotCatchUp] Rejected application ${application.id}`);
           }
           continue; // Move to next application after rejection
         }
@@ -323,8 +292,6 @@ export async function processAutopilotCatchUp(
               if (candidateWpm < requiredWpm) {
                 const rejectionReason = `Typing test failed. Speed: ${candidateWpm} WPM (required: ${requiredWpm} WPM). This application was automatically rejected by Ava because the candidate did not meet the minimum typing speed requirement.`;
                 
-                console.log(`[processAutopilotCatchUp] Rejecting application ${application.id} - typing test WPM ${candidateWpm} below required ${requiredWpm}`);
-                
                 const { error: rejectError } = await supabase
                   .from("applications")
                   .update({
@@ -341,13 +308,12 @@ export async function processAutopilotCatchUp(
                   result.failed++;
                 } else {
                   result.rejected++;
-                  console.log(`[processAutopilotCatchUp] Rejected application ${application.id} for failing typing test`);
                 }
                 continue; // Move to next application after rejection
               }
             }
           } catch (parseError) {
-            console.log(`[processAutopilotCatchUp] Could not parse notes for typing test check:`, parseError);
+            // Could not parse notes for typing test check
           }
         }
 
@@ -360,7 +326,6 @@ export async function processAutopilotCatchUp(
         );
 
         if (!isPhaseComplete) {
-          console.log(`[processAutopilotCatchUp] Application ${application.id} phase not complete, skipping advancement`);
           continue;
         }
 
@@ -372,7 +337,6 @@ export async function processAutopilotCatchUp(
           if (nextPhase) {
             // STOP before voice_interview - requires employer to configure
             if (nextPhase.type === "voice_interview") {
-              console.log(`[processAutopilotCatchUp] Application ${application.id} ready for voice interview - requires employer action`);
               // Don't advance - employer must manually configure and approve for Ava interview
               // Just update the status to show they're ready
               await supabase
@@ -412,7 +376,6 @@ export async function processAutopilotCatchUp(
                   aiScore
                 );
                 
-                console.log(`[processAutopilotCatchUp] Notified employer that candidate ${application.id} is ready for AIVA interview`);
               } catch (notifyError) {
                 console.error(`[processAutopilotCatchUp] Failed to notify employer:`, notifyError);
               }
@@ -437,7 +400,6 @@ export async function processAutopilotCatchUp(
             }
 
             result.advanced++;
-            console.log(`[processAutopilotCatchUp] Advanced application ${application.id} to phase: ${nextPhase.id}`);
 
             // Send notification to candidate
             try {
@@ -452,10 +414,7 @@ export async function processAutopilotCatchUp(
               // Don't mark as failed, advancement was successful
             }
           } else {
-            console.log(`[processAutopilotCatchUp] Application ${application.id} at final phase`);
           }
-        } else if (aiScore === null) {
-          console.log(`[processAutopilotCatchUp] Application ${application.id} has no score yet, skipping`);
         }
       } catch (appProcessError) {
         console.error(`[processAutopilotCatchUp] Error processing application ${application.id}:`, appProcessError);
@@ -463,7 +422,6 @@ export async function processAutopilotCatchUp(
       }
     }
 
-    console.log(`[processAutopilotCatchUp] Complete. Processed: ${result.processed}, Advanced: ${result.advanced}, Rejected: ${result.rejected}, Failed: ${result.failed}`);
     return result;
   } catch (error) {
     console.error("[processAutopilotCatchUp] Unexpected error:", error);

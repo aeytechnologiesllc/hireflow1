@@ -140,7 +140,6 @@ export default function ChatInterviewPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[ChatInterviewPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
       })
       .subscribe();
@@ -642,8 +641,6 @@ export default function ChatInterviewPhase() {
               autopilotDecision: true,
             },
           });
-          
-          console.log("[ChatInterviewPhase] Backend analysis result:", analysisResult);
           
           // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
           if (analysisResult?.decision === "rejected") {

@@ -402,8 +402,8 @@ export default function CreateJob() {
       if (existingJob.passing_score) {
         setPassingScore(existingJob.passing_score);
       }
-      if ((existingJob as any).required_wpm) {
-        setRequiredWpm((existingJob as any).required_wpm);
+      if (existingJob.required_wpm) {
+        setRequiredWpm(existingJob.required_wpm);
       }
       if (existingJob.application_questions) {
         setApplicationQuestions(existingJob.application_questions as unknown as ApplicationQuestion[]);
@@ -499,8 +499,6 @@ export default function CreateJob() {
   // Subscribe to AVA form commands for voice-controlled job creation
   useEffect(() => {
     const unsubscribe = subscribeToAvaFormCommands((command: AvaFormCommand) => {
-      console.log('CreateJob received AVA command:', command);
-      
       if (command.action === 'fill_field' && command.field && command.value !== undefined) {
         // Map field names to form data keys
         const fieldMap: Record<string, string> = {

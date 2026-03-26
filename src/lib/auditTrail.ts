@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { 
   generateDocumentHash, 
   generateV1Hash, 
@@ -122,7 +123,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<string | nul
     const timestampUtc = getUTCTimestamp();
     const signatureEventId = entry.signature_event_id || generateSignatureEventId();
     
-    const insertData: Record<string, unknown> = {
+    const insertData: TablesInsert<"document_audit_logs"> = {
       document_id: entry.document_id,
       user_id: entry.user_id,
       action: entry.action,
@@ -149,7 +150,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<string | nul
     
     const { error } = await supabase
       .from('document_audit_logs')
-      .insert([insertData] as any);
+      .insert([insertData]);
     
     if (error) {
       console.error('Failed to create audit log:', error);
@@ -583,10 +584,10 @@ export async function fetchAuditTrail(documentId: string): Promise<AuditLogEntry
     page_numbers_signed: item.page_numbers_signed,
     ip_address: item.ip_address,
     user_agent: item.user_agent,
-    signature_event_id: (item as any).signature_event_id,
-    pre_signature_hash: (item as any).pre_signature_hash,
-    post_signature_hash: (item as any).post_signature_hash,
-    signing_order_position: (item as any).signing_order_position,
-    timestamp_utc: (item as any).timestamp_utc
+    signature_event_id: item.signature_event_id,
+    pre_signature_hash: item.pre_signature_hash,
+    post_signature_hash: item.post_signature_hash,
+    signing_order_position: item.signing_order_position,
+    timestamp_utc: item.timestamp_utc
   }));
 }

@@ -14,8 +14,6 @@ if (!pdfjs.GlobalWorkerOptions.workerSrc) {
  */
 export async function convertPdfFileToImages(file: File, maxPages: number = 2): Promise<string[]> {
   try {
-    console.log("[pdfToImage] Converting PDF file to images:", file.name);
-    
     const arrayBuffer = await file.arrayBuffer();
     const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     const numPages = Math.min(doc.numPages, maxPages);
@@ -48,10 +46,8 @@ export async function convertPdfFileToImages(file: File, maxPages: number = 2): 
       const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
       images.push(base64Data);
       
-      console.log("[pdfToImage] Converted page", pageNum, "to image, size:", base64Data.length);
     }
-    
-    console.log("[pdfToImage] Successfully converted", images.length, "pages to images");
+
     return images;
   } catch (error) {
     console.error("[pdfToImage] Failed to convert PDF file to images:", error);
@@ -83,8 +79,6 @@ export function base64ToBlob(base64: string, mimeType: string = "image/png"): Bl
  */
 export async function convertPdfToImage(url: string): Promise<string | null> {
   try {
-    console.log("[pdfToImage] Starting PDF to image conversion for:", url);
-    
     const doc = await pdfjs.getDocument({ url }).promise;
     const page = await doc.getPage(1); // Get first page
     
@@ -115,8 +109,6 @@ export async function convertPdfToImage(url: string): Promise<string | null> {
     const dataUrl = canvas.toDataURL("image/png");
     const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
     
-    console.log("[pdfToImage] Successfully converted PDF to image, size:", base64Data.length);
-    
     return base64Data;
   } catch (error) {
     console.error("[pdfToImage] Failed to convert PDF to image:", error);
@@ -135,8 +127,6 @@ export async function convertPdfPagesToImages(
   maxPages: number = 3
 ): Promise<string[]> {
   try {
-    console.log("[pdfToImage] Converting multiple pages for:", url);
-    
     const doc = await pdfjs.getDocument({ url }).promise;
     const numPages = Math.min(doc.numPages, maxPages);
     const images: string[] = [];
@@ -166,7 +156,6 @@ export async function convertPdfPagesToImages(
       images.push(base64Data);
     }
     
-    console.log("[pdfToImage] Converted", images.length, "pages to images");
     return images;
   } catch (error) {
     console.error("[pdfToImage] Failed to convert PDF pages:", error);

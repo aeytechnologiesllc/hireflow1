@@ -88,7 +88,6 @@ export async function burnSignaturesIntoPdf(
   const overlaySignature = async (sig: SignatureOverlay) => {
     const pageIndex = sig.page - 1;
     if (pageIndex < 0 || pageIndex >= pages.length) {
-      console.warn(`Page ${sig.page} does not exist in PDF, skipping signature`);
       return;
     }
     

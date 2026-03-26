@@ -311,7 +311,7 @@ export async function captureSigningContext(): Promise<SigningContext> {
       }
     }
   } catch (error) {
-    console.warn('Failed to capture IP at signing:', error);
+    console.error('Failed to capture IP at signing:', error);
     // Fallback to ipify
     try {
       const fallbackResponse = await Promise.race([

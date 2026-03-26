@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,6 @@ export default function TypingTestPhase() {
       details,
     };
     setViolations(prev => [...prev, violation]);
-    console.log('[TypingTestPhase] Violation recorded:', violation);
   }, []);
 
   // Anti-cheating: Prevent copy
@@ -196,7 +196,6 @@ export default function TypingTestPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[TypingTestPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["typing-test-application", id] });
       })
       .subscribe();
@@ -301,18 +300,6 @@ export default function TypingTestPhase() {
     // for the official pass/fail decision via weighted ai_score calculation
     const passed = false; // Always false locally - backend decides
 
-    console.log("Typing test results:", { 
-      typedLength: currentTypedText.length,
-      typedWords: typedWords.length,
-      correctWords,
-      elapsedMinutes,
-      grossWpm,
-      accuracy, 
-      speedScore,
-      score, 
-      passed 
-    });
-
     return { wpm: grossWpm, accuracy, score, passed };
   }, [targetText, application]);
 
@@ -376,7 +363,7 @@ export default function TypingTestPhase() {
 
       // Build the full phases list to find the next phase
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
+      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
       
       // Extract voice_interview step (goes AFTER review)
       const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
@@ -483,8 +470,7 @@ export default function TypingTestPhase() {
         
         try {
           const { data: analysisResult } = await analysisPromise;
-          console.log("[TypingTestPhase] Backend analysis result:", analysisResult);
-          
+
           // Check the backend's decision
           if (analysisResult?.decision === "rejected") {
             setEvaluationState("failed");

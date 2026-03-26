@@ -394,7 +394,6 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
             const pdfBytes = await response.arrayBuffer();
             // Use PDF bytes as base64 for hash content
             documentContent = await generatePdfHash(pdfBytes);
-            console.log('Using PDF hash as document content for signing');
           }
         } catch (e) {
           console.error('Error fetching PDF for hash:', e);

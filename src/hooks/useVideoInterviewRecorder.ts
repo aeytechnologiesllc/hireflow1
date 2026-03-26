@@ -161,14 +161,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
 
     // Verify mic audio tracks exist BEFORE setup
     const micAudioTracks = cameraStreamRef.current.getAudioTracks();
-    console.log('[Audio Mixing] Pre-setup check', {
-      micAudioTracks: micAudioTracks.length,
-      micTrackLabels: micAudioTracks.map(t => ({ label: t.label, enabled: t.enabled, muted: t.muted })),
-      hasAvaElement: !!avaAudioElement,
-      hasSrcObject: !!avaAudioElement?.srcObject,
-      srcObjectType: avaAudioElement?.srcObject?.constructor?.name
-    });
-
     if (micAudioTracks.length === 0) {
       console.error('[Audio Mixing] CRITICAL: No audio tracks found on camera stream! Candidate will not be recorded.');
     }
@@ -193,13 +185,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         micGain.gain.value = 1.2;
         micSource.connect(micGain);
         micGain.connect(destination);
-        console.log('[Audio Mixing] Candidate mic connected to mixer', {
-          trackLabel: micAudioTrack.label,
-          trackEnabled: micAudioTrack.enabled,
-          trackMuted: micAudioTrack.muted,
-          trackReadyState: micAudioTrack.readyState, // Should be 'live' - critical check!
-          gainValue: micGain.gain.value
-        });
       } else {
         console.error('[Audio Mixing] CRITICAL: No mic audio track available - candidate audio will NOT be recorded!');
       }
@@ -209,34 +194,18 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         const avaStream = avaAudioElement.srcObject;
         const avaAudioTracks = avaStream.getAudioTracks();
         
-        console.log('[Audio Mixing] Ava WebRTC stream found', {
-          audioTracks: avaAudioTracks.length,
-          trackLabels: avaAudioTracks.map(t => t.label)
-        });
-        
         if (avaAudioTracks.length > 0) {
           const avaSource = ctx.createMediaStreamSource(avaStream);
           const avaGain = ctx.createGain();
           avaGain.gain.value = 1.0;
           avaSource.connect(avaGain);
           avaGain.connect(destination);
-          console.log('[Audio Mixing] Ava audio connected to recording mixer');
         }
-      } else {
-        console.log('[Audio Mixing] No Ava audio element or srcObject available');
       }
 
       // Create combined stream with video (if available) + mixed audio
       const videoTrack = cameraStreamRef.current.getVideoTracks()[0];
       const mixedAudioTrack = destination.stream.getAudioTracks()[0];
-
-      // Verify mixed audio track exists and log its state
-      console.log('[Audio Mixing] Mixed audio track check', {
-        hasMixedAudioTrack: !!mixedAudioTrack,
-        mixedAudioEnabled: mixedAudioTrack?.enabled,
-        mixedAudioMuted: mixedAudioTrack?.muted,
-        mixedAudioLabel: mixedAudioTrack?.label
-      });
 
       // For audio-only mode, we might not have a video track
       if (videoTrack) {
@@ -245,15 +214,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         combinedStreamRef.current = new MediaStream([mixedAudioTrack]);
       }
 
-      console.log('[Audio Mixing] Combined stream created', {
-        videoTracks: combinedStreamRef.current.getVideoTracks().length,
-        audioTracks: combinedStreamRef.current.getAudioTracks().length,
-        audioTrackDetails: combinedStreamRef.current.getAudioTracks().map(t => ({ 
-          label: t.label, 
-          enabled: t.enabled, 
-          muted: t.muted 
-        }))
-      });
 
       return combinedStreamRef.current;
     } catch (err) {
@@ -334,25 +294,15 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-        console.log('stopRecording: MediaRecorder inactive or null');
         setState(s => ({ ...s, isRecording: false }));
         resolve(null);
         return;
       }
 
-      console.log('stopRecording: Stopping MediaRecorder, chunks collected:', recordedChunksRef.current.length);
-
       const isAudio = state.isAudioOnly;
       mediaRecorderRef.current.onstop = () => {
         const mimeType = isAudio ? 'audio/webm' : 'video/webm';
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-        console.log('stopRecording: Blob created', {
-          size: blob.size,
-          sizeKB: Math.round(blob.size / 1024),
-          type: blob.type,
-          chunks: recordedChunksRef.current.length,
-          estimatedDuration: `~${Math.round(blob.size / 50000)}s`
-        });
         setState(s => ({ ...s, isRecording: false }));
         resolve(blob);
       };
@@ -369,7 +319,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       return null;
     }
 
-    console.log('Starting upload process...', { applicationId, blobSize: blob.size, blobType: blob.type });
     setState(s => ({ ...s, isUploading: true, uploadProgress: 0 }));
 
     try {
@@ -377,7 +326,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       const contentType = state.isAudioOnly ? 'audio/webm' : 'video/webm';
       const fileName = `${applicationId}/interview-${Date.now()}.${extension}`;
 
-      console.log('Step 1: Uploading to storage...', { fileName, contentType });
       setState(s => ({ ...s, uploadProgress: 20 }));
 
       // Upload to storage
@@ -393,10 +341,7 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         console.error('Storage upload failed:', error);
         throw error;
       }
-      console.log('Step 1 complete: Storage upload succeeded', data);
       setState(s => ({ ...s, uploadProgress: 50 }));
-
-      console.log('Step 2: Creating signed URL...');
       // Get signed URL (private bucket)
       const { data: urlData, error: urlError } = await supabase.storage
         .from('voice-interview-recordings')
@@ -406,12 +351,10 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         console.error('Signed URL creation failed:', urlError);
         throw urlError;
       }
-      console.log('Step 2 complete: Signed URL created');
       setState(s => ({ ...s, uploadProgress: 75 }));
 
       const recordingUrl = urlData.signedUrl;
 
-      console.log('Step 3: Updating database with recording URL...');
       // Update application with recording URL
       const { error: updateError } = await supabase
         .from('applications')
@@ -422,8 +365,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         console.error('Database update failed:', updateError);
         throw updateError;
       }
-      console.log('Step 3 complete: Database updated successfully');
-
       setState(s => ({
         ...s,
         isUploading: false,
@@ -431,7 +372,6 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         recordingUrl,
       }));
 
-      console.log('Upload process completed successfully!');
       return recordingUrl;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload recording';

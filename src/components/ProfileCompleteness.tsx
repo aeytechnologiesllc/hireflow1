@@ -28,7 +28,7 @@ const fieldWeights: FieldWeight[] = [
 function getFieldValue(profile: Profile | null, field: string): boolean {
   if (!profile) return false;
   
-  const value = (profile as any)[field];
+  const value = (profile as Record<string, unknown>)[field];
   
   if (field === "skills") {
     return Array.isArray(value) && value.length > 0;

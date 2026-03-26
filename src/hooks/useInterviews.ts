@@ -41,7 +41,7 @@ export function useInterviews() {
       }
 
       // Filter based on role
-      const filtered = (interviews as any[]).filter((interview) => {
+      const filtered = (interviews as InterviewWithDetails[]).filter((interview) => {
         if (role === "employer") {
           return interview.applications?.jobs?.employer_id === user!.id;
         } else {
@@ -108,7 +108,7 @@ export function useUpcomingInterviews() {
       }
 
       // Filter based on role
-      const filtered = (interviews as any[]).filter((interview) => {
+      const filtered = (interviews as InterviewWithDetails[]).filter((interview) => {
         if (role === "employer") {
           return interview.applications?.jobs?.employer_id === user!.id;
         } else {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterviews, useUpdateInterview, useDeleteInterview } from "@/hooks/useInterviews";
+import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -54,7 +55,7 @@ function InterviewCard({
 }: InterviewCardProps) {
   const application = interview.applications;
   const job = application?.jobs;
-  const profile = application?.profiles as any;
+  const profile = application?.profiles;
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
@@ -294,12 +295,11 @@ export default function Interviews() {
           table: 'interviews',
         },
         (payload) => {
-          console.log('Interview changed in real-time:', payload);
           refetch();
           
           // Show toast notifications for interview changes
-          const newData = payload.new as any;
-          const oldData = payload.old as any;
+          const newData = payload.new as Record<string, unknown>;
+          const oldData = payload.old as Record<string, unknown>;
           
           // Status change notifications
           if (newData?.status !== oldData?.status) {
@@ -344,7 +344,7 @@ export default function Interviews() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateInterview.mutateAsync({ id, status: status as any });
+      await updateInterview.mutateAsync({ id, status: status as Tables<"interviews">["status"] });
       toast.success(`Interview marked as ${interviewStatusLabels[status] || status}`);
     } catch (error) {
       toast.error("Failed to update interview");

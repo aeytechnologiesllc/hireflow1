@@ -92,7 +92,7 @@ export function RescheduleInterviewDialog({
         const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
         await notifyInterviewRescheduled(
           appData.candidate_id,
-          (appData.jobs as any)?.title || "Position",
+          (appData.jobs as { title?: string } | null)?.title || "Position",
           format(scheduledAt, "EEEE, MMMM d, yyyy"),
           format(scheduledAt, "h:mm a")
         );

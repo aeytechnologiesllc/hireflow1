@@ -33,7 +33,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   // Force load on mount/src change
   useEffect(() => {
     if (mediaRef.current && src) {
-      console.log("MediaPlayer: Loading src:", src);
       mediaRef.current.load();
     }
   }, [src]);
@@ -42,7 +41,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!isLoaded && !hasError) {
-        console.log("MediaPlayer: Timeout fallback - enabling play button");
         setIsLoaded(true);
       }
     }, 3000);
@@ -53,7 +51,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const handleLoadedMetadata = useCallback(() => {
     if (mediaRef.current && !isLoaded) {
       const dur = mediaRef.current.duration;
-      console.log("MediaPlayer: onLoadedMetadata - duration:", dur);
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
@@ -65,7 +62,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const handleCanPlay = useCallback(() => {
     if (mediaRef.current && !isLoaded) {
       const dur = mediaRef.current.duration;
-      console.log("MediaPlayer: onCanPlay - duration:", dur);
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
@@ -77,7 +73,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
   const handleDurationChange = useCallback(() => {
     if (mediaRef.current) {
       const dur = mediaRef.current.duration;
-      console.log("MediaPlayer: onDurationChange - duration:", dur);
       if (isFinite(dur) && dur > 0 && dur !== duration) {
         setDuration(dur);
         if (!isLoaded) setIsLoaded(true);
@@ -117,7 +112,6 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
         // Duration may now be available after play starts
         const dur = mediaRef.current?.duration;
         if (dur && isFinite(dur) && dur > 0 && duration === 0) {
-          console.log("MediaPlayer: Duration available on play:", dur);
           setDuration(dur);
         }
       }).catch(err => {

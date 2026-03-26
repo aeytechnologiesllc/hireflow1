@@ -157,7 +157,6 @@ export default function SalesSimulationPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[SalesSimulationPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["sales-simulation-application", id] });
       })
       .subscribe();
@@ -169,7 +168,7 @@ export default function SalesSimulationPhase() {
 
   // Get config from workflow
   const salesConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
     const salesStep = workflowSteps?.find(s => s.id === stepId || s.type === "sales_simulation");
     return {
       minMessages: salesStep?.config?.minMessages || 6,
@@ -629,7 +628,10 @@ export default function SalesSimulationPhase() {
           setTimeout(() => navigate(`/applications/${id}`), 2000);
         }
       } else {
-        supabase.functions.invoke("trigger-ava-analysis", { body: { applicationId: id! } }).catch(() => {});
+        supabase.functions.invoke("trigger-ava-analysis", { body: { applicationId: id! } }).catch((err) => {
+          /* Ava analysis is triggered in the background and non-critical; the user already sees a success toast */
+          console.error("[SalesSimulationPhase] trigger-ava-analysis failed:", err);
+        });
         toast.success("Sales simulation completed!");
         setState("completed");
         setTimeout(() => navigate(`/applications/${id}`), 2000);

@@ -70,7 +70,6 @@ export function usePushNotifications() {
     try {
       const sdkReady = await waitForNatively();
       if (!sdkReady || !window.NativelyNotifications) {
-        console.log("[Push] Not running inside Natively — skipping");
         return;
       }
 
@@ -80,33 +79,25 @@ export function usePushNotifications() {
       const permStatus = await new Promise<string>((res) =>
         notifications.getPermissionStatus((r) => res(r.status))
       );
-      console.log("[Push] Permission status:", permStatus);
-
       // 2. Request permission if not granted
       if (permStatus !== "granted") {
         const granted = await new Promise<boolean>((res) =>
           notifications.requestPermission(false, (r) => res(r.status))
         );
         if (!granted) {
-          console.log("[Push] Permission denied by user");
           return;
         }
-        console.log("[Push] Permission granted");
       }
 
       // 3. Set external ID (maps OneSignal device to our user)
       const extSet = await new Promise<boolean>((res) =>
         notifications.setExternalId({ externalId: user.id }, (r) => res(r.status))
       );
-      console.log("[Push] setExternalId result:", extSet);
-
       // 4. Get OneSignal player/subscription ID (with retries)
       const playerId = await pollPlayerId(notifications);
       if (!playerId) {
-        console.warn("[Push] Could not retrieve player ID after retries");
         return;
       }
-      console.log("[Push] Player ID:", playerId);
 
       // 5. Store in push_subscriptions
       const { error } = await supabase
@@ -123,8 +114,6 @@ export function usePushNotifications() {
 
       if (error) {
         console.error("[Push] Failed to store subscription:", error);
-      } else {
-        console.log("[Push] Subscription registered successfully");
       }
     } catch (err) {
       console.error("[Push] Registration error:", err);
@@ -137,9 +126,7 @@ export function usePushNotifications() {
     const sdkReady = await waitForNatively();
     if (!sdkReady || !window.NativelyNotifications) return;
     const notifications = new window.NativelyNotifications();
-    notifications.removeExternalId((r) => {
-      console.log("[Push] removeExternalId:", r.status);
-    });
+    notifications.removeExternalId(() => {});
   }, []);
 
   // Auto-register on login when running in Natively

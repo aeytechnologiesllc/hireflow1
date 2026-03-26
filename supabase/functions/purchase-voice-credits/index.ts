@@ -10,7 +10,7 @@ const corsHeaders = {
 // Single voice credit pack - 50 minutes for $15
 const VOICE_CREDIT_PACK = {
   minutes: 50,
-  priceId: "price_1Sf3ZfJoMc2msNl4YoYccDUy",
+  priceId: Deno.env.get("STRIPE_VOICE_CREDITS_PRICE_ID") || "price_1Sf3ZfJoMc2msNl4YoYccDUy",
 };
 
 serve(async (req) => {

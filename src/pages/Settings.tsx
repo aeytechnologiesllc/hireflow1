@@ -56,7 +56,6 @@ export default function Settings() {
       // Sync subscription with Stripe
       syncSubscription.mutateAsync()
         .then((result) => {
-          console.log("[Settings] Subscription synced:", result);
           const storageKey = `subscription_success_shown_${user?.id}`;
           if (!localStorage.getItem(storageKey)) {
             localStorage.setItem(storageKey, "true");

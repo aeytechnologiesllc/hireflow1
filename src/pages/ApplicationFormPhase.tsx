@@ -138,7 +138,6 @@ export default function ApplicationFormPhase() {
       details,
     };
     setViolations(prev => [...prev, violation]);
-    console.log('[ApplicationFormPhase] Violation recorded:', violation);
   }, []);
 
   // Anti-cheating: Prevent copy
@@ -215,7 +214,6 @@ export default function ApplicationFormPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[ApplicationFormPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["application-form", id] });
       })
       .subscribe();
@@ -397,7 +395,6 @@ export default function ApplicationFormPhase() {
         .getPublicUrl(fileName);
 
       // Convert PDF to images for AI analysis (PRIMARY method)
-      console.log("[ApplicationFormPhase] Converting PDF to images for AI analysis...");
       const imageBase64s = await convertPdfFileToImages(file, 2);
       const imageUrls: string[] = [];
       
@@ -415,7 +412,6 @@ export default function ApplicationFormPhase() {
               .from("resumes")
               .getPublicUrl(imagePath);
             imageUrls.push(imageUrlData.publicUrl);
-            console.log("[ApplicationFormPhase] Uploaded resume image page", i + 1);
           }
         }
       }
@@ -433,7 +429,6 @@ export default function ApplicationFormPhase() {
         notes: JSON.stringify(updatedNotes),
       });
 
-      console.log("[ApplicationFormPhase] Resume uploaded with", imageUrls.length, "image pages");
       toast.success("Resume uploaded successfully");
     } catch (error) {
       console.error("Error uploading resume:", error);
@@ -491,7 +486,6 @@ export default function ApplicationFormPhase() {
 
       if (isPdf) {
         // Convert PDF to images for AI analysis
-        console.log("[ApplicationFormPhase] Converting question file PDF to images...");
         const imageBase64s = await convertPdfFileToImages(file, 2);
         
         if (imageBase64s.length > 0) {
@@ -514,7 +508,6 @@ export default function ApplicationFormPhase() {
       } else if (isImage) {
         // For images, the uploaded file IS the image for AI analysis
         imageUrls = [urlData.publicUrl];
-        console.log("[ApplicationFormPhase] Image uploaded directly for AI analysis");
       }
 
       // Store image URLs for this question in notes
@@ -544,7 +537,6 @@ export default function ApplicationFormPhase() {
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
       setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
-      console.log("[ApplicationFormPhase] Question file uploaded with", imageUrls.length, "image pages");
       toast.success("File uploaded successfully");
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -608,16 +600,6 @@ export default function ApplicationFormPhase() {
   };
 
   const handleSubmit = async () => {
-    console.log("[ApplicationFormPhase] Submit clicked", {
-      applicationId: id,
-      stepId,
-      hasApplication: !!application,
-      isSubmitting,
-      isUploading,
-      uploadingQuestions: Object.values(uploadingQuestions).some(Boolean),
-      violationsCount: violations.length,
-    });
-
     if (!application) {
       toast.error("Application not loaded yet. Please refresh and try again.");
       return;
@@ -652,7 +634,6 @@ export default function ApplicationFormPhase() {
       let finalResumeImageUrls: string[] = notes.resumeImageUrls || [];
       
       if (usingProfileResume && profile?.resume_url && !notes.resumeImageUrls?.length) {
-        console.log("[ApplicationFormPhase] Profile resume needs conversion before submit...");
         toast.info("Preparing your resume for analysis...");
         
         try {
@@ -687,7 +668,6 @@ export default function ApplicationFormPhase() {
           }
           
           finalResumeUrl = profile.resume_url;
-          console.log("[ApplicationFormPhase] Profile resume converted:", finalResumeImageUrls.length, "images");
         } catch (conversionError) {
           console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
           toast.error("Could not process your resume. Please upload a new PDF.");
@@ -728,35 +708,34 @@ export default function ApplicationFormPhase() {
       const quizQuestions = application.jobs?.quiz_questions;
       const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
       
-      console.log("[ApplicationFormPhase] Building phases: hasQuizQuestions=", hasQuizQuestions, "quizQuestions=", quizQuestions);
-      
+
       // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
-      
+      const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
+      const voiceInterviewStep = typedSteps.find((step) => step.type === 'voice_interview');
+
       const allPhases: { id: string; type: string; title?: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
-      
+
       // Add quiz phase if quiz_questions exist
       if (hasQuizQuestions) {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-        console.log("[ApplicationFormPhase] Added quiz phase to allPhases");
       }
-      
+
       // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
+      typedSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
-      
+
       // Add Review phase
       allPhases.push({ id: "review", type: "review", title: "Review" });
-      
+
       // Add voice_interview AFTER Review if it exists
       if (voiceInterviewStep) {
-        allPhases.push({ 
-          id: (voiceInterviewStep as any).id, 
-          type: "voice_interview", 
-          title: (voiceInterviewStep as any).title || "Ava Interview" 
+        allPhases.push({
+          id: voiceInterviewStep.id,
+          type: "voice_interview",
+          title: voiceInterviewStep.title || "Ava Interview"
         });
       }
       
@@ -781,9 +760,6 @@ export default function ApplicationFormPhase() {
 
       // Handle autopilot mode: Call backend to run AI analysis AND make decision (bypasses RLS)
       if (isAutoPilot) {
-        console.log("[ApplicationFormPhase] Autopilot mode: Calling backend for AI analysis + decision...");
-        console.log("[ApplicationFormPhase] Next phase would be:", nextPhase?.id, "hasQuizQuestions=", hasQuizQuestions);
-        
         const { data: autopilotResult, error: autopilotError } = await supabase.functions.invoke("trigger-ava-analysis", {
           body: { 
             applicationId: id!,
@@ -803,20 +779,16 @@ export default function ApplicationFormPhase() {
           return;
         }
         
-        console.log("[ApplicationFormPhase] Autopilot backend result:", autopilotResult);
-        
         const score = autopilotResult?.score || 0;
         setAiScore(score);
         
         if (autopilotResult?.decision === "advanced") {
-          console.log(`[ApplicationFormPhase] Autopilot: PASSED - backend advanced to: ${autopilotResult.nextPhaseId}`);
           setEvaluationState("passed");
           setNextPhaseInfo({ 
             id: autopilotResult.nextPhaseId, 
             title: autopilotResult.nextPhaseTitle || autopilotResult.nextPhaseId 
           });
         } else if (autopilotResult?.decision === "rejected") {
-          console.log(`[ApplicationFormPhase] Autopilot: FAILED - backend rejected the application`);
           setEvaluationState("failed");
         } else {
           // Fallback: just show passed if score is high enough

@@ -10,7 +10,6 @@ export interface AvaFormCommand {
 }
 
 export function dispatchAvaFormCommand(command: AvaFormCommand) {
-  console.log('Dispatching AVA form command:', command);
   window.dispatchEvent(new CustomEvent(AVA_FORM_EVENT, { detail: command }));
 }
 

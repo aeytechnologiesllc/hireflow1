@@ -159,7 +159,7 @@ export default function CandidateApplicationWizard({
 
         const draftApp = await createApplication.mutateAsync({
           job_id: job.id,
-          status: "in_progress" as any,
+          status: "in_progress",
           phase: "application",
           notes: initialNotes,
         });
@@ -247,7 +247,6 @@ export default function CandidateApplicationWizard({
       // Always set the dedicated resume step URL when job requires resume
       if (requiresResume) {
         setResumeUrl(profile.resume_url);
-        console.log("[CandidateApplicationWizard] Pre-filling resume from profile for dedicated resume step");
       }
       
       // ALSO populate any resume file question if it exists (for backwards compat)
@@ -260,7 +259,6 @@ export default function CandidateApplicationWizard({
       if (resumeFileQuestion && !questionFileUrls[resumeFileQuestion.id]) {
         setQuestionFileUrls(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
         setAnswers(prev => ({ ...prev, [resumeFileQuestion.id]: profile.resume_url }));
-        console.log("[CandidateApplicationWizard] Pre-filling resume file question with profile resume");
       }
       
       // CRITICAL: Convert profile resume PDF to images for AVA vision analysis
@@ -268,7 +266,6 @@ export default function CandidateApplicationWizard({
       (async () => {
         setResumeConversionStatus("converting");
         try {
-          console.log("[CandidateApplicationWizard] Converting profile resume to images...");
           const response = await fetch(profile.resume_url);
           const blob = await response.blob();
           const file = new globalThis.File([blob], "profile-resume.pdf", { type: "application/pdf" });
@@ -307,7 +304,6 @@ export default function CandidateApplicationWizard({
                 setQuestionFileImageUrls(prev => ({ ...prev, [resumeFileQuestion.id]: imageUrls }));
               }
               setResumeConversionStatus("ready");
-              console.log("[CandidateApplicationWizard] Profile resume converted:", imageUrls.length, "pages");
             } else {
               setResumeConversionStatus("failed");
             }
@@ -489,7 +485,6 @@ export default function CandidateApplicationWizard({
         setResumeUrl(urlData.publicUrl);
         if (imageUrls.length > 0) {
           setResumeImageUrls(imageUrls);
-          console.log("[CandidateApplicationWizard] Set resumeImageUrls from file question:", imageUrls.length, "pages");
         }
       }
       
@@ -609,7 +604,6 @@ export default function CandidateApplicationWizard({
       // CRITICAL: Save the image URLs so backend can use them for resume vision analysis
       if (imageUrls.length > 0) {
         setResumeImageUrls(imageUrls);
-        console.log("[CandidateApplicationWizard] Resume uploaded with", imageUrls.length, "image pages, saved to state");
       }
       toast.success("Resume uploaded successfully");
     } catch (error: any) {
@@ -761,7 +755,6 @@ export default function CandidateApplicationWizard({
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
             if (isResumeQuestion) {
               finalResumeImageUrls = fileData.imageUrls;
-              console.log("[CandidateApplicationWizard] Using resume images from file question:", finalResumeImageUrls.length, "pages");
               break;
             }
           }
@@ -776,11 +769,6 @@ export default function CandidateApplicationWizard({
       };
       
       const notes = JSON.stringify(notesObject);
-      console.log("[CandidateApplicationWizard] Submitting with notes:", { 
-        answersCount: applicationAnswers.length,
-        resumeImageUrlsCount: finalResumeImageUrls.length,
-        fileUploadsCount: Object.keys(fileUploads).length,
-      });
 
       // Detect resume URL: SINGLE SOURCE OF TRUTH logic
       // Priority 1: resumeUrl state (dedicated resume step)
@@ -799,7 +787,6 @@ export default function CandidateApplicationWizard({
             // REMOVED: the "only file question" fallback - it incorrectly treated other uploads as resumes
             if (isResumeQuestion) {
               finalResumeUrl = fileUrl;
-              console.log("[CandidateApplicationWizard] Detected resume from questionFileUrls:", fileUrl);
               break;
             }
           }
@@ -815,21 +802,18 @@ export default function CandidateApplicationWizard({
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
             if (isResumeQuestion) {
               finalResumeUrl = answer;
-              console.log("[CandidateApplicationWizard] Detected resume from answers:", answer);
               break;
             }
           }
         }
       }
       
-      console.log("[CandidateApplicationWizard] Final resume URL for submission:", finalResumeUrl || "NULL");
-
       // Determine if autopilot mode
       const isAutoMode = job.processing_mode === "auto";
 
       // Build the phases list to determine next phase (for autopilot)
-      const workflowSteps = (job.workflow_steps as any[]) || [];
-      const quizQuestions = (job.quiz_questions as any[]) || [];
+      const workflowSteps = (job.workflow_steps as Array<{ id: string; type: string; title?: string; config?: Record<string, unknown> }>) || [];
+      const quizQuestions = (job.quiz_questions as Json[]) || [];
       
       const allPhases: { id: string; type: string; title: string }[] = [
         { id: "application", type: "application", title: "Application" },
@@ -885,8 +869,6 @@ export default function CandidateApplicationWizard({
       // SINGLE SOURCE OF TRUTH: Trigger backend analysis
       // Backend will calculate ai_score and decide pass/fail
       if (finalAppId) {
-        console.log("[CandidateApplicationWizard] Triggering backend analysis for:", finalAppId);
-        
         if (isAutoMode) {
           // In autopilot mode, show evaluating state and trigger backend with autopilot decision
           setEvaluationState("evaluating");
@@ -898,8 +880,6 @@ export default function CandidateApplicationWizard({
                 autopilotDecision: true,
               },
             });
-            
-            console.log("[CandidateApplicationWizard] Backend analysis result:", analysisResult);
             
             // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
             if (analysisResult?.decision === "rejected") {
@@ -967,7 +947,7 @@ export default function CandidateApplicationWizard({
   const handleStartNextPhase = () => {
     if (!nextPhaseInfo || !createdApplicationId) return;
     
-    const workflowSteps = (job.workflow_steps as any[]) || [];
+    const workflowSteps = (job.workflow_steps as Array<{ id: string; type: string; title?: string; config?: Record<string, unknown> }>) || [];
     const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
     
     handleClose();

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ export default function PortfolioUploadPhase() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | null>(null);
+  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
   const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
@@ -108,7 +109,6 @@ export default function PortfolioUploadPhase() {
         table: 'applications',
         filter: `id=eq.${id}`,
       }, (payload) => {
-        console.log('[PortfolioUploadPhase] Application updated via realtime:', payload);
         queryClient.invalidateQueries({ queryKey: ["portfolio-application", id] });
       })
       .subscribe();
@@ -120,7 +120,7 @@ export default function PortfolioUploadPhase() {
 
   // Get portfolio config
   const portfolioConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as any[] | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
     const portfolioStep = workflowSteps?.find(s => s.id === stepId || s.type === "portfolio_upload");
     return {
       prompt: portfolioStep?.config?.prompt || "Upload samples of your best work that demonstrate your skills relevant to this position.",
@@ -308,7 +308,6 @@ export default function PortfolioUploadPhase() {
           aiAnalysis = analysisData;
         }
       } catch (err) {
-        console.warn("Portfolio analysis failed:", err);
         // Continue without AI analysis
       }
       
@@ -336,23 +335,23 @@ export default function PortfolioUploadPhase() {
         portfolioResult,
       };
       
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = (application.jobs as any)?.quiz_questions as any[] | undefined;
-      
+      const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
+      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+
       // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = (workflowSteps as any[]).find((step: any) => step.type === 'voice_interview');
-      
+      const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
+
       const allPhases: { id: string; type: string; title?: string }[] = [
         { id: "application", type: "application", title: "Application" },
       ];
-      
+
       // Add quiz phase if quiz_questions exist
       if (quizQuestions && quizQuestions.length > 0) {
         allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
       }
-      
+
       // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      (workflowSteps as any[]).filter((step: any) => step.type !== 'voice_interview').forEach((step: any) => {
+      workflowSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
         allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
       });
       
@@ -449,7 +448,7 @@ export default function PortfolioUploadPhase() {
             if (decision === "advanced") {
               setEvaluationState("passed");
             } else if (decision === "rejected") {
-              setEvaluationState("failed" as any); // EvaluationScreen handles "failed"
+              setEvaluationState("failed"); // EvaluationScreen handles "failed"
             } else {
               // Fallback: check application status
               const { data: updatedApp } = await supabase
@@ -459,7 +458,7 @@ export default function PortfolioUploadPhase() {
                 .single();
               
               if (updatedApp?.status === "rejected") {
-                setEvaluationState("failed" as any);
+                setEvaluationState("failed");
               } else {
                 setEvaluationState("passed");
               }
@@ -494,7 +493,7 @@ export default function PortfolioUploadPhase() {
   // Handlers for evaluation screen
   const handleStartNextPhase = () => {
     if (!nextPhaseInfo || !application) return;
-    const workflowSteps = application.jobs?.workflow_steps as any[] || [];
+    const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
     const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
     if (nextStep) {
       const phaseRoutes: Record<string, string> = {

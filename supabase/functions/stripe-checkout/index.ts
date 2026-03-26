@@ -10,12 +10,12 @@ const corsHeaders = {
 // Stripe price IDs (Enterprise removed - merged into Business)
 const STRIPE_PRICES = {
   growth: {
-    monthly: "price_1SeWKzJoMc2msNl4m1z9SDUL",
-    yearly: "price_1SeWL5JoMc2msNl4j8st2mmO",
+    monthly: Deno.env.get("STRIPE_GROWTH_MONTHLY_PRICE_ID") || "price_1SeWKzJoMc2msNl4m1z9SDUL",
+    yearly: Deno.env.get("STRIPE_GROWTH_YEARLY_PRICE_ID") || "price_1SeWL5JoMc2msNl4j8st2mmO",
   },
   business: {
-    monthly: "price_1SeWL7JoMc2msNl4380r2cSi",
-    yearly: "price_1SeWL9JoMc2msNl4NNQVohgY",
+    monthly: Deno.env.get("STRIPE_BUSINESS_MONTHLY_PRICE_ID") || "price_1SeWL7JoMc2msNl4380r2cSi",
+    yearly: Deno.env.get("STRIPE_BUSINESS_YEARLY_PRICE_ID") || "price_1SeWL9JoMc2msNl4NNQVohgY",
   },
 };
 

@@ -35,7 +35,7 @@ import {
   FileUp
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, Json } from "@/integrations/supabase/types";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
@@ -171,9 +171,6 @@ export default function CandidateApplicationDetail() {
   useEffect(() => {
     if (!id) return;
 
-    console.log("[Realtime] Setting up application subscription for:", id);
-    console.log("[Realtime] Initial refs - status:", previousStatusRef.current, "phase:", previousPhaseRef.current);
-
     const channel = supabase
       .channel(`application-${id}`)
       .on(
@@ -185,26 +182,16 @@ export default function CandidateApplicationDetail() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          console.log("[Realtime] Application update received:", payload);
-          console.log("[Realtime] payload.old:", payload.old);
-          console.log("[Realtime] payload.new:", payload.new);
-          console.log("[Realtime] previousStatusRef:", previousStatusRef.current);
-          console.log("[Realtime] previousPhaseRef:", previousPhaseRef.current);
-          
           const newStatus = payload.new.status as string;
           // With REPLICA IDENTITY FULL, payload.old should now contain the full old record
           const oldStatus = payload.old?.status as string || previousStatusRef.current;
           const newPhase = payload.new.phase;
           const oldPhase = payload.old?.phase || previousPhaseRef.current;
           
-          console.log("[Realtime] Status change detected:", oldStatus, "->", newStatus);
-          console.log("[Realtime] Phase change detected:", oldPhase, "->", newPhase);
-          
           refetch();
           
           // Detect reconsideration (rejected → reviewing)
           if (newStatus === "reviewing" && oldStatus === "rejected") {
-            console.log("[Realtime] Showing reconsidered screen");
             setStatusScreen("reconsidered");
             previousStatusRef.current = newStatus;
             previousPhaseRef.current = newPhase as string;
@@ -213,17 +200,13 @@ export default function CandidateApplicationDetail() {
           
           // Detect status changes and show appropriate screen
           const statusChanged = newStatus !== oldStatus;
-          console.log("[Realtime] statusChanged:", statusChanged);
-          
+
           if (statusChanged) {
             if (newStatus === "rejected") {
-              console.log("[Realtime] Showing rejected screen");
               setStatusScreen("rejected");
             } else if (newStatus === "hired") {
-              console.log("[Realtime] Showing hired screen");
               setStatusScreen("hired");
             } else if (newStatus === "interview") {
-              console.log("[Realtime] Showing interview_scheduled screen");
               fetchInterviewDetails(id);
               setStatusScreen("interview_scheduled");
             }
@@ -240,7 +223,7 @@ export default function CandidateApplicationDetail() {
                 .eq("id", id)
                 .single();
               
-              const workflowSteps = (app?.jobs as any)?.workflow_steps as any[] | undefined;
+              const workflowSteps = (app?.jobs as { workflow_steps?: WorkflowStep[] } | null)?.workflow_steps;
               const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
               
               if (voiceInterviewStep && newPhase === voiceInterviewStep.id) {
@@ -259,12 +242,9 @@ export default function CandidateApplicationDetail() {
           previousPhaseRef.current = newPhase as string;
         }
       )
-      .subscribe((status) => {
-        console.log("[Realtime] Subscription status:", status);
-      });
+      .subscribe();
 
     return () => {
-      console.log("[Realtime] Cleaning up application subscription");
       supabase.removeChannel(channel);
     };
   }, [id, refetch]);
@@ -284,11 +264,10 @@ export default function CandidateApplicationDetail() {
           filter: `application_id=eq.${id}`,
         },
         (payload) => {
-          console.log("Interview updated:", payload);
           refetchInterview();
           
-          const newData = payload.new as any;
-          const oldData = payload.old as any;
+          const newData = payload.new as Record<string, unknown>;
+          const oldData = payload.old as Record<string, unknown>;
           const prevInterview = previousInterviewRef.current;
           
           // Detect cancellation: status changed to "cancelled"
@@ -352,7 +331,7 @@ export default function CandidateApplicationDetail() {
     
     // Check for Ava Interview unlock on initial load
     if (previousPhaseRef.current === null && isRecent && application.phase) {
-      const workflowSteps = application.jobs?.workflow_steps as any[] | undefined;
+      const workflowSteps = application.jobs?.workflow_steps as WorkflowStep[] | undefined;
       const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
       
       if (voiceInterviewStep && application.phase === voiceInterviewStep.id) {
@@ -390,7 +369,7 @@ export default function CandidateApplicationDetail() {
   // Build phases from workflow
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
-    const quizQuestions = application?.jobs?.quiz_questions as any[] | undefined;
+    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
     
     const allPhases: { id: string; title: string; icon: any; type: string }[] = [
       { id: "application", title: "Application", icon: FileCheck, type: "application" },
@@ -471,10 +450,10 @@ export default function CandidateApplicationDetail() {
     } else if (phaseType === "sales_simulation") {
       return !!notes.salesSimulationResult;
     } else if (phaseType === "quiz") {
-      const stepData = (notes as any)[phaseId];
+      const stepData = notes[phaseId];
       return !!(stepData?.completedAt || notes.quizResult);
     } else if (phaseType === "video_intro" || phaseType === "video_message") {
-      const stepData = (notes as any)[phaseId];
+      const stepData = notes[phaseId];
       return !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
     } else if (phaseType === "portfolio_upload") {
       return !!notes.portfolioResult;
@@ -483,7 +462,7 @@ export default function CandidateApplicationDetail() {
     } else if (phaseType === "review" || phaseType === "interview" || phaseType === "hired" || phaseType === "journey_start") {
       return true; // Employer-driven phases don't have candidate data
     }
-    return !!(notes as any)[phaseId];
+    return !!notes[phaseId];
   }, [notes, application?.voice_interview_result]);
 
   // Helper to check if a phase is implicitly skipped (behind current, no data, candidate-facing)

@@ -28,7 +28,6 @@ export default function VoiceCreditsSection() {
           table: 'voice_credits',
         },
         (payload) => {
-          console.log('Voice credits updated:', payload);
           queryClient.invalidateQueries({ queryKey: ['subscription'] });
         }
       )

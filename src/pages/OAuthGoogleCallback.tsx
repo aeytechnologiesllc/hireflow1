@@ -20,7 +20,7 @@ export default function OAuthGoogleCallback() {
       const error = params.get("error");
 
       // Get the return URL from localStorage
-      const returnUrl = localStorage.getItem("google_oauth_return_url") || "/interviews";
+      const returnUrl = sessionStorage.getItem("google_oauth_return_url") || "/interviews";
 
       if (error) {
         setStatus("error");
@@ -52,15 +52,15 @@ export default function OAuthGoogleCallback() {
         if (invokeError) throw invokeError;
 
         // Store tokens
-        localStorage.setItem("google_access_token", data.access_token);
-        localStorage.setItem("google_refresh_token", data.refresh_token);
-        localStorage.setItem(
+        sessionStorage.setItem("google_access_token", data.access_token);
+        sessionStorage.setItem("google_refresh_token", data.refresh_token);
+        sessionStorage.setItem(
           "google_token_expiry",
           new Date(Date.now() + data.expires_in * 1000).toISOString()
         );
 
         // Clean up the return URL
-        localStorage.removeItem("google_oauth_return_url");
+        sessionStorage.removeItem("google_oauth_return_url");
 
         setStatus("success");
         setMessage("Google Calendar connected successfully!");

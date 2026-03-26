@@ -474,9 +474,6 @@ export function DocumentWizard({
         ? signedPath 
         : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1${signedPath}`;
       
-      console.log('Signed URL:', signedPath);
-      console.log('Full URL:', fullUrl);
-      
       setUploadedFileUrl(fullUrl);
       
       // Clear any existing signature fields - user will place them manually in guided mode
@@ -571,7 +568,6 @@ export function DocumentWizard({
       }
 
       if (data?.suggestedFields && data.suggestedFields.length > 0) {
-        console.log("AI suggested fields:", data.suggestedFields);
         setSignatureFields(data.suggestedFields);
       } else {
         // Fallback to defaults
@@ -659,7 +655,6 @@ export function DocumentWizard({
             if (response.ok) {
               const pdfBytes = await response.arrayBuffer();
               v1Hash = await generatePdfHash(pdfBytes);
-              console.log('Generated v1 hash for uploaded PDF:', v1Hash.substring(0, 16) + '...');
             }
           } catch (e) {
             console.error('Error generating v1 hash for PDF:', e);

@@ -62,8 +62,6 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
   // Split by **Question:** pattern (the AI generates questions in this format)
   const questionBlocks = markdown.split(/\*\*Question:\*\*/i);
   
-  console.log('[InterviewQuestions] Parsing markdown, blocks found:', questionBlocks.length - 1);
-  
   for (let i = 1; i < questionBlocks.length; i++) {
     const block = questionBlocks[i];
     const trimmedBlock = block.trim();
@@ -118,7 +116,6 @@ function parseQuestionsFromMarkdown(markdown: string): ParsedQuestion[] {
     });
   }
   
-  console.log('[InterviewQuestions] Parsed questions count:', questions.length);
   return questions;
 }
 
@@ -246,7 +243,6 @@ export default function InterviewQuestionsDialog({
     
     // Don't overwrite if we're actively regenerating
     if (isRegeneratingRef.current) {
-      console.log('[InterviewQuestions] Skipping sync - regenerating in progress');
       return;
     }
     
@@ -254,12 +250,10 @@ export default function InterviewQuestionsDialog({
     
     // Only sync if this is a new interview or first open
     if (interviewId === lastSyncedInterviewIdRef.current && rawQuestions !== null) {
-      console.log('[InterviewQuestions] Skipping sync - already synced this interview');
       return;
     }
     
     if (interview?.ai_questions && interview.ai_questions.length > 0) {
-      console.log('[InterviewQuestions] Syncing from interview.ai_questions:', interview.ai_questions.length, 'items');
       setRawQuestions(interview.ai_questions.join("\n\n"));
       lastSyncedInterviewIdRef.current = interviewId;
     } else if (!interview?.ai_questions) {
@@ -270,7 +264,7 @@ export default function InterviewQuestionsDialog({
 
   const application = interview?.applications;
   const job = application?.jobs;
-  const profile = application?.profiles as any;
+  const profile = application?.profiles;
 
   // Parse questions into structured format
   const parsedQuestions = useMemo(() => {
@@ -358,22 +352,16 @@ export default function InterviewQuestionsDialog({
       if (error) throw error;
 
       if (data?.analysis) {
-        console.log('[InterviewQuestions] AI returned analysis, length:', data.analysis.length);
-        
         // Set the raw questions for display
         setRawQuestions(data.analysis);
         
         // Parse the questions to build proper storage format
         const parsed = parseQuestionsFromMarkdown(data.analysis);
-        console.log('[InterviewQuestions] Parsed', parsed.length, 'questions for storage');
-        
         // Build full question blocks for storage (preserving structure for re-parsing)
         const questionsToSave = parsed.map(q => 
           `**Question:** ${q.question}\n- **What it assesses:** ${q.assesses}\n- **What to look for in a good answer:** ${q.lookFor}`
         );
         
-        console.log('[InterviewQuestions] Saving', questionsToSave.length, 'question blocks to database');
-
         // Save to database
         const { error: updateError } = await supabase
           .from("interviews")

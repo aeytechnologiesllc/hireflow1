@@ -63,7 +63,7 @@ import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleR
 import { RejectedStampAnimation } from "@/components/animations/RejectedStampAnimation";
 import InterviewQuestionsDialog from "@/components/InterviewQuestionsDialog";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, Json } from "@/integrations/supabase/types";
 import { detectResumeUrl } from "@/utils/detectResumeUrl";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import { useAutoTriggerAvaAnalysis } from "@/hooks/useAutoTriggerAvaAnalysis";
@@ -355,7 +355,6 @@ export default function ApplicantDetails() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          console.log('Application updated in real-time:', payload);
           queryClient.invalidateQueries({ queryKey: ["application", id] });
         }
       )
@@ -381,7 +380,6 @@ export default function ApplicantDetails() {
           filter: `id=eq.${application.job_id}`,
         },
         (payload) => {
-          console.log('Job updated in real-time:', payload);
           // Invalidate the application query since it includes job data
           queryClient.invalidateQueries({ queryKey: ["application", id] });
         }
@@ -408,12 +406,11 @@ export default function ApplicantDetails() {
           filter: `application_id=eq.${id}`,
         },
         (payload) => {
-          console.log('Interview updated in real-time:', payload);
           queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
           
           // Show toast notifications for interview changes
-          const newData = payload.new as any;
-          const oldData = payload.old as any;
+          const newData = payload.new as Record<string, unknown>;
+          const oldData = payload.old as Record<string, unknown>;
           
           if (newData?.candidate_response === "reschedule_requested" && 
               oldData?.candidate_response !== "reschedule_requested") {
@@ -444,8 +441,6 @@ export default function ApplicantDetails() {
   useEffect(() => {
     const handleAvaSection = (e: CustomEvent<{ section: string }>) => {
       const { section } = e.detail;
-      console.log('AVA opening section:', section);
-      
       switch (section) {
         case 'analysis':
           // Scroll to AI analysis card (it's visible on the page)
@@ -535,16 +530,10 @@ export default function ApplicantDetails() {
     
     // All conditions met - auto-advance
     autoAdvanceTriggeredRef.current = true;
-    console.log("[Autopilot Auto-Advance] Conditions met, advancing application", {
-      appId: application.id,
-      currentPhase,
-      aiScore,
-      passingScore,
-    });
-    
+
     // Determine next phase
     const workflowSteps = (job.workflow_steps as WorkflowStep[]) || [];
-    const quizQuestions = job.quiz_questions as any[] | undefined;
+    const quizQuestions = job.quiz_questions as Json[] | undefined;
     const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
     
     let nextPhaseId: string | null = null;
@@ -562,7 +551,6 @@ export default function ApplicantDetails() {
           nextPhaseTitle = firstNonVoiceStep.title;
         } else {
           // All steps are voice_interview - cannot auto-advance, employer must configure
-          console.log("[Autopilot Auto-Advance] First step is voice_interview - requires employer configuration");
           return;
         }
       }
@@ -575,14 +563,12 @@ export default function ApplicantDetails() {
           nextPhaseTitle = firstNonVoiceStep.title;
         } else {
           // All steps are voice_interview - cannot auto-advance, employer must configure
-          console.log("[Autopilot Auto-Advance] First step is voice_interview - requires employer configuration");
           return;
         }
       }
     }
     
     if (!nextPhaseId) {
-      console.log("[Autopilot Auto-Advance] No next phase found");
       return;
     }
     
@@ -607,7 +593,6 @@ export default function ApplicantDetails() {
           link: `/applications/${application.id}`,
         });
         
-        console.log("[Autopilot Auto-Advance] Successfully advanced to", nextPhaseId);
         queryClient.invalidateQueries({ queryKey: ["application", id] });
         toast.success(`Autopilot: Advanced to ${nextPhaseTitle}`);
       } catch (error) {
@@ -619,8 +604,8 @@ export default function ApplicantDetails() {
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
-    const quizQuestions = application?.jobs?.quiz_questions as any[] | undefined;
-    
+    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
+
     if (workflowSteps && workflowSteps.length > 0) {
       // Start with journey_start as the true origin, then application
       const allPhases: { id: string; title: string; fullTitle: string; icon: any; type: string }[] = [
@@ -804,7 +789,6 @@ export default function ApplicantDetails() {
   useEffect(() => {
     // Skip if a phase change is in progress (wait for query invalidation to complete)
     if (isPhaseChangeInProgressRef.current) {
-      console.log('[Slider Position] Skipping - phase change in progress');
       return;
     }
     
@@ -1265,8 +1249,6 @@ export default function ApplicantDetails() {
     isPhaseChangeInProgressRef.current = true;
     
     try {
-      console.log('[handleReconsider] Starting reconsideration for application:', application.id);
-      
       // Cancel any scheduled interviews
       if (scheduledInterview) {
         await supabase
@@ -1289,8 +1271,6 @@ export default function ApplicantDetails() {
       const firstPhase = phases.find((p, i) => i > 0 && p.type !== "journey_start") || phases[1];
       const targetPhaseId = firstPhase?.id || "application";
       const targetPhaseIndex = phases.findIndex(p => p.id === targetPhaseId);
-      
-      console.log('[handleReconsider] Resetting to phase:', targetPhaseId, 'at index:', targetPhaseIndex);
       
       // Clear notes and ALL application data for a true fresh start
       const result = await updateApplication.mutateAsync({ 
@@ -1315,9 +1295,6 @@ export default function ApplicantDetails() {
         resume_url: null,
         resume_score: null,
       });
-      
-      console.log('[handleReconsider] Mutation result:', result);
-      console.log('[handleReconsider] Updated notes value:', result?.notes);
       
       // Slider position will update automatically via the useEffect
       
@@ -1359,8 +1336,6 @@ export default function ApplicantDetails() {
     setIsAnalyzing(true);
     
     try {
-      console.log("[handleReanalyze] Calling trigger-ava-analysis backend function for application:", application.id);
-      
       // Call the backend function which computes the weighted overall score
       // This ensures ai_score is calculated consistently (resume + quiz + voice + portfolio weights)
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
@@ -1371,8 +1346,6 @@ export default function ApplicantDetails() {
       });
 
       if (error) throw error;
-
-      console.log("[handleReanalyze] Backend analysis complete:", data);
 
       // Invalidate and refetch to get the updated score from the database
       await queryClient.invalidateQueries({ queryKey: ["application", id] });
@@ -1423,7 +1396,7 @@ export default function ApplicantDetails() {
     
     const job = application.jobs;
     const workflowSteps = job?.workflow_steps as WorkflowStep[] | undefined;
-    const quizQuestions = job?.quiz_questions as any[] | undefined;
+    const quizQuestions = job?.quiz_questions as Json[] | undefined;
     const badges: { id: string; title: string; type: string; hasData: boolean; isSkipped: boolean; score?: number; icon: any }[] = [];
     
     // Helper to get step submission data (inlined to avoid dependency issues)
@@ -1495,8 +1468,8 @@ export default function ApplicantDetails() {
         hasData: hasResumeData,
         isSkipped: isResumeSkipped || isApplicationSkipped,
         // Only show resume score if it was actually analyzed (score > 0 means it was processed)
-        score: resumeUrl && (application as any).resume_score != null && (application as any).resume_score > 0 
-          ? (application as any).resume_score 
+        score: resumeUrl && application.resume_score != null && application.resume_score > 0 
+          ? application.resume_score 
           : undefined,
         icon: FileText,
       });
@@ -1873,16 +1846,16 @@ export default function ApplicantDetails() {
                       <Badge 
                         variant="outline"
                         className={
-                          (scheduledInterview as any).candidate_response === "confirmed" 
+                          scheduledInterview.candidate_response === "confirmed" 
                             ? "bg-success/10 text-success border-success/30" :
-                          (scheduledInterview as any).candidate_response === "reschedule_requested" 
+                          scheduledInterview.candidate_response === "reschedule_requested" 
                             ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :
                           "bg-muted/50 text-muted-foreground border-muted"
                         }
                       >
-                        {(scheduledInterview as any).candidate_response === "confirmed" 
+                        {scheduledInterview.candidate_response === "confirmed" 
                           ? "✓ Confirmed" :
-                         (scheduledInterview as any).candidate_response === "reschedule_requested" 
+                         scheduledInterview.candidate_response === "reschedule_requested" 
                           ? "Reschedule Requested" :
                          "Awaiting Response"}
                       </Badge>
@@ -1907,7 +1880,7 @@ export default function ApplicantDetails() {
               {/* Right side: Actions - wrap on mobile */}
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Review Request Button */}
-                {(scheduledInterview as any).candidate_response === "reschedule_requested" && (
+                {scheduledInterview.candidate_response === "reschedule_requested" && (
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -1938,7 +1911,7 @@ export default function ApplicantDetails() {
                   </Button>
                 )}
                 
-                {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && (scheduledInterview as any).candidate_response === "confirmed" && (
+                {scheduledInterview.meeting_link && scheduledInterview.status === "scheduled" && isFuture(new Date(scheduledInterview.scheduled_at)) && scheduledInterview.candidate_response === "confirmed" && (
                   <Button asChild size="sm" className="gap-2">
                     <a href={scheduledInterview.meeting_link} target="_blank" rel="noopener noreferrer">
                       <Video className="h-4 w-4" />
@@ -2535,9 +2508,9 @@ export default function ApplicantDetails() {
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Resume
-              {resumeUrl && (application as any).resume_score != null && (application as any).resume_score > 0 && (
+              {resumeUrl && application.resume_score != null && application.resume_score > 0 && (
                 <Badge className="bg-success/20 text-success ml-2">
-                  Resume Score: {Math.round((application as any).resume_score)}/100
+                  Resume Score: {Math.round(application.resume_score)}/100
                 </Badge>
               )}
             </DialogTitle>
@@ -3240,7 +3213,7 @@ export default function ApplicantDetails() {
         open={showVoiceInterviewResults}
         onOpenChange={setShowVoiceInterviewResults}
         result={application?.voice_interview_result}
-        transcript={application?.voice_interview_transcript as any[]}
+        transcript={application?.voice_interview_transcript as Json[] | undefined}
         recordingUrl={application?.voice_interview_recording_url || undefined}
         videoEnabled={application?.voice_interview_video_enabled !== false}
         candidateName={profile?.full_name || "Candidate"}
@@ -3498,7 +3471,7 @@ export default function ApplicantDetails() {
         open={showNotesDialog}
         onOpenChange={setShowNotesDialog}
         applicationId={application?.id || ""}
-        currentNotes={(application as any)?.employer_notes || null}
+        currentNotes={application?.employer_notes || null}
         candidateName={application?.profiles?.full_name || "this candidate"}
       />
 
@@ -3593,7 +3566,7 @@ export default function ApplicantDetails() {
         }}
         candidateName={application?.profiles?.full_name || "this candidate"}
         language={(() => {
-          const workflowSteps = (application?.jobs as any)?.workflow_steps as any[] || [];
+          const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] || [];
           const voiceStep = workflowSteps.find((s: any) => s.type === 'voice_interview');
           return voiceStep?.config?.language_name || 'English';
         })()}
@@ -3667,15 +3640,15 @@ export default function ApplicantDetails() {
       />
 
       {/* Employer Review Reschedule Request Dialog */}
-      {scheduledInterview && (scheduledInterview as any).candidate_response === "reschedule_requested" && (
+      {scheduledInterview && scheduledInterview.candidate_response === "reschedule_requested" && (
         <EmployerRescheduleReviewDialog
           open={showRescheduleReviewDialog}
           onOpenChange={setShowRescheduleReviewDialog}
           interviewId={scheduledInterview.id}
           applicationId={id || ""}
           currentScheduledAt={scheduledInterview.scheduled_at}
-          proposedTimes={((scheduledInterview as any).proposed_times as any[]) || []}
-          candidateNote={(scheduledInterview as any).candidate_note || null}
+          proposedTimes={(scheduledInterview.proposed_times as Json[]) || []}
+          candidateNote={scheduledInterview.candidate_note || null}
           onMessageCandidate={() => setShowMessageDialog(true)}
         />
       )}

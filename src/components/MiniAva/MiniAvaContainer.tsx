@@ -43,14 +43,8 @@ export default function MiniAvaContainer() {
   } = useAvaVoice({
     mode: 'assistant',
     currentRoute: location.pathname,
-    onTranscript: (transcript, isFinal) => {
-      if (isFinal) {
-        console.log('Ava heard:', transcript);
-      }
-    },
-    onToolCall: (toolName, result) => {
-      console.log('Tool call received:', toolName, result);
-      
+    onTranscript: () => {},
+    onToolCall: (_toolName, result) => {
       // Handle navigation actions
       if (result?.action === 'navigate' && result.route) {
         navigate(result.route);

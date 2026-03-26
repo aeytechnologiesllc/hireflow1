@@ -40,7 +40,7 @@ export function useDocuments() {
       }
 
       // Filter based on role
-      const filtered = (documents as any[]).filter((doc) => {
+      const filtered = (documents as DocumentWithApplication[]).filter((doc) => {
         if (role === "employer") {
           return doc.applications?.jobs?.employer_id === user!.id;
         } else {
