@@ -183,22 +183,28 @@ export default function CandidateAuth() {
     }
 
     // Always register as candidate - no role selector needed
-    const { error } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate");
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
         ? "This email is already registered. Please sign in instead."
         : error.message;
-      
+
       toast({
         variant: "warning",
         title: "Sign Up Failed",
         description: errorMessage,
       });
+    } else if (needsConfirmation) {
+      toast({
+        title: "Check your email!",
+        description: "We've sent you a confirmation link. Please verify your email to continue.",
+        duration: 5000,
+      });
     } else {
       // Assign candidate role immediately after signup
       await supabase.rpc("assign_user_role", { p_role: "candidate" });
-      
+
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now apply for jobs.",
@@ -264,11 +270,7 @@ export default function CandidateAuth() {
       console.error('Error checking email existence:', checkError);
     }
 
-    // Use candidate auth redirect
-    const productionUrl = 'https://hireflownow.com';
-    const redirectUrl = window.location.hostname === 'localhost' 
-      ? `${window.location.origin}/candidate/auth?reset=true`
-      : `${productionUrl}/candidate/auth?reset=true`;
+    const redirectUrl = `${window.location.origin}/candidate/auth?reset=true`;
     
     const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
       redirectTo: redirectUrl,

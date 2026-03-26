@@ -216,22 +216,28 @@ export default function Auth() {
     }
 
     // Always register as employer - candidates use /candidate/auth
-    const { error } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
         ? "This email is already registered. Please sign in instead."
         : error.message;
-      
+
       toast({
         variant: "warning",
         title: "Sign Up Failed",
         description: errorMessage,
       });
+    } else if (needsConfirmation) {
+      toast({
+        title: "Check your email!",
+        description: "We've sent you a confirmation link. Please verify your email to continue.",
+        duration: 5000,
+      });
     } else {
       // Assign employer role immediately after signup
       await supabase.rpc("assign_user_role", { p_role: "employer" });
-      
+
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now start using the platform.",
@@ -283,11 +289,7 @@ export default function Auth() {
       // Continue with password reset if check fails
     }
 
-    // Use production URL for password reset redirects
-    const productionUrl = 'https://hireflownow.com';
-    const redirectUrl = window.location.hostname === 'localhost' 
-      ? `${window.location.origin}/auth?reset=true`
-      : `${productionUrl}/auth?reset=true`;
+    const redirectUrl = `${window.location.origin}/auth?reset=true`;
     
     const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
       redirectTo: redirectUrl,
