@@ -155,6 +155,265 @@ function buildGuidedSetupBlock(guidedSetup: GuidedSetup | undefined, family: str
   return parts.map((part) => `- ${part}`).join("\n");
 }
 
+function questionMatchesKeywords(question: WorkflowQuestion, keywords: string[]) {
+  const haystack = `${question.question} ${question.placeholder || ""}`.toLowerCase();
+  return keywords.some((keyword) => haystack.includes(keyword));
+}
+
+function insertBeforeFinalInterview(workflowSteps: WorkflowStep[], step: WorkflowStep) {
+  const existingIndex = workflowSteps.findIndex((item) => item.type === step.type);
+  if (existingIndex >= 0) {
+    return;
+  }
+
+  const finalInterviewIndex = workflowSteps.findIndex((item) => item.type === "chat_interview");
+  if (finalInterviewIndex >= 0) {
+    workflowSteps.splice(finalInterviewIndex, 0, step);
+    return;
+  }
+
+  workflowSteps.push(step);
+}
+
+function buildGuidedSetupQuestions(guidedSetup: GuidedSetup | undefined, title: string) {
+  if (!guidedSetup) {
+    return [];
+  }
+
+  const prompts: Array<{ question: WorkflowQuestion; keywords: string[] }> = [];
+
+  if (guidedSetup.deal_breakers) {
+    prompts.push({
+      question: {
+        id: "qDealBreakers",
+        type: "textarea",
+        question: `Before we continue, confirm there is nothing that conflicts with these non-negotiables for the ${title} role`,
+        required: true,
+        placeholder: guidedSetup.deal_breakers,
+      },
+      keywords: ["non-negotiable", "deal-breaker", "conflict"],
+    });
+  }
+
+  if (guidedSetup.must_haves) {
+    prompts.push({
+      question: {
+        id: "qMustHaves",
+        type: "textarea",
+        question: "Which of the employer's must-have requirements do you already have direct experience with?",
+        required: true,
+        placeholder: guidedSetup.must_haves,
+      },
+      keywords: ["must-have", "direct experience", "requirements do you already have"],
+    });
+  }
+
+  if (guidedSetup.certifications) {
+    prompts.push({
+      question: {
+        id: "qCertifications",
+        type: "textarea",
+        question: "List the certifications or licenses you currently hold that are relevant to this role",
+        required: true,
+        placeholder: guidedSetup.certifications,
+      },
+      keywords: ["certification", "license", "licenses"],
+    });
+  }
+
+  if (guidedSetup.work_authorization) {
+    prompts.push({
+      question: {
+        id: "qWorkAuthorization",
+        type: "select",
+        question: "Are you able to meet the work authorization expectation for this role?",
+        required: true,
+        options: ["Yes", "No", "Need sponsorship or clarification"],
+      },
+      keywords: ["work authorization", "sponsorship"],
+    });
+  }
+
+  if (guidedSetup.schedule_details) {
+    prompts.push({
+      question: {
+        id: "qScheduleFit",
+        type: "select",
+        question: "Can you reliably work the required schedule or shift pattern for this role?",
+        required: true,
+        options: ["Yes", "Partially", "No"],
+      },
+      keywords: ["schedule", "shift", "availability"],
+    });
+  }
+
+  if (guidedSetup.language_requirements) {
+    prompts.push({
+      question: {
+        id: "qLanguageRequirements",
+        type: "textarea",
+        question: "Describe your language proficiency for the languages required in this role",
+        required: true,
+        placeholder: guidedSetup.language_requirements,
+      },
+      keywords: ["language", "proficiency", "bilingual"],
+    });
+  }
+
+  if (guidedSetup.travel_requirement) {
+    prompts.push({
+      question: {
+        id: "qTravelRequirement",
+        type: "select",
+        question: "Can you meet the travel expectations for this role?",
+        required: true,
+        options: ["Yes", "No", "Need more detail"],
+      },
+      keywords: ["travel", "onsite", "commute"],
+    });
+  }
+
+  return prompts;
+}
+
+function enrichApplicationQuestions(
+  applicationQuestions: WorkflowQuestion[],
+  guidedSetup: GuidedSetup | undefined,
+  title: string,
+) {
+  if (!Array.isArray(applicationQuestions)) {
+    return [];
+  }
+
+  const essentials: WorkflowQuestion[] = [];
+  const remaining: WorkflowQuestion[] = [];
+
+  for (const question of applicationQuestions) {
+    if (
+      questionMatchesKeywords(question, ["full name"]) ||
+      questionMatchesKeywords(question, ["email"]) ||
+      questionMatchesKeywords(question, ["phone"]) ||
+      questionMatchesKeywords(question, ["most recent job title", "current or most recent"]) ||
+      questionMatchesKeywords(question, ["years of experience", "experience"])
+    ) {
+      essentials.push(question);
+    } else {
+      remaining.push(question);
+    }
+  }
+
+  const prioritizedQuestions = buildGuidedSetupQuestions(guidedSetup, title);
+  const guidedQuestions = prioritizedQuestions
+    .filter(({ keywords }) => !applicationQuestions.some((question) => questionMatchesKeywords(question, keywords)))
+    .slice(0, 4)
+    .map(({ question }) => question);
+
+  return [...essentials, ...guidedQuestions, ...remaining];
+}
+
+function ensureFamilyWorkflowSteps(
+  workflowSteps: WorkflowStep[],
+  family: string,
+  guidedSetup: GuidedSetup | undefined,
+  requirePortfolio: boolean,
+) {
+  const hasStepType = (type: string) => workflowSteps.some((step) => step.type === type);
+
+  if (family === "support" && !hasStepType("chat_simulation")) {
+    insertBeforeFinalInterview(workflowSteps, {
+      id: "step_support",
+      type: "chat_simulation",
+      title: "Support Scenario",
+      description: "Respond to a realistic customer issue with empathy, clarity, and ownership.",
+      required: true,
+      config: { scenario: "customer_support" },
+    });
+  }
+
+  if (family === "sales" && !hasStepType("sales_simulation")) {
+    insertBeforeFinalInterview(workflowSteps, {
+      id: "step_sales",
+      type: "sales_simulation",
+      title: "Sales Conversation",
+      description: "Handle discovery, objections, and closing pressure in a realistic sales scenario.",
+      required: true,
+      config: { scenario: "sales_call" },
+    });
+  }
+
+  if (family === "operations_admin" && !hasStepType("typing_test")) {
+    insertBeforeFinalInterview(workflowSteps, {
+      id: "step_typing",
+      type: "typing_test",
+      title: "Typing and Accuracy Check",
+      description: "Demonstrate reliable execution for administrative or process-heavy work.",
+      required: true,
+      config: { min_wpm: 40 },
+    });
+  }
+
+  if ((guidedSetup?.customer_facing || family === "retail_hospitality" || family === "executive") && !hasStepType("video_message")) {
+    insertBeforeFinalInterview(workflowSteps, {
+      id: "step_video_message",
+      type: "video_message",
+      title: "Communication Snapshot",
+      description: "Record a short response so Ava can assess clarity, presence, and professionalism.",
+      required: true,
+      config: { max_duration_seconds: 90 },
+    });
+  }
+
+  if (requirePortfolio && !hasStepType("portfolio_upload")) {
+    insertBeforeFinalInterview(workflowSteps, {
+      id: "step_portfolio",
+      type: "portfolio_upload",
+      title: "Portfolio Review",
+      description: "Share work samples relevant to the role.",
+      required: true,
+      config: { portfolio_type: "general" },
+    });
+  }
+}
+
+function buildScreeningPlanSummary(
+  family: string,
+  guidedSetup: GuidedSetup | undefined,
+  workflowSteps: WorkflowStep[],
+  quizQuestions: WorkflowQuestion[],
+) {
+  const focus: string[] = [];
+
+  if (guidedSetup?.must_haves) {
+    focus.push("front-loads the employer's must-haves");
+  }
+  if (guidedSetup?.deal_breakers) {
+    focus.push("checks deal-breakers early");
+  }
+  if (guidedSetup?.certifications || guidedSetup?.work_authorization || guidedSetup?.language_requirements) {
+    focus.push("verifies critical eligibility requirements");
+  }
+  if (workflowSteps.some((step) => step.type === "chat_simulation")) {
+    focus.push("tests real customer communication");
+  }
+  if (workflowSteps.some((step) => step.type === "sales_simulation")) {
+    focus.push("tests live selling ability");
+  }
+  if (workflowSteps.some((step) => step.type === "typing_test")) {
+    focus.push("validates execution speed and accuracy");
+  }
+  if (workflowSteps.some((step) => step.type === "portfolio_upload")) {
+    focus.push("requires work-sample proof");
+  }
+
+  const familyLabel = family.replace(/_/g, " ");
+  const focusText =
+    focus.length > 0
+      ? focus.slice(0, 3).join(", ")
+      : "keeps the screening concise while still collecting evidence that matters";
+
+  return `Ava built a ${familyLabel} screening plan that ${focusText}, uses ${quizQuestions.length} targeted assessment questions, and ends with an Ava interview for final judgment.`;
+}
+
 function makeFallbackWorkflow(request: WorkflowRequest, family: string, requirePortfolio: boolean): WorkflowResponse {
   const applicationQuestions: WorkflowQuestion[] = [
     { id: "q1", type: "text", question: "Full Name", required: true, placeholder: "Enter your full name" },
@@ -273,6 +532,8 @@ function validateWorkflowResponse(value: unknown) {
 
 function postProcessWorkflowData(
   workflowData: WorkflowResponse,
+  request: WorkflowRequest,
+  family: string,
   requirePortfolio: boolean,
 ): WorkflowResponse {
   const data = {
@@ -315,18 +576,10 @@ function postProcessWorkflowData(
     return question;
   });
 
-  if (requirePortfolio && !data.workflow_steps.some((step) => step.type === "portfolio_upload")) {
-    data.workflow_steps.unshift({
-      id: "step_portfolio",
-      type: "portfolio_upload",
-      title: "Portfolio Review",
-      description: "Share work samples relevant to the role.",
-      required: true,
-      config: { portfolio_type: "general" },
-    });
-  }
+  data.application_questions = enrichApplicationQuestions(data.application_questions, request.guided_setup, request.title);
 
   data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "voice_interview");
+  ensureFamilyWorkflowSteps(data.workflow_steps, family, request.guided_setup, requirePortfolio);
 
   const hasFinalInterview = data.workflow_steps.some((step) => step.type === "chat_interview");
   if (!hasFinalInterview) {
@@ -343,6 +596,13 @@ function postProcessWorkflowData(
     const finalInterview = data.workflow_steps.find((step) => step.type === "chat_interview")!;
     data.workflow_steps = [...nonInterviewSteps, finalInterview];
   }
+
+  data.screening_plan_summary = buildScreeningPlanSummary(
+    family,
+    request.guided_setup,
+    data.workflow_steps,
+    data.quiz_questions,
+  );
 
   return data;
 }
@@ -493,7 +753,7 @@ Return ONLY valid JSON with this shape:
       fallback: () => makeFallbackWorkflow(request, family, requirePortfolio),
     });
 
-    const workflowData = postProcessWorkflowData(data, requirePortfolio);
+    const workflowData = postProcessWorkflowData(data, request, family, requirePortfolio);
 
     console.log("Generated workflow:", {
       application_questions: workflowData.application_questions.length,

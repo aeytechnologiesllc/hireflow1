@@ -78,6 +78,36 @@ function buildGuidedSetupBlock(guidedSetup?: JobContentRequest["guided_setup"]) 
   return `\n\nUse the employer's guided setup answers as hard context when writing the job post:\n${parts.map((part) => `- ${part}`).join("\n")}\n`;
 }
 
+function buildConstraintReminder(guidedSetup?: JobContentRequest["guided_setup"]) {
+  if (!guidedSetup) {
+    return "";
+  }
+
+  const reminders: string[] = [];
+
+  if (guidedSetup.must_haves) {
+    reminders.push("Make the employer's must-haves unmistakably clear in the requirements and the overall positioning of the role.");
+  }
+  if (guidedSetup.deal_breakers) {
+    reminders.push("Surface the deal-breakers cleanly so unqualified candidates can self-select out early.");
+  }
+  if (guidedSetup.certifications || guidedSetup.work_authorization || guidedSetup.language_requirements) {
+    reminders.push("If licenses, work authorization, or language requirements are provided, state them explicitly as role requirements.");
+  }
+  if (guidedSetup.schedule_details || guidedSetup.travel_requirement) {
+    reminders.push("If schedule or travel expectations are provided, mention them plainly so candidates know the operating reality of the job.");
+  }
+  if (guidedSetup.customer_facing) {
+    reminders.push("Because this is customer-facing, emphasize communication, professionalism, and responsiveness.");
+  }
+
+  if (reminders.length === 0) {
+    return "";
+  }
+
+  return `\n\nCritical job-post rules:\n${reminders.map((item) => `- ${item}`).join("\n")}\n`;
+}
+
 function makeFallbackText(title: string, department?: string, experienceLevel?: string, jobType?: string, location?: string) {
   const role = title || "this role";
   const dept = department ? ` in the ${department} team` : "";
@@ -118,6 +148,7 @@ function buildFieldPrompt(params: JobContentRequest) {
     requirements,
   } = params;
   const guidedSetupBlock = buildGuidedSetupBlock(params.guided_setup);
+  const constraintReminder = buildConstraintReminder(params.guided_setup);
 
   if (field === "full") {
     return `Generate a complete job posting for the following position:
@@ -137,6 +168,7 @@ Return a JSON object with these fields:
 
 CRITICAL: All text must be clean plain text. NO markdown formatting whatsoever.
 ${guidedSetupBlock}
+${constraintReminder}
 
 Return ONLY valid JSON, no markdown code blocks.`;
   }
@@ -152,6 +184,7 @@ Focus on:
 
 ${existingContent ? `Improve upon this existing content: ${existingContent}` : ""}
 ${guidedSetupBlock}
+${constraintReminder}
 
 Return only the description text, no headers or formatting.`;
   }
@@ -167,6 +200,7 @@ Each responsibility should:
 ${existingContent ? `Improve upon these existing responsibilities: ${existingContent}` : ""}
 ${buildContextBlock({ description })}
 ${guidedSetupBlock}
+${constraintReminder}
 FORMATTING RULES (MUST FOLLOW):
 - Each responsibility on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
@@ -186,6 +220,7 @@ Include:
 ${existingContent ? `Improve upon these existing requirements: ${existingContent}` : ""}
 ${buildContextBlock({ description, responsibilities })}
 ${guidedSetupBlock}
+${constraintReminder}
 FORMATTING RULES (MUST FOLLOW):
 - Each requirement on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)

@@ -93,6 +93,43 @@ function averageOf(values: Array<number | null | undefined>, fallback: number) {
   return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
+function weightedAverage(values: Array<{ value: number | null | undefined; weight: number }>, fallback: number) {
+  let weightedTotal = 0;
+  let weightTotal = 0;
+
+  for (const entry of values) {
+    if (typeof entry.value === "number" && Number.isFinite(entry.value)) {
+      weightedTotal += entry.value * entry.weight;
+      weightTotal += entry.weight;
+    }
+  }
+
+  if (weightTotal === 0) {
+    return fallback;
+  }
+
+  return weightedTotal / weightTotal;
+}
+
+function inferJobFamily(title: string | null | undefined, description: string | null | undefined) {
+  const haystack = `${title || ""} ${description || ""}`.toLowerCase();
+  if (haystack.match(/support|customer service|customer success|help desk/)) return "support";
+  if (haystack.match(/sales|account executive|business development|closer/)) return "sales";
+  if (haystack.match(/designer|creative|illustrator|animator|photographer|videographer|brand/)) return "creative";
+  if (haystack.match(/engineer|developer|software|data|technical|devops|product/)) return "technical";
+  if (haystack.match(/admin|operations|coordinator|assistant|scheduler/)) return "operations_admin";
+  if (haystack.match(/retail|hospitality|restaurant|server|barista|store/)) return "retail_hospitality";
+  if (haystack.match(/nurse|healthcare|medical|clinic|therapist/)) return "healthcare";
+  if (haystack.match(/field|installer|technician|maintenance|route/)) return "field_service";
+  if (haystack.match(/chief|vp|vice president|director|head of|executive/)) return "executive";
+  return "general";
+}
+
+function isEntryLevelRole(experienceLevel: string | null | undefined, title: string | null | undefined) {
+  const haystack = `${experienceLevel || ""} ${title || ""}`.toLowerCase();
+  return /entry|junior|intern|trainee|associate/.test(haystack);
+}
+
 function buildAvaScorecard(params: {
   finalScore: number | null;
   passingScore: number;
@@ -102,9 +139,15 @@ function buildAvaScorecard(params: {
   portfolioScore: number | null;
   chatSimulationScore: number | null;
   salesSimulationScore: number | null;
+  chatInterviewScore: number | null;
+  videoIntroScore: number | null;
   analysisText: string;
   resumeUnavailable: boolean;
   workflowSteps: any[];
+  jobTitle?: string | null;
+  jobDescription?: string | null;
+  jobSkillsRequired?: string[] | null;
+  experienceLevel?: string | null;
 }) {
   const {
     finalScore,
@@ -115,12 +158,20 @@ function buildAvaScorecard(params: {
     portfolioScore,
     chatSimulationScore,
     salesSimulationScore,
+    chatInterviewScore,
+    videoIntroScore,
     analysisText,
     resumeUnavailable,
     workflowSteps,
+    jobTitle,
+    jobDescription,
+    jobSkillsRequired,
+    experienceLevel,
   } = params;
 
   const safeScore = clampPercent(finalScore ?? 0);
+  const family = inferJobFamily(jobTitle, jobDescription);
+  const entryLevel = isEntryLevelRole(experienceLevel, jobTitle);
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
 
@@ -131,6 +182,8 @@ function buildAvaScorecard(params: {
   if (typeof portfolioScore === "number") evidenceRefs.push(`portfolio:${portfolioScore}`);
   if (typeof chatSimulationScore === "number") evidenceRefs.push(`chat_simulation:${chatSimulationScore}`);
   if (typeof salesSimulationScore === "number") evidenceRefs.push(`sales_simulation:${salesSimulationScore}`);
+  if (typeof chatInterviewScore === "number") evidenceRefs.push(`chat_interview:${chatInterviewScore}`);
+  if (typeof videoIntroScore === "number") evidenceRefs.push(`video_intro:${videoIntroScore}`);
   if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
 
   if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
@@ -138,30 +191,96 @@ function buildAvaScorecard(params: {
   if (/WRONG_RESUME|MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
   if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
   if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
+  if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && /Missing Critical Skills/i.test(analysisText)) {
+    riskFlags.push("Required skill alignment needs a closer look");
+  }
 
+  const familyPrimarySignals: Record<string, Array<number | null | undefined>> = {
+    support: [chatSimulationScore, voiceScore, chatInterviewScore, quizScore],
+    sales: [salesSimulationScore, voiceScore, chatInterviewScore, quizScore],
+    creative: [portfolioScore, videoIntroScore, chatInterviewScore, safeScore],
+    technical: [quizScore, chatInterviewScore, safeScore],
+    operations_admin: [typingTest?.score as number | undefined, typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined, quizScore, safeScore],
+    field_service: [quizScore, voiceScore, safeScore],
+    retail_hospitality: [videoIntroScore, voiceScore, chatInterviewScore, safeScore],
+    healthcare: [voiceScore, quizScore, safeScore],
+    executive: [videoIntroScore, chatInterviewScore, voiceScore, safeScore],
+    general: [quizScore, voiceScore, chatInterviewScore, safeScore],
+  };
+
+  const primarySignalAverage = averageOf(familyPrimarySignals[family] || familyPrimarySignals.general, safeScore);
   const hardRequirements = clampPercent(
-    averageOf([safeScore, quizScore, portfolioScore], safeScore) - (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 12 : 0),
+    weightedAverage(
+      [
+        { value: safeScore, weight: 0.45 },
+        { value: quizScore, weight: 0.25 },
+        { value: primarySignalAverage, weight: 0.2 },
+        { value: portfolioScore, weight: family === "creative" ? 0.1 : 0.05 },
+      ],
+      safeScore,
+    ) - (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 10 : 0),
   );
   const roleCompetency = clampPercent(
-    averageOf([safeScore, quizScore, portfolioScore, chatSimulationScore, salesSimulationScore], safeScore),
+    weightedAverage(
+      [
+        { value: safeScore, weight: 0.35 },
+        { value: primarySignalAverage, weight: 0.35 },
+        { value: quizScore, weight: family === "technical" ? 0.2 : 0.1 },
+        { value: salesSimulationScore, weight: family === "sales" ? 0.2 : 0.05 },
+        { value: chatSimulationScore, weight: family === "support" ? 0.2 : 0.05 },
+        { value: portfolioScore, weight: family === "creative" ? 0.2 : 0.05 },
+      ],
+      safeScore,
+    ),
   );
   const communication = clampPercent(
-    averageOf([voiceScore, chatSimulationScore, salesSimulationScore, safeScore - 4], safeScore - 4),
+    weightedAverage(
+      [
+        { value: voiceScore, weight: 0.35 },
+        { value: videoIntroScore, weight: 0.2 },
+        { value: chatSimulationScore, weight: family === "support" ? 0.2 : 0.1 },
+        { value: salesSimulationScore, weight: family === "sales" ? 0.2 : 0.1 },
+        { value: chatInterviewScore, weight: 0.2 },
+        { value: safeScore - 4, weight: 0.05 },
+      ],
+      safeScore - 4,
+    ),
   );
   const executionReliability = clampPercent(
-    averageOf([
+    weightedAverage(
+      [
+        { value: safeScore, weight: 0.3 },
+        { value: quizScore, weight: 0.25 },
+        { value: typingTest?.score as number | undefined, weight: family === "operations_admin" ? 0.25 : 0.1 },
+        { value: typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined, weight: 0.15 },
+        { value: chatInterviewScore, weight: 0.1 },
+      ],
       safeScore,
-      typingTest?.score as number | undefined,
-      quizScore,
-      typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined,
-    ], safeScore),
+    ),
   );
-  const workStyleFit = clampPercent(averageOf([safeScore, chatSimulationScore, voiceScore], safeScore - 3));
-  const evidenceQuality = clampPercent(30 + evidenceRefs.length * 9 - (resumeUnavailable ? 10 : 0));
+  const workStyleFit = clampPercent(
+    weightedAverage(
+      [
+        { value: safeScore, weight: 0.35 },
+        { value: chatSimulationScore, weight: 0.15 },
+        { value: voiceScore, weight: 0.15 },
+        { value: chatInterviewScore, weight: 0.2 },
+        { value: videoIntroScore, weight: 0.15 },
+      ],
+      safeScore - 3,
+    ),
+  );
+  const evidenceQuality = clampPercent(
+    28 +
+      evidenceRefs.length * 8 +
+      (primarySignalAverage >= Math.max(passingScore, 60) ? 8 : 0) -
+      (resumeUnavailable ? 8 : 0),
+  );
 
   const confidence = clampPercent(
-    42 +
-      evidenceRefs.length * 7 +
+    40 +
+      evidenceRefs.length * 6 +
+      (primarySignalAverage >= passingScore ? 10 : 0) +
       (safeScore >= passingScore ? 8 : -4) +
       (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0),
   );
@@ -174,17 +293,20 @@ function buildAvaScorecard(params: {
         : "mixed";
 
   let recommendedAction: RecommendedAction = "reject";
-  if (safeScore >= passingScore + 10 && confidence >= 65 && hardRequirementStatus !== "at_risk") {
+  const advanceBuffer = entryLevel ? 6 : 10;
+  const reviewFloor = entryLevel ? Math.max(42, passingScore - 12) : Math.max(45, passingScore - 8);
+
+  if (safeScore >= passingScore + advanceBuffer && confidence >= 65 && hardRequirementStatus !== "at_risk") {
     recommendedAction = "advance";
-  } else if (safeScore >= Math.max(45, passingScore - 8)) {
+  } else if (safeScore >= reviewFloor || primarySignalAverage >= passingScore) {
     recommendedAction = "review";
   }
 
   const rationale =
     recommendedAction === "advance"
-      ? "Strong overall evidence and confidence support automatic advancement."
+      ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support automatic advancement.`
       : recommendedAction === "review"
-        ? "Signals are mixed or confidence is moderate, so this applicant should land in human review instead of being auto-rejected."
+        ? `Signals are mixed or confidence is moderate for this ${family.replace(/_/g, " ")} role, so this applicant should land in human review instead of being auto-rejected.`
         : "Available evidence is below the role threshold, so Ava recommends rejection.";
 
   const scorecard: AvaScorecard = {
@@ -1045,8 +1167,10 @@ ${interviewType} Interview with AVA Results:
     const quizScore = quizData?.score || quizData?.percentage || null;
     const typingTest = parsedNotes.typingTestResult;
     const voiceResult = application.voice_interview_result as any;
-    const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || null;
-    const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || null;
+    const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || parsedNotes.chatSimulationResult?.score || null;
+    const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || parsedNotes.salesSimulationResult?.score || null;
+    const chatInterviewScore = parsedNotes.chatInterviewResult?.score || null;
+    const videoIntroScore = parsedNotes.videoIntroResult?.score || null;
     
     // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
     let portfolioScore: number | null = null;
@@ -1136,9 +1260,15 @@ ${interviewType} Interview with AVA Results:
       portfolioScore,
       chatSimulationScore,
       salesSimulationScore,
+      chatInterviewScore,
+      videoIntroScore,
       analysisText,
       resumeUnavailable,
       workflowSteps,
+      jobTitle: job?.title || null,
+      jobDescription: job?.description || null,
+      jobSkillsRequired: Array.isArray(job?.skills_required) ? (job.skills_required as string[]) : null,
+      experienceLevel: job?.experience_level || null,
     });
     const updatedNotes = {
       ...parsedNotes,

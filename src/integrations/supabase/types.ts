@@ -1069,6 +1069,7 @@ export type Database = {
           invitation_id: string | null
           joined_at: string | null
           name: string | null
+          onboarding_completed: boolean
           permission_level: string | null
           revoked_at: string | null
           status: string | null
@@ -1091,6 +1092,7 @@ export type Database = {
           invitation_id?: string | null
           joined_at?: string | null
           name?: string | null
+          onboarding_completed?: boolean
           permission_level?: string | null
           revoked_at?: string | null
           status?: string | null
@@ -1113,6 +1115,7 @@ export type Database = {
           invitation_id?: string | null
           joined_at?: string | null
           name?: string | null
+          onboarding_completed?: boolean
           permission_level?: string | null
           revoked_at?: string | null
           status?: string | null

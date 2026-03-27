@@ -160,6 +160,7 @@ export default function JoinTeam() {
         can_schedule_interviews: invitation.can_schedule_interviews,
         can_send_documents: invitation.can_send_documents,
         assigned_job_ids: invitation.assigned_job_ids,
+        onboarding_completed: false,
       });
 
       if (memberError) {
