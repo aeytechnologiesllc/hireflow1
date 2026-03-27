@@ -55,7 +55,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
   const [copiedLink, setCopiedLink] = useState(false);
 
   const applyLink = job?.job_code 
-    ? `${window.location.origin}/apply?code=${job.job_code}` 
+    ? `${window.location.origin}/candidate/apply?code=${job.job_code}` 
     : "";
 
   const copyToClipboard = async (text: string, type: "code" | "link") => {

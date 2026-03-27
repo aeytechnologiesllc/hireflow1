@@ -119,6 +119,34 @@ const getEstimatedCompletionTime = (
   return quizTime + stepsTime + 5; // +5 for application form base
 };
 
+const normalizeCommaSeparatedText = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return typeof value === "string" ? value : "";
+};
+
+const normalizeTextBlock = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return typeof value === "string" ? value : "";
+};
+
+const parseCommaSeparatedList = (value: unknown): string[] =>
+  normalizeCommaSeparatedText(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 // Step type info for workflow steps
 const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean }> = {
   typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
@@ -241,11 +269,11 @@ export default function GuestJobCreator() {
   }) => {
     const nextFormData: AvaJobFormData = {
       ...baseFormData,
-      description: data.description || baseFormData.description,
-      responsibilities: data.responsibilities || baseFormData.responsibilities,
-      requirements: data.requirements || baseFormData.requirements,
-      skills_required: data.skills || baseFormData.skills_required,
-      benefits: data.benefits || baseFormData.benefits,
+      description: normalizeTextBlock(data.description) || baseFormData.description,
+      responsibilities: normalizeTextBlock(data.responsibilities) || baseFormData.responsibilities,
+      requirements: normalizeTextBlock(data.requirements) || baseFormData.requirements,
+      skills_required: normalizeCommaSeparatedText(data.skills) || baseFormData.skills_required,
+      benefits: normalizeCommaSeparatedText(data.benefits) || baseFormData.benefits,
     };
 
     setFormData(nextFormData);
@@ -1730,11 +1758,11 @@ export default function GuestJobCreator() {
                         </div>
                       )}
 
-                      {formData.skills_required && (
+                      {parseCommaSeparatedList(formData.skills_required).length > 0 && (
                         <div>
                           <Label className="text-muted-foreground">Required Skills</Label>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {formData.skills_required.split(",").map((skill, i) => (
+                            {parseCommaSeparatedList(formData.skills_required).map((skill, i) => (
                               <Badge key={i} variant="secondary" className="text-xs">
                                 {skill.trim()}
                               </Badge>
@@ -1755,11 +1783,11 @@ export default function GuestJobCreator() {
                         </div>
                       )}
 
-                      {formData.benefits && (
+                      {parseCommaSeparatedList(formData.benefits).length > 0 && (
                         <div>
                           <Label className="text-muted-foreground">Benefits</Label>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {formData.benefits.split(",").map((benefit, i) => (
+                            {parseCommaSeparatedList(formData.benefits).map((benefit, i) => (
                               <Badge key={i} variant="outline" className="text-xs">
                                 {benefit.trim()}
                               </Badge>

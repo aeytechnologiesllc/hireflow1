@@ -104,6 +104,8 @@ const App = () => (
                   {/* Candidate Portal (separate entry point) */}
                   <Route path="/candidate" element={<CandidatePortalLanding />} />
                   <Route path="/candidate/auth" element={<CandidateAuth />} />
+                  <Route path="/candidate/apply" element={<ApplyWithCode />} />
+                  <Route path="/candidate/job/:id" element={<JobDetails />} />
                   
                   {/* Developer Dashboard (role-based access) */}
                   <Route element={<DeveloperLayout />}>

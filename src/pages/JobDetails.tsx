@@ -35,6 +35,7 @@ export default function JobDetails() {
   const [isCheckingLimit, setIsCheckingLimit] = useState(false);
 
   const isEmployer = role === "employer";
+  const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
   
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
@@ -75,7 +76,12 @@ export default function JobDetails() {
   };
 
   const handleStartApplication = async () => {
-    if (!user || !job) return;
+    if (!job) return;
+
+    if (!user) {
+      navigate(`/candidate/auth?redirect=${encodeURIComponent(`/candidate/job/${job.id}`)}`);
+      return;
+    }
     
     setIsStartingApplication(true);
     try {
@@ -158,7 +164,7 @@ export default function JobDetails() {
             <p className="text-muted-foreground mb-4">
               This job may no longer be available or the link is invalid.
             </p>
-            <Button onClick={() => navigate("/apply")}>
+            <Button onClick={() => navigate(applyEntryRoute)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Apply
             </Button>
@@ -174,7 +180,7 @@ export default function JobDetails() {
         {/* Back Button */}
         <Button 
           variant="ghost" 
-          onClick={() => navigate("/apply")}
+          onClick={() => navigate(applyEntryRoute)}
           className="text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />

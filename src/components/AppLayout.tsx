@@ -47,7 +47,6 @@ export default function AppLayout() {
     if (typeof window === "undefined") return !isMobile;
     return window.innerWidth >= 768;
   });
-
   // Edge swipe state
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -195,20 +194,51 @@ export default function AppLayout() {
   useEffect(() => {
     if (!loading && !user) {
       const isCandidateRoute = location.pathname.startsWith("/candidate");
+
+      if (location.pathname === "/apply") {
+        navigate(`/candidate/apply${location.search}`, { replace: true });
+        return;
+      }
+
+      if (location.pathname.startsWith("/job/")) {
+        navigate(`/candidate${location.pathname}${location.search}`, { replace: true });
+        return;
+      }
+
       navigate(isCandidateRoute ? "/candidate/auth" : "/auth", { replace: true });
     } else if (!loading && user && (role as string) === 'developer' && !location.pathname.startsWith("/developer")) {
       // Redirect developers to their dashboard
       navigate("/developer", { replace: true });
     }
-  }, [user, loading, role, navigate, location.pathname]);
+  }, [user, loading, role, navigate, location.pathname, location.search]);
 
   const isCandidateRoute = location.pathname.startsWith("/candidate");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
-  const isGuestDraftHandoff =
+  const isGuestDraftSignal =
     !isCandidateRoute &&
     location.pathname === "/jobs/create" &&
     (searchParams.get("guestDraft") === "1" ||
       (typeof window !== "undefined" && Boolean(window.localStorage.getItem("guestJobData"))));
+  const isGuestDraftHandoff =
+    !isCandidateRoute &&
+    location.pathname === "/jobs/create" &&
+    typeof window !== "undefined" &&
+    (isGuestDraftSignal || window.sessionStorage.getItem("guestDraftOnboardingBypass") === "1");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (isGuestDraftSignal) {
+      window.sessionStorage.setItem("guestDraftOnboardingBypass", "1");
+      return;
+    }
+
+    if (location.pathname !== "/jobs/create") {
+      window.sessionStorage.removeItem("guestDraftOnboardingBypass");
+    }
+  }, [isGuestDraftSignal, location.pathname]);
 
   // Show loading while auth is loading
   if (loading) {

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { isPast } from "date-fns";
 
 interface JobPreview {
   id: string;
@@ -35,6 +36,8 @@ interface JobPreview {
   quiz_questions: Array<{ id: string; question: string; type: string; time_limit_seconds?: number }> | null;
   workflow_steps: Array<{ id: string; title?: string; type: string; description?: string }> | null;
   require_resume: boolean | null;
+  application_deadline: string | null;
+  employer_id: string;
 }
 
 const STEP_TIME_MAP: Record<string, number> = {
@@ -121,6 +124,7 @@ export default function ApplyWithCode() {
   const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
 
   const isEmployer = role === "employer";
+  const candidateJobPath = (jobId: string) => (role === "candidate" ? `/job/${jobId}` : `/candidate/job/${jobId}`);
 
   const handleSearch = async () => {
     if (!jobCode.trim()) {
@@ -134,13 +138,31 @@ export default function ApplyWithCode() {
     try {
       const { data, error: fetchError } = await supabase
         .from("jobs")
-        .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume")
+        .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", jobCode.trim().toUpperCase())
         .eq("status", "published")
         .single();
 
       if (fetchError || !data) {
         setError("No job found with this code. Please check and try again.");
+        setPreviewJob(null);
+        return;
+      }
+
+      if (data.application_deadline && isPast(new Date(data.application_deadline))) {
+        setError("This job is no longer accepting applications.");
+        setPreviewJob(null);
+        return;
+      }
+
+      const { data: limitData, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
+        body: { employerId: data.employer_id, jobId: data.id },
+      });
+
+      if (limitError) {
+        console.error("Failed to check applicant limit from code preview:", limitError);
+      } else if (limitData?.limitReached) {
+        setError("This employer is not currently accepting new applications for this role.");
         setPreviewJob(null);
         return;
       }
@@ -213,6 +235,7 @@ export default function ApplyWithCode() {
                   onChange={(e) => {
                     setJobCode(e.target.value.toUpperCase());
                     setError("");
+                    setPreviewJob(null);
                   }}
                   onKeyDown={handleKeyPress}
                   placeholder="Enter code (e.g., ABC123)"
@@ -346,7 +369,7 @@ export default function ApplyWithCode() {
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
-                    onClick={() => navigate(`/job/${previewJob.id}`)}
+                    onClick={() => navigate(candidateJobPath(previewJob.id))}
                     size="lg"
                     className="flex-1 gap-2"
                   >

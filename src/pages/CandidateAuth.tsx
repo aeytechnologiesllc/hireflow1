@@ -84,6 +84,11 @@ export default function CandidateAuth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const redirectTarget = searchParams.get("redirect");
+  const safeRedirectTarget =
+    redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")
+      ? redirectTarget
+      : null;
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -122,15 +127,17 @@ export default function CandidateAuth() {
         portalRole: "candidate",
       });
 
+      const nextRoute = role === "candidate" && safeRedirectTarget ? safeRedirectTarget : route;
+
       if (allowCandidateWelcome && role === "candidate") {
         setWelcomeName(nextWelcomeName);
-        setPostAuthRoute(route);
+        setPostAuthRoute(nextRoute);
         setShowWelcome(true);
         return;
       }
 
       navigated = true;
-      navigate(route, { replace: true });
+      navigate(nextRoute, { replace: true });
     } catch (error) {
       console.error("Error resolving candidate auth destination:", error);
       toast({
@@ -144,7 +151,7 @@ export default function CandidateAuth() {
         setIsRedirecting(false);
       }
     }
-  }, [navigate, toast]);
+  }, [navigate, safeRedirectTarget, toast]);
 
   useEffect(() => {
     if (user && !authLoading && !showWelcome) {

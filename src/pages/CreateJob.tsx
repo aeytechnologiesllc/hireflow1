@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -294,6 +294,34 @@ const getEstimatedCompletionTime = (
   return quizTime + stepsTime + 5; // +5 for application form base
 };
 
+const normalizeCommaSeparatedText = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return typeof value === "string" ? value : "";
+};
+
+const normalizeTextBlock = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return typeof value === "string" ? value : "";
+};
+
+const parseCommaSeparatedList = (value: unknown): string[] =>
+  normalizeCommaSeparatedText(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 export default function CreateJob() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -307,6 +335,7 @@ export default function CreateJob() {
   const { limits, usage, isWithinLimit } = useSubscription();
   const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
   const canCreateMoreJobs = isEditMode || isWithinLimit('jobs');
+  const guestDraftHydratedRef = useRef(false);
   
   // Phase warning dismissed state
   const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
@@ -427,41 +456,46 @@ export default function CreateJob() {
 
   // Load guest job data from localStorage (after guest signs up/in)
   useEffect(() => {
+    if (isEditMode || guestDraftHydratedRef.current || authLoading || !user || role !== "employer") {
+      return;
+    }
+
     const guestDataString = localStorage.getItem("guestJobData");
-    if (guestDataString && !isEditMode) {
+    if (guestDataString) {
       try {
         const guestData = JSON.parse(guestDataString);
+        guestDraftHydratedRef.current = true;
         
         // Populate form data
         setFormData({
           ...DEFAULT_GUIDED_JOB_SETUP,
-          title: guestData.formData?.title || "",
-          description: guestData.formData?.description || "",
-          requirements: guestData.formData?.requirements || "",
-          responsibilities: guestData.formData?.responsibilities || "",
-          location: guestData.formData?.location || "",
+          title: normalizeTextBlock(guestData.formData?.title),
+          description: normalizeTextBlock(guestData.formData?.description),
+          requirements: normalizeTextBlock(guestData.formData?.requirements),
+          responsibilities: normalizeTextBlock(guestData.formData?.responsibilities),
+          location: normalizeTextBlock(guestData.formData?.location),
           job_type: guestData.formData?.job_type || "full-time",
-          experience_level: guestData.formData?.experience_level || "",
-          department: guestData.formData?.department || "",
+          experience_level: normalizeTextBlock(guestData.formData?.experience_level),
+          department: normalizeTextBlock(guestData.formData?.department),
           salary_type: guestData.formData?.salary_type || "range",
           salary_period: guestData.formData?.salary_period || "yearly",
           salary_min: guestData.formData?.salary_min || "",
           salary_max: guestData.formData?.salary_max || "",
           salary_fixed: guestData.formData?.salary_fixed || "",
           salary_currency: guestData.formData?.salary_currency || "USD",
-          skills_required: guestData.formData?.skills_required || "",
-          benefits: guestData.formData?.benefits || "",
+          skills_required: normalizeCommaSeparatedText(guestData.formData?.skills_required),
+          benefits: normalizeCommaSeparatedText(guestData.formData?.benefits),
           application_deadline: null,
           job_family: guestData.formData?.job_family || DEFAULT_GUIDED_JOB_SETUP.job_family,
           urgency: guestData.formData?.urgency || DEFAULT_GUIDED_JOB_SETUP.urgency,
-          must_haves: guestData.formData?.must_haves || "",
-          deal_breakers: guestData.formData?.deal_breakers || "",
-          certifications: guestData.formData?.certifications || "",
-          schedule_details: guestData.formData?.schedule_details || "",
-          language_requirements: guestData.formData?.language_requirements || "",
-          work_authorization: guestData.formData?.work_authorization || "",
-          travel_requirement: guestData.formData?.travel_requirement || "",
-          compensation_guidance: guestData.formData?.compensation_guidance || "",
+          must_haves: normalizeTextBlock(guestData.formData?.must_haves),
+          deal_breakers: normalizeTextBlock(guestData.formData?.deal_breakers),
+          certifications: normalizeTextBlock(guestData.formData?.certifications),
+          schedule_details: normalizeTextBlock(guestData.formData?.schedule_details),
+          language_requirements: normalizeTextBlock(guestData.formData?.language_requirements),
+          work_authorization: normalizeTextBlock(guestData.formData?.work_authorization),
+          travel_requirement: normalizeTextBlock(guestData.formData?.travel_requirement),
+          compensation_guidance: normalizeTextBlock(guestData.formData?.compensation_guidance),
           portfolio_preference: guestData.formData?.portfolio_preference || DEFAULT_GUIDED_JOB_SETUP.portfolio_preference,
           customer_facing: guestData.formData?.customer_facing || false,
         });
@@ -505,7 +539,7 @@ export default function CreateJob() {
         localStorage.removeItem("guestJobData");
       }
     }
-  }, [isEditMode]);
+  }, [authLoading, isEditMode, role, setSearchParams, user]);
 
   // Pre-fill title from onboarding handoff
   useEffect(() => {
@@ -591,11 +625,11 @@ export default function CreateJob() {
   }) => {
     const nextFormData: AvaJobFormData = {
       ...baseFormData,
-      description: data.description || baseFormData.description,
-      responsibilities: data.responsibilities || baseFormData.responsibilities,
-      requirements: data.requirements || baseFormData.requirements,
-      skills_required: data.skills || baseFormData.skills_required,
-      benefits: data.benefits || baseFormData.benefits,
+      description: normalizeTextBlock(data.description) || baseFormData.description,
+      responsibilities: normalizeTextBlock(data.responsibilities) || baseFormData.responsibilities,
+      requirements: normalizeTextBlock(data.requirements) || baseFormData.requirements,
+      skills_required: normalizeCommaSeparatedText(data.skills) || baseFormData.skills_required,
+      benefits: normalizeCommaSeparatedText(data.benefits) || baseFormData.benefits,
     };
 
     setFormData(nextFormData);
@@ -759,8 +793,8 @@ export default function CreateJob() {
           ? (formData.salary_fixed ? parseInt(formData.salary_fixed) : null)
           : (formData.salary_max ? parseInt(formData.salary_max) : null),
         salary_currency: formData.salary_currency,
-        skills_required: formData.skills_required ? formData.skills_required.split(",").map((s) => s.trim()).filter(Boolean) : null,
-        benefits: formData.benefits ? formData.benefits.split(",").map((s) => s.trim()).filter(Boolean) : null,
+        skills_required: parseCommaSeparatedList(formData.skills_required),
+        benefits: parseCommaSeparatedList(formData.benefits),
         application_deadline: formData.application_deadline ? formData.application_deadline.toISOString() : null,
         status,
         // Workflow data - cast to Json type as Supabase expects
@@ -2468,11 +2502,11 @@ export default function CreateJob() {
                     </div>
                   )}
 
-                  {formData.skills_required && (
+                  {parseCommaSeparatedList(formData.skills_required).length > 0 && (
                     <div>
                       <h4 className="font-semibold mb-2">Required Skills</h4>
                       <div className="flex flex-wrap gap-2">
-                        {formData.skills_required.split(",").map((skill, i) => (
+                        {parseCommaSeparatedList(formData.skills_required).map((skill, i) => (
                           <Badge key={i} className="bg-primary/10 text-primary">
                             {skill.trim()}
                           </Badge>
@@ -2495,11 +2529,11 @@ export default function CreateJob() {
                     </div>
                   )}
 
-                  {formData.benefits && (
+                  {parseCommaSeparatedList(formData.benefits).length > 0 && (
                     <div>
                       <h4 className="font-semibold mb-2">Benefits</h4>
                       <div className="flex flex-wrap gap-2">
-                        {formData.benefits.split(",").map((benefit, i) => (
+                        {parseCommaSeparatedList(formData.benefits).map((benefit, i) => (
                           <Badge key={i} variant="outline">
                             {benefit.trim()}
                           </Badge>
