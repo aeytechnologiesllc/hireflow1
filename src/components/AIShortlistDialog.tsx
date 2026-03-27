@@ -121,6 +121,11 @@ function CandidateCard({
                   </div>
                   <span className="text-xs font-medium text-primary">{candidate.aiScore}%</span>
                 </div>
+                {candidate.scorecard?.confidence ? (
+                  <Badge variant="outline" className="text-[10px]">
+                    {candidate.scorecard.confidence}% confidence
+                  </Badge>
+                ) : null}
               </div>
             )}
 
@@ -139,6 +144,11 @@ function CandidateCard({
               {candidate.concerns.slice(0, 1).map((concern, i) => (
                 <Badge key={i} variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
                   {concern}
+                </Badge>
+              ))}
+              {candidate.scorecard?.riskFlags.slice(0, 1).map((flag, i) => (
+                <Badge key={`risk-${i}`} variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
+                  {flag}
                 </Badge>
               ))}
             </div>
@@ -238,6 +248,37 @@ export default function AIShortlistDialog({
                 </div>
               </CardContent>
             </Card>
+
+            {shortlist.scorecardSummary && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <Card className="bg-card/60 border-border">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Average score</p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.averageScore}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card/60 border-border">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Top score</p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.highestScore}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card/60 border-border">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Lowest score</p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.lowestScore}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card/60 border-border">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Strongest category</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">
+                      {shortlist.scorecardSummary.strongestCategory.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Quick Decision */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

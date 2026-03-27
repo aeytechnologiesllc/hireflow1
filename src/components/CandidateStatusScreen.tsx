@@ -228,6 +228,61 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
   );
 }
 
+function NextStepCallout({
+  title,
+  summary,
+  steps,
+  tone = "blue",
+}: {
+  title: string;
+  summary: string;
+  steps: string[];
+  tone?: "blue" | "emerald" | "amber" | "purple" | "gold";
+}) {
+  const toneStyles = {
+    blue: {
+      wrap: "bg-blue-500/10 border-blue-500/20",
+      icon: "text-blue-400",
+    },
+    emerald: {
+      wrap: "bg-emerald-500/10 border-emerald-500/20",
+      icon: "text-emerald-400",
+    },
+    amber: {
+      wrap: "bg-amber-500/10 border-amber-500/20",
+      icon: "text-amber-400",
+    },
+    purple: {
+      wrap: "bg-purple-500/10 border-purple-500/20",
+      icon: "text-purple-400",
+    },
+    gold: {
+      wrap: "bg-yellow-500/10 border-yellow-500/20",
+      icon: "text-yellow-400",
+    },
+  }[tone];
+
+  return (
+    <div className={cn("rounded-lg border p-4 text-left", toneStyles.wrap)}>
+      <div className="flex items-start gap-2 mb-2">
+        <Info className={cn("h-4 w-4 mt-0.5 shrink-0", toneStyles.icon)} />
+        <p className="text-sm font-medium text-foreground">{title}</p>
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
+      {steps.length > 0 && (
+        <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+          {steps.map((step) => (
+            <li key={step} className="flex items-start gap-2">
+              <span className={cn("mt-1 h-1.5 w-1.5 rounded-full shrink-0", tone === "gold" ? "bg-yellow-400" : "bg-current opacity-70")} />
+              <span>{step}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface InterviewDetails {
   scheduledAt?: string;
   meetingLink?: string;
@@ -536,7 +591,7 @@ export function CandidateStatusScreen({
                         <span className="font-medium">Interview Confirmed!</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        You're all set. We'll see you at the scheduled time.
+                        You're set. Just show up at the scheduled time and use the meeting link if one is provided.
                       </p>
                       {interviewDetails?.meetingLink && (
                         <Button
@@ -557,21 +612,22 @@ export function CandidateStatusScreen({
                         <span className="font-medium">Reschedule Requested</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        The employer is reviewing your proposed times. You'll be notified once they respond.
+                        The employer has your new time options. You do not need to do anything else until they reply.
                       </p>
                     </div>
                   ) : interviewId && applicationId ? (
                     // Show action buttons
                     <div className="space-y-3">
-                      <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left">
-                        <div className="flex items-start gap-2 mb-2">
-                          <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
-                          <p className="text-sm font-medium text-foreground">Confirm Your Attendance</p>
-                        </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          Please confirm this time works for you, or request a different time if needed.
-                        </p>
-                      </div>
+                      <NextStepCallout
+                        title="What happens next"
+                        summary="The employer is ready to meet with you. Confirm this time if it works, or ask for a different slot if it does not."
+                        steps={[
+                          "Tap Confirm Interview if the time works for you.",
+                          "Use Request Reschedule if you need a new time.",
+                          "If there is a meeting link, join from this page at the scheduled time.",
+                        ]}
+                        tone="purple"
+                      />
                       
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Button
@@ -598,20 +654,16 @@ export function CandidateStatusScreen({
                     </div>
                   ) : (
                     // Fallback: show old info section
-                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-left">
-                      <div className="flex items-start gap-2 mb-2">
-                        <Info className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
-                        <p className="text-sm font-medium text-foreground">What's Next?</p>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        Your interview details are on your application page. From there you can:
-                      </p>
-                      <ul className="text-sm text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
-                        <li>Confirm your attendance</li>
-                        <li>Request a reschedule if needed</li>
-                        <li>Join the meeting when it's time</li>
-                      </ul>
-                    </div>
+                    <NextStepCallout
+                      title="What happens next"
+                      summary="Your interview details live on the application page. Open it when you are ready to confirm, reschedule, or join."
+                      steps={[
+                        "Confirm the time if it works for you.",
+                        "Request a reschedule if you need a different slot.",
+                        "Join the meeting when it is time.",
+                      ]}
+                      tone="purple"
+                    />
                   )}
                 </motion.div>
 
@@ -717,8 +769,8 @@ export function CandidateStatusScreen({
                   transition={{ delay: 0.4 }}
                   className="text-muted-foreground leading-relaxed"
                 >
-                  The employer has reviewed your application and wants to learn more about you. 
-                  Ava, our AI interviewer, will conduct a voice interview to help showcase your skills.
+                  The employer has reviewed your application and wants to learn more about you.
+                  Your next step is a voice interview with Ava.
                 </motion.p>
 
                 {/* Job info */}
@@ -732,6 +784,17 @@ export function CandidateStatusScreen({
                     Position: <span className="text-foreground font-medium">{jobTitle}</span>
                   </motion.p>
                 )}
+
+                <NextStepCallout
+                  title="What happens next"
+                  summary="Nothing else is required right now. When you're ready, open your application and start the Ava interview."
+                  steps={[
+                    "Make sure you're in a quiet place before you begin.",
+                    "Use the Start Ava Interview button from your application page.",
+                    "Answer naturally and keep your responses clear and specific.",
+                  ]}
+                  tone="emerald"
+                />
 
                 {/* Action button */}
                 <motion.div
@@ -893,12 +956,23 @@ export function CandidateStatusScreen({
                         className="pt-4 space-y-3"
                       >
                         <p className="text-amber-100/90 leading-relaxed">
-                          Your talent, dedication, and perseverance have earned you this incredible moment.
+                          You have been hired. The employer should send onboarding details, start-date information, and any next forms soon.
                         </p>
                         <p className="text-amber-200/70 text-sm italic">
                           "The beginning is always today." — Mary Shelley
                         </p>
                       </motion.div>
+
+                      <NextStepCallout
+                        title="What happens next"
+                        summary="Your application is complete. The only thing left is onboarding from the employer."
+                        steps={[
+                          "Watch for a message with your start date or first-day instructions.",
+                          "Check for any documents or forms you need to complete.",
+                          "Reply quickly if the employer asks for anything else.",
+                        ]}
+                        tone="gold"
+                      />
 
                       {/* CTA Button */}
                       <motion.div
@@ -1012,10 +1086,20 @@ export function CandidateStatusScreen({
                   className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
                 >
                   <p className="text-sm text-muted-foreground">
-                    This is your fresh start! Click below to restart your application and complete all the steps again. 
-                    Good luck!
+                    Your application has been reopened, and you can start over from the beginning.
                   </p>
                 </motion.div>
+
+                <NextStepCallout
+                  title="What happens next"
+                  summary="You are being given another chance, so the application has been reset for you."
+                  steps={[
+                    "Open the application again from the job page.",
+                    "Complete every step from the beginning.",
+                    "Submit when you are ready.",
+                  ]}
+                  tone="blue"
+                />
 
                 {/* Action button */}
                 <motion.div
@@ -1085,19 +1169,18 @@ export function CandidateStatusScreen({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 }}
-                  className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-left"
+                  className="text-left"
                 >
-                  <p className="text-sm font-medium text-foreground mb-2">What's Next?</p>
-                  <ul className="text-sm text-muted-foreground space-y-2">
-                    <li className="flex items-start gap-2">
-                      <span>•</span>
-                      <span>Check your messages for more information from the employer</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span>•</span>
-                      <span>The employer may reach out to reschedule or provide next steps</span>
-                    </li>
-                  </ul>
+                  <NextStepCallout
+                    title="What happens next"
+                    summary="The interview is off for now. You do not need to take any action unless the employer reaches out again."
+                    steps={[
+                      "Keep an eye on your messages for an update.",
+                      "The employer may send a new interview time later.",
+                      "You can close this screen for now.",
+                    ]}
+                    tone="amber"
+                  />
                 </motion.div>
 
                 {/* Action button */}
@@ -1185,8 +1268,19 @@ export function CandidateStatusScreen({
                   transition={{ delay: 0.5 }}
                   className="text-muted-foreground text-sm"
                 >
-                  Please confirm your availability for the new time from your Interview card below.
+                  The interview time changed. Please review the new time below and confirm it from the interview card.
                 </motion.p>
+
+                <NextStepCallout
+                  title="What happens next"
+                  summary="Only the schedule changed. The interview is still active."
+                  steps={[
+                    "Review the new date and time.",
+                    "Confirm the new slot if it works for you.",
+                    "Request a reschedule if you cannot make it.",
+                  ]}
+                  tone="blue"
+                />
 
                 {/* Action button */}
                 <motion.div

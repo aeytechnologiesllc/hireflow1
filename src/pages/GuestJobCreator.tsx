@@ -76,34 +76,18 @@ import {
   Edit2
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
 import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
 import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
+import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
+import { DEFAULT_GUIDED_JOB_SETUP, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 
 interface GuestJobData {
-  formData: {
-    title: string;
-    description: string;
-    requirements: string;
-    responsibilities: string;
-    location: string;
-    job_type: string;
-    experience_level: string;
-    department: string;
-    salary_type: string;
-    salary_period: string;
-    salary_min: string;
-    salary_max: string;
-    salary_fixed: string;
-    salary_currency: string;
-    skills_required: string;
-    benefits: string;
-    application_deadline: Date | null;
-  };
+  formData: AvaJobFormData;
   applicationQuestions: any[];
   quizQuestions: any[];
   workflowSteps: any[];
@@ -150,7 +134,7 @@ const WIZARD_STEPS = [
   { id: "basic", title: "Basic Info", icon: FileText },
   { id: "details", title: "Job Details", icon: Users },
   { id: "compensation", title: "Compensation", icon: DollarSign },
-  { id: "workflow", title: "Workflow", icon: Sparkles },
+  { id: "workflow", title: "Screening Plan", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
 
@@ -184,7 +168,7 @@ export default function GuestJobCreator() {
   const { user, loading: authLoading } = useAuth();
   
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AvaJobFormData>({
     title: "",
     description: "",
     requirements: "",
@@ -202,6 +186,7 @@ export default function GuestJobCreator() {
     skills_required: "",
     benefits: "",
     application_deadline: null as Date | null,
+    ...DEFAULT_GUIDED_JOB_SETUP,
   });
 
   // Workflow state
@@ -219,6 +204,7 @@ export default function GuestJobCreator() {
     workflow_steps: any[];
   } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
+  const [jobContentGenerated, setJobContentGenerated] = useState(false);
   
   // Phase warning dismissed state
   const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
@@ -234,8 +220,33 @@ export default function GuestJobCreator() {
     }
   }, [user, authLoading, navigate]);
 
-  const handleChange = (field: string, value: string | Date | null) => {
+  const handleChange = (field: string, value: string | boolean | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleGuidedSetupChange = <K extends keyof GuidedJobSetup>(field: K, value: GuidedJobSetup[K]) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const applyGeneratedJobContent = (baseFormData: AvaJobFormData, data: {
+    description?: string;
+    responsibilities?: string;
+    requirements?: string;
+    skills?: string;
+    benefits?: string;
+  }) => {
+    const nextFormData: AvaJobFormData = {
+      ...baseFormData,
+      description: data.description || baseFormData.description,
+      responsibilities: data.responsibilities || baseFormData.responsibilities,
+      requirements: data.requirements || baseFormData.requirements,
+      skills_required: data.skills || baseFormData.skills_required,
+      benefits: data.benefits || baseFormData.benefits,
+    };
+
+    setFormData(nextFormData);
+    setJobContentGenerated(true);
+    return nextFormData;
   };
 
   // Delete functions
@@ -304,23 +315,7 @@ export default function GuestJobCreator() {
 
     setIsGenerating(field);
     try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-job-content", {
-        body: { 
-          field,
-          title: formData.title,
-          department: formData.department,
-          experience_level: formData.experience_level,
-          job_type: formData.job_type,
-          existingContent: formData[field as keyof typeof formData],
-          description: formData.description,
-          responsibilities: formData.responsibilities,
-          requirements: formData.requirements,
-          skills_required: formData.skills_required,
-        },
-      });
-
-      if (error) throw error;
-
+      const data = await generateJobField(formData, field);
       handleChange(field, data.content);
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')} generated!`);
     } catch (error) {
@@ -334,44 +329,26 @@ export default function GuestJobCreator() {
   const generateFullJob = async () => {
     if (!formData.title) {
       toast.error("Please enter a job title first");
-      return;
+      return null;
     }
 
     setIsGenerating("full");
     try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-job-content", {
-        body: { 
-          field: "full",
-          title: formData.title,
-          department: formData.department,
-          experience_level: formData.experience_level,
-          job_type: formData.job_type,
-          location: formData.location,
-        },
-      });
-
-      if (error) throw error;
-
-      setFormData(prev => ({
-        ...prev,
-        description: data.description || prev.description,
-        responsibilities: data.responsibilities || prev.responsibilities,
-        requirements: data.requirements || prev.requirements,
-        skills_required: data.skills || prev.skills_required,
-        benefits: data.benefits || prev.benefits,
-      }));
-      
-      toast.success("Full job posting generated!");
+      const data = await generateFullJobPosting(formData);
+      const nextFormData = applyGeneratedJobContent(formData, data);
+      toast.success("Ava built the job draft.");
+      return nextFormData;
     } catch (error) {
       console.error("Error generating job:", error);
       toast.error("Failed to generate job posting");
+      return null;
     } finally {
       setIsGenerating(null);
     }
   };
 
-  const generateWorkflow = async () => {
-    if (!formData.title || !formData.description) {
+  const generateWorkflow = async (sourceFormData: AvaJobFormData = formData) => {
+    if (!sourceFormData.title || !sourceFormData.description) {
       toast.error("Please fill in job title and description first");
       return;
     }
@@ -380,18 +357,7 @@ export default function GuestJobCreator() {
     setWorkflowApiComplete(false);
     
     try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-workflow", {
-        body: {
-          title: formData.title,
-          description: formData.description,
-          employment_type: formData.job_type,
-          location: formData.location,
-          difficulty: workflowDifficulty,
-          require_resume: true,
-        },
-      });
-
-      if (error) throw error;
+      const data = await generateScreeningPlan(sourceFormData, workflowDifficulty);
 
       // Store the data and mark API as complete - let overlay animation finish
       setPendingWorkflowData({
@@ -407,6 +373,16 @@ export default function GuestJobCreator() {
     }
   };
 
+  const generateAvaBlueprint = async () => {
+    const nextFormData = await generateFullJob();
+    if (!nextFormData) {
+      return;
+    }
+
+    setCurrentStep(3);
+    await generateWorkflow(nextFormData);
+  };
+
   const handleWorkflowComplete = () => {
     // Apply the pending workflow data
     if (pendingWorkflowData) {
@@ -415,15 +391,15 @@ export default function GuestJobCreator() {
       setWorkflowSteps(pendingWorkflowData.workflow_steps);
       setWorkflowGenerated(true);
       setPendingWorkflowData(null);
-      toast.success("Hiring workflow generated!");
+      toast.success("Ava built the screening plan!");
     }
     setIsGeneratingWorkflow(false);
     setWorkflowApiComplete(false);
   };
 
   const handlePublish = () => {
-    if (!workflowGenerated) {
-      toast.error("Please generate a workflow first");
+    if (!jobContentGenerated || !workflowGenerated) {
+      toast.error("Generate the Ava draft and screening plan first");
       return;
     }
 
@@ -453,11 +429,18 @@ export default function GuestJobCreator() {
       case 3:
         return workflowGenerated;
       case 4:
-        return !!formData.title && !!formData.description && workflowGenerated;
+        return !!formData.title && !!formData.description && workflowGenerated && jobContentGenerated;
       default:
         return true;
     }
   };
+
+  const screeningPlanOverview = summarizeScreeningPlan({
+    applicationQuestions,
+    quizQuestions,
+    workflowSteps,
+    requireResume: true,
+  });
 
   if (authLoading) {
     return (
@@ -503,7 +486,7 @@ export default function GuestJobCreator() {
             
             {currentStep < 3 && (
               <Button 
-                onClick={generateFullJob}
+                onClick={generateAvaBlueprint}
                 disabled={!formData.title || isGenerating === "full"}
                 className="gap-2"
                 variant="outline"
@@ -516,7 +499,7 @@ export default function GuestJobCreator() {
                 ) : (
                   <>
                     <Wand2 className="h-4 w-4" />
-                    Generate Full Job
+                    Generate with Ava
                   </>
                 )}
               </Button>
@@ -581,11 +564,11 @@ export default function GuestJobCreator() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <Card className="bg-card border-border">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Basic Information</CardTitle>
-                    <CardDescription>Essential details about the position</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <CardHeader>
+                  <CardTitle className="text-lg">Basic Information</CardTitle>
+                  <CardDescription>Share the essentials, then let Ava build the role and screening plan for you</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="title">Job Title *</Label>
                       <Input
@@ -651,6 +634,24 @@ export default function GuestJobCreator() {
                         </Select>
                       </div>
                     </div>
+
+                    <AvaGuidedSetupFields
+                      value={{
+                        job_family: formData.job_family,
+                        urgency: formData.urgency,
+                        must_haves: formData.must_haves,
+                        deal_breakers: formData.deal_breakers,
+                        certifications: formData.certifications,
+                        schedule_details: formData.schedule_details,
+                        language_requirements: formData.language_requirements,
+                        work_authorization: formData.work_authorization,
+                        travel_requirement: formData.travel_requirement,
+                        compensation_guidance: formData.compensation_guidance,
+                        portfolio_preference: formData.portfolio_preference,
+                        customer_facing: formData.customer_facing,
+                      }}
+                      onChange={handleGuidedSetupChange}
+                    />
                   </CardContent>
                 </Card>
               </motion.div>
@@ -665,12 +666,21 @@ export default function GuestJobCreator() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <Card className="bg-card border-border">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Job Details</CardTitle>
-                    <CardDescription>Describe the role and requirements</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
+                <CardHeader>
+                  <CardTitle className="text-lg">Job Details</CardTitle>
+                  <CardDescription>Review or lightly refine the draft Ava creates from your setup</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!jobContentGenerated && (
+                    <Alert className="border-primary/20 bg-primary/5">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <AlertTitle>Use Ava as the starting point</AlertTitle>
+                      <AlertDescription>
+                        Generate with Ava to draft the job and screening plan automatically, then make edits here if needed.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="description">Description *</Label>
                         <Button
@@ -1030,10 +1040,10 @@ export default function GuestJobCreator() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-primary" />
-                      Ava Hiring Workflow
+                      Ava Screening Plan
                     </CardTitle>
                     <CardDescription>
-                      Select screening difficulty and generate a complete hiring workflow
+                      Set the rigor level Ava should use, then generate the full screening plan
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -1271,7 +1281,7 @@ export default function GuestJobCreator() {
                       </AnimatePresence>
                     </div>
 
-                    {/* Generate with AVA Button */}
+                    {/* Generate Screening Plan Button */}
                     <div className="flex justify-end">
                       <motion.div
                         className="relative"
@@ -1290,7 +1300,7 @@ export default function GuestJobCreator() {
                         style={{ borderRadius: "0.5rem" }}
                       >
                         <Button
-                          onClick={generateWorkflow}
+                          onClick={() => generateWorkflow()}
                           disabled={isGeneratingWorkflow}
                           className={cn(
                             "gap-2 px-6 relative overflow-hidden",
@@ -1309,7 +1319,7 @@ export default function GuestJobCreator() {
                           ) : (
                             <>
                               <Sparkles className="h-5 w-5" />
-                              <span>Generate with AVA</span>
+                              <span>Generate Screening Plan</span>
                             </>
                           )}
                         </Button>
@@ -1321,6 +1331,31 @@ export default function GuestJobCreator() {
                 {/* Generated Workflow Display */}
                 {workflowGenerated && (
                   <>
+                    <Card className="bg-card border-border">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Candidate experience snapshot</CardTitle>
+                        <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
+                          <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Phase count</p>
+                          <p className="mt-1 text-lg font-semibold text-foreground">{screeningPlanOverview.phaseCount}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Required materials</p>
+                          <p className="mt-1 text-sm font-medium text-foreground">
+                            {screeningPlanOverview.requiredMaterials.length > 0
+                              ? screeningPlanOverview.requiredMaterials.join(", ")
+                              : "None beyond the application"}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
                     {/* Application Questions */}
                     <Card className="bg-card border-border">
                       <CardHeader>
@@ -1548,7 +1583,7 @@ export default function GuestJobCreator() {
                         {workflowSteps.length >= PHASE_WARNING_THRESHOLD && !phaseWarningDismissed && (
                           <Alert className="border-amber-500/30 bg-amber-500/10">
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            <AlertTitle className="text-amber-200">You've added {workflowSteps.length} workflow steps</AlertTitle>
+                            <AlertTitle className="text-amber-200">You've added {workflowSteps.length} screening steps</AlertTitle>
                             <AlertDescription className="text-amber-200/80">
                               <p className="mb-2">
                                 Long application processes can lead to candidate drop-off. Consider keeping your workflow to 3-4 steps for the best completion rates.
@@ -1574,7 +1609,7 @@ export default function GuestJobCreator() {
                         {workflowSteps.length === 0 ? (
                           <div className="text-center py-8 text-muted-foreground">
                             <p className="text-sm">No additional steps added yet.</p>
-                            <p className="text-xs mt-1">Click "Add Step" to add workflow steps like Chat Simulation, Typing Test, etc.</p>
+                            <p className="text-xs mt-1">Click "Add Step" to add screening steps like Chat Simulation, Typing Test, and more.</p>
                           </div>
                         ) : (
                           <div className="space-y-3">

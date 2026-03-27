@@ -11,6 +11,21 @@ export interface RankedCandidate {
   strengths: string[];
   concerns: string[];
   recommendation: "strong_yes" | "yes" | "maybe" | "no";
+  scorecard?: {
+    overallScore: number;
+    confidence: number;
+    recommendedAction: "advance" | "review" | "reject";
+    dimensionScores: {
+      hardRequirements: number;
+      roleCompetency: number;
+      communication: number;
+      reliability: number;
+      workStyleFit: number;
+      evidenceQuality: number;
+    };
+    riskFlags: string[];
+    rationale: string;
+  };
   applicationId?: string;
 }
 
@@ -23,6 +38,13 @@ export interface ShortlistResult {
     pass: string[];
   };
   summaryStatement: string;
+  scorecardSummary?: {
+    averageScore: number;
+    highestScore: number;
+    lowestScore: number;
+    strongestCategory: string;
+    commonRiskFlags: string[];
+  };
   jobId: string;
   jobTitle: string;
   candidateCount: number;

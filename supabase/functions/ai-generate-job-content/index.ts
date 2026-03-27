@@ -1,9 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  callOpenAIChat,
+  callOpenAIJson,
+  requireJsonKeys,
+} from "../_shared/openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_MODEL = Deno.env.get("OPENAI_JOB_MODEL") || "gpt-5.4";
 
 interface JobContentRequest {
   field: string;
@@ -17,6 +25,20 @@ interface JobContentRequest {
   responsibilities?: string;
   requirements?: string;
   skills_required?: string | string[];
+  guided_setup?: {
+    job_family?: string;
+    urgency?: string;
+    must_haves?: string;
+    deal_breakers?: string;
+    certifications?: string;
+    schedule_details?: string;
+    language_requirements?: string;
+    work_authorization?: string;
+    travel_requirement?: string;
+    compensation_guidance?: string;
+    portfolio_preference?: string;
+    customer_facing?: boolean;
+  };
 }
 
 function buildContextBlock(fields: Record<string, string | undefined>): string {
@@ -29,26 +51,76 @@ function buildContextBlock(fields: Record<string, string | undefined>): string {
   return `\n\nHere is context from the job posting so far. Use this to generate content that is specifically aligned and cohesive with what has already been written:\n\n${parts.join("\n\n")}\n`;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+function buildGuidedSetupBlock(guidedSetup?: JobContentRequest["guided_setup"]) {
+  if (!guidedSetup) {
+    return "";
   }
 
-  try {
-    const body: JobContentRequest = await req.json();
-    const { field, title, department, experience_level, job_type, location, existingContent, description, responsibilities, requirements, skills_required } = body;
-    const skillsStr = Array.isArray(skills_required) ? skills_required.join(", ") : skills_required;
+  const parts = [
+    guidedSetup.job_family ? `Job family: ${guidedSetup.job_family}` : null,
+    guidedSetup.urgency ? `Hiring pace: ${guidedSetup.urgency}` : null,
+    guidedSetup.must_haves ? `Must-haves: ${guidedSetup.must_haves}` : null,
+    guidedSetup.deal_breakers ? `Deal-breakers: ${guidedSetup.deal_breakers}` : null,
+    guidedSetup.certifications ? `Certifications/licenses: ${guidedSetup.certifications}` : null,
+    guidedSetup.schedule_details ? `Schedule/shift details: ${guidedSetup.schedule_details}` : null,
+    guidedSetup.language_requirements ? `Language requirements: ${guidedSetup.language_requirements}` : null,
+    guidedSetup.work_authorization ? `Work authorization: ${guidedSetup.work_authorization}` : null,
+    guidedSetup.travel_requirement ? `Travel requirement: ${guidedSetup.travel_requirement}` : null,
+    guidedSetup.compensation_guidance ? `Compensation guidance: ${guidedSetup.compensation_guidance}` : null,
+    guidedSetup.portfolio_preference ? `Portfolio preference: ${guidedSetup.portfolio_preference}` : null,
+    typeof guidedSetup.customer_facing === "boolean" ? `Customer-facing role: ${guidedSetup.customer_facing ? "yes" : "no"}` : null,
+  ].filter(Boolean);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+  if (parts.length === 0) {
+    return "";
+  }
 
-    let prompt = "";
-    let systemPrompt = "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.";
+  return `\n\nUse the employer's guided setup answers as hard context when writing the job post:\n${parts.map((part) => `- ${part}`).join("\n")}\n`;
+}
 
-    if (field === "full") {
-      prompt = `Generate a complete job posting for the following position:
+function makeFallbackText(title: string, department?: string, experienceLevel?: string, jobType?: string, location?: string) {
+  const role = title || "this role";
+  const dept = department ? ` in the ${department} team` : "";
+  const level = experienceLevel ? ` at the ${experienceLevel} level` : "";
+  const type = jobType ? ` (${jobType})` : "";
+  const locationText = location ? ` based in ${location}` : "";
+
+  return {
+    description: `We are looking for a motivated ${role}${dept}${level}${type}${locationText}. This position is designed for someone who wants to make a meaningful impact, collaborate with a focused team, and contribute to a hiring process that values clarity, speed, and quality. The ideal candidate brings curiosity, accountability, and a willingness to learn while helping the team deliver strong results.`,
+    responsibilities:
+      `• Deliver consistent, high-quality work aligned with team goals\n` +
+      `• Communicate clearly with teammates and stakeholders\n` +
+      `• Solve problems thoughtfully and follow through on tasks\n` +
+      `• Collaborate on day-to-day operations and improvements\n` +
+      `• Help maintain a positive, organized, and efficient workflow`,
+    requirements:
+      `• Relevant experience or demonstrated ability to succeed in the role\n` +
+      `• Strong communication, organization, and follow-through\n` +
+      `• Ability to work independently and as part of a team\n` +
+      `• Willingness to learn, adapt, and take feedback\n` +
+      `• Dependable attention to detail and professionalism`,
+    skills: "communication, teamwork, problem-solving, organization, adaptability, accountability",
+    benefits: "competitive pay, growth opportunities, collaborative team, flexible environment, meaningful work",
+  };
+}
+
+function buildFieldPrompt(params: JobContentRequest) {
+  const {
+    field,
+    title,
+    department,
+    experience_level,
+    job_type,
+    location,
+    existingContent,
+    description,
+    responsibilities,
+    requirements,
+  } = params;
+  const guidedSetupBlock = buildGuidedSetupBlock(params.guided_setup);
+
+  if (field === "full") {
+    return `Generate a complete job posting for the following position:
 
 Title: ${title}
 ${department ? `Department: ${department}` : ""}
@@ -64,9 +136,13 @@ Return a JSON object with these fields:
 - benefits: Comma-separated list of 5-8 common benefits
 
 CRITICAL: All text must be clean plain text. NO markdown formatting whatsoever.
+${guidedSetupBlock}
+
 Return ONLY valid JSON, no markdown code blocks.`;
-    } else if (field === "description") {
-      prompt = `Write a compelling 2-3 paragraph job description for a ${title} position${department ? ` in ${department}` : ""}${experience_level ? ` at ${experience_level} level` : ""}.
+  }
+
+  if (field === "description") {
+    return `Write a compelling 2-3 paragraph job description for a ${title} position${department ? ` in ${department}` : ""}${experience_level ? ` at ${experience_level} level` : ""}.
 
 Focus on:
 - What makes this role exciting
@@ -75,10 +151,13 @@ Focus on:
 - Growth opportunities
 
 ${existingContent ? `Improve upon this existing content: ${existingContent}` : ""}
+${guidedSetupBlock}
 
 Return only the description text, no headers or formatting.`;
-    } else if (field === "responsibilities") {
-      prompt = `Write 5-7 key responsibilities for a ${title} position${department ? ` in ${department}` : ""}.
+  }
+
+  if (field === "responsibilities") {
+    return `Write 5-7 key responsibilities for a ${title} position${department ? ` in ${department}` : ""}.
 
 Each responsibility should:
 - Start with an action verb
@@ -87,18 +166,16 @@ Each responsibility should:
 
 ${existingContent ? `Improve upon these existing responsibilities: ${existingContent}` : ""}
 ${buildContextBlock({ description })}
+${guidedSetupBlock}
 FORMATTING RULES (MUST FOLLOW):
 - Each responsibility on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
 - NO category labels or headers
-- Clean plain text only
+- Clean plain text only`;
+  }
 
-Example of CORRECT format:
-• Lead a team of designers to deliver projects on time
-• Collaborate with stakeholders to define requirements
-• Oversee quality assurance processes`;
-    } else if (field === "requirements") {
-      prompt = `Write 5-7 requirements for a ${title} position${experience_level ? ` at ${experience_level} level` : ""}.
+  if (field === "requirements") {
+    return `Write 5-7 requirements for a ${title} position${experience_level ? ` at ${experience_level} level` : ""}.
 
 Include:
 - Required education/experience
@@ -108,26 +185,27 @@ Include:
 
 ${existingContent ? `Improve upon these existing requirements: ${existingContent}` : ""}
 ${buildContextBlock({ description, responsibilities })}
+${guidedSetupBlock}
 FORMATTING RULES (MUST FOLLOW):
 - Each requirement on its own line starting with "• "
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
 - NO category labels like "Education:" or "Skills:"
-- Clean plain text only
+- Clean plain text only`;
+  }
 
-Example of CORRECT format:
-• Bachelor's degree in Computer Science or related field
-• 5+ years of experience in software development
-• Strong communication and leadership skills`;
-    } else if (field === "skills_required") {
-      prompt = `List 6-10 relevant skills for a ${title} position${department ? ` in ${department}` : ""}.
+  if (field === "skills_required") {
+    return `List 6-10 relevant skills for a ${title} position${department ? ` in ${department}` : ""}.
 
 Include both technical and soft skills appropriate for ${experience_level || "mid-level"} candidates.
 
 ${existingContent ? `Build upon these existing skills: ${existingContent}` : ""}
 ${buildContextBlock({ description, responsibilities, requirements })}
+${guidedSetupBlock}
 Return as a comma-separated list only.`;
-    } else if (field === "benefits") {
-      prompt = `List 5-8 attractive benefits for a ${title} position.
+  }
+
+  if (field === "benefits") {
+    return `List 5-8 attractive benefits for a ${title} position.
 
 Include a mix of:
 - Health and wellness
@@ -138,80 +216,146 @@ Include a mix of:
 
 ${existingContent ? `Build upon these existing benefits: ${existingContent}` : ""}
 ${buildContextBlock({ description })}
+${guidedSetupBlock}
 Return as a comma-separated list only.`;
+  }
+
+  throw new Error(`Unsupported field: ${field}`);
+}
+
+async function generateFallbackResponse(params: JobContentRequest) {
+  const fallback = makeFallbackText(
+    params.title,
+    params.department,
+    params.experience_level,
+    params.job_type,
+    params.location,
+  );
+
+  if (params.field === "full") {
+    return fallback;
+  }
+
+  if (params.field === "description") {
+    return { content: fallback.description };
+  }
+
+  if (params.field === "responsibilities") {
+    return { content: fallback.responsibilities };
+  }
+
+  if (params.field === "requirements") {
+    return { content: fallback.requirements };
+  }
+
+  if (params.field === "skills_required") {
+    return { content: fallback.skills };
+  }
+
+  if (params.field === "benefits") {
+    return { content: fallback.benefits };
+  }
+
+  throw new Error(`Unsupported field: ${params.field}`);
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  let body: JobContentRequest | null = null;
+
+  try {
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
-    console.log("Generating job content for field:", field);
+    body = await req.json();
+    const { field, title } = body;
+    const prompt = buildFieldPrompt(body);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+    if (!field || !title) {
+      return new Response(
+        JSON.stringify({ error: "field and title are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Generating job content for field:", field, "title:", title);
+
+    if (field === "full") {
+      const { data } = await callOpenAIJson<Record<string, unknown>>({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_MODEL,
         messages: [
-          { role: "system", content: systemPrompt },
+          {
+            role: "system",
+            content:
+              "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+          },
           { role: "user", content: prompt },
         ],
-      }),
+        temperature: 0.25,
+        maxCompletionTokens: 1800,
+        retries: 3,
+        validator: (value) =>
+          requireJsonKeys(value, ["description", "responsibilities", "requirements", "skills", "benefits"]),
+        fallback: () => makeFallbackText(title, body.department, body.experience_level, body.job_type, body.location),
+      });
+
+      const parsed = data as Record<string, unknown>;
+      return new Response(
+        JSON.stringify(parsed),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const temperatureByField: Record<string, number> = {
+      description: 0.65,
+      responsibilities: 0.45,
+      requirements: 0.35,
+      skills_required: 0.35,
+      benefits: 0.4,
+    };
+
+    const { content } = await callOpenAIChat({
+      apiKey: OPENAI_API_KEY,
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: temperatureByField[field] ?? 0.4,
+      maxCompletionTokens: 1200,
+      retries: 3,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error(`AI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error("No content generated");
-    }
-
-    console.log("Content generated successfully for field:", field);
-
-    // Parse response based on field type
-    if (field === "full") {
-      try {
-        // Try to parse as JSON
-        const cleanedContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        const parsed = JSON.parse(cleanedContent);
-        return new Response(
-          JSON.stringify(parsed),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } catch (e) {
-        // If parsing fails, return the raw content
-        return new Response(
-          JSON.stringify({ description: content }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
+    const normalized = content.trim();
+    const result = { content: normalized };
 
     return new Response(
-      JSON.stringify({ content }),
+      JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error generating job content:", error);
+    try {
+      if (body?.field && body?.title) {
+        const fallback = await generateFallbackResponse(body);
+        return new Response(
+          JSON.stringify(fallback),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch {
+      // Ignore fallback parse failures and surface the original error below.
+    }
+
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

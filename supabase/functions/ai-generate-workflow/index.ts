@@ -1,13 +1,29 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.4";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+interface GuidedSetup {
+  job_family?: string;
+  urgency?: string;
+  must_haves?: string;
+  deal_breakers?: string;
+  certifications?: string;
+  schedule_details?: string;
+  language_requirements?: string;
+  work_authorization?: string;
+  travel_requirement?: string;
+  compensation_guidance?: string;
+  portfolio_preference?: string;
+  customer_facing?: boolean;
+}
 
 interface WorkflowRequest {
   title: string;
@@ -15,23 +31,335 @@ interface WorkflowRequest {
   company?: string;
   employment_type?: string;
   location?: string;
-  difficulty: 'easy' | 'medium' | 'hard' | 'intense';
+  difficulty: "easy" | "medium" | "hard" | "intense";
   require_resume?: boolean;
+  guided_setup?: GuidedSetup;
+}
+
+interface WorkflowQuestion {
+  id: string;
+  type: string;
+  question: string;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+  correct_answer?: string | null;
+  correct_answers?: string[];
+  fit_context?: string;
+  time_limit_seconds?: number;
+  category?: string;
+}
+
+interface WorkflowStep {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  required: boolean;
+  config: Record<string, unknown>;
+}
+
+interface WorkflowResponse {
+  application_questions: WorkflowQuestion[];
+  quiz_questions: WorkflowQuestion[];
+  workflow_steps: WorkflowStep[];
+  screening_plan_summary?: string;
+}
+
+const FAMILY_GUIDANCE: Record<string, { profile: string; preferredSteps: string[]; avoid?: string }> = {
+  operations_admin: {
+    profile: "Prioritize organization, process discipline, follow-through, and calm communication.",
+    preferredSteps: ["typing_test", "chat_interview"],
+  },
+  support: {
+    profile: "Prioritize empathy, response quality, and handling pressure in customer interactions.",
+    preferredSteps: ["chat_simulation", "video_message", "chat_interview"],
+  },
+  sales: {
+    profile: "Prioritize persuasion, discovery, objection handling, and energy.",
+    preferredSteps: ["sales_simulation", "video_message", "chat_interview"],
+  },
+  creative: {
+    profile: "Prioritize portfolio evidence, taste, originality, and communication of craft.",
+    preferredSteps: ["portfolio_upload", "video_message", "chat_interview"],
+  },
+  technical: {
+    profile: "Prioritize problem-solving, role competency, signal quality, and clarity of thinking.",
+    preferredSteps: ["chat_interview"],
+    avoid: "Do not force portfolio_upload unless guided setup or job wording clearly asks for design/creative samples.",
+  },
+  field_service: {
+    profile: "Prioritize reliability, schedule fit, certifications, and practical judgment.",
+    preferredSteps: ["video_message", "chat_interview"],
+  },
+  retail_hospitality: {
+    profile: "Prioritize customer-facing communication, energy, scheduling fit, and consistency.",
+    preferredSteps: ["video_message", "chat_interview"],
+  },
+  healthcare: {
+    profile: "Prioritize licensure, credibility, communication, and safety-minded judgment.",
+    preferredSteps: ["video_message", "chat_interview"],
+  },
+  executive: {
+    profile: "Prioritize strategic communication, leadership judgment, and evidence quality.",
+    preferredSteps: ["video_message", "chat_interview"],
+  },
+  general: {
+    profile: "Keep the process balanced, concise, and aligned to the role evidence available.",
+    preferredSteps: ["chat_interview"],
+  },
+};
+
+function inferJobFamily(title: string, description: string, guidedSetup?: GuidedSetup) {
+  if (guidedSetup?.job_family && FAMILY_GUIDANCE[guidedSetup.job_family]) {
+    return guidedSetup.job_family;
+  }
+
+  const haystack = `${title} ${description}`.toLowerCase();
+  if (haystack.match(/support|customer service|customer success|help desk/)) return "support";
+  if (haystack.match(/sales|account executive|business development|closer/)) return "sales";
+  if (haystack.match(/designer|creative|illustrator|animator|photographer|videographer/)) return "creative";
+  if (haystack.match(/engineer|developer|software|data|technical|devops|product/)) return "technical";
+  if (haystack.match(/admin|operations|coordinator|assistant|scheduler/)) return "operations_admin";
+  if (haystack.match(/retail|hospitality|restaurant|server|barista|store/)) return "retail_hospitality";
+  if (haystack.match(/nurse|healthcare|medical|clinic|therapist/)) return "healthcare";
+  if (haystack.match(/field|installer|technician|maintenance|route/)) return "field_service";
+  if (haystack.match(/chief|vp|vice president|director|head of|executive/)) return "executive";
+  return "general";
+}
+
+function detectCreativeRole(title: string, description: string, guidedSetup?: GuidedSetup) {
+  if (guidedSetup?.portfolio_preference === "required") return true;
+  if (guidedSetup?.portfolio_preference === "not_needed") return false;
+
+  const haystack = `${title} ${description}`.toLowerCase();
+  return /designer|creative|illustrator|animator|photographer|videographer|portfolio|art director|brand/.test(haystack);
+}
+
+function buildGuidedSetupBlock(guidedSetup: GuidedSetup | undefined, family: string) {
+  const parts = [
+    `Job family: ${family}`,
+    guidedSetup?.urgency ? `Hiring pace: ${guidedSetup.urgency}` : null,
+    guidedSetup?.must_haves ? `Must-haves: ${guidedSetup.must_haves}` : null,
+    guidedSetup?.deal_breakers ? `Deal-breakers: ${guidedSetup.deal_breakers}` : null,
+    guidedSetup?.certifications ? `Certifications/licenses: ${guidedSetup.certifications}` : null,
+    guidedSetup?.schedule_details ? `Schedule or shift details: ${guidedSetup.schedule_details}` : null,
+    guidedSetup?.language_requirements ? `Language requirements: ${guidedSetup.language_requirements}` : null,
+    guidedSetup?.work_authorization ? `Work authorization: ${guidedSetup.work_authorization}` : null,
+    guidedSetup?.travel_requirement ? `Travel requirement: ${guidedSetup.travel_requirement}` : null,
+    guidedSetup?.compensation_guidance ? `Compensation guidance: ${guidedSetup.compensation_guidance}` : null,
+    guidedSetup?.portfolio_preference ? `Portfolio preference: ${guidedSetup.portfolio_preference}` : null,
+    typeof guidedSetup?.customer_facing === "boolean" ? `Customer-facing role: ${guidedSetup.customer_facing ? "yes" : "no"}` : null,
+  ].filter(Boolean);
+
+  return parts.map((part) => `- ${part}`).join("\n");
+}
+
+function makeFallbackWorkflow(request: WorkflowRequest, family: string, requirePortfolio: boolean): WorkflowResponse {
+  const applicationQuestions: WorkflowQuestion[] = [
+    { id: "q1", type: "text", question: "Full Name", required: true, placeholder: "Enter your full name" },
+    { id: "q2", type: "email", question: "Email Address", required: true, placeholder: "Enter your best email" },
+    { id: "q3", type: "phone", question: "Phone Number", required: true, placeholder: "Enter your phone number" },
+    { id: "q4", type: "text", question: "Current or most recent job title", required: true, placeholder: "Share your most recent role" },
+    { id: "q5", type: "textarea", question: `Why are you interested in this ${request.title} opportunity?`, required: true, placeholder: "Tell us what drew you to the role" },
+  ];
+
+  if (request.require_resume !== false) {
+    applicationQuestions.push({ id: "qResume", type: "file", question: "Upload your resume", required: true });
+  }
+
+  if (requirePortfolio) {
+    applicationQuestions.push({ id: "qPortfolioLink", type: "text", question: "Share your portfolio link if you have one", required: false, placeholder: "Portfolio URL" });
+  }
+
+  const quizQuestions: WorkflowQuestion[] = [
+    {
+      id: "quiz1",
+      type: "situational",
+      question: "When priorities shift unexpectedly, how do you respond?",
+      options: ["Pause everything", "Reprioritize and communicate", "Wait for direction", "Focus only on one task"],
+      correct_answer: null,
+      fit_context: "Strong candidates show calm reprioritization and communication.",
+      time_limit_seconds: 30,
+      category: "work_style",
+    },
+    {
+      id: "quiz2",
+      type: "personality",
+      question: "I stay organized even when I am handling several tasks at once.",
+      options: ["Strongly Agree", "Agree", "Neutral", "Disagree"],
+      correct_answer: null,
+      fit_context: "The role values organized, dependable execution.",
+      time_limit_seconds: 25,
+      category: "reliability",
+    },
+    {
+      id: "quiz3",
+      type: "short_answer",
+      question: "What is one result from your recent work that you are proud of?",
+      correct_answer: null,
+      time_limit_seconds: 45,
+      category: "achievement",
+    },
+  ];
+
+  const workflowSteps: WorkflowStep[] = [];
+
+  if (family === "support") {
+    workflowSteps.push({
+      id: "step_support",
+      type: "chat_simulation",
+      title: "Support Simulation",
+      description: "Respond to a realistic customer support scenario.",
+      required: true,
+      config: { scenario: "Handle a customer complaint with empathy and clarity" },
+    });
+  } else if (family === "sales") {
+    workflowSteps.push({
+      id: "step_sales",
+      type: "sales_simulation",
+      title: "Sales Conversation",
+      description: "Handle a short pitch and objection-handling exercise.",
+      required: true,
+      config: { product: "enterprise solution" },
+    });
+  } else if (family === "operations_admin") {
+    workflowSteps.push({
+      id: "step_typing",
+      type: "typing_test",
+      title: "Typing Speed Test",
+      description: "Demonstrate typing speed and accuracy for daily execution work.",
+      required: true,
+      config: { min_wpm: 40 },
+    });
+  }
+
+  if (requirePortfolio) {
+    workflowSteps.push({
+      id: "step_portfolio",
+      type: "portfolio_upload",
+      title: "Portfolio Review",
+      description: "Share work samples relevant to the role.",
+      required: true,
+      config: { portfolio_type: "general" },
+    });
+  }
+
+  workflowSteps.push({
+    id: "step_final",
+    type: "chat_interview",
+    title: "Interview with Ava",
+    description: "Complete a final interview with Ava based on your earlier responses.",
+    required: true,
+    config: { focus: "behavioral" },
+  });
+
+  return {
+    application_questions: applicationQuestions,
+    quiz_questions: quizQuestions,
+    workflow_steps: workflowSteps,
+    screening_plan_summary: "Ava generated a balanced screening plan with application questions, a short assessment, and a final Ava interview.",
+  };
+}
+
+function validateWorkflowResponse(value: unknown) {
+  const missing = requireJsonKeys(value, ["application_questions", "quiz_questions", "workflow_steps"]);
+  if (missing) return missing;
+  if (!(value as any).application_questions || !Array.isArray((value as any).application_questions)) return "application_questions must be an array";
+  if (!(value as any).quiz_questions || !Array.isArray((value as any).quiz_questions)) return "quiz_questions must be an array";
+  if (!(value as any).workflow_steps || !Array.isArray((value as any).workflow_steps)) return "workflow_steps must be an array";
+  return null;
+}
+
+function postProcessWorkflowData(
+  workflowData: WorkflowResponse,
+  requirePortfolio: boolean,
+): WorkflowResponse {
+  const data = {
+    application_questions: Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [],
+    quiz_questions: Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [],
+    workflow_steps: Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : [],
+    screening_plan_summary: workflowData.screening_plan_summary,
+  };
+
+  data.quiz_questions = data.quiz_questions.map((question, index) => {
+    if (question.type === "personality" || question.type === "situational" || question.type === "short_answer") {
+      return { ...question, correct_answer: null };
+    }
+
+    if (question.type === "multi_select" && Array.isArray(question.correct_answers)) {
+      const validAnswers = question.correct_answers.filter((answer) =>
+        question.options?.some((option) => String(option).toLowerCase().trim() === String(answer).toLowerCase().trim()),
+      );
+      if (validAnswers.length >= 2) {
+        return { ...question, correct_answers: validAnswers };
+      }
+
+      return {
+        ...question,
+        type: "multiple_choice",
+        correct_answer: question.options?.[0] || "",
+        correct_answers: undefined,
+      };
+    }
+
+    if (Array.isArray(question.options) && question.options.length > 0) {
+      const matchingOption = question.options.find((option) =>
+        String(option).toLowerCase().trim() === String(question.correct_answer || "").toLowerCase().trim(),
+      );
+      if (!matchingOption) {
+        return { ...question, correct_answer: question.options[0] };
+      }
+    }
+
+    return question;
+  });
+
+  if (requirePortfolio && !data.workflow_steps.some((step) => step.type === "portfolio_upload")) {
+    data.workflow_steps.unshift({
+      id: "step_portfolio",
+      type: "portfolio_upload",
+      title: "Portfolio Review",
+      description: "Share work samples relevant to the role.",
+      required: true,
+      config: { portfolio_type: "general" },
+    });
+  }
+
+  data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "voice_interview");
+
+  const hasFinalInterview = data.workflow_steps.some((step) => step.type === "chat_interview");
+  if (!hasFinalInterview) {
+    data.workflow_steps.push({
+      id: "step_final",
+      type: "chat_interview",
+      title: "Interview with Ava",
+      description: "Complete a final interview with Ava based on your earlier responses.",
+      required: true,
+      config: { focus: "behavioral" },
+    });
+  } else {
+    const nonInterviewSteps = data.workflow_steps.filter((step) => step.type !== "chat_interview");
+    const finalInterview = data.workflow_steps.find((step) => step.type === "chat_interview")!;
+    data.workflow_steps = [...nonInterviewSteps, finalInterview];
+  }
+
+  return data;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const request: WorkflowRequest = await req.json();
-    const { title, description, company, employment_type, location, difficulty, require_resume } = request;
+    const { title, description, company, employment_type, location, difficulty, require_resume, guided_setup } = request;
 
     if (!title || !description) {
       return new Response(
-        JSON.stringify({ error: 'Title and description are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Title and description are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -39,7 +367,7 @@ serve(async (req) => {
       console.error("OPENAI_API_KEY is not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -50,7 +378,7 @@ serve(async (req) => {
         quizMin: 8,
         quizMax: 10,
         stepCount: "1-2",
-        description: "Quick screening with essential checks"
+        description: "Quick screening with essential checks",
       },
       medium: {
         questionCount: "5-7",
@@ -58,7 +386,7 @@ serve(async (req) => {
         quizMin: 12,
         quizMax: 15,
         stepCount: "2-3",
-        description: "Balanced screening with thorough evaluation"
+        description: "Balanced screening with thorough evaluation",
       },
       hard: {
         questionCount: "7-10",
@@ -66,7 +394,7 @@ serve(async (req) => {
         quizMin: 18,
         quizMax: 25,
         stepCount: "2-4",
-        description: "Intensive screening with deep assessments"
+        description: "Intensive screening with deep assessment evidence",
       },
       intense: {
         questionCount: "10-15",
@@ -74,134 +402,66 @@ serve(async (req) => {
         quizMin: 25,
         quizMax: 30,
         stepCount: "3-4",
-        description: "Maximum rigor for critical & executive roles"
-      }
-    };
+        description: "Maximum rigor for critical and executive roles",
+      },
+    } as const;
 
     const config = difficultyConfig[difficulty];
-    const randomSeed = Date.now() + Math.random().toString(36).substring(7);
+    const family = inferJobFamily(title, description, guided_setup);
+    const familyGuidance = FAMILY_GUIDANCE[family] || FAMILY_GUIDANCE.general;
+    const requirePortfolio = detectCreativeRole(title, description, guided_setup);
 
-    // Detect visual/creative roles that require portfolio (narrowed list)
-    const portfolioKeywords = [
-      // Pure visual/creative roles
-      'graphic designer', 'ui designer', 'ux designer', 'web designer',
-      'product designer', 'visual designer', 'brand designer', 'marketing designer',
-      'illustrator', 'animator', 'motion graphics', 'motion designer',
-      'photographer', 'videographer', 'art director', 'creative director',
-      '3d artist', 'character artist', 'concept artist', 'game artist',
-      'level designer', 'environment artist', 'cad', 'drafter',
-      // Beauty/aesthetics roles
-      'nail tech', 'nail artist', 'hairstylist', 'makeup artist', 'beauty artist',
-      'interior designer', 'fashion designer', 'florist', 'cake decorator', 'tattoo artist',
-      // Generic creative terms (but only if not excluded)
-      'creative', 'artist', 'designer'
-    ];
+    const prompt = `You are Ava, an expert AI hiring assistant. Generate a complete screening plan for this role.
 
-    // Exclude roles that should NOT get portfolio even if they match generic terms
-    const excludeFromPortfolio = [
-      'support', 'chat support', 'customer service', 'customer support',
-      'data entry', 'admin', 'administrative', 'assistant', 'receptionist',
-      'clerk', 'operator', 'coordinator', 'manager', 'supervisor',
-      'analyst', 'accountant', 'hr', 'recruiter', 'sales', 'representative',
-      'developer', 'engineer', 'programmer', 'software', 'backend', 'frontend',
-      'fullstack', 'full-stack', 'devops', 'architect'
-    ];
+The employer wants Ava to do the work up front, so the output must feel intentional, concise, and easy for a non-technical employer to review.
 
-    const titleLower = title.toLowerCase();
-    const descLower = description.toLowerCase();
-    
-    const hasPortfolioKeyword = portfolioKeywords.some(kw => 
-      titleLower.includes(kw) || descLower.includes(kw)
-    );
-    const isExcludedRole = excludeFromPortfolio.some(kw => titleLower.includes(kw));
-    const isCreativeRole = hasPortfolioKeyword && !isExcludedRole;
+Role:
+- Title: ${title}
+- Description: ${description}
+- Company: ${company || "Not provided"}
+- Employment type: ${employment_type || "Full-time"}
+- Location: ${location || "Not specified"}
+- Difficulty: ${difficulty.toUpperCase()} (${config.description})
 
-    console.log(`Role detection - Title: "${title}", hasPortfolioKeyword: ${hasPortfolioKeyword}, isExcludedRole: ${isExcludedRole}, isCreativeRole: ${isCreativeRole}`);
+Guided setup:
+${buildGuidedSetupBlock(guided_setup, family)}
 
-    const portfolioInstruction = isCreativeRole 
-      ? `\n\n⚠️⚠️⚠️ MANDATORY PORTFOLIO REQUIREMENT ⚠️⚠️⚠️
-This is a VISUAL/CREATIVE role (detected from job title/description).
-You MUST include "portfolio_upload" as one of the workflow_steps.
-This is NON-NEGOTIABLE for this type of position.`
-      : `\n\n⚠️ Do NOT include portfolio_upload for this role - it is not a visual/creative position.`;
+Family guidance:
+- ${familyGuidance.profile}
+- Preferred steps: ${familyGuidance.preferredSteps.join(", ")}
+${familyGuidance.avoid ? `- ${familyGuidance.avoid}` : ""}
 
-    const prompt = `You are AVA, an expert AI hiring assistant. Generate a comprehensive hiring workflow for this job.${portfolioInstruction}
+Portfolio rule:
+- ${requirePortfolio ? "Include a portfolio_upload step because the role is creative or the employer explicitly wants one." : "Do not include portfolio_upload unless the role truly needs work samples."}
 
-⚠️⚠️⚠️ CRITICAL - QUESTION COUNT RANGE ENFORCEMENT ⚠️⚠️⚠️
-The user selected ${difficulty.toUpperCase()} difficulty.
-You MUST generate a number of quiz questions strictly BETWEEN ${config.quizMin} and ${config.quizMax} (inclusive).
+Hard rules:
+- Generate ${config.questionCount} application questions.
+- Generate between ${config.quizMin} and ${config.quizMax} quiz questions.
+- Prefer the lower end of the workflow step range (${config.stepCount}) unless the role obviously needs more rigor.
+- Always include these application questions: Full Name, Email Address, Phone Number, Current or Most Recent Job Title, Years of Experience.
+- Include Upload Resume only when require_resume is not false.
+- Keep the workflow concise to reduce candidate drop-off.
+- If customer-facing is yes, bias toward communication and scenario questions.
+- If deal-breakers are provided, reflect them in the screening focus.
+- Do not include voice_interview in workflow_steps.
+- The final workflow step must always be chat_interview.
 
-Job Title: ${title}
-Description: ${description}
-Company: ${company || 'Not provided - DO NOT include company name in any questions'}
-Employment Type: ${employment_type || 'Full-time'}
-Location: ${location || 'Not specified'}
-Screening Difficulty: ${difficulty.toUpperCase()} (${config.description})
+Quiz question rules:
+- Mix multiple_choice, true_false, short_answer, situational, and personality.
+- Personality and situational questions must use correct_answer: null and include fit_context.
+- multi_select questions may be used, but only when there are exactly 2 correct answers in correct_answers.
 
-**PHASE 1: Application Questions**
-Generate ${config.questionCount} essential application questions including:
-- Full Name (id: "q1", type: "text", required: true)
-- Email Address (id: "q2", type: "email", required: true)
-- Phone Number (id: "q3", type: "phone", required: true)
-- Date of Birth (id: "q4", type: "date", required: true)
-- Current/Most Recent Job Title (id: "q5", type: "text", required: true)
-- Years of Experience (id: "q6", type: "text", required: true)
-- Upload Resume (id: "qResume", type: "file", required: ${require_resume !== false})
+Workflow step rules:
+- typing_test for execution-heavy or data-entry style work.
+- video_message for communication-heavy roles.
+- chat_simulation for support roles.
+- sales_simulation for sales roles.
+- portfolio_upload only when required.
+- chat_interview must be the final step.
 
-${difficulty === 'medium' || difficulty === 'hard' || difficulty === 'intense' ? `
-Add motivation questions like:
-- "Why are you interested in this ${title} position${company ? ` at ${company}` : ''}?" (type: "textarea")
-- "What makes you the ideal candidate?" (type: "textarea")
-
-⚠️ CRITICAL: If company name is "Not provided" or not specified above, do NOT use placeholder text like "[Company Name]", "Placeholder", or brackets in questions. Simply omit the company name entirely from questions.
-` : ''}
-
-**PHASE 2: Timed Quiz (${config.quizMin}-${config.quizMax} questions)**
-Generate a MIX of question types:
-- multiple_choice: 4 options, 1 correct (15-30 seconds)
-- multi_select: 4 options, EXACTLY 2 correct answers (20-30 seconds). Generate ~15-20% of knowledge questions as this type. Use "correct_answers" (array) instead of "correct_answer".
-- true_false: True/False options (10-15 seconds)
-- short_answer: Brief text response (30-45 seconds)
-- personality: Behavioral/work style preference (20-30 seconds). These are NOT right/wrong. Set correct_answer to null and add "fit_context" field describing ideal trait for this role.
-- situational: Job scenario choices (25-35 seconds). These are NOT right/wrong. Set correct_answer to null and add "fit_context" field describing ideal response for this role.
-
-IMPORTANT for personality & situational questions:
-- correct_answer MUST be null (these are preference-based, not right/wrong)
-- Add "fit_context" (string) describing what the ideal answer looks like for THIS specific role
-- Example: {"type": "personality", "question": "You prefer to work independently", "options": ["Strongly Agree", "Agree", "Neutral", "Disagree"], "correct_answer": null, "fit_context": "This remote role benefits from independent workers. Agree/Strongly Agree indicates strong fit.", "category": "work_style"}
-
-IMPORTANT for multi_select questions:
-- Use "correct_answers" (array of 2 option strings) instead of "correct_answer"
-- Example: {"type": "multi_select", "question": "Which are valid...", "options": ["A", "B", "C", "D"], "correct_answers": ["A", "C"], "time_limit_seconds": 25, "category": "technical"}
-
-Each quiz question must have: id, type, question, options (if applicable), correct_answer (null for personality/situational), time_limit_seconds, category
-
-**PHASE 3: Workflow Steps (${config.stepCount} steps)**
-⚠️ IMPORTANT: Prefer the LOWER end of this range to avoid candidate drop-off.
-Only add steps that are DIRECTLY relevant to the job role.
-Choose appropriate steps based on the job role:
-- typing_test: For customer service/data entry roles (config: {"min_wpm": 40})
-- video_message: For communication-focused roles (config: {"min_duration_seconds": 30, "max_duration_seconds": 60})
-- portfolio_upload: ONLY for visual/creative roles like designers, artists, photographers, nail techs (config: {"portfolio_type": "general"})
-- chat_simulation: For customer support roles (config: {"scenario": "Handle a customer complaint"})
-- sales_simulation: For sales, business development, and account management roles - tests pitching and objection handling (config: {"product": "enterprise solution"})
-
-⚠️ CRITICAL: ALWAYS include EXACTLY ONE final interview step ⚠️
-
-**The FINAL step MUST be:**
-- chat_interview: Text-based interview with Ava (config: {"focus": "behavioral"})
-
-NOTE: "Ava Interview" (voice_interview) is a PREMIUM post-review feature that employers can optionally add. 
-It is NOT included in the generated workflow_steps - employers manually add it if they want it.
-Ava Interview appears AFTER the Review phase, allowing employers to selectively interview candidates who pass review.
-
-The chat_interview is the culminating assessment where Ava has access to ALL candidate data from previous phases.
-Place chat_interview AFTER all other workflow steps.
-
-Random Seed: ${randomSeed}
-
-Return ONLY valid JSON:
+Return ONLY valid JSON with this shape:
 {
+  "screening_plan_summary": "One short plain-English summary of why Ava chose this plan.",
   "application_questions": [
     {"id": "q1", "type": "text", "question": "Full Name", "required": true, "placeholder": "Enter your full name"}
   ],
@@ -212,151 +472,44 @@ Return ONLY valid JSON:
     {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}},
     {"id": "stepFinal", "type": "chat_interview", "title": "Interview with Ava", "description": "Final interview with Ava", "required": true, "config": {"focus": "behavioral"}}
   ]
-}
+}`;
 
-IMPORTANT: 
-- The workflow_steps array MUST end with chat_interview. This is mandatory.
-- Do NOT include voice_interview in workflow_steps - it's a premium post-review feature added manually by employers.`;
+    console.log("Generating workflow for:", title, "with difficulty:", difficulty, "family:", family);
 
-    console.log("Generating workflow for:", title, "with difficulty:", difficulty);
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          { role: "system", content: "You are AVA, an expert AI hiring assistant. Generate comprehensive hiring workflows. Always respond with valid JSON only." },
-          { role: "user", content: prompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-      }),
+    const { data } = await callOpenAIJson<WorkflowResponse>({
+      apiKey: OPENAI_API_KEY,
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are Ava, an expert AI hiring assistant. Always return valid JSON only.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.2,
+      maxCompletionTokens: 2600,
+      retries: 2,
+      validator: validateWorkflowResponse,
+      fallback: () => makeFallbackWorkflow(request, family, requirePortfolio),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add more credits." }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`AI gateway error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      throw new Error("No content in AI response");
-    }
-
-    let workflowData;
-    try {
-      // Clean the content - remove potential markdown code blocks or extra whitespace
-      let cleanContent = content.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanContent.startsWith('```json')) {
-        cleanContent = cleanContent.slice(7);
-      } else if (cleanContent.startsWith('```')) {
-        cleanContent = cleanContent.slice(3);
-      }
-      if (cleanContent.endsWith('```')) {
-        cleanContent = cleanContent.slice(0, -3);
-      }
-      cleanContent = cleanContent.trim();
-      
-      workflowData = JSON.parse(cleanContent);
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", content.substring(0, 500) + "...");
-      console.error("Parse error:", parseError);
-      
-      // Try to extract JSON from the response if it's wrapped in other text
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          workflowData = JSON.parse(jsonMatch[0]);
-          console.log("Successfully extracted JSON from response");
-        } catch {
-          throw new Error("Failed to parse workflow data");
-        }
-      } else {
-        throw new Error("Failed to parse workflow data");
-      }
-    }
-
-    // Validate quiz questions - ensure each has valid answers
-    if (workflowData.quiz_questions && Array.isArray(workflowData.quiz_questions)) {
-      workflowData.quiz_questions = workflowData.quiz_questions.map((q: any, idx: number) => {
-        // Skip validation for personality/situational - they have no correct answer
-        if (q.type === 'personality' || q.type === 'situational') {
-          q.correct_answer = null;
-          return q;
-        }
-        
-        // Validate multi_select questions
-        if (q.type === 'multi_select' && q.correct_answers && Array.isArray(q.correct_answers)) {
-          // Ensure all correct_answers match options
-          q.correct_answers = q.correct_answers.filter((ca: string) =>
-            q.options?.some((opt: string) => String(opt).toLowerCase().trim() === String(ca).toLowerCase().trim())
-          );
-          if (q.correct_answers.length < 2) {
-            console.warn(`Multi-select question ${idx + 1} has < 2 valid correct_answers. Converting to multiple_choice.`);
-            q.type = 'multiple_choice';
-            q.correct_answer = q.options?.[0] || '';
-            delete q.correct_answers;
-          }
-          return q;
-        }
-        
-        // Validate standard questions with options (multiple choice, true/false)
-        if (q.options && Array.isArray(q.options) && q.options.length > 0) {
-          const correctAnswer = q.correct_answer;
-          
-          // Check if correct_answer matches any option (case-insensitive, trimmed)
-          const matchIndex = q.options.findIndex((opt: string) => 
-            String(opt).toLowerCase().trim() === String(correctAnswer || '').toLowerCase().trim()
-          );
-          
-          if (matchIndex === -1) {
-            console.warn(`Quiz question ${idx + 1} has invalid correct_answer "${correctAnswer}". Defaulting to first option.`);
-            q.correct_answer = q.options[0];
-          }
-        }
-        return q;
-      });
-    }
+    const workflowData = postProcessWorkflowData(data, requirePortfolio);
 
     console.log("Generated workflow:", {
-      application_questions: workflowData.application_questions?.length || 0,
-      quiz_questions: workflowData.quiz_questions?.length || 0,
-      workflow_steps: workflowData.workflow_steps?.length || 0
+      application_questions: workflowData.application_questions.length,
+      quiz_questions: workflowData.quiz_questions.length,
+      workflow_steps: workflowData.workflow_steps.length,
     });
 
     return new Response(
       JSON.stringify(workflowData),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
     console.error("Error in ai-generate-workflow:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

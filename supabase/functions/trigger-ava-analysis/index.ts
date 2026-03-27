@@ -63,6 +63,167 @@ function detectResumeUrl(
   return null;
 }
 
+type RecommendedAction = "advance" | "review" | "reject";
+
+interface AvaScorecard {
+  overallScore: number;
+  confidence: number;
+  recommendedAction: RecommendedAction;
+  hardRequirementStatus: "met" | "mixed" | "at_risk";
+  dimensionScores: {
+    hard_requirements: number;
+    role_competency: number;
+    communication: number;
+    execution_reliability: number;
+    work_style_fit: number;
+    evidence_quality: number;
+  };
+  riskFlags: string[];
+  rationale: string;
+  evidenceRefs: string[];
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function averageOf(values: Array<number | null | undefined>, fallback: number) {
+  const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (numbers.length === 0) return fallback;
+  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+function buildAvaScorecard(params: {
+  finalScore: number | null;
+  passingScore: number;
+  quizScore: number | null;
+  typingTest?: Record<string, any> | null;
+  voiceScore: number | null;
+  portfolioScore: number | null;
+  chatSimulationScore: number | null;
+  salesSimulationScore: number | null;
+  analysisText: string;
+  resumeUnavailable: boolean;
+  workflowSteps: any[];
+}) {
+  const {
+    finalScore,
+    passingScore,
+    quizScore,
+    typingTest,
+    voiceScore,
+    portfolioScore,
+    chatSimulationScore,
+    salesSimulationScore,
+    analysisText,
+    resumeUnavailable,
+    workflowSteps,
+  } = params;
+
+  const safeScore = clampPercent(finalScore ?? 0);
+  const riskFlags: string[] = [];
+  const evidenceRefs: string[] = [];
+
+  if (!resumeUnavailable) evidenceRefs.push("resume");
+  if (typeof quizScore === "number") evidenceRefs.push(`quiz:${quizScore}`);
+  if (typingTest?.wpm) evidenceRefs.push(`typing:${typingTest.wpm}wpm`);
+  if (typeof voiceScore === "number") evidenceRefs.push(`voice:${voiceScore}`);
+  if (typeof portfolioScore === "number") evidenceRefs.push(`portfolio:${portfolioScore}`);
+  if (typeof chatSimulationScore === "number") evidenceRefs.push(`chat_simulation:${chatSimulationScore}`);
+  if (typeof salesSimulationScore === "number") evidenceRefs.push(`sales_simulation:${salesSimulationScore}`);
+  if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
+
+  if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
+  if (safeScore < passingScore) riskFlags.push("Overall score is below the passing threshold");
+  if (/WRONG_RESUME|MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
+  if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
+  if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
+
+  const hardRequirements = clampPercent(
+    averageOf([safeScore, quizScore, portfolioScore], safeScore) - (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 12 : 0),
+  );
+  const roleCompetency = clampPercent(
+    averageOf([safeScore, quizScore, portfolioScore, chatSimulationScore, salesSimulationScore], safeScore),
+  );
+  const communication = clampPercent(
+    averageOf([voiceScore, chatSimulationScore, salesSimulationScore, safeScore - 4], safeScore - 4),
+  );
+  const executionReliability = clampPercent(
+    averageOf([
+      safeScore,
+      typingTest?.score as number | undefined,
+      quizScore,
+      typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined,
+    ], safeScore),
+  );
+  const workStyleFit = clampPercent(averageOf([safeScore, chatSimulationScore, voiceScore], safeScore - 3));
+  const evidenceQuality = clampPercent(30 + evidenceRefs.length * 9 - (resumeUnavailable ? 10 : 0));
+
+  const confidence = clampPercent(
+    42 +
+      evidenceRefs.length * 7 +
+      (safeScore >= passingScore ? 8 : -4) +
+      (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0),
+  );
+
+  const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] =
+    riskFlags.some((flag) => flag.includes("Critical role-fit") || flag.includes("authenticity"))
+      ? "at_risk"
+      : safeScore >= passingScore
+        ? "met"
+        : "mixed";
+
+  let recommendedAction: RecommendedAction = "reject";
+  if (safeScore >= passingScore + 10 && confidence >= 65 && hardRequirementStatus !== "at_risk") {
+    recommendedAction = "advance";
+  } else if (safeScore >= Math.max(45, passingScore - 8)) {
+    recommendedAction = "review";
+  }
+
+  const rationale =
+    recommendedAction === "advance"
+      ? "Strong overall evidence and confidence support automatic advancement."
+      : recommendedAction === "review"
+        ? "Signals are mixed or confidence is moderate, so this applicant should land in human review instead of being auto-rejected."
+        : "Available evidence is below the role threshold, so Ava recommends rejection.";
+
+  const scorecard: AvaScorecard = {
+    overallScore: safeScore,
+    confidence,
+    recommendedAction,
+    hardRequirementStatus,
+    dimensionScores: {
+      hard_requirements: hardRequirements,
+      role_competency: roleCompetency,
+      communication,
+      execution_reliability: executionReliability,
+      work_style_fit: workStyleFit,
+      evidence_quality: evidenceQuality,
+    },
+    riskFlags: Array.from(new Set(riskFlags)),
+    rationale,
+    evidenceRefs,
+  };
+
+  return scorecard;
+}
+
+function resolveAutopilotAction(
+  score: number | null,
+  passingScore: number,
+  scorecard?: AvaScorecard | null,
+): RecommendedAction {
+  if (scorecard?.recommendedAction) {
+    return scorecard.recommendedAction;
+  }
+
+  if (score !== null && score >= passingScore) {
+    return "advance";
+  }
+
+  return "reject";
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -227,10 +388,43 @@ serve(async (req) => {
           const workflowSteps = (jobData?.workflow_steps as any[]) || [];
           const quizQuestions = jobData?.quiz_questions as any[] | undefined;
           const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+          const existingScorecard = (tempNotes.avaScorecard || null) as AvaScorecard | null;
+          const autopilotAction = resolveAutopilotAction(existingScore, passingScore, existingScorecard);
           
-          console.log("[trigger-ava-analysis] Autopilot decision with existing score:", existingScore, "passingScore:", passingScore);
+          console.log("[trigger-ava-analysis] Autopilot decision with existing score:", existingScore, "passingScore:", passingScore, "action:", autopilotAction);
           
-          if (existingScore !== null && existingScore >= passingScore) {
+          if (autopilotAction === "review") {
+            const reviewReason = existingScorecard?.rationale || "Ava collected mixed signals, so this application has been routed to human review.";
+
+            const { error: reviewError } = await supabaseAdmin
+              .from("applications")
+              .update({
+                phase: "review",
+                status: "reviewing",
+                phase_ai_analysis: reviewReason,
+              })
+              .eq("id", applicationId);
+
+            if (reviewError) {
+              console.error("[trigger-ava-analysis] Failed to route application to review:", reviewError);
+            }
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                message: "Ava routed this application to human review",
+                score: existingScore,
+                decision: "advanced",
+                nextPhaseId: "review",
+                nextPhaseTitle: "Review",
+                routedToReview: true,
+                scorecard: existingScorecard,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          if (autopilotAction === "advance" && existingScore !== null) {
             // PASSED - determine next phase and advance
             let nextPhaseId = "application";
             let nextPhaseTitle = "Application";
@@ -314,6 +508,9 @@ serve(async (req) => {
                 score: existingScore,
                 decision: "advanced",
                 nextPhase: nextPhaseId,
+                nextPhaseId,
+                nextPhaseTitle,
+                scorecard: existingScorecard,
               }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
@@ -848,6 +1045,8 @@ ${interviewType} Interview with AVA Results:
     const quizScore = quizData?.score || quizData?.percentage || null;
     const typingTest = parsedNotes.typingTestResult;
     const voiceResult = application.voice_interview_result as any;
+    const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || null;
+    const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || null;
     
     // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
     let portfolioScore: number | null = null;
@@ -927,6 +1126,24 @@ ${interviewType} Interview with AVA Results:
     }
     
     console.log("[trigger-ava-analysis] Final score after weighting and floors:", finalScore, "(AI raw score was:", newScore, ")");
+    const passingScore = (job?.passing_score as number) || 60;
+    const scorecard = buildAvaScorecard({
+      finalScore,
+      passingScore,
+      quizScore,
+      typingTest,
+      voiceScore: voiceResult?.overall_score || null,
+      portfolioScore,
+      chatSimulationScore,
+      salesSimulationScore,
+      analysisText,
+      resumeUnavailable,
+      workflowSteps,
+    });
+    const updatedNotes = {
+      ...parsedNotes,
+      avaScorecard: scorecard,
+    };
 
     // Update the application with AI analysis using admin client (bypasses RLS)
     // Save both the raw resume score (newScore) and the weighted overall score (finalScore)
@@ -937,6 +1154,7 @@ ${interviewType} Interview with AVA Results:
         ai_score: finalScore && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
         resume_score: resumeUnavailable ? null : (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
+        notes: JSON.stringify(updatedNotes),
       })
       .eq("id", applicationId);
 
@@ -952,14 +1170,43 @@ ${interviewType} Interview with AVA Results:
 
     // Handle autopilot decision if requested
     if (autopilotDecision) {
-      const passingScore = (job?.passing_score as number) || 60;
       const quizQuestions = job?.quiz_questions as any[] | undefined;
       const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
       const workflowSteps = (job?.workflow_steps as any[]) || [];
+      const autopilotAction = resolveAutopilotAction(finalScore, passingScore, scorecard);
       
-      console.log("[trigger-ava-analysis] Autopilot decision: score=", finalScore, "passingScore=", passingScore, "hasQuizQuestions=", hasQuizQuestions);
+      console.log("[trigger-ava-analysis] Autopilot decision: score=", finalScore, "passingScore=", passingScore, "hasQuizQuestions=", hasQuizQuestions, "action=", autopilotAction);
       
-      if (finalScore !== null && finalScore >= passingScore) {
+      if (autopilotAction === "review") {
+        const { error: reviewError } = await supabaseAdmin
+          .from("applications")
+          .update({
+            phase: "review",
+            status: "reviewing",
+            phase_ai_analysis: scorecard.rationale,
+          })
+          .eq("id", applicationId);
+
+        if (reviewError) {
+          console.error("[trigger-ava-analysis] Failed to route application to review:", reviewError);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Analysis completed and routed to human review",
+            score: finalScore,
+            decision: "advanced",
+            nextPhaseId: "review",
+            nextPhaseTitle: "Review",
+            routedToReview: true,
+            scorecard,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (autopilotAction === "advance" && finalScore !== null) {
         // PASSED - determine next phase and advance
         let nextPhaseId = "application";
         let nextPhaseTitle = "Application";
@@ -1177,6 +1424,7 @@ ${interviewType} Interview with AVA Results:
             decision: "advanced",
             nextPhaseId,
             nextPhaseTitle,
+            scorecard,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -1277,6 +1525,7 @@ ${interviewType} Interview with AVA Results:
             score: finalScore,
             decision: "rejected",
             reason: rejectReason,
+            scorecard,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -1289,6 +1538,7 @@ ${interviewType} Interview with AVA Results:
         message: "Analysis completed and saved",
         score: finalScore,
         forced: force,
+        scorecard,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

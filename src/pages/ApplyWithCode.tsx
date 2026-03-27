@@ -11,9 +11,103 @@ import {
   Loader2, 
   AlertCircle,
   Briefcase,
-  KeyRound
+  KeyRound,
+  Clock3,
+  ArrowRight,
+  ClipboardList,
+  FileText,
+  Sparkles,
+  RefreshCw,
+  CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+
+interface JobPreview {
+  id: string;
+  title: string;
+  description: string;
+  location: string | null;
+  job_type: string | null;
+  experience_level: string | null;
+  department: string | null;
+  application_questions: Array<{ id: string; question: string; type: string; required?: boolean }> | null;
+  quiz_questions: Array<{ id: string; question: string; type: string; time_limit_seconds?: number }> | null;
+  workflow_steps: Array<{ id: string; title?: string; type: string; description?: string }> | null;
+  require_resume: boolean | null;
+}
+
+const STEP_TIME_MAP: Record<string, number> = {
+  typing_test: 5,
+  video_message: 5,
+  chat_simulation: 10,
+  sales_simulation: 10,
+  portfolio_upload: 5,
+  chat_interview: 12,
+  voice_interview: 15,
+};
+
+function estimateCandidateTime(job: JobPreview) {
+  const questionMinutes = (job.application_questions?.length || 0) * 1;
+  const quizMinutes = (job.quiz_questions || []).reduce(
+    (total, question) => total + Math.ceil((question.time_limit_seconds || 30) / 60),
+    0
+  );
+  const workflowMinutes = (job.workflow_steps || []).reduce(
+    (total, step) => total + (STEP_TIME_MAP[step.type] || 5),
+    0
+  );
+
+  const total = Math.max(5, questionMinutes + quizMinutes + workflowMinutes + 5);
+  return {
+    total,
+    range: `${Math.max(5, total - 3)}-${total + 4} min`,
+  };
+}
+
+function getRequiredMaterials(job: JobPreview) {
+  const materials = new Set<string>();
+
+  if (job.require_resume !== false) {
+    materials.add("Resume");
+  }
+
+  if ((job.application_questions || []).some((question) => question.type === "file")) {
+    materials.add("Requested file upload");
+  }
+
+  if ((job.quiz_questions || []).length > 0) {
+    materials.add("Time for a short assessment");
+  }
+
+  if ((job.workflow_steps || []).some((step) => step.type === "portfolio_upload")) {
+    materials.add("Portfolio samples");
+  }
+
+  if ((job.workflow_steps || []).some((step) => step.type === "video_message" || step.type === "voice_interview")) {
+    materials.add("A quiet place for a recording");
+  }
+
+  return Array.from(materials);
+}
+
+function getPreviewStages(job: JobPreview) {
+  const stages: string[] = [];
+
+  if ((job.application_questions || []).length > 0 || job.require_resume !== false) {
+    stages.push("Application review");
+  }
+
+  if ((job.quiz_questions || []).length > 0) {
+    stages.push("Assessment");
+  }
+
+  (job.workflow_steps || []).forEach((step) => {
+    stages.push(step.title || step.type.replace(/_/g, " "));
+  });
+
+  return stages.length > 0 ? stages : ["Review"];
+}
 
 export default function ApplyWithCode() {
   const { role } = useAuth();
@@ -24,6 +118,7 @@ export default function ApplyWithCode() {
   const [jobCode, setJobCode] = useState(initialCode);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
+  const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
 
   const isEmployer = role === "employer";
 
@@ -39,20 +134,21 @@ export default function ApplyWithCode() {
     try {
       const { data, error: fetchError } = await supabase
         .from("jobs")
-        .select("id")
+        .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume")
         .eq("job_code", jobCode.trim().toUpperCase())
         .eq("status", "published")
         .single();
 
       if (fetchError || !data) {
         setError("No job found with this code. Please check and try again.");
+        setPreviewJob(null);
         return;
       }
 
-      // Navigate to the full job details page
-      navigate(`/job/${data.id}`);
+      setPreviewJob(data as JobPreview);
     } catch (err) {
       setError("An error occurred while searching. Please try again.");
+      setPreviewJob(null);
     } finally {
       setIsSearching(false);
     }
@@ -162,6 +258,116 @@ export default function ApplyWithCode() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <AnimatePresence>
+        {previewJob && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-2xl mt-8"
+          >
+            <Card className="relative overflow-hidden border-border bg-card shadow-xl">
+              <div className="h-1.5 bg-gradient-to-r from-primary via-cyan-400 to-emerald-400" />
+              <CardContent className="p-6 sm:p-8 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="gap-1">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Job preview
+                    </Badge>
+                    {previewJob.department && <Badge variant="outline">{previewJob.department}</Badge>}
+                    {previewJob.job_type && <Badge variant="outline" className="capitalize">{previewJob.job_type.replace(/_/g, " ")}</Badge>}
+                    {previewJob.experience_level && <Badge variant="outline" className="capitalize">{previewJob.experience_level}</Badge>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <h2 className="text-2xl sm:text-3xl font-semibold text-foreground">{previewJob.title}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {previewJob.location ? previewJob.location : "Location not specified"}{" "}
+                      {previewJob.department ? `• ${previewJob.department}` : ""}
+                    </p>
+                  </div>
+
+                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed line-clamp-4">
+                    {previewJob.description}
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 text-primary">
+                      <Clock3 className="h-4 w-4" />
+                      <span className="text-sm font-medium">Estimated time</span>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">{estimateCandidateTime(previewJob).range}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 text-primary">
+                      <ClipboardList className="h-4 w-4" />
+                      <span className="text-sm font-medium">Stages</span>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">{getPreviewStages(previewJob).length}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-center gap-2 text-primary">
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm font-medium">Materials</span>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold text-foreground">{getRequiredMaterials(previewJob).length}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="text-sm font-medium text-foreground mb-3">What you’ll do</p>
+                    <div className="space-y-2">
+                      {getPreviewStages(previewJob).slice(0, 5).map((stage, index) => (
+                        <div key={`${stage}-${index}`} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                          <span>{stage}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="text-sm font-medium text-foreground mb-3">What you should have ready</p>
+                    <div className="flex flex-wrap gap-2">
+                      {getRequiredMaterials(previewJob).map((material) => (
+                        <Badge key={material} variant="secondary" className="max-w-full whitespace-normal text-left">
+                          {material}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => navigate(`/job/${previewJob.id}`)}
+                    size="lg"
+                    className="flex-1 gap-2"
+                  >
+                    Continue to application
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setPreviewJob(null)}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Search another code
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
