@@ -102,6 +102,7 @@ import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { RefreshCw } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
@@ -298,7 +299,7 @@ export default function CreateJob() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isEditMode = !!id;
-  const { role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
@@ -493,6 +494,10 @@ export default function CreateJob() {
         
         // Clear localStorage to prevent duplicate loads
         localStorage.removeItem("guestJobData");
+        setSearchParams((prev) => {
+          prev.delete("guestDraft");
+          return prev;
+        }, { replace: true });
         
         toast.success("Welcome! Your job is ready to publish");
       } catch (error) {
@@ -1034,6 +1039,10 @@ export default function CreateJob() {
       return step;
     }));
   };
+
+  if (authLoading || (user && role === null)) {
+    return <AuthLoadingScreen variant="employer" />;
+  }
 
   if (role !== "employer") {
     navigate("/dashboard");

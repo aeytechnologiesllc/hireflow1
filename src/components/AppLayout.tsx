@@ -204,6 +204,11 @@ export default function AppLayout() {
 
   const isCandidateRoute = location.pathname.startsWith("/candidate");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
+  const isGuestDraftHandoff =
+    !isCandidateRoute &&
+    location.pathname === "/jobs/create" &&
+    (searchParams.get("guestDraft") === "1" ||
+      (typeof window !== "undefined" && Boolean(window.localStorage.getItem("guestJobData"))));
 
   // Show loading while auth is loading
   if (loading) {
@@ -263,7 +268,7 @@ export default function AppLayout() {
   }
 
   // Show onboarding wizard for employers only
-  if (hookNeedsOnboarding) {
+  if (hookNeedsOnboarding && !isGuestDraftHandoff) {
     return <OnboardingWizard onComplete={() => {/* navigation handled inside wizard */}} />;
   }
 

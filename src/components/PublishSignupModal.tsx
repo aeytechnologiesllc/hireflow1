@@ -8,6 +8,8 @@ import { motion } from "framer-motion";
 import { Loader2, Sparkles, Check, Circle, PartyPopper, ArrowRight, Briefcase, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { z } from "zod";
 import avaOrb from "@/assets/ava-orb.png";
 import PremiumCelebration from "@/components/animations/PremiumCelebration";
@@ -105,6 +107,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationName, setCelebrationName] = useState("");
+  const [postAuthRoute, setPostAuthRoute] = useState("/jobs/create?guestDraft=1");
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -118,6 +121,24 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   // Email validation state
   const signInEmailValidation = validateEmail(signInEmail);
   const signUpEmailValidation = validateEmail(signUpEmail);
+
+  const preparePostAuthRoute = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return "/jobs/create?guestDraft=1";
+    }
+
+    const { route } = await resolvePostAuthDestination({
+      userId: user.id,
+      portalRole: "employer",
+      redirectTo: "createJob",
+    });
+
+    return route === "/jobs/create" ? "/jobs/create?guestDraft=1" : route;
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +167,8 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       });
       setIsLoading(false);
     } else {
+      const resolvedRoute = await preparePostAuthRoute();
+      setPostAuthRoute(resolvedRoute);
       setCelebrationName(signInEmail.split("@")[0]);
       setShowCelebration(true);
     }
@@ -153,7 +176,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
 
   const handleCelebrationComplete = () => {
     setShowCelebration(false);
-    navigate("/auth?redirect=createJob");
+    navigate(postAuthRoute);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -182,6 +205,8 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       toast({ variant: "warning", title: "Sign Up Failed", description: errorMessage });
       setIsLoading(false);
     } else {
+      const resolvedRoute = await preparePostAuthRoute();
+      setPostAuthRoute(resolvedRoute);
       setCelebrationName(signUpName);
       setShowCelebration(true);
     }

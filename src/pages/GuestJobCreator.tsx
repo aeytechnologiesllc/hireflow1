@@ -216,6 +216,10 @@ export default function GuestJobCreator() {
   // If user is already logged in, redirect to full creator
   useEffect(() => {
     if (user && !authLoading) {
+      const hasGuestDraft = typeof window !== "undefined" && Boolean(window.localStorage.getItem("guestJobData"));
+      if (hasGuestDraft) {
+        return;
+      }
       navigate("/jobs/create");
     }
   }, [user, authLoading, navigate]);
