@@ -367,7 +367,37 @@ serve(async (req) => {
     // Create admin client to bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const {
+      data: { user: requestingUser },
+      error: requestingUserError,
+    } = await supabaseUserClient.auth.getUser();
+
+    if (requestingUserError || !requestingUser) {
+      console.error("[trigger-ava-analysis] Invalid auth token:", requestingUserError);
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Fetch application data with all job fields needed for autopilot decision
     const { data: application, error: fetchError } = await supabaseAdmin
@@ -387,8 +417,43 @@ serve(async (req) => {
       );
     }
 
-    // ========== AI ANALYSES LIMIT CHECK ==========
     const employerId = (application.jobs as any)?.employer_id;
+
+    const isCandidateOwner = application.candidate_id === requestingUser.id;
+    const isEmployerOwner = employerId === requestingUser.id;
+
+    const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
+      employerId
+        ? supabaseAdmin
+            .from("team_members")
+            .select("id")
+            .eq("user_id", requestingUser.id)
+            .eq("employer_id", employerId)
+            .eq("status", "active")
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", requestingUser.id)
+        .eq("role", "developer")
+        .maybeSingle(),
+    ]);
+
+    if (!isCandidateOwner && !isEmployerOwner && !teamMembership && !developerRole) {
+      console.warn("[trigger-ava-analysis] Unauthorized analysis attempt", {
+        requesterId: requestingUser.id,
+        applicationId,
+        employerId,
+        candidateId: application.candidate_id,
+      });
+      return new Response(
+        JSON.stringify({ error: "You do not have permission to analyze this application" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== AI ANALYSES LIMIT CHECK ==========
     if (employerId) {
       // Get employer's subscription
       const { data: subscription } = await supabaseAdmin

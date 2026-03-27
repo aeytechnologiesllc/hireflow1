@@ -61,7 +61,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.trigger-ava-analysis]
-verify_jwt = true
+verify_jwt = false
 
 [functions.purchase-blueprint]
 verify_jwt = true
