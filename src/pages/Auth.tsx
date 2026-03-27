@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+import { resolvePostAuthDestination } from "@/lib/authRouting";
 
 // Detect if running inside a WebView (Natively or generic)
 const isWebView = () => {
@@ -69,8 +70,10 @@ export default function Auth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
   const formRef = useRef<HTMLDivElement>(null);
+  const redirectingRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
@@ -149,12 +152,51 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [searchParams]);
 
-  useEffect(() => {
-    // Don't redirect if user is in password reset mode
-    if (user && !authLoading && !isResettingPassword) {
-      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
+  const routeAuthenticatedUser = useCallback(async () => {
+    if (redirectingRef.current) return;
+
+    redirectingRef.current = true;
+    setIsRedirecting(true);
+
+    let navigated = false;
+
+    try {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        return;
+      }
+
+      const { route } = await resolvePostAuthDestination({
+        userId: currentUser.id,
+        portalRole: "employer",
+        redirectTo,
+      });
+
+      navigated = true;
+      navigate(route, { replace: true });
+    } catch (error) {
+      console.error("Error resolving employer auth destination:", error);
+      toast({
+        variant: "warning",
+        title: "Unable to finish sign in",
+        description: "We couldn't determine where to send your account. Please try again.",
+      });
+    } finally {
+      if (!navigated) {
+        redirectingRef.current = false;
+        setIsRedirecting(false);
+      }
     }
-  }, [user, authLoading, navigate, redirectTo, isResettingPassword]);
+  }, [navigate, redirectTo, toast]);
+
+  useEffect(() => {
+    if (user && !authLoading && !isResettingPassword && !isWaitingForSession) {
+      void routeAuthenticatedUser();
+    }
+  }, [user, authLoading, isResettingPassword, isWaitingForSession, routeAuthenticatedUser]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +232,7 @@ export default function Auth() {
         description: "You have successfully signed in.",
         duration: 1500,
       });
-      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
+      await routeAuthenticatedUser();
     }
 
     setIsLoading(false);
@@ -235,15 +277,12 @@ export default function Auth() {
         duration: 5000,
       });
     } else {
-      // Assign employer role immediately after signup
-      await supabase.rpc("assign_user_role", { p_role: "employer" });
-
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now start using the platform.",
         duration: 1500,
       });
-      navigate(redirectTo === "createJob" ? "/jobs/create" : "/dashboard");
+      await routeAuthenticatedUser();
     }
 
     setIsLoading(false);
@@ -385,13 +424,13 @@ export default function Auth() {
       setIsResettingPassword(false);
       setNewPassword("");
       setConfirmPassword("");
-      navigate("/dashboard");
+      await routeAuthenticatedUser();
     }
 
     setIsLoading(false);
   };
 
-  if (authLoading || isWaitingForSession) {
+  if (authLoading || isWaitingForSession || isRedirecting) {
     return <AuthLoadingScreen variant="employer" />;
   }
 

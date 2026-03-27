@@ -28,6 +28,7 @@ import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSucc
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getSignedOutRoute } from "@/lib/authRouting";
 
 export default function Settings() {
   const { user, role, loading } = useAuth();
@@ -147,16 +148,24 @@ export default function Settings() {
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
+    const signedOutRoute = getSignedOutRoute(role);
+
     try {
-      const { data, error } = await supabase.functions.invoke('delete-account');
+      const { error } = await supabase.functions.invoke('delete-account');
 
       if (error) {
         throw error;
       }
 
       toast.success("Account deleted successfully");
-      await supabase.auth.signOut();
-      navigate("/auth");
+
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.warn("Local sign out after delete failed:", signOutError);
+      }
+
+      navigate(signedOutRoute, { replace: true });
     } catch (error) {
       console.error("Delete account error:", error);
       toast.error("Failed to delete account. Please try again or contact support.");

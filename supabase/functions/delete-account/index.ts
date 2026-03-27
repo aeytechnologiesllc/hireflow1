@@ -6,6 +6,92 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const deleteOperations = [
+  { table: 'push_subscriptions', columns: ['user_id'] },
+  { table: 'notifications', columns: ['user_id'] },
+  { table: 'messages', columns: ['sender_id', 'receiver_id'] },
+  { table: 'document_audit_logs', columns: ['user_id'] },
+  { table: 'blueprint_purchases', columns: ['user_id'] },
+  { table: 'voice_credits', columns: ['user_id'] },
+  { table: 'subscription_usage', columns: ['user_id'] },
+  { table: 'subscriptions', columns: ['user_id'] },
+  { table: 'document_templates', columns: ['employer_id'] },
+  { table: 'team_invitations', columns: ['inviter_id'] },
+  { table: 'team_members', columns: ['user_id', 'employer_id'] },
+  { table: 'document_requests', columns: ['candidate_id', 'employer_id', 'reviewed_by'] },
+  { table: 'documents', columns: ['sender_id', 'recipient_id'] },
+  { table: 'applications', columns: ['candidate_id'] },
+  { table: 'jobs', columns: ['employer_id'] },
+  { table: 'profiles', columns: ['user_id'] },
+  { table: 'user_roles', columns: ['user_id'] },
+] as const;
+
+const storageBuckets = [
+  'avatars',
+  'resumes',
+  'portfolios',
+  'videos',
+  'message-attachments',
+  'documents',
+  'requested-documents',
+] as const;
+
+const STORAGE_REMOVE_BATCH_SIZE = 100;
+
+async function cleanupUserStorage(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  for (const bucket of storageBuckets) {
+    try {
+      const storageApi = supabaseAdmin.storage.from(bucket) as any;
+
+      if (typeof storageApi.listV2 !== 'function') {
+        console.log(`Skipping storage cleanup for ${bucket}: listV2 is unavailable`);
+        continue;
+      }
+
+      const keys: string[] = [];
+      let cursor: string | undefined;
+
+      do {
+        const { data, error } = await storageApi.listV2({
+          prefix: `${userId}/`,
+          limit: 1000,
+          cursor,
+        });
+
+        if (error) {
+          console.log(`Note: Could not list storage objects for ${bucket}:`, error.message);
+          break;
+        }
+
+        const objects = data?.objects ?? [];
+        keys.push(
+          ...objects
+            .map((object: { key?: string }) => object.key)
+            .filter((key: string | undefined): key is string => Boolean(key)),
+        );
+
+        cursor = data?.hasNext ? data?.nextCursor : undefined;
+      } while (cursor);
+
+      for (let index = 0; index < keys.length; index += STORAGE_REMOVE_BATCH_SIZE) {
+        const batch = keys.slice(index, index + STORAGE_REMOVE_BATCH_SIZE);
+        const { error } = await storageApi.remove(batch);
+
+        if (error) {
+          console.log(`Note: Could not delete storage objects from ${bucket}:`, error.message);
+          break;
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`Note: Unexpected storage cleanup error for ${bucket}:`, message);
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,14 +107,22 @@ serve(async (req) => {
       );
     }
 
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'Missing bearer token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create a client with the user's token to verify identity
     const supabaseUser = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
+      { auth: { persistSession: false } }
     );
 
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser(token);
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
@@ -44,37 +138,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Delete user data from tables that may not have CASCADE set
-    const tables = [
-      'push_subscriptions',
-      'notifications',
-      'messages',
-      'document_audit_logs',
-      'documents',
-      'document_requests',
-      'document_packages',
-      'interviews',
-      'applications',
-      'jobs',
-      'voice_credits',
-      'subscription_usage',
-      'subscriptions',
-      'team_members',
-      'team_invitations',
-      'profiles',
-      'user_roles',
-    ];
+    for (const operation of deleteOperations) {
+      for (const column of operation.columns) {
+        const { error } = await supabaseAdmin
+          .from(operation.table)
+          .delete()
+          .eq(column, user.id);
 
-    for (const table of tables) {
-      const { error } = await supabaseAdmin
-        .from(table)
-        .delete()
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.log(`Note: Could not delete from ${table}:`, error.message);
+        if (error) {
+          console.log(`Note: Could not delete from ${operation.table}.${column}:`, error.message);
+        }
       }
     }
+
+    await cleanupUserStorage(supabaseAdmin, user.id);
 
     // Delete the auth user (this is the key step - removes from auth.users)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);

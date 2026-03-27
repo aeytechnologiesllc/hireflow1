@@ -72,6 +72,9 @@ verify_jwt = true
 [functions.check-email-exists]
 verify_jwt = false
 
+[functions.delete-account]
+verify_jwt = false
+
 [functions.deduct-voice-minutes]
 verify_jwt = true
 
@@ -88,7 +91,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.get-subscription]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-billing-portal]
 verify_jwt = true

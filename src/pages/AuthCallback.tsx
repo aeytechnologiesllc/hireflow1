@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+import { resolvePostAuthDestination } from "@/lib/authRouting";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -56,25 +57,18 @@ export default function AuthCallback() {
     };
 
     const assignRoleAndRedirect = async (userId: string, roleFromUrl: string | null) => {
-      const role = roleFromUrl === "candidate" ? "candidate" : "employer";
+      const portalRole = roleFromUrl === "candidate" ? "candidate" : "employer";
 
       try {
-        const { error: rpcError } = await supabase.rpc("assign_user_role", {
-          p_role: role,
+        const { route } = await resolvePostAuthDestination({
+          userId,
+          portalRole,
         });
 
-        if (rpcError) {
-          console.error("Error assigning role:", rpcError);
-        }
+        navigate(route, { replace: true });
       } catch (err) {
-        console.error("Error in role assignment:", err);
-      }
-
-      // Navigate to appropriate dashboard
-      if (role === "employer") {
-        navigate("/dashboard", { replace: true });
-      } else {
-        navigate("/apply", { replace: true });
+        console.error("Error in auth callback routing:", err);
+        setError("We couldn't finish signing you in. Please try again.");
       }
     };
 

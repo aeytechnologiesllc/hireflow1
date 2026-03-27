@@ -12,6 +12,7 @@ import appIcon from "@/assets/app-icon-new.png";
 import { WelcomeAnimation } from "@/components/animations/WelcomeAnimation";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+import { resolvePostAuthDestination } from "@/lib/authRouting";
 
 const isWebView = () => {
   if (typeof window === "undefined") return false;
@@ -66,10 +67,13 @@ export default function CandidateAuth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
   const formRef = useRef<HTMLDivElement>(null);
+  const redirectingRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | undefined>();
+  const [postAuthRoute, setPostAuthRoute] = useState("/apply");
   const [activeTab, setActiveTab] = useState<"signin" | "signup">(
     searchParams.get("tab") === "signup" ? "signup" : "signin"
   );
@@ -90,11 +94,63 @@ export default function CandidateAuth() {
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
 
-  useEffect(() => {
-    if (user && !authLoading) {
-      navigate("/apply");
+  const routeAuthenticatedUser = useCallback(async ({
+    allowCandidateWelcome = false,
+    nextWelcomeName,
+  }: {
+    allowCandidateWelcome?: boolean;
+    nextWelcomeName?: string;
+  } = {}) => {
+    if (redirectingRef.current) return;
+
+    redirectingRef.current = true;
+    setIsRedirecting(true);
+
+    let navigated = false;
+
+    try {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        return;
+      }
+
+      const { role, route } = await resolvePostAuthDestination({
+        userId: currentUser.id,
+        portalRole: "candidate",
+      });
+
+      if (allowCandidateWelcome && role === "candidate") {
+        setWelcomeName(nextWelcomeName);
+        setPostAuthRoute(route);
+        setShowWelcome(true);
+        return;
+      }
+
+      navigated = true;
+      navigate(route, { replace: true });
+    } catch (error) {
+      console.error("Error resolving candidate auth destination:", error);
+      toast({
+        variant: "warning",
+        title: "Unable to finish sign in",
+        description: "We couldn't determine where to send your account. Please try again.",
+      });
+    } finally {
+      if (!navigated) {
+        redirectingRef.current = false;
+        setIsRedirecting(false);
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    if (user && !authLoading && !showWelcome) {
+      void routeAuthenticatedUser();
+    }
+  }, [user, authLoading, showWelcome, routeAuthenticatedUser]);
 
   // Scroll submit button into view when keyboard opens on mobile
   const scrollFormIntoView = useCallback(() => {
@@ -151,8 +207,7 @@ export default function CandidateAuth() {
         description: "You have successfully signed in.",
         duration: 1500,
       });
-      setWelcomeName(undefined);
-      setShowWelcome(true);
+      await routeAuthenticatedUser({ allowCandidateWelcome: true });
     }
 
     setIsLoading(false);
@@ -160,7 +215,7 @@ export default function CandidateAuth() {
 
   const handleWelcomeComplete = () => {
     setShowWelcome(false);
-    navigate("/apply");
+    navigate(postAuthRoute, { replace: true });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -202,16 +257,15 @@ export default function CandidateAuth() {
         duration: 5000,
       });
     } else {
-      // Assign candidate role immediately after signup
-      await supabase.rpc("assign_user_role", { p_role: "candidate" });
-
       toast({
         title: "Account created!",
         description: "Welcome to HireFlow. You can now apply for jobs.",
         duration: 1500,
       });
-      setWelcomeName(signUpName);
-      setShowWelcome(true);
+      await routeAuthenticatedUser({
+        allowCandidateWelcome: true,
+        nextWelcomeName: signUpName,
+      });
     }
 
     setIsLoading(false);
@@ -293,7 +347,7 @@ export default function CandidateAuth() {
     setIsLoading(false);
   };
 
-  if (authLoading) {
+  if (authLoading || isRedirecting) {
     return <AuthLoadingScreen variant="candidate" />;
   }
 
