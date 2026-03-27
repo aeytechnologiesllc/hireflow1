@@ -1,7 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -752,10 +753,10 @@ serve(async (req) => {
   }
 
   try {
-    if (!LOVABLE_API_KEY) {
-      console.error("Lovable API key is not configured");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY is not configured");
       return new Response(
-        JSON.stringify({ error: "Lovable API key is not configured" }),
+        JSON.stringify({ error: "OpenAI API key is not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -821,7 +822,7 @@ serve(async (req) => {
 
     if (resumeImage && (type === "resume" || type === "application")) {
       // Use vision capability for image-based resume analysis
-      console.log(`Using Gemini vision for resume image analysis (type: ${type})`);
+      console.log(`Using OpenAI vision for resume image analysis (type: ${type})`);
       resumeExtracted = true;
       
       messages = [
@@ -870,16 +871,16 @@ Your skill match analysis should be based on what the candidate stated in their 
       ];
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: OPENAI_MODEL,
         messages,
-        max_tokens: 4000,
+        max_completion_tokens: 4000,
         // Add temperature for interview questions to ensure variety on regeneration
         ...(type === "interview" && { temperature: 0.95 }),
       }),
@@ -887,7 +888,7 @@ Your skill match analysis should be based on what the candidate stated in their 
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI Gateway error:", response.status, errorText);
+      console.error("OpenAI error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -898,7 +899,7 @@ Your skill match analysis should be based on what the candidate stated in their 
       
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds to your Lovable workspace." }),
+          JSON.stringify({ error: "OpenAI credits exhausted or billing is unavailable for this project." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -912,8 +913,8 @@ Your skill match analysis should be based on what the candidate stated in their 
     const data = await response.json();
     const analysis = data.choices?.[0]?.message?.content ?? "";
 
-    const modelUsed = "google/gemini-2.5-flash";
-    const provider = "lovable_ai_gateway";
+    const modelUsed = OPENAI_MODEL;
+    const provider = "openai";
 
     console.log(`${type} analysis completed successfully via ${provider} (${modelUsed}), resumeExtracted: ${resumeExtracted}`);
 
