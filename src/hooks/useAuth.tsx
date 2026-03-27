@@ -151,7 +151,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    return { error: error as Error | null, needsConfirmation: !!data?.user && !data?.session };
+    if (error) {
+      return { error: error as Error, needsConfirmation: false };
+    }
+
+    if (data?.session) {
+      return { error: null, needsConfirmation: false };
+    }
+
+    if (data?.user) {
+      // Some hosted auth setups create the user first and require a follow-up
+      // password sign-in before the browser session is established.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (!signInError) {
+        return { error: null, needsConfirmation: false };
+      }
+
+      const needsConfirmation =
+        /confirm/i.test(signInError.message) || /verified/i.test(signInError.message);
+
+      return {
+        error: needsConfirmation ? null : (signInError as Error),
+        needsConfirmation,
+      };
+    }
+
+    return {
+      error: new Error("Sign up completed without an authenticated session."),
+      needsConfirmation: false,
+    };
   };
 
   const signIn = async (email: string, password: string) => {
