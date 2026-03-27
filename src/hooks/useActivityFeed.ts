@@ -131,7 +131,7 @@ export function useActivityFeed(limit: number = 20) {
             link: `/applicants/${app.id}`,
             metadata: { candidateName, jobTitle, status: app.status },
           });
-        } else if (app.status === "pending" && new Date(app.created_at).getTime() === new Date(app.updated_at).getTime()) {
+        } else if (app.status === "pending") {
           activityItems.push({
             id: `app-${app.id}`,
             type: "application",
