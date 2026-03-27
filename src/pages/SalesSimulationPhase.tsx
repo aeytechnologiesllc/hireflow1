@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,7 +93,7 @@ const defaultScenarios: SalesScenario[] = [
   },
 ];
 
-const SALES_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-sales-simulation`;
+const SALES_URL = `${SUPABASE_URL}/functions/v1/ai-sales-simulation`;
 
 export default function SalesSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
@@ -289,7 +289,7 @@ export default function SalesSimulationPhase() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           mode,
@@ -402,7 +402,7 @@ export default function SalesSimulationPhase() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           mode,
@@ -529,7 +529,7 @@ export default function SalesSimulationPhase() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           mode: "evaluate",

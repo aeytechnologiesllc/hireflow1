@@ -12,7 +12,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { useSubscription } from "@/hooks/useSubscription";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { cn, formatFileSize } from "@/lib/utils";
@@ -472,7 +472,7 @@ export function DocumentWizard({
       const signedPath = urlData.signedUrl;
       const fullUrl = signedPath.startsWith('http') 
         ? signedPath 
-        : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1${signedPath}`;
+        : `${SUPABASE_URL}/storage/v1${signedPath}`;
       
       setUploadedFileUrl(fullUrl);
       

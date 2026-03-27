@@ -1,3 +1,5 @@
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
+
 /**
  * Document Hashing Utilities for SHA-256 integrity verification
  * Used for ESIGN Act and UETA compliance
@@ -276,11 +278,11 @@ export async function captureSigningContext(): Promise<SigningContext> {
   try {
     // Attempt to get IP and geolocation from our edge function
     const response = await Promise.race([
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geolocate-ip`, {
+      fetch(`${SUPABASE_URL}/functions/v1/geolocate-ip`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({}),
       }),

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { usePricing } from "@/hooks/usePricing";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 
 // Voice narration scripts for each scene - shorter, punchier
 const VOICE_SCRIPTS = [
@@ -53,13 +54,13 @@ export default function MarketingDemo() {
     for (let i = 0; i < VOICE_SCRIPTS.length; i++) {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+          `${SUPABASE_URL}/functions/v1/elevenlabs-tts`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              apikey: SUPABASE_PUBLISHABLE_KEY,
+              Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({ text: VOICE_SCRIPTS[i] }),
           }
