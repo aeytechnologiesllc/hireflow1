@@ -24,7 +24,7 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
-import { triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
@@ -729,12 +729,10 @@ export default function QuizPhase() {
 
       // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
       // The backend will calculate weighted score and decide pass/fail
-      const analysisPromise = supabase.functions.invoke("trigger-ava-analysis", {
-        body: { 
-          applicationId: id!,
-          autopilotDecision: isAutoMode, // Backend makes the pass/fail decision
-          currentPhaseId: stepId,
-        },
+      const analysisPromise = invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: isAutoMode,
+        currentPhaseId: stepId,
       });
 
       if (isAutoMode) {

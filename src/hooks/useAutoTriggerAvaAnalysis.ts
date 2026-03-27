@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 
 interface UseAutoTriggerAvaAnalysisOptions {
   applicationId: string | undefined;
@@ -41,8 +42,9 @@ export function useAutoTriggerAvaAnalysis({
     lastTriggerTimeRef.current = now;
     
     try {
-      const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
-        body: { applicationId, force },
+      const { error } = await invokeTriggerAvaAnalysis({
+        applicationId,
+        force,
       });
       
       if (error) {

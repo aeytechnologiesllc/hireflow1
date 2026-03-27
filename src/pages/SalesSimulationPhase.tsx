@@ -21,7 +21,7 @@ import {
   Building
 } from "lucide-react";
 import { toast } from "sonner";
-import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
@@ -595,8 +595,10 @@ export default function SalesSimulationPhase() {
 
       if (isAutoMode) {
         try {
-          const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: { applicationId: id!, autopilotDecision: true, currentPhaseId: stepId },
+          const { data: analysisResult } = await invokeTriggerAvaAnalysis({
+            applicationId: id!,
+            autopilotDecision: true,
+            currentPhaseId: stepId,
           });
           // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
           if (analysisResult?.decision === "rejected") {
@@ -628,7 +630,7 @@ export default function SalesSimulationPhase() {
           setTimeout(() => navigate(`/applications/${id}`), 2000);
         }
       } else {
-        supabase.functions.invoke("trigger-ava-analysis", { body: { applicationId: id! } }).catch((err) => {
+        invokeTriggerAvaAnalysis({ applicationId: id! }).catch((err) => {
           /* Ava analysis is triggered in the background and non-critical; the user already sees a success toast */
           console.error("[SalesSimulationPhase] trigger-ava-analysis failed:", err);
         });

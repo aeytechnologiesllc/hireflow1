@@ -6,6 +6,86 @@ export interface EvaluationResult {
   analysis: string | null;
 }
 
+export interface TriggerAvaAnalysisPayload {
+  applicationId: string;
+  force?: boolean;
+  autopilotDecision?: boolean;
+  currentPhaseId?: string | null;
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isAuthInvokeError = (error: unknown) => {
+  if (!error) return false;
+
+  const maybeError = error as {
+    message?: string;
+    context?: { status?: number };
+  };
+
+  const message = maybeError.message?.toLowerCase() ?? "";
+  const status = maybeError.context?.status;
+
+  return (
+    status === 401 ||
+    message.includes("401") ||
+    message.includes("unauthorized") ||
+    message.includes("jwt") ||
+    message.includes("auth")
+  );
+};
+
+async function getAccessTokenWithRetry() {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.access_token) {
+      return session.access_token;
+    }
+
+    await wait(250);
+  }
+
+  const { data, error } = await supabase.auth.refreshSession();
+
+  if (error) {
+    console.warn("[triggerAvaAnalysis] Session refresh failed:", error.message);
+  }
+
+  return data.session?.access_token ?? null;
+}
+
+export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
+  payload: TriggerAvaAnalysisPayload,
+) {
+  const invokeWithToken = async (accessToken: string | null) =>
+    supabase.functions.invoke<T>("trigger-ava-analysis", {
+      body: payload,
+      ...(accessToken
+        ? {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        : {}),
+    });
+
+  const initialToken = await getAccessTokenWithRetry();
+  let result = await invokeWithToken(initialToken);
+
+  if (result.error && isAuthInvokeError(result.error)) {
+    const refreshedToken = await getAccessTokenWithRetry();
+
+    if (refreshedToken && refreshedToken !== initialToken) {
+      result = await invokeWithToken(refreshedToken);
+    }
+  }
+
+  return result;
+}
+
 /**
  * Triggers AVA comprehensive analysis for an application by calling the backend function.
  * The backend function (trigger-ava-analysis) computes the weighted overall score:
@@ -19,11 +99,9 @@ export interface EvaluationResult {
  */
 export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
   try {
-    const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
-      body: {
-        applicationId,
-        force: true, // Force re-analysis
-      },
+    const { error } = await invokeTriggerAvaAnalysis({
+      applicationId,
+      force: true,
     });
 
     if (error) {

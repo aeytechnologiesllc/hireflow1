@@ -22,7 +22,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
-import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
@@ -434,8 +434,10 @@ export default function PortfolioUploadPhase() {
         
         // Trigger AVA analysis and WAIT for backend decision
         try {
-          const { data: analysisResult, error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: { applicationId: id!, autopilotDecision: true, currentPhaseId: stepId },
+          const { data: analysisResult, error: analysisError } = await invokeTriggerAvaAnalysis({
+            applicationId: id!,
+            autopilotDecision: true,
+            currentPhaseId: stepId,
           });
           
           if (analysisError) {
@@ -471,8 +473,8 @@ export default function PortfolioUploadPhase() {
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
-        supabase.functions.invoke("trigger-ava-analysis", {
-          body: { applicationId: id! },
+        invokeTriggerAvaAnalysis({
+          applicationId: id!,
         }).catch(err => console.error("[PortfolioUploadPhase] AVA analysis trigger failed:", err));
         
         toast.success("Portfolio submitted!", {

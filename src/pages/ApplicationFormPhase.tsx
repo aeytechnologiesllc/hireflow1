@@ -35,7 +35,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
@@ -760,12 +760,10 @@ export default function ApplicationFormPhase() {
 
       // Handle autopilot mode: Call backend to run AI analysis AND make decision (bypasses RLS)
       if (isAutoPilot) {
-        const { data: autopilotResult, error: autopilotError } = await supabase.functions.invoke("trigger-ava-analysis", {
-          body: { 
-            applicationId: id!,
-            autopilotDecision: true,
-            currentPhaseId: "application",
-          },
+        const { data: autopilotResult, error: autopilotError } = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: "application",
         });
         
         if (autopilotError) {
@@ -804,8 +802,8 @@ export default function ApplicationFormPhase() {
         // We only persist the submission data (done above), trigger analysis, and return to the application.
         // Employers control advancement in manual review mode.
 
-        supabase.functions.invoke("trigger-ava-analysis", {
-          body: { applicationId: id! },
+        invokeTriggerAvaAnalysis({
+          applicationId: id!,
         }).catch(err => console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err));
 
         toast.success("Application submitted successfully!", {

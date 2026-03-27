@@ -20,7 +20,7 @@ import {
   User
 } from "lucide-react";
 import { toast } from "sonner";
-import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
@@ -627,12 +627,10 @@ export default function ChatSimulationPhase() {
       // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
       if (isAutoMode) {
         try {
-          const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: { 
-              applicationId: id!,
-              autopilotDecision: true,
-              currentPhaseId: stepId,
-            },
+          const { data: analysisResult } = await invokeTriggerAvaAnalysis({
+            applicationId: id!,
+            autopilotDecision: true,
+            currentPhaseId: stepId,
           });
           
           // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
@@ -671,8 +669,8 @@ export default function ChatSimulationPhase() {
         }
       } else {
         // Manual mode - trigger analysis in background
-        supabase.functions.invoke("trigger-ava-analysis", {
-          body: { applicationId: id! },
+        invokeTriggerAvaAnalysis({
+          applicationId: id!,
         }).catch(err => console.error("[ChatSimulationPhase] AVA analysis trigger failed:", err));
         
         toast.success("Chat simulation completed!", {

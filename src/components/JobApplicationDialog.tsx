@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface JobApplicationDialogProps {
@@ -50,11 +50,9 @@ export default function JobApplicationDialog({
 
       // Trigger backend analysis - this is the ONLY place scoring happens
       // The backend will process the resume (PDF→image), run AI analysis, and set ai_score
-      supabase.functions.invoke("trigger-ava-analysis", {
-        body: { 
-          applicationId: result.id,
-          force: true,
-        },
+      invokeTriggerAvaAnalysis({
+        applicationId: result.id,
+        force: true,
       }).catch(err => {
         console.error("[JobApplicationDialog] Failed to trigger AVA analysis:", err);
       });

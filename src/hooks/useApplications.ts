@@ -36,6 +36,29 @@ export interface ApplicationWithCandidate extends Application {
   jobs: Tables<"jobs"> | null;
 }
 
+async function fetchJobNotificationContext(jobId: string) {
+  const { data: jobDetails, error: jobError } = await supabase
+    .from("jobs")
+    .select("title, employer_id")
+    .eq("id", jobId)
+    .single();
+
+  if (jobError || !jobDetails) {
+    throw jobError ?? new Error("Job not found");
+  }
+
+  const { data: employerProfile } = await supabase
+    .from("profiles")
+    .select("company_name")
+    .eq("user_id", jobDetails.employer_id)
+    .maybeSingle();
+
+  return {
+    ...jobDetails,
+    companyName: employerProfile?.company_name ?? null,
+  };
+}
+
 export function useCandidateApplications() {
   const { user } = useAuth();
 
@@ -221,18 +244,11 @@ export function useCreateApplication() {
       // Send email notifications asynchronously (don't block on failure)
       (async () => {
         try {
-          // Get job details for email content
-          const { data: jobDetails } = await supabase
-            .from("jobs")
-            .select("title, employer_id, profiles:employer_id(company_name)")
-            .eq("id", application.job_id)
-            .single();
+          const jobDetails = await fetchJobNotificationContext(application.job_id);
 
           if (jobDetails) {
-            const companyName = (jobDetails as { profiles?: { company_name?: string } | null }).profiles?.company_name;
-            
             // Notify candidate their application was received
-            notifyApplicationReceived(user!.id, jobDetails.title, companyName);
+            notifyApplicationReceived(user!.id, jobDetails.title, jobDetails.companyName);
             
             // Notify employer about new application
             const candidateName = user?.user_metadata?.full_name || user?.email || "A candidate";
@@ -276,29 +292,22 @@ export function useUpdateApplication() {
       if (currentApp) {
         (async () => {
           try {
-            // Get job details for email content
-            const { data: job } = await supabase
-              .from("jobs")
-              .select("title, employer_id, profiles:employer_id(company_name)")
-              .eq("id", currentApp.job_id)
-              .single();
+            const job = await fetchJobNotificationContext(currentApp.job_id);
 
             if (job) {
-              const companyName = (job as { profiles?: { company_name?: string } | null }).profiles?.company_name;
-
               // Status changed to rejected
               if (updates.status === "rejected" && currentApp.status !== "rejected") {
-                notifyStatusRejected(currentApp.candidate_id, job.title, companyName);
+                notifyStatusRejected(currentApp.candidate_id, job.title, job.companyName);
               }
 
               // Status changed to hired
               if (updates.status === "hired" && currentApp.status !== "hired") {
-                notifyStatusHired(currentApp.candidate_id, job.title, companyName);
+                notifyStatusHired(currentApp.candidate_id, job.title, job.companyName);
               }
 
               // Phase advanced (only if phase actually changed)
               if (updates.phase && updates.phase !== currentApp.phase) {
-                notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, companyName);
+                notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, job.companyName);
               }
 
               // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)

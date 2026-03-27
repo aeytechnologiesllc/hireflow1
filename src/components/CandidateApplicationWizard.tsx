@@ -40,6 +40,7 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { convertPdfToImage } from "@/utils/pdfToImage";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import type { Tables, Json } from "@/integrations/supabase/types";
 
 interface CandidateApplicationWizardProps {
@@ -874,11 +875,9 @@ export default function CandidateApplicationWizard({
           setEvaluationState("evaluating");
           
           try {
-            const { data: analysisResult } = await supabase.functions.invoke("trigger-ava-analysis", {
-              body: { 
-                applicationId: finalAppId,
-                autopilotDecision: true,
-              },
+            const { data: analysisResult } = await invokeTriggerAvaAnalysis({
+              applicationId: finalAppId,
+              autopilotDecision: true,
             });
             
             // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
@@ -920,8 +919,8 @@ export default function CandidateApplicationWizard({
           }
         } else {
           // Manual mode - trigger analysis in background and navigate
-          supabase.functions.invoke("trigger-ava-analysis", {
-            body: { applicationId: finalAppId },
+          invokeTriggerAvaAnalysis({
+            applicationId: finalAppId,
           }).catch(err => console.error("[CandidateApplicationWizard] Background analysis failed:", err));
           
           toast.success("Application submitted successfully!");
