@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,10 +52,10 @@ interface Stats {
 export default function TeamPortal() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { subscription, isLoading: subscriptionLoading } = useSubscription();
   const [membership, setMembership] = useState<TeamMembership | null>(null);
   const [stats, setStats] = useState<Stats>({ totalJobs: 0, totalApplicants: 0, pendingInterviews: 0, pendingDocuments: 0 });
   const [loading, setLoading] = useState(true);
-  const [employerExpired, setEmployerExpired] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -93,27 +94,6 @@ export default function TeamPortal() {
         .select("full_name, company_name, company_logo")
         .eq("user_id", memberData.employer_id)
         .maybeSingle();
-
-      // Check employer subscription status
-      const { data: employerSub } = await supabase
-        .from("subscriptions")
-        .select("status, plan_type, trial_end")
-        .eq("user_id", memberData.employer_id)
-        .maybeSingle();
-
-      const isEmployerExpired = !employerSub || 
-        employerSub.status === 'expired' ||
-        (employerSub.status === 'trialing' && employerSub.trial_end && new Date(employerSub.trial_end) < new Date());
-
-      if (isEmployerExpired) {
-        setEmployerExpired(true);
-        setMembership({
-          ...memberData,
-          employer_profile: profileData || undefined,
-        });
-        setLoading(false);
-        return;
-      }
 
       setMembership({
         ...memberData,
@@ -177,7 +157,13 @@ export default function TeamPortal() {
     }
   };
 
-  if (authLoading || loading) {
+  const employerExpired =
+    subscription?.status === "expired" ||
+    (subscription?.status === "trialing" &&
+      !!subscription.trial_end &&
+      new Date(subscription.trial_end) < new Date());
+
+  if (authLoading || loading || subscriptionLoading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-64" />
