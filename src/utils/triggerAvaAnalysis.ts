@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "@/integrations/supabase/client";
 
 export interface EvaluationResult {
   score: number | null;
@@ -60,17 +60,48 @@ async function getAccessTokenWithRetry() {
 export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   payload: TriggerAvaAnalysisPayload,
 ) {
-  const invokeWithToken = async (accessToken: string | null) =>
-    supabase.functions.invoke<T>("trigger-ava-analysis", {
-      body: payload,
-      ...(accessToken
-        ? {
-            headers: {
+  const invokeWithToken = async (accessToken: string | null) => {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/trigger-ava-analysis`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        ...(accessToken
+          ? {
               Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
+      body: JSON.stringify(payload),
     });
+
+    const responseText = await response.text();
+    const parsedBody = responseText ? safeParseJson(responseText) : null;
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          message:
+            (parsedBody &&
+            typeof parsedBody === "object" &&
+            "message" in parsedBody &&
+            typeof parsedBody.message === "string"
+              ? parsedBody.message
+              : responseText) || `trigger-ava-analysis returned ${response.status}`,
+          context: {
+            status: response.status,
+            body: parsedBody ?? responseText,
+          },
+        },
+      };
+    }
+
+    return {
+      data: (parsedBody as T | null) ?? null,
+      error: null,
+    };
+  };
 
   const initialToken = await getAccessTokenWithRetry();
   let result = await invokeWithToken(initialToken);
@@ -84,6 +115,14 @@ export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   }
 
   return result;
+}
+
+function safeParseJson(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 /**
