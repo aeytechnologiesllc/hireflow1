@@ -9,7 +9,6 @@ import { ArrowLeft, Loader2, Sparkles, Check, Circle, Eye, EyeOff, Mail } from "
 import { z } from "zod";
 import { motion } from "framer-motion";
 import appIcon from "@/assets/app-icon-new.png";
-import { WelcomeAnimation } from "@/components/animations/WelcomeAnimation";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
@@ -71,9 +70,6 @@ export default function CandidateAuth() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [welcomeName, setWelcomeName] = useState<string | undefined>();
-  const [postAuthRoute, setPostAuthRoute] = useState("/apply");
   const [activeTab, setActiveTab] = useState<"signin" | "signup">(
     searchParams.get("tab") === "signup" ? "signup" : "signin"
   );
@@ -99,13 +95,7 @@ export default function CandidateAuth() {
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
 
-  const routeAuthenticatedUser = useCallback(async ({
-    allowCandidateWelcome = false,
-    nextWelcomeName,
-  }: {
-    allowCandidateWelcome?: boolean;
-    nextWelcomeName?: string;
-  } = {}) => {
+  const routeAuthenticatedUser = useCallback(async () => {
     if (redirectingRef.current) return;
 
     redirectingRef.current = true;
@@ -129,13 +119,6 @@ export default function CandidateAuth() {
 
       const nextRoute = role === "candidate" && safeRedirectTarget ? safeRedirectTarget : route;
 
-      if (allowCandidateWelcome && role === "candidate") {
-        setWelcomeName(nextWelcomeName);
-        setPostAuthRoute(nextRoute);
-        setShowWelcome(true);
-        return;
-      }
-
       navigated = true;
       navigate(nextRoute, { replace: true });
     } catch (error) {
@@ -154,10 +137,10 @@ export default function CandidateAuth() {
   }, [navigate, safeRedirectTarget, toast]);
 
   useEffect(() => {
-    if (user && !authLoading && !showWelcome) {
+    if (user && !authLoading) {
       void routeAuthenticatedUser();
     }
-  }, [user, authLoading, showWelcome, routeAuthenticatedUser]);
+  }, [user, authLoading, routeAuthenticatedUser]);
 
   // Scroll submit button into view when keyboard opens on mobile
   const scrollFormIntoView = useCallback(() => {
@@ -214,15 +197,10 @@ export default function CandidateAuth() {
         description: "You have successfully signed in.",
         duration: 1500,
       });
-      await routeAuthenticatedUser({ allowCandidateWelcome: true });
+      await routeAuthenticatedUser();
     }
 
     setIsLoading(false);
-  };
-
-  const handleWelcomeComplete = () => {
-    setShowWelcome(false);
-    navigate(postAuthRoute, { replace: true });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -269,10 +247,7 @@ export default function CandidateAuth() {
         description: "Welcome to HireFlow. You can now apply for jobs.",
         duration: 1500,
       });
-      await routeAuthenticatedUser({
-        allowCandidateWelcome: true,
-        nextWelcomeName: signUpName,
-      });
+      await routeAuthenticatedUser();
     }
 
     setIsLoading(false);
@@ -360,13 +335,6 @@ export default function CandidateAuth() {
 
   return (
     <>
-      {showWelcome && (
-        <WelcomeAnimation 
-          name={welcomeName} 
-          onComplete={handleWelcomeComplete}
-          duration={2500}
-        />
-      )}
       <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white relative overflow-y-auto">
       {/* Background grid pattern */}
       <div 
