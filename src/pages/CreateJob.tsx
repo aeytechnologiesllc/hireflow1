@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -327,7 +328,8 @@ export default function CreateJob() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isEditMode = !!id;
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading, isTeamMember } = useAuth();
+  const { data: teamPermissions, isLoading: permissionsLoading } = useTeamMemberPermissions();
   const { data: profile } = useProfile();
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
@@ -335,6 +337,7 @@ export default function CreateJob() {
   const { limits, usage, isWithinLimit } = useSubscription();
   const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
   const canCreateMoreJobs = isEditMode || isWithinLimit('jobs');
+  const canManageJobs = role === "employer" || (isTeamMember && teamPermissions?.canCreateJobs);
   const guestDraftHydratedRef = useRef(false);
   
   // Phase warning dismissed state
@@ -456,7 +459,7 @@ export default function CreateJob() {
 
   // Load guest job data from localStorage (after guest signs up/in)
   useEffect(() => {
-    if (isEditMode || guestDraftHydratedRef.current || authLoading || !user || role !== "employer") {
+    if (isEditMode || guestDraftHydratedRef.current || authLoading || !user || !canManageJobs) {
       return;
     }
 
@@ -539,7 +542,7 @@ export default function CreateJob() {
         localStorage.removeItem("guestJobData");
       }
     }
-  }, [authLoading, isEditMode, role, setSearchParams, user]);
+  }, [authLoading, canManageJobs, isEditMode, setSearchParams, user]);
 
   // Pre-fill title from onboarding handoff
   useEffect(() => {
@@ -1074,11 +1077,11 @@ export default function CreateJob() {
     }));
   };
 
-  if (authLoading || (user && role === null)) {
+  if (authLoading || permissionsLoading || (user && role === null)) {
     return <AuthLoadingScreen variant="employer" />;
   }
 
-  if (role !== "employer") {
+  if (!canManageJobs) {
     navigate("/dashboard");
     return null;
   }

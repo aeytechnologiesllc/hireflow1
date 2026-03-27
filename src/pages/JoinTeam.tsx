@@ -256,8 +256,7 @@ export default function JoinTeam() {
     }
 
     setIsSubmitting(true);
-    // Sign up as team_member role
-    const { error } = await signUp(email, password, fullName, "employer");
+    const { error } = await signUp(email, password, fullName, "team_member");
 
     if (error) {
       toast({
@@ -273,7 +272,7 @@ export default function JoinTeam() {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     const redirectUrl = `${window.location.origin}/join-team/${code}`;
-    const { error } = await signInWithGoogle(redirectUrl);
+    const { error } = await signInWithGoogle(redirectUrl, "team_member");
     if (error) {
       toast({
         title: "Google Sign In Failed",

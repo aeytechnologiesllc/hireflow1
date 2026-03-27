@@ -38,14 +38,21 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Check user role — candidates get free unlimited access
-    const { data: roleData } = await supabaseAdmin
+    // Resolve effective account context from roles.
+    const { data: roleRows, error: roleError } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("user_id", user.id);
 
-    if (roleData?.role === 'candidate') {
+    if (roleError) {
+      console.error("Error fetching roles:", roleError);
+    }
+
+    const roles = new Set((roleRows || []).map((row) => row.role));
+    const isCandidateOnly = roles.size > 0 && roles.has("candidate") && !roles.has("employer") && !roles.has("team_member");
+    const isTeamMember = roles.has("team_member") && !roles.has("employer");
+
+    if (isCandidateOnly) {
       console.log("Candidate user detected — returning free access, skipping all subscription logic");
       return new Response(JSON.stringify({
         subscription: {
@@ -82,11 +89,28 @@ serve(async (req) => {
       });
     }
 
+    let effectiveOwnerId = user.id;
+
+    if (isTeamMember) {
+      const { data: membership, error: membershipError } = await supabaseAdmin
+        .from("team_members")
+        .select("employer_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (membershipError) {
+        console.error("Error fetching team membership:", membershipError);
+      } else if (membership?.employer_id) {
+        effectiveOwnerId = membership.employer_id;
+      }
+    }
+
     // Get subscription — use admin client for consistent reads after sync writes
     const { data: subscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveOwnerId)
       .maybeSingle();
 
     if (subError) {
@@ -98,12 +122,12 @@ serve(async (req) => {
     const { count: jobsCount } = await supabaseAdmin
       .from("jobs")
       .select("*", { count: "exact", head: true })
-      .eq("employer_id", user.id);
+      .eq("employer_id", effectiveOwnerId);
 
     const { data: userJobs } = await supabaseAdmin
       .from("jobs")
       .select("id")
-      .eq("employer_id", user.id);
+      .eq("employer_id", effectiveOwnerId);
     
     const jobIds = (userJobs || []).map(j => j.id);
     
@@ -145,7 +169,7 @@ serve(async (req) => {
     const { count: teamCount } = await supabaseAdmin
       .from("team_members")
       .select("*", { count: "exact", head: true })
-      .eq("employer_id", user.id)
+      .eq("employer_id", effectiveOwnerId)
       .eq("status", "active");
 
     const usage = {
@@ -164,7 +188,7 @@ serve(async (req) => {
     const { data: voiceCreditsForUsage } = await supabaseAdmin
       .from("voice_credits")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveOwnerId)
       .in("status", ["active", "exhausted"])
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: true });
@@ -172,7 +196,7 @@ serve(async (req) => {
     let { data: voiceCredits } = await supabaseAdmin
       .from("voice_credits")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveOwnerId)
       .eq("status", "active")
       .gt("expires_at", new Date().toISOString())
       .order("expires_at", { ascending: true });
@@ -212,7 +236,7 @@ serve(async (req) => {
       const { data: existingPeriodCredit } = await supabaseAdmin
         .from("voice_credits")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", effectiveOwnerId)
         .eq("source", "subscription")
         .eq("expires_at", periodEnd)
         .maybeSingle();
@@ -223,7 +247,7 @@ serve(async (req) => {
         const { data: insertedCredit, error: insertError } = await supabaseAdmin
           .from("voice_credits")
           .insert({
-            user_id: user.id,
+            user_id: effectiveOwnerId,
             source: 'subscription',
             pack_size: 'monthly',
             minutes_granted: 30,
@@ -235,7 +259,7 @@ serve(async (req) => {
           .maybeSingle();
         
         if (insertError) {
-          console.error("Failed to auto-provision paid plan voice credits", { user_id: user.id, error: insertError });
+          console.error("Failed to auto-provision paid plan voice credits", { user_id: effectiveOwnerId, error: insertError });
         } else {
           console.log("Auto-provisioned 30 voice minutes for paid plan user", insertedCredit);
           
@@ -243,7 +267,7 @@ serve(async (req) => {
           const { data: refreshedCredits } = await supabaseAdmin
             .from("voice_credits")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", effectiveOwnerId)
             .eq("status", "active")
             .gt("expires_at", new Date().toISOString())
             .order("expires_at", { ascending: true });
@@ -265,7 +289,7 @@ serve(async (req) => {
       const { data: existingTrialCredit } = await supabaseAdmin
         .from("voice_credits")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", effectiveOwnerId)
         .eq("source", "subscription")
         .lte("minutes_granted", 15)
         .maybeSingle();
@@ -282,7 +306,7 @@ serve(async (req) => {
         const { data: insertedCredit, error: insertError } = await supabaseAdmin
           .from("voice_credits")
           .insert({
-            user_id: user.id,
+            user_id: effectiveOwnerId,
             source: 'subscription',
             minutes_granted: 15,
             minutes_remaining: 15,
@@ -293,14 +317,14 @@ serve(async (req) => {
           .maybeSingle();
 
       if (insertError) {
-        console.error("Failed to auto-provision trial voice credits", { user_id: user.id, error: insertError });
+        console.error("Failed to auto-provision trial voice credits", { user_id: effectiveOwnerId, error: insertError });
       } else {
         console.log("Auto-provisioned 15 voice minutes for Trial user", insertedCredit);
 
         const { data: refreshedCredits } = await supabaseAdmin
           .from("voice_credits")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("user_id", effectiveOwnerId)
           .eq("status", "active")
           .gt("expires_at", new Date().toISOString())
           .order("expires_at", { ascending: true });
@@ -320,7 +344,7 @@ serve(async (req) => {
       trialEnd.setDate(trialEnd.getDate() + 7);
 
       const { data: newSub } = await supabaseAdmin.from("subscriptions").insert({
-        user_id: user.id,
+        user_id: effectiveOwnerId,
         plan_type: 'trial',
         status: 'trialing',
         trial_start: new Date().toISOString(),
@@ -329,12 +353,12 @@ serve(async (req) => {
 
       // Create usage record
       await supabaseAdmin.from("subscription_usage").insert({
-        user_id: user.id,
+        user_id: effectiveOwnerId,
       });
 
       // Create initial trial voice credits (15 minutes for ~3 voice interviews)
       await supabaseAdmin.from("voice_credits").insert({
-        user_id: user.id,
+        user_id: effectiveOwnerId,
         source: 'subscription',
         minutes_granted: 15,
         minutes_remaining: 15,
@@ -366,12 +390,12 @@ serve(async (req) => {
       if (trialEnd < new Date()) {
         await supabaseAdmin.from("subscriptions").update({
           status: 'expired',
-        }).eq('user_id', user.id);
+        }).eq('user_id', effectiveOwnerId);
 
         // Void all voice credits when trial expires
         await supabaseAdmin.from("voice_credits").update({
           status: 'voided',
-        }).eq('user_id', user.id).eq('status', 'active');
+        }).eq('user_id', effectiveOwnerId).eq('status', 'active');
 
         subscription.status = 'expired';
       }

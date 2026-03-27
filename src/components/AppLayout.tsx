@@ -26,7 +26,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, loading, role, signOut } = useAuth();
+  const { user, loading, role, signOut, isTeamMember } = useAuth();
   const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
@@ -298,12 +298,12 @@ export default function AppLayout() {
   }
 
   // Show onboarding wizard for employers only
-  if (hookNeedsOnboarding && !isGuestDraftHandoff) {
+  if (hookNeedsOnboarding && !isGuestDraftHandoff && !isTeamMember) {
     return <OnboardingWizard onComplete={() => {/* navigation handled inside wizard */}} />;
   }
 
   // Show expired overlay for expired trials (employers only)
-  if (isExpiredCheck) {
+  if (isExpiredCheck && !isTeamMember) {
     return <TrialExpiredOverlay />;
   }
 

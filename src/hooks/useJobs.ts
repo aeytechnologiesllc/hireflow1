@@ -10,6 +10,25 @@ export interface JobWithApplicationCount extends Job {
   application_count: number;
 }
 
+async function resolveEmployerIdForJobAccess(userId: string, isTeamMember: boolean) {
+  if (!isTeamMember) {
+    return userId;
+  }
+
+  const { data: teamMember, error } = await supabase
+    .from("team_members")
+    .select("employer_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .single();
+
+  if (error || !teamMember) {
+    throw error ?? new Error("Active team membership not found.");
+  }
+
+  return teamMember.employer_id;
+}
+
 export function useEmployerJobs() {
   const { user, isTeamMember } = useAuth();
 
@@ -18,20 +37,11 @@ export function useEmployerJobs() {
     queryFn: async () => {
       let employerId = user!.id;
 
-      // If team member, get the employer_id from team_members table
-      if (isTeamMember) {
-        const { data: teamMember, error: tmError } = await supabase
-          .from("team_members")
-          .select("employer_id")
-          .eq("user_id", user!.id)
-          .eq("status", "active")
-          .single();
-
-        if (tmError || !teamMember) {
-          console.error("Failed to get team member employer_id:", tmError);
-          return [] as JobWithApplicationCount[];
-        }
-        employerId = teamMember.employer_id;
+      try {
+        employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
+      } catch (tmError) {
+        console.error("Failed to get team member employer_id:", tmError);
+        return [] as JobWithApplicationCount[];
       }
 
       // Get jobs - RLS will filter to assigned jobs for team members
@@ -115,20 +125,11 @@ export function useJobStats() {
     queryFn: async () => {
       let employerId = user!.id;
 
-      // If team member, get the employer_id from team_members table
-      if (isTeamMember) {
-        const { data: teamMember, error: tmError } = await supabase
-          .from("team_members")
-          .select("employer_id")
-          .eq("user_id", user!.id)
-          .eq("status", "active")
-          .single();
-
-        if (tmError || !teamMember) {
-          console.error("Failed to get team member employer_id:", tmError);
-          return { total: 0, published: 0, draft: 0, closed: 0 };
-        }
-        employerId = teamMember.employer_id;
+      try {
+        employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
+      } catch (tmError) {
+        console.error("Failed to get team member employer_id:", tmError);
+        return { total: 0, published: 0, draft: 0, closed: 0 };
       }
 
       const { data, error } = await supabase
@@ -153,13 +154,14 @@ export function useJobStats() {
 
 export function useCreateJob() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
 
   return useMutation({
     mutationFn: async (job: Omit<JobInsert, "employer_id">) => {
+      const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data, error } = await supabase
         .from("jobs")
-        .insert({ ...job, employer_id: user!.id })
+        .insert({ ...job, employer_id: employerId })
         .select()
         .single();
 
