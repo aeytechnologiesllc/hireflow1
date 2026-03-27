@@ -56,9 +56,11 @@ export default function AuthCallback() {
     };
 
     const assignRoleAndRedirect = async (userId: string, roleFromUrl: string | null) => {
+      const role = roleFromUrl === "candidate" ? "candidate" : "employer";
+
       try {
         const { error: rpcError } = await supabase.rpc("assign_user_role", {
-          p_role: roleFromUrl === "employer" ? "employer" : "candidate",
+          p_role: role,
         });
 
         if (rpcError) {
@@ -69,7 +71,7 @@ export default function AuthCallback() {
       }
 
       // Navigate to appropriate dashboard
-      if (roleFromUrl === "employer") {
+      if (role === "employer") {
         navigate("/dashboard", { replace: true });
       } else {
         navigate("/apply", { replace: true });

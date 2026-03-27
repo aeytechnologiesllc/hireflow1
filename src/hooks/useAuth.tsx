@@ -164,22 +164,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
     try {
+      const callbackUrl = new URL(redirectTo || `${window.location.origin}/auth/callback`);
+      if (role) {
+        callbackUrl.searchParams.set("role", role);
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: redirectTo || `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl.toString(),
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
 
       if (error) {
         return { error: error as Error };
-      }
-
-      // After successful OAuth, assign role if needed
-      if (role) {
-        setTimeout(async () => {
-          await supabase.rpc("assign_user_role", { p_role: role });
-        }, 0);
       }
 
       return { error: null };

@@ -10,7 +10,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, CreditCard, Loader2, Bell } from "lucide-react";
+import { User, CreditCard, Loader2, Bell, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
 import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
@@ -25,6 +36,7 @@ export default function Settings() {
   const isEmployer = role === "employer";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSendingTestPush, setIsSendingTestPush] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { sendTestNotification } = usePushNotifications();
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
@@ -133,6 +145,26 @@ export default function Settings() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account');
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Account deleted successfully");
+      await supabase.auth.signOut();
+      navigate("/auth");
+    } catch (error) {
+      console.error("Delete account error:", error);
+      toast.error("Failed to delete account. Please try again or contact support.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Candidate Settings - Simple view (no subscription tab)
   if (!isEmployer) {
     return (
@@ -190,7 +222,33 @@ export default function Settings() {
                   Permanently delete your account and all data
                 </p>
               </div>
-              <Button variant="destructive">Delete Account</Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isDeleting}>
+                    {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Delete Account"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                      Delete Account
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Yes, Delete My Account
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>
@@ -420,7 +478,33 @@ export default function Settings() {
                     Permanently delete your account and all associated data
                   </p>
                 </div>
-                <Button variant="destructive">Delete Account</Button>
+                <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isDeleting}>
+                    {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Delete Account"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                      Delete Account
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Yes, Delete My Account
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               </div>
             </CardContent>
           </Card>
