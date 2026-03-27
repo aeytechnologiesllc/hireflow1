@@ -17,17 +17,34 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Card, CardContent } from "@/components/ui/card";
+import { Shield } from "lucide-react";
 
 // Edge swipe detection constants
 const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
 const SWIPE_MIN_DISTANCE = 80; // px to trigger open
+const TEAM_ALLOWED_PATH_PREFIXES = [
+  "/team-portal",
+  "/jobs",
+  "/applicants",
+  "/interviews",
+  "/messages",
+  "/documents",
+  "/profile",
+  "/settings",
+  "/notifications",
+];
+
+function isAllowedTeamPath(pathname: string) {
+  return TEAM_ALLOWED_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
 
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading, role, signOut, isTeamMember } = useAuth();
-  const { subscription, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
+  const { subscription, teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
   const syncAttemptedRef = useRef(false);
@@ -141,6 +158,13 @@ export default function AppLayout() {
                     (subscription?.status === 'trialing' && 
                      subscription?.trial_end && 
                      new Date(subscription.trial_end) < new Date());
+  const hasRevokedTeamAccess = role === "team_member" && teamAccess.status === "revoked";
+  const hasExpiredTeamAccess = isTeamMember && isExpiredCheck;
+  const shouldRedirectTeamMember =
+    isTeamMember &&
+    !hasExpiredTeamAccess &&
+    !hasRevokedTeamAccess &&
+    !isAllowedTeamPath(location.pathname);
 
   // Handle auth errors from subscription - session likely expired
   useEffect(() => {
@@ -212,6 +236,12 @@ export default function AppLayout() {
     }
   }, [user, loading, role, navigate, location.pathname, location.search]);
 
+  useEffect(() => {
+    if (!loading && user && shouldRedirectTeamMember) {
+      navigate("/team-portal", { replace: true });
+    }
+  }, [loading, user, shouldRedirectTeamMember, navigate]);
+
   const isCandidateRoute = location.pathname.startsWith("/candidate");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
   const isGuestDraftSignal =
@@ -250,6 +280,10 @@ export default function AppLayout() {
     if (!location.pathname.startsWith("/developer")) {
       navigate("/developer", { replace: true });
     }
+    return <AuthLoadingScreen variant={loadingVariant} />;
+  }
+
+  if (shouldRedirectTeamMember) {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
@@ -298,12 +332,30 @@ export default function AppLayout() {
   }
 
   // Show onboarding wizard for employers only
-  if (hookNeedsOnboarding && !isGuestDraftHandoff && !isTeamMember) {
+  if (hookNeedsOnboarding && !isGuestDraftHandoff && role === "employer") {
     return <OnboardingWizard onComplete={() => {/* navigation handled inside wizard */}} />;
   }
 
+  if (hasRevokedTeamAccess) {
+    return (
+      <TeamAccessRestricted
+        title="Access Restricted"
+        description="Your team access was removed by the account owner. Please contact your account administrator if you need access restored."
+      />
+    );
+  }
+
+  if (hasExpiredTeamAccess) {
+    return (
+      <TeamAccessRestricted
+        title="Access Restricted"
+        description="Your employer's subscription has expired. Please contact your account administrator to restore access."
+      />
+    );
+  }
+
   // Show expired overlay for expired trials (employers only)
-  if (isExpiredCheck && !isTeamMember) {
+  if (isExpiredCheck && role === "employer") {
     return <TrialExpiredOverlay />;
   }
 
@@ -353,6 +405,28 @@ export default function AppLayout() {
         </div>
       </div>
     </TooltipProvider>
+  );
+}
+
+function TeamAccessRestricted({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="min-h-[100dvh] bg-background flex items-center justify-center p-6">
+      <Card className="max-w-md w-full text-center">
+        <CardContent className="p-8 space-y-4">
+          <div className="p-4 rounded-full bg-destructive/10 w-fit mx-auto">
+            <Shield className="h-10 w-10 text-destructive" />
+          </div>
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="text-muted-foreground">{description}</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

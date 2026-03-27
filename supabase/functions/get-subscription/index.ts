@@ -50,7 +50,13 @@ serve(async (req) => {
 
     const roles = new Set((roleRows || []).map((row) => row.role));
     const isCandidateOnly = roles.size > 0 && roles.has("candidate") && !roles.has("employer") && !roles.has("team_member");
-    const isTeamMember = roles.has("team_member") && !roles.has("employer");
+    const isTeamMemberRole = roles.has("team_member") && !roles.has("employer");
+    let teamAccess = {
+      isTeamMember: false,
+      status: "none",
+      reason: null as "revoked" | null,
+      employerId: null as string | null,
+    };
 
     if (isCandidateOnly) {
       console.log("Candidate user detected — returning free access, skipping all subscription logic");
@@ -84,6 +90,7 @@ serve(async (req) => {
           hasVoiceInterviews: false,
         },
         voiceCredits: { totalMinutesAvailable: 0, credits: [] },
+        teamAccess,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -91,8 +98,8 @@ serve(async (req) => {
 
     let effectiveOwnerId = user.id;
 
-    if (isTeamMember) {
-      const { data: membership, error: membershipError } = await supabaseAdmin
+    if (isTeamMemberRole) {
+      const { data: activeMembership, error: membershipError } = await supabaseAdmin
         .from("team_members")
         .select("employer_id")
         .eq("user_id", user.id)
@@ -101,8 +108,43 @@ serve(async (req) => {
 
       if (membershipError) {
         console.error("Error fetching team membership:", membershipError);
-      } else if (membership?.employer_id) {
-        effectiveOwnerId = membership.employer_id;
+      } else if (activeMembership?.employer_id) {
+        effectiveOwnerId = activeMembership.employer_id;
+        teamAccess = {
+          isTeamMember: true,
+          status: "active",
+          reason: null,
+          employerId: activeMembership.employer_id,
+        };
+      } else {
+        const { data: latestMembership, error: latestMembershipError } = await supabaseAdmin
+          .from("team_members")
+          .select("employer_id, status")
+          .eq("user_id", user.id)
+          .order("joined_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestMembershipError) {
+          console.error("Error fetching latest team membership:", latestMembershipError);
+        }
+
+        teamAccess = {
+          isTeamMember: true,
+          status: "revoked",
+          reason: "revoked",
+          employerId: latestMembership?.employer_id ?? null,
+        };
+
+        return new Response(JSON.stringify({
+          subscription: null,
+          usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
+          limits: getNoAccessLimits(),
+          voiceCredits: { totalMinutesAvailable: 0, credits: [] },
+          teamAccess,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -379,6 +421,7 @@ serve(async (req) => {
             expires_at: trialEnd.toISOString(),
           }],
         },
+        teamAccess,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -417,6 +460,7 @@ serve(async (req) => {
           granted_at: c.granted_at,
         })),
       },
+      teamAccess,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -473,11 +517,11 @@ function getPlanLimits(planType: string) {
         jobs: 1,
         applicants: 15,
         documents: 10,
-        teamMembers: 0,
+        teamMembers: 1,
         aiAnalyses: 15,
         voiceMinutes: 15,
         hasAdvancedAnalytics: false,
-        hasTeamPortal: false,
+        hasTeamPortal: true,
         hasDocuments: true,
         hasPrioritySupport: false,
         hasVoiceAssistant: false,
@@ -485,4 +529,21 @@ function getPlanLimits(planType: string) {
         hasVoiceTrialAccess: true,
       };
   }
+}
+
+function getNoAccessLimits() {
+  return {
+    jobs: 0,
+    applicants: 0,
+    documents: 0,
+    teamMembers: 0,
+    aiAnalyses: 0,
+    voiceMinutes: 0,
+    hasAdvancedAnalytics: false,
+    hasTeamPortal: false,
+    hasDocuments: false,
+    hasPrioritySupport: false,
+    hasVoiceAssistant: false,
+    hasVoiceInterviews: false,
+  };
 }

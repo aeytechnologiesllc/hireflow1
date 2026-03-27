@@ -59,12 +59,27 @@ export interface VoiceCreditsData {
   credits: VoiceCredit[];
 }
 
+export interface TeamAccessState {
+  isTeamMember: boolean;
+  status: 'active' | 'revoked' | 'none';
+  reason: 'revoked' | null;
+  employerId: string | null;
+}
+
 export interface SubscriptionState {
   subscription: SubscriptionData | null;
   usage: UsageData;
   limits: PlanLimits;
   voiceCredits: VoiceCreditsData;
+  teamAccess: TeamAccessState;
 }
+
+const defaultTeamAccess: TeamAccessState = {
+  isTeamMember: false,
+  status: 'none',
+  reason: null,
+  employerId: null,
+};
 
 export function useSubscription() {
   const { user } = useAuth();
@@ -277,6 +292,7 @@ export function useSubscription() {
     usage: data?.usage ?? { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
     limits: data?.limits ?? { jobs: 1, applicants: 10, documents: 5, teamMembers: 0, aiAnalyses: 20, voiceMinutes: 0, hasAdvancedAnalytics: false, hasTeamPortal: false, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: false },
     voiceCredits: data?.voiceCredits ?? { totalMinutesAvailable: 0, credits: [] },
+    teamAccess: data?.teamAccess ?? defaultTeamAccess,
     isLoading,
     error,
     refetch,

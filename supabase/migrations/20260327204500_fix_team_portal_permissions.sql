@@ -10,6 +10,13 @@ AS $$
       SELECT 1
       FROM public.subscriptions s
       WHERE s.user_id = target_user_id
+        AND s.status = 'trialing'
+        AND (s.trial_end IS NULL OR s.trial_end > now())
+    ) THEN 1
+    WHEN EXISTS (
+      SELECT 1
+      FROM public.subscriptions s
+      WHERE s.user_id = target_user_id
         AND s.status = 'active'
         AND s.plan_type IN ('business', 'enterprise')
     ) THEN -1
