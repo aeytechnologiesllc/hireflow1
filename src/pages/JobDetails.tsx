@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { useJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,13 +29,32 @@ export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { role, user } = useAuth();
-  const { data: job, isLoading, error } = useJob(id);
   const [isStartingApplication, setIsStartingApplication] = useState(false);
   const [applicantLimitReached, setApplicantLimitReached] = useState(false);
   const [isCheckingLimit, setIsCheckingLimit] = useState(false);
 
   const isEmployer = role === "employer";
   const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
+  const shouldRestrictToPublished = !user || role === "candidate";
+  const { data: job, isLoading, error } = useQuery({
+    queryKey: ["job-details", id, shouldRestrictToPublished],
+    queryFn: async () => {
+      let query = supabase
+        .from("jobs")
+        .select("*")
+        .eq("id", id!);
+
+      if (shouldRestrictToPublished) {
+        query = query.eq("status", "published");
+      }
+
+      const { data, error } = await query.single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
   
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
