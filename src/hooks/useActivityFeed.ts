@@ -26,65 +26,90 @@ export function useActivityFeed(limit: number = 20) {
     queryFn: async () => {
       if (!user) return [];
 
-      // Fetch recent applications
-      const { data: applications } = await supabase
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("employer_id, assigned_job_ids")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      const effectiveEmployerId = teamMember?.employer_id || user.id;
+      const assignedJobIds = Array.isArray(teamMember?.assigned_job_ids)
+        ? (teamMember.assigned_job_ids as string[])
+        : null;
+
+      let jobsQuery = supabase
+        .from("jobs")
+        .select("id, title")
+        .eq("employer_id", effectiveEmployerId);
+
+      if (assignedJobIds && assignedJobIds.length > 0) {
+        jobsQuery = jobsQuery.in("id", assignedJobIds);
+      }
+
+      const { data: jobs, error: jobsError } = await jobsQuery;
+
+      if (jobsError) throw jobsError;
+      if (!jobs || jobs.length === 0) return [];
+
+      const jobIds = jobs.map((job) => job.id);
+      const jobMap = new Map(jobs.map((job) => [job.id, job]));
+
+      const { data: applications, error: applicationsError } = await supabase
         .from("applications")
-        .select(`
-          id,
-          status,
-          created_at,
-          updated_at,
-          jobs!inner(title, employer_id),
-          profiles:candidate_id(full_name, email)
-        `)
-        .eq("jobs.employer_id", user.id)
+        .select("id, status, created_at, updated_at, candidate_id, job_id")
+        .in("job_id", jobIds)
         .order("updated_at", { ascending: false })
         .limit(limit);
 
-      // Fetch recent interviews
-      const { data: interviews } = await supabase
-        .from("interviews")
-        .select(`
-          id,
-          status,
-          scheduled_at,
-          created_at,
-          applications!inner(
-            id,
-            candidate_id,
-            jobs!inner(title, employer_id),
-            profiles:candidate_id(full_name, email)
-          )
-        `)
-        .eq("applications.jobs.employer_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(limit);
+      if (applicationsError) throw applicationsError;
 
-      // Fetch recent documents
-      const { data: documents } = await supabase
-        .from("documents")
-        .select(`
-          id,
-          name,
-          status,
-          created_at,
-          signed_at,
-          applications!inner(
-            id,
-            jobs!inner(title, employer_id),
-            profiles:candidate_id(full_name, email)
-          )
-        `)
-        .eq("applications.jobs.employer_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(limit);
+      const applicationIds = applications?.map((app) => app.id) || [];
+      const candidateIds = [
+        ...new Set((applications || []).map((app) => app.candidate_id).filter(Boolean)),
+      ];
+
+      const [{ data: interviews, error: interviewsError }, { data: documents, error: documentsError }, { data: profiles, error: profilesError }] =
+        await Promise.all([
+          applicationIds.length > 0
+            ? supabase
+                .from("interviews")
+                .select("id, status, scheduled_at, created_at, application_id")
+                .in("application_id", applicationIds)
+                .order("created_at", { ascending: false })
+                .limit(limit)
+            : Promise.resolve({ data: [], error: null }),
+          applicationIds.length > 0
+            ? supabase
+                .from("documents")
+                .select("id, name, status, created_at, signed_at, application_id")
+                .in("application_id", applicationIds)
+                .order("created_at", { ascending: false })
+                .limit(limit)
+            : Promise.resolve({ data: [], error: null }),
+          candidateIds.length > 0
+            ? supabase
+                .from("profiles")
+                .select("user_id, full_name, email")
+                .in("user_id", candidateIds)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+      if (interviewsError) throw interviewsError;
+      if (documentsError) throw documentsError;
+      if (profilesError) throw profilesError;
+
+      const applicationMap = new Map((applications || []).map((app) => [app.id, app]));
+      const profileMap = new Map((profiles || []).map((profile) => [profile.user_id, profile]));
 
       const activityItems: ActivityItem[] = [];
 
       // Process applications
-      applications?.forEach((app: any) => {
-        const candidateName = app.profiles?.full_name || app.profiles?.email || "Unknown";
-        const jobTitle = app.jobs?.title || "Unknown Position";
+      applications?.forEach((app) => {
+        const profile = profileMap.get(app.candidate_id);
+        const job = jobMap.get(app.job_id);
+        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const jobTitle = job?.title || "Unknown Position";
 
         if (app.status === "hired") {
           activityItems.push({
@@ -130,10 +155,12 @@ export function useActivityFeed(limit: number = 20) {
       });
 
       // Process interviews
-      interviews?.forEach((interview: any) => {
-        const app = interview.applications;
-        const candidateName = app?.profiles?.full_name || app?.profiles?.email || "Unknown";
-        const jobTitle = app?.jobs?.title || "Unknown Position";
+      interviews?.forEach((interview) => {
+        const app = applicationMap.get(interview.application_id);
+        const profile = app ? profileMap.get(app.candidate_id) : null;
+        const job = app ? jobMap.get(app.job_id) : null;
+        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const jobTitle = job?.title || "Unknown Position";
 
         activityItems.push({
           id: `interview-${interview.id}`,
@@ -141,16 +168,18 @@ export function useActivityFeed(limit: number = 20) {
           title: interview.status === "completed" ? "Interview Completed" : "Interview Scheduled",
           description: `${interview.status === "completed" ? "Completed" : "Scheduled"} interview with ${candidateName} for ${jobTitle}`,
           timestamp: interview.created_at,
-          link: `/applicants/${app?.id}`,
+          link: app ? `/applicants/${app.id}` : undefined,
           metadata: { candidateName, jobTitle },
         });
       });
 
       // Process documents
-      documents?.forEach((doc: any) => {
-        const app = doc.applications;
-        const candidateName = app?.profiles?.full_name || app?.profiles?.email || "Unknown";
-        const jobTitle = app?.jobs?.title || "Unknown Position";
+      documents?.forEach((doc) => {
+        const app = applicationMap.get(doc.application_id);
+        const profile = app ? profileMap.get(app.candidate_id) : null;
+        const job = app ? jobMap.get(app.job_id) : null;
+        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const jobTitle = job?.title || "Unknown Position";
 
         if (doc.status === "signed" && doc.signed_at) {
           activityItems.push({
