@@ -89,6 +89,74 @@ function getNextActions(params: {
   return actions.slice(0, 3);
 }
 
+function getWorkspaceExpectations(params: {
+  permissionLabel: string;
+  department?: string | null;
+  assignedJobTitles: string[];
+  canCreateJobs: boolean;
+  canManagePipeline: boolean;
+  canMessageCandidates: boolean;
+  canScheduleInterviews: boolean;
+  canSendDocuments: boolean;
+}) {
+  const expectations: string[] = [];
+
+  if (params.department) {
+    expectations.push(`Your first focus area is the ${params.department} team.`);
+  }
+
+  if (params.assignedJobTitles.length > 0) {
+    expectations.push(`Start with the roles already assigned to you: ${params.assignedJobTitles.slice(0, 2).join(", ")}${params.assignedJobTitles.length > 2 ? ", and more." : "."}`);
+  } else {
+    expectations.push("Use the Team Portal as your home base for the jobs and applicants your owner has made visible to you.");
+  }
+
+  if (params.canManagePipeline) {
+    expectations.push("Keep applicants moving so the hiring process does not stall between stages.");
+  } else if (params.canMessageCandidates || params.canScheduleInterviews || params.canSendDocuments) {
+    expectations.push("Your role is focused on coordination and candidate follow-up rather than moving candidates between stages.");
+  } else if (!params.canCreateJobs) {
+    expectations.push("This workspace is currently set up for visibility first, so you can stay aligned without changing the hiring flow.");
+  }
+
+  if (params.permissionLabel === "Full Admin") {
+    expectations.push("You can create jobs and help shape the hiring plan when the owner needs support.");
+  }
+
+  return expectations.slice(0, 3);
+}
+
+function getFirstWeekChecklist(params: {
+  assignedJobTitles: string[];
+  canCreateJobs: boolean;
+  canManagePipeline: boolean;
+  canMessageCandidates: boolean;
+  canScheduleInterviews: boolean;
+  canSendDocuments: boolean;
+}) {
+  const checklist: string[] = [];
+
+  checklist.push(
+    params.assignedJobTitles.length > 0
+      ? "Open your assigned jobs and review the active applicant flow."
+      : "Open Team Portal and review which jobs and applicants are visible to you."
+  );
+
+  if (params.canManagePipeline) {
+    checklist.push("Use the pipeline view to move strong applicants forward and keep stages current.");
+  }
+
+  if (params.canMessageCandidates || params.canScheduleInterviews || params.canSendDocuments) {
+    checklist.push("Check messages, interviews, and documents so candidate follow-up stays fast and consistent.");
+  }
+
+  if (params.canCreateJobs) {
+    checklist.push("If a new opening is needed, use Ava to generate the job and screening plan instead of starting from scratch.");
+  }
+
+  return checklist.slice(0, 4);
+}
+
 export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
   const {
     companyName,
@@ -128,6 +196,50 @@ export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
         canSendDocuments,
       }),
     [canCreateJobs, canManagePipeline, canMessageCandidates, canScheduleInterviews, canSendDocuments],
+  );
+
+  const workspaceExpectations = useMemo(
+    () =>
+      getWorkspaceExpectations({
+        permissionLabel,
+        department,
+        assignedJobTitles,
+        canCreateJobs,
+        canManagePipeline,
+        canMessageCandidates,
+        canScheduleInterviews,
+        canSendDocuments,
+      }),
+    [
+      permissionLabel,
+      department,
+      assignedJobTitles,
+      canCreateJobs,
+      canManagePipeline,
+      canMessageCandidates,
+      canScheduleInterviews,
+      canSendDocuments,
+    ],
+  );
+
+  const firstWeekChecklist = useMemo(
+    () =>
+      getFirstWeekChecklist({
+        assignedJobTitles,
+        canCreateJobs,
+        canManagePipeline,
+        canMessageCandidates,
+        canScheduleInterviews,
+        canSendDocuments,
+      }),
+    [
+      assignedJobTitles,
+      canCreateJobs,
+      canManagePipeline,
+      canMessageCandidates,
+      canScheduleInterviews,
+      canSendDocuments,
+    ],
   );
 
   const handleContinue = async () => {
@@ -228,6 +340,21 @@ export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
                       You can always return to the Team Portal to see what is available to you and what the account owner has assigned.
                     </p>
                   </div>
+
+                  <div className="rounded-2xl border bg-background/70 p-6 md:col-span-2">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">How this workspace is set up for you</span>
+                    </div>
+                    <div className="space-y-2">
+                      {workspaceExpectations.map((expectation) => (
+                        <div key={expectation} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          <span>{expectation}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </motion.div>
               )}
 
@@ -293,6 +420,18 @@ export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
                       <p className="text-sm text-muted-foreground">{action.description}</p>
                     </div>
                   ))}
+
+                  <div className="rounded-2xl border bg-background/70 p-5 md:col-span-3">
+                    <h3 className="mb-3 font-semibold">First checklist</h3>
+                    <div className="space-y-2">
+                      {firstWeekChecklist.map((item) => (
+                        <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

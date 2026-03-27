@@ -107,7 +107,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { RefreshCw } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
-import { DEFAULT_GUIDED_JOB_SETUP, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
+import { DEFAULT_GUIDED_JOB_SETUP, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 
 interface ApplicationQuestion {
   id: string;
@@ -1125,6 +1125,27 @@ export default function CreateJob() {
     workflowSteps,
     requireResume: true,
   });
+  const screeningPlanRationale = buildScreeningPlanRationale({
+    guidedSetup: {
+      job_family: formData.job_family,
+      urgency: formData.urgency,
+      must_haves: formData.must_haves,
+      deal_breakers: formData.deal_breakers,
+      certifications: formData.certifications,
+      schedule_details: formData.schedule_details,
+      language_requirements: formData.language_requirements,
+      work_authorization: formData.work_authorization,
+      travel_requirement: formData.travel_requirement,
+      compensation_guidance: formData.compensation_guidance,
+      portfolio_preference: formData.portfolio_preference,
+      customer_facing: formData.customer_facing,
+    },
+    workflowSteps,
+    applicationQuestionsCount: applicationQuestions.length,
+    quizQuestionsCount: quizQuestions.length,
+    passingScore,
+    processingMode,
+  });
 
   return (
     <div className="space-y-8 sm:space-y-6">
@@ -1982,6 +2003,61 @@ export default function CreateJob() {
                             : "None beyond the application"}
                         </p>
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Target className="h-4 w-4 text-primary" />
+                        {screeningPlanRationale.title}
+                      </CardTitle>
+                      <CardDescription>{screeningPlanRationale.overview}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+                        <div className="rounded-xl border border-border bg-secondary/30 p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            <h3 className="font-medium text-foreground">What Ava optimized for</h3>
+                          </div>
+                          <div className="space-y-2">
+                            {screeningPlanRationale.focusAreas.map((item) => (
+                              <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                <span>{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-secondary/30 p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Bot className="h-4 w-4 text-primary" />
+                            <h3 className="font-medium text-foreground">Autopilot logic</h3>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {screeningPlanRationale.automationNote}
+                          </p>
+                        </div>
+                      </div>
+
+                      {screeningPlanRationale.stepReasons.length > 0 && (
+                        <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                          <div className="mb-3 flex items-center gap-2">
+                            <HelpCircle className="h-4 w-4 text-primary" />
+                            <h3 className="font-medium text-foreground">Why each deeper step exists</h3>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            {screeningPlanRationale.stepReasons.map((step) => (
+                              <div key={step.title} className="rounded-lg border border-border bg-background/70 p-3">
+                                <p className="text-sm font-medium text-foreground">{step.title}</p>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.reason}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
 

@@ -21,6 +21,14 @@ export interface ScreeningPlanSummary {
   summary: string;
 }
 
+export interface ScreeningPlanRationale {
+  title: string;
+  overview: string;
+  focusAreas: string[];
+  stepReasons: Array<{ title: string; reason: string }>;
+  automationNote: string;
+}
+
 export const DEFAULT_GUIDED_JOB_SETUP: GuidedJobSetup = {
   job_family: "general",
   urgency: "standard",
@@ -86,6 +94,20 @@ const STEP_TIME_MINUTES: Record<string, number> = {
   chat_interview: 15,
   voice_interview: 15,
 };
+
+const STEP_REASON_OVERRIDES: Record<string, string> = {
+  typing_test: "Ava added a typing check because this role depends on speed, written accuracy, and steady execution under routine pressure.",
+  video_message: "Ava added a video step to capture communication style, confidence, and how the candidate presents themselves in a real interaction.",
+  chat_simulation: "Ava added a live support simulation because this role needs empathy, written judgment, and calm problem-solving with customers in real time.",
+  sales_simulation: "Ava added a sales simulation to test discovery, persuasion, and objection handling instead of relying only on resume claims.",
+  portfolio_upload: "Ava requested portfolio evidence because work samples are stronger than self-reported experience for this type of role.",
+  chat_interview: "Ava included a final interview to pressure-test judgment, consistency, and role fit after the earlier signals are collected.",
+  voice_interview: "Ava included a live voice interview because spoken communication is a meaningful part of success in this workflow.",
+};
+
+export function getJobFamilyOption(jobFamily: string) {
+  return JOB_FAMILY_OPTIONS.find((option) => option.value === jobFamily) || JOB_FAMILY_OPTIONS[JOB_FAMILY_OPTIONS.length - 1];
+}
 
 export function estimateCandidateMinutes(
   workflowSteps: Array<{ type?: string }> | null | undefined,
@@ -174,5 +196,63 @@ export function summarizeScreeningPlan(params: {
     requiredMaterials,
     stepLabels,
     summary: summaryParts.join(" + "),
+  };
+}
+
+export function buildScreeningPlanRationale(params: {
+  guidedSetup: GuidedJobSetup;
+  workflowSteps?: Array<{ type?: string; title?: string }> | null;
+  screeningSummary?: string | null;
+  applicationQuestionsCount: number;
+  quizQuestionsCount: number;
+  passingScore: number;
+  processingMode: "auto" | "manual";
+}): ScreeningPlanRationale {
+  const workflowSteps = Array.isArray(params.workflowSteps) ? params.workflowSteps : [];
+  const family = getJobFamilyOption(params.guidedSetup.job_family);
+  const focusAreas: string[] = [];
+
+  if (params.guidedSetup.must_haves) {
+    focusAreas.push("Ava front-loaded the employer's must-haves so weak-fit applicants get filtered early.");
+  }
+  if (params.guidedSetup.deal_breakers) {
+    focusAreas.push("Ava added an early disqualifier check so non-starters can self-select out before deeper screening.");
+  }
+  if (params.guidedSetup.certifications || params.guidedSetup.work_authorization) {
+    focusAreas.push("Ava treated credential and eligibility checks as hard requirements instead of optional nice-to-haves.");
+  }
+  if (params.guidedSetup.language_requirements) {
+    focusAreas.push("Ava added language validation because the role explicitly depends on communication in specific languages.");
+  }
+  if (params.guidedSetup.schedule_details || params.guidedSetup.travel_requirement) {
+    focusAreas.push("Ava used schedule and logistics checks up front so the team does not spend time on candidates who cannot work the real operating model.");
+  }
+  if (params.guidedSetup.customer_facing) {
+    focusAreas.push("Ava biased the plan toward communication and live response quality because this is a customer-facing role.");
+  }
+  if (focusAreas.length === 0) {
+    focusAreas.push(`Ava used the ${family.label.toLowerCase()} family template to keep the plan aligned to what success usually looks like in this type of hiring.`);
+  }
+
+  const stepReasons = workflowSteps.map((step) => ({
+    title: step.title || STEP_LABELS[step.type || ""] || "Additional assessment",
+    reason: STEP_REASON_OVERRIDES[step.type || ""] || "Ava included this step to collect stronger evidence than the resume and quiz alone can provide.",
+  }));
+
+  const overview =
+    params.screeningSummary?.trim() ||
+    `Ava built a ${family.label.toLowerCase()} plan with ${params.applicationQuestionsCount} application questions, ${params.quizQuestionsCount} timed assessment questions, and ${workflowSteps.length} deeper evaluation step${workflowSteps.length === 1 ? "" : "s"}.`;
+
+  const automationNote =
+    params.processingMode === "auto"
+      ? `Autopilot will use this evidence mix and your ${params.passingScore}% threshold to advance clear matches automatically and hold weaker fits back.`
+      : `Human review is currently on, so Ava will still score candidates from this evidence mix, but your team will make the final advancement decision.`;
+
+  return {
+    title: `Why Ava built this ${family.label.toLowerCase()} plan`,
+    overview,
+    focusAreas,
+    stepReasons,
+    automationNote,
   };
 }
