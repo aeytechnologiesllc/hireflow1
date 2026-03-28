@@ -112,9 +112,7 @@ export function useSubscription() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async (): Promise<SubscriptionState> => {
-      const { data, error } = await supabase.functions.invoke('get-subscription');
-      if (error) throw error;
-      return data;
+      return invokeAuthedFunction<SubscriptionState>('get-subscription');
     },
     enabled: !!user,
     staleTime: 30000,

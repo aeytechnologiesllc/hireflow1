@@ -597,36 +597,46 @@ function postProcessWorkflowData(
   };
 
   data.quiz_questions = data.quiz_questions.map((question, index) => {
-    if (question.type === "personality" || question.type === "situational" || question.type === "short_answer") {
-      return { ...question, correct_answer: null };
+    const validOptions = Array.isArray(question.options)
+      ? question.options
+          .map((option) => String(option ?? "").trim())
+          .filter(Boolean)
+      : [];
+
+    const normalizedQuestion = validOptions.length === 0
+      ? { ...question, type: "text", options: undefined, correct_answer: null, correct_answers: undefined }
+      : { ...question, options: validOptions };
+
+    if (normalizedQuestion.type === "personality" || normalizedQuestion.type === "situational" || normalizedQuestion.type === "short_answer") {
+      return { ...normalizedQuestion, correct_answer: null };
     }
 
-    if (question.type === "multi_select" && Array.isArray(question.correct_answers)) {
-      const validAnswers = question.correct_answers.filter((answer) =>
-        question.options?.some((option) => String(option).toLowerCase().trim() === String(answer).toLowerCase().trim()),
+    if (normalizedQuestion.type === "multi_select" && Array.isArray(normalizedQuestion.correct_answers)) {
+      const validAnswers = normalizedQuestion.correct_answers.filter((answer) =>
+        normalizedQuestion.options?.some((option) => String(option).toLowerCase().trim() === String(answer).toLowerCase().trim()),
       );
       if (validAnswers.length >= 2) {
-        return { ...question, correct_answers: validAnswers };
+        return { ...normalizedQuestion, correct_answers: validAnswers };
       }
 
       return {
-        ...question,
-        type: "multiple_choice",
-        correct_answer: question.options?.[0] || "",
+        ...normalizedQuestion,
+        type: validOptions.length >= 2 ? "multiple_choice" : "text",
+        correct_answer: validOptions[0] || null,
         correct_answers: undefined,
       };
     }
 
-    if (Array.isArray(question.options) && question.options.length > 0) {
-      const matchingOption = question.options.find((option) =>
-        String(option).toLowerCase().trim() === String(question.correct_answer || "").toLowerCase().trim(),
+    if (Array.isArray(normalizedQuestion.options) && normalizedQuestion.options.length > 0) {
+      const matchingOption = normalizedQuestion.options.find((option) =>
+        String(option).toLowerCase().trim() === String(normalizedQuestion.correct_answer || "").toLowerCase().trim(),
       );
       if (!matchingOption) {
-        return { ...question, correct_answer: question.options[0] };
+        return { ...normalizedQuestion, correct_answer: normalizedQuestion.options[0] };
       }
     }
 
-    return question;
+    return normalizedQuestion;
   });
 
   data.application_questions = enrichApplicationQuestions(data.application_questions, request.guided_setup, request.title);

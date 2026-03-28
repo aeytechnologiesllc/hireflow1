@@ -9,6 +9,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const OPENAI_REALTIME_MODEL = Deno.env.get("OPENAI_REALTIME_MODEL") || "gpt-realtime";
+const OPENAI_REALTIME_TRANSCRIPTION_MODEL =
+  Deno.env.get("OPENAI_REALTIME_TRANSCRIPTION_MODEL") || "gpt-4o-transcribe";
+
 // =============== RESUME DETECTION UTILITIES ===============
 // Keywords that indicate a resume/CV upload question
 const RESUME_KEYWORDS = ['resume', 'cv', 'curriculum vitae', 'curriculum', 'résumé'];
@@ -462,20 +466,20 @@ serve(async (req) => {
           if (notes.chatSimulationResult) {
             const chat = notes.chatSimulationResult;
             assessmentData.push(`CHAT SIMULATION: ${chat.overall_score || chat.score || 'Completed'}`);
-            if (chat.summary) assessmentData.push(`   → ${chat.summary}`);
+            if (chat.overallFeedback) assessmentData.push(`   → ${chat.overallFeedback}`);
           }
           
           // Sales simulation
           if (notes.salesSimulationResult) {
             const sales = notes.salesSimulationResult;
             assessmentData.push(`SALES SIMULATION: ${sales.overall_score || sales.score || 'Completed'}`);
-            if (sales.summary) assessmentData.push(`   → ${sales.summary}`);
+            if (sales.overallFeedback) assessmentData.push(`   → ${sales.overallFeedback}`);
           }
           
           // Chat interview
           if (notes.chatInterviewResult) {
             const interview = notes.chatInterviewResult;
-            assessmentData.push(`CHAT INTERVIEW: ${interview.overall_score || 'Completed'}`);
+            assessmentData.push(`CHAT INTERVIEW: ${interview.score || interview.overall_score || 'Completed'}`);
             if (interview.recommendation) assessmentData.push(`   → ${interview.recommendation}`);
           }
           
@@ -1303,17 +1307,17 @@ ${notes.chatSimulationResult ? `
 
 SALES SIMULATION:
 ${notes.salesSimulationResult ? `
-- Overall Score: ${notes.salesSimulationResult.overallScore || notes.salesSimulationResult.evaluation?.score}/100
-- Discovery: ${notes.salesSimulationResult.evaluation?.discovery || 'N/A'}%
-- Objection Handling: ${notes.salesSimulationResult.evaluation?.objectionHandling || 'N/A'}%
-- Value Proposition: ${notes.salesSimulationResult.evaluation?.valueProposition || 'N/A'}%
-- Closing: ${notes.salesSimulationResult.evaluation?.closingSkills || 'N/A'}%
-- Would Buy: ${notes.salesSimulationResult.evaluation?.wouldBuy || 'N/A'}
+- Overall Score: ${notes.salesSimulationResult.score || notes.salesSimulationResult.overallScore || notes.salesSimulationResult.evaluation?.score || 'N/A'}/100
+- Discovery: ${notes.salesSimulationResult.discovery || notes.salesSimulationResult.evaluation?.discovery || 'N/A'}%
+- Objection Handling: ${notes.salesSimulationResult.objectionHandling || notes.salesSimulationResult.evaluation?.objectionHandling || 'N/A'}%
+- Value Proposition: ${notes.salesSimulationResult.valueProposition || notes.salesSimulationResult.evaluation?.valueProposition || 'N/A'}%
+- Closing: ${notes.salesSimulationResult.closingSkills || notes.salesSimulationResult.evaluation?.closingSkills || 'N/A'}%
+- Would Buy: ${notes.salesSimulationResult.wouldBuy || notes.salesSimulationResult.evaluation?.wouldBuy || 'N/A'}
 ` : 'Not completed'}
 
 CHAT INTERVIEW:
 ${notes.chatInterviewResult ? `
-- Overall Score: ${notes.chatInterviewResult.overall_score || notes.chatInterviewResult.evaluation?.score}/100
+- Overall Score: ${notes.chatInterviewResult.score || notes.chatInterviewResult.overall_score || notes.chatInterviewResult.evaluation?.score || 'N/A'}/100
 - Recommendation: ${notes.chatInterviewResult.recommendation || notes.chatInterviewResult.evaluation?.recommendation || 'N/A'}
 - Summary: ${notes.chatInterviewResult.summary || notes.chatInterviewResult.evaluation?.summary || 'N/A'}
 ` : 'Not completed'}
@@ -2192,7 +2196,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-realtime-preview-2024-12-17",
+        model: OPENAI_REALTIME_MODEL,
         voice: selectedVoice,
         instructions,
         tools,
@@ -2200,7 +2204,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         input_audio_transcription: {
-          model: "whisper-1",
+          model: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
         },
         turn_detection: {
           type: "server_vad",
@@ -2229,6 +2233,8 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       JSON.stringify({
         ...sessionData,
         selectedVoice,
+        selectedModel: OPENAI_REALTIME_MODEL,
+        selectedTranscriptionModel: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
         mode,
         tools: tools.map((t) => t.name),
       }),

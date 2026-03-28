@@ -1,10 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
+import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_CHAT_SIMULATION_MODEL = Deno.env.get("OPENAI_CHAT_SIMULATION_MODEL") || "gpt-5.4-mini";
+const OPENAI_CHAT_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_CHAT_SIMULATION_EVAL_MODEL") || "gpt-5.4";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -32,9 +38,8 @@ serve(async (req) => {
 
     console.log("Chat simulation request:", { mode, scenario, customerName, messageCount });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY is not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -107,7 +112,7 @@ Respond as the customer ${customerName}. Remember your scenario: ${scenario}. Th
     }
 
     // For the AI, we flip the roles - the "agent" messages become "user" (since AI is the customer)
-    const apiMessages = [
+    const apiMessages: OpenAIMessage[] = [
       { role: "system", content: systemPrompt },
       ...messages.map(m => ({ 
         role: m.role === "user" ? "assistant" : "user", // Flip roles for AI perspective
@@ -116,71 +121,52 @@ Respond as the customer ${customerName}. Remember your scenario: ${scenario}. Th
       { role: "user", content: userContent }
     ];
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: apiMessages,
-        stream: mode !== "evaluate",
-        ...(mode === "evaluate" && { response_format: { type: "json_object" } })
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add more credits." }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`AI gateway error: ${response.status}`);
-    }
-
     // For evaluation mode, return JSON directly
     if (mode === "evaluate") {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      console.log("Evaluation response:", content);
-      
-      try {
-        const evaluation = JSON.parse(content);
-        return new Response(
-          JSON.stringify(evaluation),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } catch {
-        return new Response(
-          JSON.stringify({ 
-            score: 70,
-            empathy: 70,
-            problemSolving: 70,
-            communication: 70,
-            professionalism: 70,
-            strengths: ["Completed simulation"],
-            improvements: ["Unable to parse detailed evaluation"],
-            overallFeedback: content 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      const { data } = await callOpenAIJson({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_CHAT_SIMULATION_EVAL_MODEL,
+        messages: apiMessages,
+        temperature: 0.35,
+        maxCompletionTokens: 1200,
+        validator: (value) => requireJsonKeys(value, [
+          "score",
+          "empathy",
+          "problemSolving",
+          "communication",
+          "professionalism",
+          "strengths",
+          "improvements",
+          "overallFeedback",
+        ]),
+        fallback: () => ({
+          score: 70,
+          empathy: 70,
+          problemSolving: 70,
+          communication: 70,
+          professionalism: 70,
+          strengths: ["Completed simulation"],
+          improvements: ["Unable to parse detailed evaluation"],
+          overallFeedback: "Simulation completed successfully.",
+        }),
+      });
+
+      return new Response(
+        JSON.stringify(data),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // For start/respond modes, stream the response
-    console.log("Streaming customer response");
+    console.log("Streaming customer response via OpenAI");
+    const response = await streamOpenAIChatCompletion({
+      apiKey: OPENAI_API_KEY,
+      model: OPENAI_CHAT_SIMULATION_MODEL,
+      messages: apiMessages,
+      temperature: 0.9,
+      maxCompletionTokens: 700,
+    });
+
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });

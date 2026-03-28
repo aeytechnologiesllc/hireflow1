@@ -393,6 +393,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     const EPHEMERAL_KEY = response.data.client_secret.value;
     const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
+    const realtimeModel = (response.data as any)?.selectedModel || 'gpt-realtime';
 
     setState(s => ({ ...s, voiceNameUsed }));
 
@@ -799,7 +800,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     // Connect to OpenAI's Realtime API
     const baseUrl = 'https://api.openai.com/v1/realtime';
-    const model = 'gpt-4o-realtime-preview-2024-12-17';
+    const model = realtimeModel;
     const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
       method: 'POST',
       body: offer.sdp,

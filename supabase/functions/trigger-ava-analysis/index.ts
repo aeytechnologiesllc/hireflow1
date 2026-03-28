@@ -92,6 +92,7 @@ function buildAvaScorecard(params: {
   salesSimulationScore: number | null;
   chatInterviewScore: number | null;
   videoIntroScore: number | null;
+  videoIntroSubmitted: boolean;
   analysisText: string;
   resumeUnavailable: boolean;
   resumeTextUsed: boolean;
@@ -115,6 +116,7 @@ function buildAvaScorecard(params: {
     salesSimulationScore,
     chatInterviewScore,
     videoIntroScore,
+    videoIntroSubmitted,
     analysisText,
     resumeUnavailable,
     resumeTextUsed,
@@ -149,6 +151,7 @@ function buildAvaScorecard(params: {
   if (typeof salesSimulationScore === "number") evidenceRefs.push(`sales_simulation:${salesSimulationScore}`);
   if (typeof chatInterviewScore === "number") evidenceRefs.push(`chat_interview:${chatInterviewScore}`);
   if (typeof videoIntroScore === "number") evidenceRefs.push(`video_intro:${videoIntroScore}`);
+  else if (videoIntroSubmitted) evidenceRefs.push("video_intro_submitted");
   if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
 
   if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
@@ -1169,8 +1172,15 @@ ${interviewType} Interview with AVA Results:
     const voiceResult = application.voice_interview_result as any;
     const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || parsedNotes.chatSimulationResult?.score || null;
     const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || parsedNotes.salesSimulationResult?.score || null;
-    const chatInterviewScore = parsedNotes.chatInterviewResult?.score || null;
-    const videoIntroScore = parsedNotes.videoIntroResult?.score || null;
+    const chatInterviewScore =
+      parsedNotes.chatInterviewResult?.score ||
+      parsedNotes.chatInterviewResult?.overall_score ||
+      parsedNotes.chatInterviewResult?.evaluation?.score ||
+      null;
+    const hasVideoIntro = !!(parsedNotes.videoIntroResult?.completed || parsedNotes.videoIntroUrl);
+    const videoIntroScore = typeof parsedNotes.videoIntroResult?.score === "number"
+      ? parsedNotes.videoIntroResult.score
+      : null;
     
     // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
     let portfolioScore: number | null = null;
@@ -1195,38 +1205,72 @@ ${interviewType} Interview with AVA Results:
     }
     
     let finalScore: number | null = newScore;
+    const inferredFamily = inferJobFamily(job?.title || null, job?.description || null);
     
     // If we have phase performance data, calculate a weighted score
     if (newScore !== null) {
-      let weightedTotal = newScore * 0.4; // Resume counts for 40%
-      let weightSum = 0.4;
-      
-      // Quiz performance (30% weight if available)
-      if (quizScore !== null && typeof quizScore === 'number') {
-        weightedTotal += quizScore * 0.3;
-        weightSum += 0.3;
-        console.log("[trigger-ava-analysis] Including quiz score in weighted calculation:", quizScore);
-      }
-      
-      // Voice interview (20% weight if available)
-      if (voiceResult?.overall_score) {
-        weightedTotal += voiceResult.overall_score * 0.2;
-        weightSum += 0.2;
-        console.log("[trigger-ava-analysis] Including voice interview score:", voiceResult.overall_score);
-      }
-      
-      // Portfolio (10% weight if available) - uses portfolioScore extracted above
-      if (portfolioScore !== null) {
-        weightedTotal += portfolioScore * 0.1;
-        weightSum += 0.1;
-        console.log("[trigger-ava-analysis] Including portfolio score:", portfolioScore);
-      }
-      
-      // Normalize by actual weights used
-      if (weightSum > 0.4) {
-        finalScore = Math.round(weightedTotal / weightSum * 100) / 100;
-        console.log("[trigger-ava-analysis] Weighted score calculated:", finalScore, "from components (resume:", newScore, ", quiz:", quizScore, ")");
-      }
+      const familyAwareWeights: Record<string, Array<{ label: string; value: number | null | undefined; weight: number }>> = {
+        support: [
+          { label: "resume", value: newScore, weight: 0.28 },
+          { label: "quiz", value: quizScore, weight: 0.16 },
+          { label: "typing", value: typingTest?.score, weight: 0.12 },
+          { label: "chat_simulation", value: chatSimulationScore, weight: 0.22 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.12 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.10 },
+        ],
+        sales: [
+          { label: "resume", value: newScore, weight: 0.28 },
+          { label: "quiz", value: quizScore, weight: 0.10 },
+          { label: "sales_simulation", value: salesSimulationScore, weight: 0.24 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.14 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.14 },
+          { label: "portfolio", value: portfolioScore, weight: 0.10 },
+        ],
+        operations_admin: [
+          { label: "resume", value: newScore, weight: 0.30 },
+          { label: "quiz", value: quizScore, weight: 0.14 },
+          { label: "typing", value: typingTest?.score, weight: 0.24 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.12 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.10 },
+          { label: "chat_simulation", value: chatSimulationScore, weight: 0.10 },
+        ],
+        technical: [
+          { label: "resume", value: newScore, weight: 0.34 },
+          { label: "quiz", value: quizScore, weight: 0.26 },
+          { label: "portfolio", value: portfolioScore, weight: 0.14 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.14 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.12 },
+        ],
+        creative: [
+          { label: "resume", value: newScore, weight: 0.26 },
+          { label: "portfolio", value: portfolioScore, weight: 0.24 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.18 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.16 },
+          { label: "quiz", value: quizScore, weight: 0.16 },
+        ],
+        general: [
+          { label: "resume", value: newScore, weight: 0.32 },
+          { label: "quiz", value: quizScore, weight: 0.18 },
+          { label: "typing", value: typingTest?.score, weight: 0.10 },
+          { label: "chat_interview", value: chatInterviewScore, weight: 0.15 },
+          { label: "chat_simulation", value: chatSimulationScore, weight: 0.10 },
+          { label: "sales_simulation", value: salesSimulationScore, weight: 0.10 },
+          { label: "voice", value: voiceResult?.overall_score, weight: 0.15 },
+        ],
+      };
+
+      const weightedComponents = familyAwareWeights[inferredFamily] || familyAwareWeights.general;
+      finalScore = Math.round(weightedAverage(weightedComponents, newScore) * 100) / 100;
+      console.log(
+        "[trigger-ava-analysis] Weighted score calculated:",
+        finalScore,
+        "family:",
+        inferredFamily,
+        "components:",
+        weightedComponents
+          .filter((component) => typeof component.value === "number")
+          .map((component) => `${component.label}:${component.value}`),
+      );
       
       // MINIMUM SCORE FLOORS based on quiz performance
       // A candidate who aced the quiz should NOT get a failing overall score
@@ -1262,6 +1306,7 @@ ${interviewType} Interview with AVA Results:
       salesSimulationScore,
       chatInterviewScore,
       videoIntroScore,
+      videoIntroSubmitted: hasVideoIntro,
       analysisText,
       resumeUnavailable,
       resumeTextUsed: hadResumeText,
@@ -1303,7 +1348,7 @@ ${interviewType} Interview with AVA Results:
         salesSimulation: typeof salesSimulationScore === "number",
         chatInterview: typeof chatInterviewScore === "number",
         portfolio: typeof portfolioScore === "number",
-        videoIntro: typeof videoIntroScore === "number",
+        videoIntro: hasVideoIntro,
         voiceInterview: typeof voiceResult?.overall_score === "number",
       },
     };

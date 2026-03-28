@@ -75,6 +75,8 @@ interface QuizProgress {
 
 // Helper to detect question type
 const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_select' | 'text' | 'fit' => {
+  const validOptions = question.options?.filter((option) => option?.trim()) || [];
+
   // If type is explicitly set to a text-based type, use text
   if (question.type === 'text' || question.type === 'open_ended' || question.type === 'short_answer' || question.type === 'long_answer') {
     return 'text';
@@ -88,7 +90,7 @@ const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_sel
     return 'multi_select';
   }
   // If no options or empty options array, treat as text
-  if (!question.options || question.options.length === 0) {
+  if (validOptions.length === 0) {
     return 'text';
   }
   return 'multiple_choice';
@@ -316,6 +318,7 @@ export default function QuizPhase() {
   const currentQuestion = questions.length > 0 && currentQuestionIndex < questions.length 
     ? questions[currentQuestionIndex] 
     : null;
+  const currentQuestionOptions = currentQuestion?.options?.filter((option) => option?.trim()) || [];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
   const handleAnswerSelect = (answerIndex: number) => {
@@ -1015,7 +1018,7 @@ export default function QuizPhase() {
                   <>
                     <p className="text-sm text-muted-foreground mb-3">Select all that apply</p>
                     <div className="space-y-3">
-                      {currentQuestion.options?.map((option, index) => {
+                      {currentQuestionOptions.map((option, index) => {
                         const selected = Array.isArray(answers[currentQuestion.id]) && (answers[currentQuestion.id] as number[]).includes(index);
                         return (
                           <div
@@ -1042,7 +1045,7 @@ export default function QuizPhase() {
                     onValueChange={(value) => handleAnswerSelect(parseInt(value))}
                     className="space-y-3"
                   >
-                    {currentQuestion.options?.map((option, index) => (
+                    {currentQuestionOptions.map((option, index) => (
                       <div
                         key={index}
                         className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${

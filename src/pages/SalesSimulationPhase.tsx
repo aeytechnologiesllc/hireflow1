@@ -49,6 +49,42 @@ interface SalesScenario {
   productService: string;
 }
 
+function isValidSalesScenario(value: unknown): value is SalesScenario {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SalesScenario>;
+  return (
+    typeof candidate.prospectName === "string" &&
+    candidate.prospectName.trim().length > 0 &&
+    typeof candidate.prospectCompany === "string" &&
+    candidate.prospectCompany.trim().length > 0 &&
+    typeof candidate.prospectRole === "string" &&
+    candidate.prospectRole.trim().length > 0 &&
+    typeof candidate.scenario === "string" &&
+    candidate.scenario.trim().length > 0 &&
+    typeof candidate.productService === "string" &&
+    candidate.productService.trim().length > 0
+  );
+}
+
+function normalizeSalesScenarios(value: unknown): SalesScenario[] {
+  if (!Array.isArray(value)) {
+    return defaultScenarios;
+  }
+
+  const normalized = value
+    .filter(isValidSalesScenario)
+    .map((scenario, index) => ({
+      id: typeof scenario.id === "string" && scenario.id.trim().length > 0 ? scenario.id : `scenario-${index + 1}`,
+      prospectName: scenario.prospectName.trim(),
+      prospectCompany: scenario.prospectCompany.trim(),
+      prospectRole: scenario.prospectRole.trim(),
+      scenario: scenario.scenario.trim(),
+      productService: scenario.productService.trim(),
+    }));
+
+  return normalized.length > 0 ? normalized : defaultScenarios;
+}
+
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -172,7 +208,7 @@ export default function SalesSimulationPhase() {
     const salesStep = workflowSteps?.find(s => s.id === stepId || s.type === "sales_simulation");
     return {
       minMessages: salesStep?.config?.minMessages || 6,
-      scenarios: salesStep?.config?.scenarios || defaultScenarios,
+      scenarios: normalizeSalesScenarios(salesStep?.config?.scenarios),
     };
   })();
 

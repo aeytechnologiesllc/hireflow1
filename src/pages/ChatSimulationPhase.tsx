@@ -46,6 +46,33 @@ interface ChatScenario {
   scenario: string;
 }
 
+function isValidChatScenario(value: unknown): value is ChatScenario {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ChatScenario>;
+  return (
+    typeof candidate.customerName === "string" &&
+    candidate.customerName.trim().length > 0 &&
+    typeof candidate.scenario === "string" &&
+    candidate.scenario.trim().length > 0
+  );
+}
+
+function normalizeChatScenarios(value: unknown): ChatScenario[] {
+  if (!Array.isArray(value)) {
+    return defaultScenarios;
+  }
+
+  const normalized = value
+    .filter(isValidChatScenario)
+    .map((scenario, index) => ({
+      id: typeof scenario.id === "string" && scenario.id.trim().length > 0 ? scenario.id : `scenario-${index + 1}`,
+      customerName: scenario.customerName.trim(),
+      scenario: scenario.scenario.trim(),
+    }));
+
+  return normalized.length > 0 ? normalized : defaultScenarios;
+}
+
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -149,7 +176,7 @@ export default function ChatSimulationPhase() {
     const chatStep = workflowSteps?.find(s => s.id === stepId || s.type === "chat_simulation");
     return {
       minMessages: chatStep?.config?.minMessages || 5,
-      scenarios: chatStep?.config?.scenarios || defaultScenarios,
+      scenarios: normalizeChatScenarios(chatStep?.config?.scenarios),
     };
   }, [application?.jobs?.workflow_steps, stepId]);
 
