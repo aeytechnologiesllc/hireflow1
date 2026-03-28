@@ -28,6 +28,13 @@ function getFallbackRoleFromUser(user: User | null): AppRole | null {
   return null;
 }
 
+function isDuplicateRoleAssignmentError(error: unknown) {
+  const maybeError = error as { code?: string | number; message?: string } | null;
+  const message = maybeError?.message?.toLowerCase() ?? "";
+
+  return maybeError?.code === "23505" || maybeError?.code === 23505 || message.includes("duplicate key");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -129,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(fallbackRole);
 
         const { error } = await supabase.rpc("assign_user_role", { p_role: fallbackRole });
-        if (error) {
+        if (error && !isDuplicateRoleAssignmentError(error)) {
           console.error("Error assigning fallback role:", error);
           return;
         }

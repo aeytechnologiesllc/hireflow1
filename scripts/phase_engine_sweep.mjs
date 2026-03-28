@@ -557,6 +557,8 @@ async function submitApplication(page, candidate, jobCode) {
 
   if (/\/candidate\/auth/i.test(page.url())) {
     await signInOnCurrentPage(page, candidate.email, candidate.password);
+    await clickIfVisible(page.getByRole("button", { name: /Start Applying/i }), 5000);
+    await settle(page, 1000);
     await clickIfVisible(page.getByRole("button", { name: /Apply Now/i }), 8000);
   } else {
     await clickIfVisible(page.getByRole("button", { name: /Apply Now/i }), 8000);
@@ -703,9 +705,20 @@ async function completeTypingTest(page) {
 async function completeVideoIntro(page) {
   log("phase", "video-intro");
   await clickIfVisible(page.getByRole("button", { name: /Enable Camera/i }), 5000);
-  await settle(page, 1500);
+  await settle(page, 2500);
   const startRecording = page.getByRole("button", { name: /Start Recording/i }).first();
-  await startRecording.waitFor({ state: "visible", timeout: 30000 });
+  try {
+    await startRecording.waitFor({ state: "visible", timeout: 60000 });
+  } catch (error) {
+    await screenshot(page, "video-start-recording-missing");
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    await fs.writeFile(
+      path.join(OUTPUT_DIR, "video-start-recording-missing.txt"),
+      bodyText,
+      "utf8",
+    );
+    throw error;
+  }
   await startRecording.click();
   await page.waitForTimeout(4500);
   await page.getByRole("button", { name: /Stop Recording/i }).click();

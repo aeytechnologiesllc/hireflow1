@@ -5,6 +5,13 @@ export type PortalRole = Extract<AppRole, "employer" | "candidate">;
 
 const ROLE_PRIORITY: AppRole[] = ["developer", "employer", "team_member", "candidate"];
 
+function isDuplicateRoleAssignmentError(error: unknown) {
+  const maybeError = error as { code?: string | number; message?: string } | null;
+  const message = maybeError?.message?.toLowerCase() ?? "";
+
+  return maybeError?.code === "23505" || maybeError?.code === 23505 || message.includes("duplicate key");
+}
+
 export function resolveHighestPriorityRole(roles: Array<{ role: string }> | string[] | null | undefined): AppRole | null {
   const roleValues = (roles ?? [])
     .map((role) => (typeof role === "string" ? role : role.role))
@@ -40,7 +47,7 @@ export async function resolvePostAuthDestination({
   if (!role) {
     const { error } = await supabase.rpc("assign_user_role", { p_role: portalRole });
 
-    if (error) {
+    if (error && !isDuplicateRoleAssignmentError(error)) {
       throw error;
     }
 
