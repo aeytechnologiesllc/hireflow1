@@ -355,8 +355,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (!resend) {
       console.warn("[send-notification-email] RESEND_API_KEY is not configured");
       return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
-        { status: 503, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: false, skipped: true, reason: "Email service not configured" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
