@@ -33,6 +33,12 @@ If the resume text could not be extracted (image-based PDF, scanned document, de
 3. Provide a complete and helpful analysis using whatever data IS available
 4. Do NOT penalize the candidate - many legitimate resumes are image-based or designed PDFs
 
+IMPORTANT INSTRUCTION FOR RESUME IMAGES:
+If readable resume images/pages are attached, you MUST visually analyze them.
+- A readable resume image should NOT be marked RESUME_UNAVAILABLE just because OCR text was missing.
+- Use VALID_RESUME, SUSPICIOUS, WRONG_RESUME, or INVALID_DOCUMENT based on what you can see in the attached resume image/pages.
+- Only use RESUME_UNAVAILABLE when neither extracted text nor readable resume images are actually usable.
+
 CRITICAL: You must perform ALL of the following analyses:
 
 ## 1. DOCUMENT VALIDATION
@@ -336,6 +342,10 @@ If the user message indicates that the resume text could not be extracted (image
 2. Proceed to analyze the candidate based on ALL OTHER application data provided (cover letter, application answers, typing test results, quiz scores, voice interview responses, etc.)
 3. Provide a complete and helpful analysis using whatever data IS available
 4. Do NOT penalize the candidate - many legitimate resumes are image-based or designed PDFs
+
+If readable resume images/pages are attached, you MUST visually analyze them.
+- Do NOT mark the resume as RESUME_UNAVAILABLE solely because OCR text is missing.
+- Use RESUME_UNAVAILABLE only when neither extracted text nor readable resume images are usable.
 
 CRITICAL: You must perform ALL of the following analyses:
 

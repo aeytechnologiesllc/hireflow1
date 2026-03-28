@@ -1121,12 +1121,20 @@ ${interviewType} Interview with AVA Results:
     const hadResumeText = !!resumeText;
     const hadResumeImages = resumeVisualInputs.length > 0;
     const hadResumeEvidence = hadResumeText || hadResumeImages;
-    const resumeUnavailable = !hadResumeEvidence || 
-      analysisText.includes("RESUME_UNAVAILABLE") || 
+    const explicitResumeFailure =
+      analysisText.includes("RESUME_UNAVAILABLE") ||
       analysisText.includes("Resume file could not be") ||
       analysisText.includes("couldn't analyze the resume") ||
       analysisText.includes("No resume was provided") ||
       analysisText.includes("resume could not be processed");
+    const visualReadFailure =
+      /unreadable|unable to read|could not read|no readable text|image was too low quality/i.test(analysisText);
+    const invalidOrWrongResume = /INVALID_DOCUMENT|WRONG_RESUME/i.test(analysisText);
+    const visualResumeShouldCountAsAnalyzed =
+      hadResumeImages && !visualReadFailure && !invalidOrWrongResume;
+    const resumeUnavailable =
+      !hadResumeEvidence ||
+      (!visualResumeShouldCountAsAnalyzed && explicitResumeFailure);
     
     if (resumeUnavailable) {
       console.log("[trigger-ava-analysis] Resume was unavailable/couldn't be processed - setting resume_score to null", {
