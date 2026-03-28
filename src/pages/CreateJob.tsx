@@ -172,6 +172,121 @@ const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; d
   voice_interview: { icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true },
 };
 
+type ReviewEditorField = "description" | "responsibilities" | "requirements" | "skills_required" | "benefits";
+
+interface InlineReviewFieldProps {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  isEditing: boolean;
+  onEditStart: () => void;
+  onEditEnd: () => void;
+  onChange: (value: string) => void;
+  variant?: "rich" | "skills" | "benefits";
+  minHeight?: number;
+  helperText?: string;
+}
+
+function InlineReviewField({
+  id,
+  label,
+  value,
+  placeholder,
+  isEditing,
+  onEditStart,
+  onEditEnd,
+  onChange,
+  variant = "rich",
+  minHeight = 150,
+  helperText,
+}: InlineReviewFieldProps) {
+  const normalizedValue = variant === "skills" || variant === "benefits"
+    ? normalizeCommaSeparatedText(value)
+    : normalizeTextBlock(value);
+  const listItems = normalizedValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const hasContent = normalizedValue.length > 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={id}>{label}</Label>
+        {isEditing ? (
+          <span className="text-xs text-muted-foreground">Click away to save</span>
+        ) : (
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={onEditStart}>
+            <Edit2 className="mr-1.5 h-3.5 w-3.5" />
+            Edit text
+          </Button>
+        )}
+      </div>
+
+      {isEditing ? (
+        variant === "skills" ? (
+          <Input
+            id={id}
+            autoFocus
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onBlur={onEditEnd}
+            placeholder="Separate skills with commas"
+            className="bg-background break-words [overflow-wrap:anywhere]"
+          />
+        ) : (
+          <RichTextarea
+            id={id}
+            value={value}
+            onChange={onChange}
+            onBlur={onEditEnd}
+            autoFocus
+            className="min-h-[140px]"
+            style={{ minHeight }}
+            placeholder={placeholder}
+          />
+        )
+      ) : (
+        <button
+          type="button"
+          onClick={onEditStart}
+          className="w-full rounded-md border border-border bg-background/70 p-4 text-left transition-colors hover:border-primary/40 hover:bg-background"
+        >
+          {hasContent ? (
+            variant === "skills" ? (
+              <div className="flex flex-wrap gap-2">
+                {listItems.map((item) => (
+                  <Badge key={item} variant="outline" className="max-w-full break-words [overflow-wrap:anywhere] whitespace-normal text-left">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            ) : variant === "benefits" ? (
+              <ul className="space-y-2 text-sm text-foreground">
+                {listItems.map((item) => (
+                  <li key={item} className="flex gap-2 break-words [overflow-wrap:anywhere]">
+                    <span className="mt-[2px] shrink-0 text-primary">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-foreground break-words [overflow-wrap:anywhere] [&>*]:max-w-none [&>*]:break-words [&_*]:[overflow-wrap:anywhere]">
+                {renderFormattedText(value || normalizedValue)}
+              </div>
+            )
+          ) : (
+            <p className="text-sm text-muted-foreground">{placeholder}</p>
+          )}
+        </button>
+      )}
+
+      {helperText ? <p className="text-xs text-muted-foreground">{helperText}</p> : null}
+    </div>
+  );
+}
+
 const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
   text: Type,
   email: Mail,
@@ -345,6 +460,7 @@ export default function CreateJob() {
   } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
   const [jobContentGenerated, setJobContentGenerated] = useState(false);
+  const [activeReviewEditor, setActiveReviewEditor] = useState<ReviewEditorField | null>(null);
   
   // Edit dialogs
   const [editingQuestion, setEditingQuestion] = useState<ApplicationQuestion | null>(null);
@@ -575,6 +691,12 @@ export default function CreateJob() {
     return unsubscribe;
   }, [currentStep]);
 
+  useEffect(() => {
+    if (currentStep !== 4 && activeReviewEditor !== null) {
+      setActiveReviewEditor(null);
+    }
+  }, [activeReviewEditor, currentStep]);
+
   const handleChange = (field: string, value: string | boolean | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -651,7 +773,7 @@ export default function CreateJob() {
     }
   };
 
-  const generateFullJob = async () => {
+  const generateFullJob = async ({ suppressSuccessToast = false }: { suppressSuccessToast?: boolean } = {}) => {
     if (!formData.title) {
       toast.error("Please enter a job title first");
       return null;
@@ -661,7 +783,9 @@ export default function CreateJob() {
     try {
       const data = await generateFullJobPosting(formData);
       const nextFormData = applyGeneratedJobContent(formData, data);
-      toast.success("Ava built the job draft.");
+      if (!suppressSuccessToast) {
+        toast.success("Ava built the job draft.");
+      }
       return nextFormData;
     } catch (error) {
       console.error("Error generating job:", error);
@@ -713,7 +837,7 @@ export default function CreateJob() {
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
 
-    const nextFormData = await generateFullJob();
+    const nextFormData = await generateFullJob({ suppressSuccessToast: true });
     if (!nextFormData) {
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
@@ -2829,52 +2953,53 @@ export default function CreateJob() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-5">
-                      <div className="space-y-2">
-                        <Label htmlFor="review-description">Description</Label>
-                        <RichTextarea
-                          id="review-description"
-                          value={formData.description}
-                          onChange={(val) => handleChange("description", val)}
-                          className="min-h-[160px]"
-                          style={{ minHeight: 160 }}
-                          placeholder="Ava will draft the role summary here."
-                        />
-                      </div>
+                      <InlineReviewField
+                        id="review-description"
+                        label="Description"
+                        value={formData.description}
+                        onChange={(val) => handleChange("description", val)}
+                        placeholder="Ava will draft the role summary here."
+                        isEditing={activeReviewEditor === "description"}
+                        onEditStart={() => setActiveReviewEditor("description")}
+                        onEditEnd={() => setActiveReviewEditor((current) => current === "description" ? null : current)}
+                        minHeight={160}
+                      />
 
-                      <div className="space-y-2">
-                        <Label htmlFor="review-responsibilities">Responsibilities</Label>
-                        <RichTextarea
-                          id="review-responsibilities"
-                          value={formData.responsibilities}
-                          onChange={(val) => handleChange("responsibilities", val)}
-                          className="min-h-[150px]"
-                          style={{ minHeight: 150 }}
-                          placeholder="Ava will draft the day-to-day responsibilities here."
-                        />
-                      </div>
+                      <InlineReviewField
+                        id="review-responsibilities"
+                        label="Responsibilities"
+                        value={formData.responsibilities}
+                        onChange={(val) => handleChange("responsibilities", val)}
+                        placeholder="Ava will draft the day-to-day responsibilities here."
+                        isEditing={activeReviewEditor === "responsibilities"}
+                        onEditStart={() => setActiveReviewEditor("responsibilities")}
+                        onEditEnd={() => setActiveReviewEditor((current) => current === "responsibilities" ? null : current)}
+                        minHeight={150}
+                      />
 
-                      <div className="space-y-2">
-                        <Label htmlFor="review-requirements">Requirements</Label>
-                        <RichTextarea
-                          id="review-requirements"
-                          value={formData.requirements}
-                          onChange={(val) => handleChange("requirements", val)}
-                          className="min-h-[150px]"
-                          style={{ minHeight: 150 }}
-                          placeholder="Ava will draft the requirements here."
-                        />
-                      </div>
+                      <InlineReviewField
+                        id="review-requirements"
+                        label="Requirements"
+                        value={formData.requirements}
+                        onChange={(val) => handleChange("requirements", val)}
+                        placeholder="Ava will draft the requirements here."
+                        isEditing={activeReviewEditor === "requirements"}
+                        onEditStart={() => setActiveReviewEditor("requirements")}
+                        onEditEnd={() => setActiveReviewEditor((current) => current === "requirements" ? null : current)}
+                        minHeight={150}
+                      />
 
-                      <div className="space-y-2">
-                        <Label htmlFor="review-skills">Required Skills</Label>
-                        <Input
-                          id="review-skills"
-                          value={formData.skills_required}
-                          onChange={(event) => handleChange("skills_required", event.target.value)}
-                          placeholder="Separate skills with commas"
-                          className="bg-background"
-                        />
-                      </div>
+                      <InlineReviewField
+                        id="review-skills"
+                        label="Required Skills"
+                        value={formData.skills_required}
+                        onChange={(val) => handleChange("skills_required", val)}
+                        placeholder="Click to add required skills."
+                        isEditing={activeReviewEditor === "skills_required"}
+                        onEditStart={() => setActiveReviewEditor("skills_required")}
+                        onEditEnd={() => setActiveReviewEditor((current) => current === "skills_required" ? null : current)}
+                        variant="skills"
+                      />
                     </CardContent>
                   </Card>
 
@@ -2906,18 +3031,19 @@ export default function CreateJob() {
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <Label htmlFor="review-benefits">Benefits</Label>
-                        <RichTextarea
-                          id="review-benefits"
-                          value={formData.benefits}
-                          onChange={(val) => handleChange("benefits", val)}
-                          className="min-h-[110px]"
-                          style={{ minHeight: 110 }}
-                          placeholder="List the benefits or perks candidates should see."
-                        />
-                        <p className="text-xs text-muted-foreground">Use commas or short bullet-style lines. Ava formatting will keep it readable.</p>
-                      </div>
+                      <InlineReviewField
+                        id="review-benefits"
+                        label="Benefits"
+                        value={formData.benefits}
+                        onChange={(val) => handleChange("benefits", val)}
+                        placeholder="List the benefits or perks candidates should see."
+                        isEditing={activeReviewEditor === "benefits"}
+                        onEditStart={() => setActiveReviewEditor("benefits")}
+                        onEditEnd={() => setActiveReviewEditor((current) => current === "benefits" ? null : current)}
+                        variant="benefits"
+                        minHeight={110}
+                        helperText="Use commas or short bullet-style lines. Click away when you're done editing."
+                      />
                     </CardContent>
                   </Card>
 
@@ -2972,11 +3098,11 @@ export default function CreateJob() {
                             {applicationQuestions.map((question, index) => (
                               <div key={question.id || `${question.question}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
                                 <div className="flex items-start justify-between gap-3">
-                                  <p className="text-sm text-foreground">{index + 1}. {question.question}</p>
+                                  <p className="text-sm text-foreground break-words [overflow-wrap:anywhere]">{index + 1}. {question.question}</p>
                                   {question.required && <Badge variant="outline">Required</Badge>}
                                 </div>
                                 {question.placeholder && (
-                                  <p className="mt-1 text-xs text-muted-foreground">Prompt hint: {question.placeholder}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">Prompt hint: {question.placeholder}</p>
                                 )}
                               </div>
                             ))}
@@ -2996,7 +3122,7 @@ export default function CreateJob() {
                             {quizQuestions.length > 0 ? quizQuestions.map((question, index) => (
                               <div key={question.id || `${question.question}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
                                 <div className="flex items-start justify-between gap-3">
-                                  <p className="text-sm text-foreground">{index + 1}. {question.question}</p>
+                                  <p className="text-sm text-foreground break-words [overflow-wrap:anywhere]">{index + 1}. {question.question}</p>
                                   <Badge variant="outline">{question.category || "Assessment"}</Badge>
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
@@ -3026,13 +3152,13 @@ export default function CreateJob() {
                                 <div key={step.id || `${step.title}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-medium text-foreground">{step.title}</p>
-                                      <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
+                                      <p className="text-sm font-medium text-foreground break-words [overflow-wrap:anywhere]">{step.title}</p>
+                                      <p className="mt-1 text-sm text-muted-foreground break-words [overflow-wrap:anywhere]">{step.description}</p>
                                     </div>
                                     <Badge variant="outline">Phase {index + 3}</Badge>
                                   </div>
                                   {rationale?.reason && (
-                                    <p className="mt-2 text-xs text-muted-foreground">Why Ava added this: {rationale.reason}</p>
+                                    <p className="mt-2 text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">Why Ava added this: {rationale.reason}</p>
                                   )}
                                 </div>
                               );

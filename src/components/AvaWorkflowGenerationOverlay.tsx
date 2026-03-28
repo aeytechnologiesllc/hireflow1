@@ -16,7 +16,7 @@ const OVERLAY_CONFIG = {
   workflow: {
     title: "Creating your screening plan",
     subtitlePrefix: "Designing the candidate journey for",
-    minDuration: 12000,
+    minDuration: 10000,
     messages: [
       { text: "Analyzing job role...", until: 2200 },
       { text: "Generating screening questions...", until: 4600 },
@@ -28,7 +28,7 @@ const OVERLAY_CONFIG = {
   full_draft: {
     title: "Creating your job with Ava",
     subtitlePrefix: "Generating the full draft for",
-    minDuration: 11000,
+    minDuration: 8500,
     messages: [
       { text: "Reviewing your Ava setup...", until: 2200 },
       { text: "Writing the job description baseline...", until: 4600 },
@@ -52,7 +52,7 @@ export default function AvaWorkflowGenerationOverlay({
   const [progressRing, setProgressRing] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
   const startTimeRef = useRef<number>(0);
-  const animationCompleteRef = useRef(false);
+  const completionTimerRef = useRef<number | null>(null);
 
   // Particles - reduced to 20
   const particles = useMemo(() => 
@@ -71,38 +71,68 @@ export default function AvaWorkflowGenerationOverlay({
   useEffect(() => {
     if (isVisible) {
       startTimeRef.current = Date.now();
-      animationCompleteRef.current = false;
       setProgressRing(0);
       setMessageIndex(0);
     }
+
+    return () => {
+      if (completionTimerRef.current !== null) {
+        window.clearTimeout(completionTimerRef.current);
+        completionTimerRef.current = null;
+      }
+    };
   }, [isVisible]);
 
   // Progress + message index
   useEffect(() => {
     if (!isVisible) return;
+    const overlayDuration = minDuration ?? config.minDuration;
+
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;
-      const progress = Math.min((elapsed / (minDuration ?? config.minDuration)) * 100, 100);
+      const progress = Math.min((elapsed / overlayDuration) * 100, 96);
       setProgressRing(progress);
 
       // Update message index based on elapsed time
       const newIndex = config.messages.findIndex(m => elapsed < m.until);
       setMessageIndex(newIndex === -1 ? config.messages.length - 1 : newIndex);
-
-      if (progress >= 100 && !animationCompleteRef.current) {
-        animationCompleteRef.current = true;
-      }
     }, 50);
     return () => clearInterval(interval);
   }, [config.messages, config.minDuration, isVisible, minDuration]);
 
-  // Complete when both animation + API done
+  // Hold below 100% until the API is done, then finish and dismiss quickly.
   useEffect(() => {
-    if (animationCompleteRef.current && isApiComplete && onComplete) {
-      const timer = setTimeout(onComplete, 500);
-      return () => clearTimeout(timer);
+    if (!isVisible || !isApiComplete) return;
+
+    const overlayDuration = minDuration ?? config.minDuration;
+    const elapsed = Date.now() - startTimeRef.current;
+    const remaining = Math.max(overlayDuration - elapsed, 0);
+
+    if (completionTimerRef.current !== null) {
+      window.clearTimeout(completionTimerRef.current);
     }
-  }, [isApiComplete, onComplete, progressRing]);
+
+    completionTimerRef.current = window.setTimeout(() => {
+      setMessageIndex(config.messages.length - 1);
+      setProgressRing(100);
+
+      if (onComplete) {
+        completionTimerRef.current = window.setTimeout(() => {
+          onComplete();
+          completionTimerRef.current = null;
+        }, 220);
+      } else {
+        completionTimerRef.current = null;
+      }
+    }, remaining);
+
+    return () => {
+      if (completionTimerRef.current !== null) {
+        window.clearTimeout(completionTimerRef.current);
+        completionTimerRef.current = null;
+      }
+    };
+  }, [config.messages.length, config.minDuration, isApiComplete, isVisible, minDuration, onComplete]);
 
   if (!isVisible) return null;
 

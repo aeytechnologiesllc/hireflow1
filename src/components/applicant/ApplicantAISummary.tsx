@@ -140,7 +140,7 @@ export function ApplicantAISummary({
                           className="overflow-hidden"
                         >
                           <div className="mt-3 pt-3 border-t border-border">
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed">
                               {fullAnalysis}
                             </p>
                           </div>

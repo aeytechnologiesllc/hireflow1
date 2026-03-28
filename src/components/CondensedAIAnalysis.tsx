@@ -1324,7 +1324,7 @@ function PhaseBasedAnalysis({
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere]">
                   {sanitizeAnalysisCopy(phase.summary)}
                 </p>
               </div>

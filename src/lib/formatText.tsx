@@ -49,7 +49,7 @@ export function renderFormattedText(text: string | null | undefined): React.Reac
   if (isHTML(text)) {
     return (
       <div
-        className="prose prose-sm max-w-none prose-strong:text-inherit prose-em:text-inherit prose-p:text-inherit prose-li:text-inherit prose-p:my-0.5 prose-ul:my-1 prose-ol:my-1 [&_ul]:list-disc [&_ul]:pl-5"
+        className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere] prose-strong:text-inherit prose-em:text-inherit prose-p:text-inherit prose-li:text-inherit prose-p:my-0.5 prose-ul:my-1 prose-ol:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:break-words [&_li]:break-words [&_*]:[overflow-wrap:anywhere]"
         dangerouslySetInnerHTML={{ __html: text }}
       />
     );
@@ -59,7 +59,7 @@ export function renderFormattedText(text: string | null | undefined): React.Reac
   const lines = text.split("\n");
 
   return (
-    <span className="whitespace-pre-wrap">
+    <span className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
       {lines.map((line, i) => {
         const isBullet = line.trimStart().startsWith("• ");
 

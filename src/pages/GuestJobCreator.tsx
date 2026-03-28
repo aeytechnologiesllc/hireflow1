@@ -344,7 +344,7 @@ export default function GuestJobCreator() {
     }
   };
 
-  const generateFullJob = async () => {
+  const generateFullJob = async ({ suppressSuccessToast = false }: { suppressSuccessToast?: boolean } = {}) => {
     if (!formData.title) {
       toast.error("Please enter a job title first");
       return null;
@@ -354,7 +354,9 @@ export default function GuestJobCreator() {
     try {
       const data = await generateFullJobPosting(formData);
       const nextFormData = applyGeneratedJobContent(formData, data);
-      toast.success("Ava built the job draft.");
+      if (!suppressSuccessToast) {
+        toast.success("Ava built the job draft.");
+      }
       return nextFormData;
     } catch (error) {
       console.error("Error generating job:", error);
@@ -398,7 +400,7 @@ export default function GuestJobCreator() {
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
 
-    const nextFormData = await generateFullJob();
+    const nextFormData = await generateFullJob({ suppressSuccessToast: true });
     if (!nextFormData) {
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);

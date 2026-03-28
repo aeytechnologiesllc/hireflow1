@@ -277,14 +277,14 @@ export default function JobDetails() {
                   {/* Description */}
                   <div>
                     <h3 className="text-lg font-semibold text-foreground mb-3">About This Role</h3>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{job.description}</p>
+                    <p className="text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{job.description}</p>
                   </div>
 
                   {/* Responsibilities */}
                   {job.responsibilities && (
                     <div>
                       <h3 className="text-lg font-semibold text-foreground mb-3">Responsibilities</h3>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{job.responsibilities}</p>
+                      <p className="text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{job.responsibilities}</p>
                     </div>
                   )}
 
@@ -292,7 +292,7 @@ export default function JobDetails() {
                   {job.requirements && (
                     <div>
                       <h3 className="text-lg font-semibold text-foreground mb-3">Requirements</h3>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{job.requirements}</p>
+                      <p className="text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{job.requirements}</p>
                     </div>
                   )}
                 </CardContent>
