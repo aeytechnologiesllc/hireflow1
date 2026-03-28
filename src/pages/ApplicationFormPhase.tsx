@@ -50,7 +50,7 @@ interface AntiCheatViolation {
 interface ApplicationQuestion {
   id: string;
   question: string;
-  type: "text" | "textarea" | "select" | "email" | "phone" | "file" | "date";
+  type: "text" | "textarea" | "select" | "email" | "phone" | "file" | "date" | "number" | string;
   required: boolean;
   options?: string[];
 }
@@ -923,15 +923,30 @@ export default function ApplicationFormPhase() {
               }
               return true;
             })
-            .map((question) => (
+            .map((question) => {
+            const questionType = (question.type || "text").toLowerCase();
+            const usePlainInput = questionType === "text" || questionType === "number";
+            const useFallbackInput = ![
+              "text",
+              "number",
+              "textarea",
+              "email",
+              "phone",
+              "date",
+              "select",
+              "file",
+            ].includes(questionType);
+
+            return (
             <div key={question.id} className="space-y-2" data-field={question.id}>
               <Label className="text-foreground">
                 {question.question}
                 {question.required && <span className="text-destructive ml-1">*</span>}
               </Label>
               
-              {question.type === "text" && (
+              {usePlainInput && (
                 <Input
+                  type={questionType === "number" ? "number" : "text"}
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
@@ -942,7 +957,19 @@ export default function ApplicationFormPhase() {
                 />
               )}
               
-              {question.type === "textarea" && (
+              {useFallbackInput && (
+                <Input
+                  value={answers[question.id] || ""}
+                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  placeholder="Your answer"
+                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCut={handleCut}
+                />
+              )}
+
+              {questionType === "textarea" && (
                 <Textarea
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
@@ -955,7 +982,7 @@ export default function ApplicationFormPhase() {
                 />
               )}
               
-              {question.type === "email" && (
+              {questionType === "email" && (
                 <Input
                   type="email"
                   value={answers[question.id] || ""}
@@ -968,7 +995,7 @@ export default function ApplicationFormPhase() {
                 />
               )}
               
-              {question.type === "phone" && (
+              {questionType === "phone" && (
                 <div className="flex gap-2">
                   <CountryCodeSelect
                     value={phoneCountryCodes[question.id] || "+1"}
@@ -989,7 +1016,7 @@ export default function ApplicationFormPhase() {
                 </div>
               )}
 
-              {question.type === "date" && (
+              {questionType === "date" && (
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1026,7 +1053,7 @@ export default function ApplicationFormPhase() {
                 </Popover>
               )}
               
-              {question.type === "select" && question.options && (
+              {questionType === "select" && question.options && (
                 <RadioGroup
                   value={answers[question.id] || ""}
                   onValueChange={(value) => setAnswers(prev => ({ ...prev, [question.id]: value }))}
@@ -1040,7 +1067,7 @@ export default function ApplicationFormPhase() {
                 </RadioGroup>
               )}
               
-              {question.type === "file" && (
+              {questionType === "file" && (
                 <div
                   className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                     draggingQuestion === question.id ? "border-primary bg-primary/5" : "border-border"
@@ -1207,7 +1234,7 @@ export default function ApplicationFormPhase() {
                 <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
               )}
             </div>
-          ))}
+          )})}
 
           {/* Resume Upload - FIXED: Always show when resume required, even if there are file questions */}
           {/* Other file questions (like internet speed screenshots) are separate from resume */}
