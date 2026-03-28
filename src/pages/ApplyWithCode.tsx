@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -122,24 +122,28 @@ export default function ApplyWithCode() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
   const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
+  const autoLoadedCodeRef = useRef<string | null>(null);
 
   const isEmployer = role === "employer";
   const candidateJobPath = (jobId: string) => (role === "candidate" ? `/job/${jobId}` : `/candidate/job/${jobId}`);
 
-  const handleSearch = async () => {
-    if (!jobCode.trim()) {
+  const handleSearch = useCallback(async (rawCode?: string) => {
+    const normalizedCode = (rawCode ?? jobCode).trim().toUpperCase();
+
+    if (!normalizedCode) {
       setError("Please enter an application code");
       return;
     }
 
     setIsSearching(true);
     setError("");
+    setJobCode(normalizedCode);
 
     try {
       const { data, error: fetchError } = await supabase
         .from("jobs")
         .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
-        .eq("job_code", jobCode.trim().toUpperCase())
+        .eq("job_code", normalizedCode)
         .eq("status", "published")
         .single();
 
@@ -174,7 +178,23 @@ export default function ApplyWithCode() {
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [jobCode]);
+
+  useEffect(() => {
+    const normalizedInitialCode = initialCode.trim().toUpperCase();
+
+    if (!normalizedInitialCode) {
+      autoLoadedCodeRef.current = null;
+      return;
+    }
+
+    if (autoLoadedCodeRef.current === normalizedInitialCode) {
+      return;
+    }
+
+    autoLoadedCodeRef.current = normalizedInitialCode;
+    void handleSearch(normalizedInitialCode);
+  }, [handleSearch, initialCode]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {

@@ -436,6 +436,7 @@ export default function Dashboard() {
   const { role, user, isTeamMember } = useAuth();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
+  const showOnboardingTestControls = import.meta.env.DEV;
 
   // Redirect team members to team portal
   useEffect(() => {
@@ -613,7 +614,7 @@ export default function Dashboard() {
       variants={staggerContainer}
     >
       {/* Test Onboarding Button - Development Only */}
-      {isEmployer && (
+      {showOnboardingTestControls && isEmployer && (
         <div className="flex justify-end">
           <Button
             variant="ghost"
