@@ -446,6 +446,16 @@ export default function Applicants() {
     return filteredApplications.filter((app) => selectedIds.has(app.id));
   }, [filteredApplications, selectedIds]);
 
+  const hasVisibleApplicants = filteredApplications.length > 0;
+  const shouldTeachBulkActions = filteredApplications.length >= 2 && !isSelectionMode;
+
+  useEffect(() => {
+    if (!hasVisibleApplicants && (isSelectionMode || selectedIds.size > 0)) {
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
+    }
+  }, [hasVisibleApplicants, isSelectionMode, selectedIds.size]);
+
   if (!isEmployer) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -549,27 +559,45 @@ export default function Applicants() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <FeatureDiscoveryTooltip
-            featureId="bulk_actions"
-            title="Bulk Actions"
-            description="Select multiple candidates to message, reject, or advance them all at once."
-            icon={<CheckSquare className="h-4 w-4" />}
-            position="bottom"
-          >
-            <Button 
-              variant={isSelectionMode ? "default" : "outline"} 
-              className="gap-2 flex-1 sm:flex-none"
-              onClick={() => {
-                setIsSelectionMode(!isSelectionMode);
-                if (isSelectionMode) {
-                  setSelectedIds(new Set());
-                }
-              }}
-            >
-              {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-              {isSelectionMode ? "Done" : "Select"}
-            </Button>
-          </FeatureDiscoveryTooltip>
+          {hasVisibleApplicants && (
+            shouldTeachBulkActions ? (
+              <FeatureDiscoveryTooltip
+                featureId="bulk_actions"
+                title="Bulk Actions"
+                description="Select multiple candidates to message, reject, or advance them all at once."
+                icon={<CheckSquare className="h-4 w-4" />}
+                position="bottom"
+              >
+                <Button 
+                  variant={isSelectionMode ? "default" : "outline"} 
+                  className="gap-2 flex-1 sm:flex-none"
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    if (isSelectionMode) {
+                      setSelectedIds(new Set());
+                    }
+                  }}
+                >
+                  {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                  {isSelectionMode ? "Done" : "Select"}
+                </Button>
+              </FeatureDiscoveryTooltip>
+            ) : (
+              <Button 
+                variant={isSelectionMode ? "default" : "outline"} 
+                className="gap-2 flex-1 sm:flex-none"
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  if (isSelectionMode) {
+                    setSelectedIds(new Set());
+                  }
+                }}
+              >
+                {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                {isSelectionMode ? "Done" : "Select"}
+              </Button>
+            )
+          )}
           {isSelectionMode && filteredApplications.length > 0 && (
             <Button variant="outline" onClick={handleSelectAll} className="hidden sm:flex">
               {selectedIds.size === filteredApplications.length ? "Deselect All" : "Select All"}
