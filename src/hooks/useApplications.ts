@@ -272,12 +272,25 @@ export function useUpdateApplication() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Application> & { id: string }) => {
-      // Get the current application state before update
-      const { data: currentApp } = await supabase
+      // Best-effort read of the prior state for notifications.
+      // Do not block the actual application update if this lookup stalls.
+      const currentAppLookup = supabase
         .from("applications")
         .select("status, phase, phase_ai_analysis, candidate_id, job_id")
         .eq("id", id)
         .single();
+
+      const currentAppResult = await Promise.race([
+        currentAppLookup,
+        new Promise<{ data: null; error: Error }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: new Error("Timed out loading current application state") }), 2500)
+        ),
+      ]);
+      const currentApp = currentAppResult.data ?? null;
+
+      if (currentAppResult.error) {
+        console.warn("[useUpdateApplication] Continuing without pre-update snapshot:", currentAppResult.error.message);
+      }
 
       const { data, error } = await supabase
         .from("applications")

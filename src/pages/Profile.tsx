@@ -12,6 +12,7 @@ import { Camera, Loader2, Upload, FileText, X, CheckCircle2, Eye } from "lucide-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileCompleteness } from "@/components/ProfileCompleteness";
+import { isSupportedResumeFile } from "@/utils/resumeFiles";
 
 export default function Profile() {
   const { user, role } = useAuth();
@@ -117,9 +118,8 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // PDF only for resume uploads
-    if (file.type !== "application/pdf") {
-      toast.error("Please upload a PDF file");
+    if (!isSupportedResumeFile(file)) {
+      toast.error("Please upload a PDF or image file");
       return;
     }
 
@@ -299,7 +299,7 @@ export default function Profile() {
             <input
               ref={resumeInputRef}
               type="file"
-              accept=".pdf"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
               className="hidden"
               onChange={handleResumeUpload}
             />

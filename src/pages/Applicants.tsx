@@ -240,7 +240,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
               <span>Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
             </div>
 
-            {application.ai_score && (() => {
+            {(application.ai_score !== null && application.ai_score !== undefined) && (() => {
               const passingScore = application.jobs?.passing_score || 60;
               const isFailing = application.ai_score < passingScore;
               const scoreColor = isFailing ? "text-rose-400" : "text-primary";

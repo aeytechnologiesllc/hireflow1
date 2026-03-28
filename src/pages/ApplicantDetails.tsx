@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped } from "@/utils/applicationNotes";
+import { getResumeAssetLabel, isImageResumeUrl } from "@/utils/resumeFiles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -2510,7 +2511,7 @@ export default function ApplicantDetails() {
               Resume
               {resumeUrl && application.resume_score != null && application.resume_score > 0 && (
                 <Badge className="bg-success/20 text-success ml-2">
-                  Resume Score: {Math.round(application.resume_score)}/100
+                  Resume Review: {Math.round(application.resume_score)}/100
                 </Badge>
               )}
             </DialogTitle>
@@ -2523,7 +2524,18 @@ export default function ApplicantDetails() {
                     <FileText className="h-8 w-8 text-primary" />
                     <div>
                       <p className="font-medium text-foreground">Candidate Resume</p>
-                      <p className="text-sm text-muted-foreground">PDF Document</p>
+                      <p className="text-sm text-muted-foreground">{getResumeAssetLabel(resumeUrl)}</p>
+                      {parsedNotes?.avaAnalysisMeta?.resume && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {parsedNotes.avaAnalysisMeta.resume.analyzed
+                            ? parsedNotes.avaAnalysisMeta.resume.status === "text_and_visual"
+                              ? `Ava analyzed extracted text and ${parsedNotes.avaAnalysisMeta.resume.imagePagesUsed || 0} resume page${parsedNotes.avaAnalysisMeta.resume.imagePagesUsed === 1 ? "" : "s"}.`
+                              : parsedNotes.avaAnalysisMeta.resume.status === "text_only"
+                                ? "Ava analyzed extracted resume text."
+                                : `Ava analyzed ${parsedNotes.avaAnalysisMeta.resume.imagePagesUsed || 1} resume page image${parsedNotes.avaAnalysisMeta.resume.imagePagesUsed === 1 ? "" : "s"}.`
+                            : "Ava used other application evidence because the resume could not be analyzed directly."}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Button asChild>
@@ -2539,14 +2551,23 @@ export default function ApplicantDetails() {
                   </Button>
                 </div>
                 
-                {/* Resume Preview using Google Docs Viewer for reliable PDF display */}
-                <div className="rounded-lg overflow-hidden border border-border bg-muted h-96">
-                  <iframe 
-                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(resumeUrl)}&embedded=true`}
-                    className="w-full h-full"
-                    title="Resume Preview"
-                  />
-                </div>
+                {isImageResumeUrl(resumeUrl) ? (
+                  <div className="rounded-lg overflow-hidden border border-border bg-muted h-96 flex items-center justify-center">
+                    <img
+                      src={resumeUrl}
+                      alt="Candidate resume"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg overflow-hidden border border-border bg-muted h-96">
+                    <iframe 
+                      src={`https://docs.google.com/viewer?url=${encodeURIComponent(resumeUrl)}&embedded=true`}
+                      className="w-full h-full"
+                      title="Resume Preview"
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

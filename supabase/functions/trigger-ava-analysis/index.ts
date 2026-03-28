@@ -1,67 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  detectResumeUrl,
+  fetchResumeText,
+  fetchResumeVisualInputs,
+  isFileLikeUrl,
+  isResumeQuestion,
+  type ResumeVisualInput,
+} from "../_shared/resume.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Resume detection utilities (inline since we can't import from src)
-const RESUME_KEYWORDS = ['resume', 'cv', 'curriculum vitae', 'curriculum', 'résumé'];
-
-function isFileUrl(url: string): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const filePatterns = ['/storage/v1/object/', '/resumes/', '/documents/', '.pdf', '.doc', '.docx'];
-  const lowerUrl = url.toLowerCase();
-  return filePatterns.some(pattern => lowerUrl.includes(pattern));
-}
-
-function isResumeQuestion(questionText: string): boolean {
-  if (!questionText || typeof questionText !== 'string') return false;
-  const lowerQuestion = questionText.toLowerCase();
-  return RESUME_KEYWORDS.some(keyword => lowerQuestion.includes(keyword));
-}
-
-function detectResumeUrl(
-  resumeUrlField: string | null | undefined,
-  parsedNotes: Record<string, any> | null | undefined
-): string | null {
-  // Priority 1: Use canonical resume_url field if it exists (ALWAYS prefer this)
-  if (resumeUrlField && typeof resumeUrlField === 'string' && resumeUrlField.trim()) {
-    console.log('[detectResumeUrl] Using canonical resume_url field:', resumeUrlField);
-    return resumeUrlField.trim();
-  }
-
-  // Priority 2: Look for resume in applicationAnswers (ONLY if question is resume-related)
-  const answers = parsedNotes?.applicationAnswers;
-  if (!answers || !Array.isArray(answers)) {
-    console.log('[detectResumeUrl] No applicationAnswers found');
-    return null;
-  }
-
-  // First pass: Look for answers that are file URLs AND have resume-related question text
-  for (const answer of answers) {
-    if (isFileUrl(answer.answer) && isResumeQuestion(answer.question)) {
-      console.log('[detectResumeUrl] Found resume in applicationAnswers (resume question):', answer.answer);
-      return answer.answer;
-    }
-  }
-
-  // Second pass: Look for any answer that is a URL containing /resumes/ bucket
-  // This is safe because the /resumes/ bucket is specifically for resumes
-  for (const answer of answers) {
-    if (answer.answer && typeof answer.answer === 'string' && 
-        answer.answer.toLowerCase().includes('/resumes/')) {
-      console.log('[detectResumeUrl] Found file in resumes bucket:', answer.answer);
-      return answer.answer;
-    }
-  }
-
-  // REMOVED: The fallback that treats any single file as a resume
-  // This was causing internet speed screenshots to be treated as resumes
-  console.log('[detectResumeUrl] No resume URL found (strict mode - ignoring non-resume file uploads)');
-  return null;
-}
 
 type RecommendedAction = "advance" | "review" | "reject";
 
@@ -143,6 +94,10 @@ function buildAvaScorecard(params: {
   videoIntroScore: number | null;
   analysisText: string;
   resumeUnavailable: boolean;
+  resumeTextUsed: boolean;
+  resumeImageCount: number;
+  applicationAnswerCount: number;
+  coverLetterProvided: boolean;
   workflowSteps: any[];
   jobTitle?: string | null;
   jobDescription?: string | null;
@@ -162,6 +117,10 @@ function buildAvaScorecard(params: {
     videoIntroScore,
     analysisText,
     resumeUnavailable,
+    resumeTextUsed,
+    resumeImageCount,
+    applicationAnswerCount,
+    coverLetterProvided,
     workflowSteps,
     jobTitle,
     jobDescription,
@@ -175,7 +134,13 @@ function buildAvaScorecard(params: {
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
 
-  if (!resumeUnavailable) evidenceRefs.push("resume");
+  if (!resumeUnavailable) {
+    evidenceRefs.push("resume");
+    if (resumeTextUsed) evidenceRefs.push("resume_text");
+    if (resumeImageCount > 0) evidenceRefs.push(`resume_images:${resumeImageCount}`);
+  }
+  if (applicationAnswerCount > 0) evidenceRefs.push(`application_answers:${applicationAnswerCount}`);
+  if (coverLetterProvided) evidenceRefs.push("cover_letter");
   if (typeof quizScore === "number") evidenceRefs.push(`quiz:${quizScore}`);
   if (typingTest?.wpm) evidenceRefs.push(`typing:${typingTest.wpm}wpm`);
   if (typeof voiceScore === "number") evidenceRefs.push(`voice:${voiceScore}`);
@@ -188,7 +153,10 @@ function buildAvaScorecard(params: {
 
   if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
   if (safeScore < passingScore) riskFlags.push("Overall score is below the passing threshold");
-  if (/WRONG_RESUME|MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
+  if (/WRONG_RESUME/i.test(analysisText)) riskFlags.push("Resume may not belong to this candidate or role");
+  if (/INVALID_DOCUMENT/i.test(analysisText)) riskFlags.push("Uploaded file did not behave like a valid resume");
+  if (/SUSPICIOUS/i.test(analysisText)) riskFlags.push("Resume details need manual verification");
+  if (/MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
   if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
   if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
   if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && /Missing Critical Skills/i.test(analysisText)) {
@@ -274,7 +242,9 @@ function buildAvaScorecard(params: {
     28 +
       evidenceRefs.length * 8 +
       (primarySignalAverage >= Math.max(passingScore, 60) ? 8 : 0) -
-      (resumeUnavailable ? 8 : 0),
+      (resumeUnavailable ? 8 : 0) +
+      (resumeTextUsed ? 6 : 0) +
+      (resumeImageCount > 1 ? 4 : 0),
   );
 
   const confidence = clampPercent(
@@ -282,7 +252,9 @@ function buildAvaScorecard(params: {
       evidenceRefs.length * 6 +
       (primarySignalAverage >= passingScore ? 10 : 0) +
       (safeScore >= passingScore ? 8 : -4) +
-      (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0),
+      (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0) +
+      (resumeTextUsed ? 8 : 0) +
+      (resumeImageCount > 0 ? 6 : 0),
   );
 
   const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] =
@@ -856,14 +828,13 @@ serve(async (req) => {
     
     // CRITICAL FIX: Separate resume answers from custom file uploads
     // This prevents AVA from confusing internet speed screenshots with resumes
-    const resumeAnswers: any[] = [];
     const customFileAnswers: any[] = [];
     const textAnswers: any[] = [];
     
     for (const a of applicationAnswers) {
-      if (isFileUrl(a.answer)) {
+      if (isFileLikeUrl(a.answer)) {
         if (isResumeQuestion(a.question)) {
-          resumeAnswers.push(a);
+          continue;
         } else {
           customFileAnswers.push(a);
         }
@@ -1060,100 +1031,39 @@ ${interviewType} Interview with AVA Results:
 `;
     }
 
+    const resumeText = detectedResumeUrl
+      ? await fetchResumeText(detectedResumeUrl, supabaseAdmin)
+      : null;
+    const resumeVisualInputs: ResumeVisualInput[] = await fetchResumeVisualInputs({
+      resumeUrl: detectedResumeUrl,
+      parsedNotes,
+      adminClient: supabaseAdmin,
+      maxImages: 3,
+    });
+
+    console.log("[trigger-ava-analysis] Resume evidence prepared:", {
+      resumeUrl: detectedResumeUrl || "none",
+      resumeTextLength: resumeText?.length || 0,
+      resumeImageCount: resumeVisualInputs.length,
+      visualSources: resumeVisualInputs.map((entry) => `${entry.source}:${entry.page ?? 1}`),
+    });
+
     console.log("[trigger-ava-analysis] Calling ai-analyze edge function");
 
-    // PDF-to-Image Conversion: Use pre-converted resume images (PRIMARY method)
-    // The frontend converts PDFs to PNGs at upload time and stores URLs in notes.resumeImageUrls
-    let resumeImageBase64: string | null = null;
-    let resumeImageMimeType = "image/png";
-    
-    // PRIORITY 1: Use pre-converted resume images from frontend (these are real PNGs)
-    if (parsedNotes.resumeImageUrls && Array.isArray(parsedNotes.resumeImageUrls) && parsedNotes.resumeImageUrls.length > 0) {
-      console.log("[trigger-ava-analysis] Using pre-converted resume images from frontend:", parsedNotes.resumeImageUrls.length, "pages");
-      
-      try {
-        // Fetch the first image (already a real PNG from client-side conversion)
-        const firstImageUrl = parsedNotes.resumeImageUrls[0];
-        const imageResponse = await fetch(firstImageUrl);
-        
-        if (imageResponse.ok) {
-          const contentType = imageResponse.headers.get("content-type") || "image/png";
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          
-          let binaryString = "";
-          for (let i = 0; i < uint8Array.length; i++) {
-            binaryString += String.fromCharCode(uint8Array[i]);
-          }
-          resumeImageBase64 = btoa(binaryString);
-          resumeImageMimeType = contentType.includes("image") ? contentType : "image/png";
-          
-          console.log("[trigger-ava-analysis] Loaded pre-converted resume image, size:", resumeImageBase64.length, "mime:", resumeImageMimeType);
-        } else {
-          console.error("[trigger-ava-analysis] Failed to fetch pre-converted resume image:", imageResponse.status);
-        }
-      } catch (fetchError) {
-        console.error("[trigger-ava-analysis] Error fetching pre-converted resume image:", fetchError);
-      }
-    }
-    
-    // PRIORITY 2: Check for fileUploads (ONLY resume-related question uploads)
-    // CRITICAL FIX: Only use fileUploads if the question is resume-related
-    if (!resumeImageBase64 && parsedNotes.fileUploads) {
-      const answers = parsedNotes.applicationAnswers || [];
-      
-      for (const questionId of Object.keys(parsedNotes.fileUploads)) {
-        // Find the corresponding question to check if it's resume-related
-        const matchingAnswer = answers.find((a: any) => 
-          a.questionId === questionId || a.id === questionId
-        );
-        
-        // Only use this file if the question is resume-related
-        const questionText = matchingAnswer?.question || "";
-        if (!isResumeQuestion(questionText)) {
-          console.log("[trigger-ava-analysis] Skipping non-resume fileUpload for question:", questionId, "question:", questionText);
-          continue;
-        }
-        
-        const upload = parsedNotes.fileUploads[questionId];
-        if (upload.imageUrls && Array.isArray(upload.imageUrls) && upload.imageUrls.length > 0) {
-          console.log("[trigger-ava-analysis] Found resume image in fileUploads for resume question:", questionId);
-          
-          try {
-            const imageResponse = await fetch(upload.imageUrls[0]);
-            
-            if (imageResponse.ok) {
-              const arrayBuffer = await imageResponse.arrayBuffer();
-              const uint8Array = new Uint8Array(arrayBuffer);
-              
-              let binaryString = "";
-              for (let i = 0; i < uint8Array.length; i++) {
-                binaryString += String.fromCharCode(uint8Array[i]);
-              }
-              resumeImageBase64 = btoa(binaryString);
-              console.log("[trigger-ava-analysis] Loaded resume image from fileUploads, size:", resumeImageBase64.length);
-              break; // Use first found
-            }
-          } catch (fetchError) {
-            console.error("[trigger-ava-analysis] Error fetching fileUpload image:", fetchError);
-          }
-        }
-      }
-    }
-    
-    // If no pre-converted images available, log it - we do NOT fall back to sending PDF bytes as PNG
-    if (!resumeImageBase64) {
-      console.log("[trigger-ava-analysis] No pre-converted resume images available. Proceeding without resume vision analysis.");
-    }
-
     // Call the AI analysis edge function using the admin client
-    // CRITICAL: Pass resumeImage so Ava can actually SEE the resume
     const { data: analysisData, error: analysisError } = await supabaseAdmin.functions.invoke("ai-analyze", {
       body: {
         type: "resume",
         content,
         resumeUrl: detectedResumeUrl,
-        resumeImage: resumeImageBase64, // PRIMARY: Vision-based resume analysis
+        resumeText,
+        resumeImages: resumeVisualInputs,
+        applicantName: candidateName,
+        applicationAnswers: textAnswers.map((answer: any) => ({
+          question: answer.question,
+          answer: answer.answer,
+        })),
+        coverLetter: application.cover_letter || undefined,
         context: {
           skills_required: job?.skills_required,
           experience_level: job?.experience_level,
@@ -1208,10 +1118,10 @@ ${interviewType} Interview with AVA Results:
       newScore = null;
     }
 
-    // Check if AI reported resume as unavailable - don't set resume_score in that case
-    // HARD GATE: Also check if we actually had resume images to analyze
-    const hadResumeImages = !!resumeImageBase64;
-    const resumeUnavailable = !hadResumeImages || 
+    const hadResumeText = !!resumeText;
+    const hadResumeImages = resumeVisualInputs.length > 0;
+    const hadResumeEvidence = hadResumeText || hadResumeImages;
+    const resumeUnavailable = !hadResumeEvidence || 
       analysisText.includes("RESUME_UNAVAILABLE") || 
       analysisText.includes("Resume file could not be") ||
       analysisText.includes("couldn't analyze the resume") ||
@@ -1220,6 +1130,7 @@ ${interviewType} Interview with AVA Results:
     
     if (resumeUnavailable) {
       console.log("[trigger-ava-analysis] Resume was unavailable/couldn't be processed - setting resume_score to null", {
+        hadResumeText,
         hadResumeImages,
         hasResumeUrl: !!detectedResumeUrl,
         hasResumeImageUrls: !!parsedNotes.resumeImageUrls?.length,
@@ -1329,15 +1240,53 @@ ${interviewType} Interview with AVA Results:
       videoIntroScore,
       analysisText,
       resumeUnavailable,
+      resumeTextUsed: hadResumeText,
+      resumeImageCount: resumeVisualInputs.length,
+      applicationAnswerCount: textAnswers.length,
+      coverLetterProvided: !!application.cover_letter,
       workflowSteps,
       jobTitle: job?.title || null,
       jobDescription: job?.description || null,
       jobSkillsRequired: Array.isArray(job?.skills_required) ? (job.skills_required as string[]) : null,
       experienceLevel: job?.experience_level || null,
     });
+    const analysisMeta = {
+      provider: analysisData?.provider || "openai",
+      model: analysisData?.model || null,
+      analyzedAt: new Date().toISOString(),
+      resume: {
+        provided: !!detectedResumeUrl,
+        analyzed: !resumeUnavailable,
+        status: resumeUnavailable
+          ? "unavailable"
+          : hadResumeText && hadResumeImages
+            ? "text_and_visual"
+            : hadResumeText
+              ? "text_only"
+              : "visual_only",
+        textExtracted: hadResumeText,
+        textLength: resumeText?.length || 0,
+        imagePagesUsed: resumeVisualInputs.length,
+        visualSources: resumeVisualInputs.map((entry) => `${entry.source}:${entry.page ?? 1}`),
+        url: detectedResumeUrl || null,
+      },
+      inputsUsed: {
+        applicationAnswers: textAnswers.length,
+        coverLetter: !!application.cover_letter,
+        quiz: typeof quizScore === "number",
+        typingTest: !!typingTest,
+        chatSimulation: typeof chatSimulationScore === "number",
+        salesSimulation: typeof salesSimulationScore === "number",
+        chatInterview: typeof chatInterviewScore === "number",
+        portfolio: typeof portfolioScore === "number",
+        videoIntro: typeof videoIntroScore === "number",
+        voiceInterview: typeof voiceResult?.overall_score === "number",
+      },
+    };
     const updatedNotes = {
       ...parsedNotes,
       avaScorecard: scorecard,
+      avaAnalysisMeta: analysisMeta,
     };
 
     // Update the application with AI analysis using admin client (bypasses RLS)
@@ -1346,9 +1295,9 @@ ${interviewType} Interview with AVA Results:
       .from("applications")
       .update({
         ai_analysis: analysisData?.analysis || null,
-        ai_score: finalScore && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
+        ai_score: typeof finalScore === "number" && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
-        resume_score: resumeUnavailable ? null : (newScore && newScore >= 0 && newScore <= 100 ? newScore : null),
+        resume_score: resumeUnavailable ? null : (typeof newScore === "number" && newScore >= 0 && newScore <= 100 ? newScore : null),
         notes: JSON.stringify(updatedNotes),
       })
       .eq("id", applicationId);

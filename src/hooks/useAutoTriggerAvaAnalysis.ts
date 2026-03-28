@@ -80,7 +80,10 @@ export function useAutoTriggerAvaAnalysis({
     }
     
     // Check if analysis is needed (null/empty)
-    const needsAnalysis = !application.ai_analysis || !application.ai_score;
+    const needsAnalysis =
+      !application.ai_analysis ||
+      application.ai_score === null ||
+      application.ai_score === undefined;
     
     if (!needsAnalysis) {
       return;

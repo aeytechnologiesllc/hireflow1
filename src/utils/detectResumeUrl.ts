@@ -80,14 +80,6 @@ export function detectResumeUrl(
   // REMOVED: The old "single file = resume" fallback was incorrect.
   // Non-resume file uploads (like "proof of internet speed") should NOT be treated as resumes.
 
-  // Third pass: Look for any answer that is a URL containing /resumes/ bucket
-  for (const answer of answers) {
-    if (answer.answer && typeof answer.answer === 'string' && 
-        answer.answer.toLowerCase().includes('/resumes/')) {
-      return answer.answer;
-    }
-  }
-
   return null;
 }
 

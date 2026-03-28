@@ -107,7 +107,7 @@ export default function ApplicantDetailsDialog({
               <Badge className={applicationStatusColors[application.status]}>
                 {getApplicationStatusLabel(application.status)}
               </Badge>
-              {application.ai_score && (
+              {(application.ai_score !== null && application.ai_score !== undefined) && (
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium text-primary">

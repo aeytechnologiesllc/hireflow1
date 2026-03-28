@@ -41,6 +41,7 @@ import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { convertPdfToImage } from "@/utils/pdfToImage";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile } from "@/utils/resumeFiles";
 import type { Tables, Json } from "@/integrations/supabase/types";
 
 interface CandidateApplicationWizardProps {
@@ -56,6 +57,25 @@ interface ApplicationQuestion {
   required: boolean;
   options?: string[];
 }
+
+const normalizeQuestionType = (value: string | null | undefined) => {
+  const normalized = (value || "text").toLowerCase().trim();
+
+  switch (normalized) {
+    case "long_text":
+    case "multi_line":
+      return "textarea";
+    case "file_upload":
+    case "upload":
+      return "file";
+    case "dropdown":
+      return "select";
+    case "short_text":
+      return "text";
+    default:
+      return normalized;
+  }
+};
 
 // Email validation regex
 const isValidEmail = (email: string) => {
@@ -96,7 +116,7 @@ export default function CandidateApplicationWizard({
   // Determine wizard steps based on job configuration
   const hasQuestions = applicationQuestions.length > 0;
   const requiresResume = job.require_resume !== false;
-  const hasFileQuestionInQuestions = applicationQuestions.some(q => q.type === "file");
+  const hasFileQuestionInQuestions = applicationQuestions.some(q => normalizeQuestionType(q.type) === "file");
 
   const steps = [
     ...(hasQuestions ? [{ id: "questions", title: "Application Questions", icon: ClipboardList }] : []),
@@ -208,12 +228,12 @@ export default function CandidateApplicationWizard({
           newAnswers[question.id] = profile.full_name;
           prefilled.add(question.id);
         }
-      } else if (qLower.includes("email") || idLower.includes("email") || question.type === "email") {
+      } else if (qLower.includes("email") || idLower.includes("email") || normalizeQuestionType(question.type) === "email") {
         if (profile.email && !answers[question.id]) {
           newAnswers[question.id] = profile.email;
           prefilled.add(question.id);
         }
-      } else if (qLower.includes("phone") || idLower.includes("phone") || question.type === "phone") {
+      } else if (qLower.includes("phone") || idLower.includes("phone") || normalizeQuestionType(question.type) === "phone") {
         if (profile.phone && !answers[question.id]) {
           newAnswers[question.id] = profile.phone;
           prefilled.add(question.id);
@@ -252,7 +272,7 @@ export default function CandidateApplicationWizard({
       
       // ALSO populate any resume file question if it exists (for backwards compat)
       const resumeFileQuestion = applicationQuestions.find(q => {
-        if (q.type !== "file") return false;
+        if (normalizeQuestionType(q.type) !== "file") return false;
         const qText = q.question.toLowerCase();
         return ['resume', 'cv', 'curriculum'].some(kw => qText.includes(kw));
       });
@@ -267,12 +287,26 @@ export default function CandidateApplicationWizard({
       (async () => {
         setResumeConversionStatus("converting");
         try {
+          if (isImageResumeUrl(profile.resume_url)) {
+            setResumeImageUrls([profile.resume_url]);
+            if (resumeFileQuestion) {
+              setQuestionFileImageUrls(prev => ({ ...prev, [resumeFileQuestion.id]: [profile.resume_url] }));
+            }
+            setResumeConversionStatus("ready");
+            return;
+          }
+
+          if (!isPdfResumeUrl(profile.resume_url)) {
+            setResumeConversionStatus("failed");
+            return;
+          }
+
           const response = await fetch(profile.resume_url);
           const blob = await response.blob();
           const file = new globalThis.File([blob], "profile-resume.pdf", { type: "application/pdf" });
           
           const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
-          const imageBase64s = await convertPdfFileToImages(file, 2);
+          const imageBase64s = await convertPdfFileToImages(file, 3);
           
           if (imageBase64s.length > 0) {
             const { data: { user } } = await supabase.auth.getUser();
@@ -387,11 +421,10 @@ export default function CandidateApplicationWizard({
     const questionText = (question?.question || questionId).toLowerCase();
     const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
     
-    if (isResumeQuestion && question?.type === "file") {
-      // Resume questions: PDF ONLY for AI vision analysis
-      if (file.type !== "application/pdf") {
-        toast.error("Resume must be a PDF file", {
-          description: "AVA requires PDF format to analyze your resume"
+    if (isResumeQuestion && normalizeQuestionType(question?.type) === "file") {
+      if (!isSupportedResumeFile(file)) {
+        toast.error("Resume must be a PDF or image file", {
+          description: "AVA can analyze PDF and image resumes"
         });
         return;
       }
@@ -446,7 +479,7 @@ export default function CandidateApplicationWizard({
       if (isPdf) {
         // Convert PDF to images for AI analysis
         const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
-        const imageBase64s = await convertPdfFileToImages(file, 2);
+        const imageBase64s = await convertPdfFileToImages(file, 3);
         
         if (imageBase64s.length > 0) {
           for (let i = 0; i < imageBase64s.length; i++) {
@@ -482,7 +515,7 @@ export default function CandidateApplicationWizard({
       const question = applicationQuestions.find(q => q.id === questionId);
       const questionText = (question?.question || questionId).toLowerCase();
       const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
-      if (question?.type === "file" && isResumeQuestion) {
+      if (normalizeQuestionType(question?.type) === "file" && isResumeQuestion) {
         setResumeUrl(urlData.publicUrl);
         if (imageUrls.length > 0) {
           setResumeImageUrls(imageUrls);
@@ -515,7 +548,7 @@ export default function CandidateApplicationWizard({
     const question = applicationQuestions.find(q => q.id === questionId);
     const questionText = (question?.question || questionId).toLowerCase();
     const isResumeQ = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
-    if (question?.type === "file" && isResumeQ) {
+    if (normalizeQuestionType(question?.type) === "file" && isResumeQ) {
       setResumeUrl("");
       setResumeImageUrls([]);
     }
@@ -546,9 +579,8 @@ export default function CandidateApplicationWizard({
   };
 
   const handleFileSelect = async (file: File) => {
-    // PDF only for resume uploads
-    if (file.type !== "application/pdf") {
-      toast.error("Please upload a PDF file");
+    if (!isSupportedResumeFile(file)) {
+      toast.error("Please upload a PDF or image file");
       return;
     }
 
@@ -578,27 +610,32 @@ export default function CandidateApplicationWizard({
         .from("resumes")
         .getPublicUrl(fileName);
 
-      // Convert PDF to images for AI analysis
-      const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
-      const imageBase64s = await convertPdfFileToImages(file, 2);
       const imageUrls: string[] = [];
-      
-      if (imageBase64s.length > 0) {
-        for (let i = 0; i < imageBase64s.length; i++) {
-          const blob = base64ToBlob(imageBase64s[i], "image/png");
-          const imagePath = `${user.id}/${Date.now()}_page${i + 1}.png`;
-          
-          const { error: imageUploadError } = await supabase.storage
-            .from("resumes")
-            .upload(imagePath, blob, { upsert: true });
-          
-          if (!imageUploadError) {
-            const { data: imageUrlData } = supabase.storage
+      const isPdf = file.type === "application/pdf";
+
+      if (isPdf) {
+        const { convertPdfFileToImages, base64ToBlob } = await import("@/utils/pdfToImage");
+        const imageBase64s = await convertPdfFileToImages(file, 3);
+        
+        if (imageBase64s.length > 0) {
+          for (let i = 0; i < imageBase64s.length; i++) {
+            const blob = base64ToBlob(imageBase64s[i], "image/png");
+            const imagePath = `${user.id}/${Date.now()}_page${i + 1}.png`;
+            
+            const { error: imageUploadError } = await supabase.storage
               .from("resumes")
-              .getPublicUrl(imagePath);
-            imageUrls.push(imageUrlData.publicUrl);
+              .upload(imagePath, blob, { upsert: true });
+            
+            if (!imageUploadError) {
+              const { data: imageUrlData } = supabase.storage
+                .from("resumes")
+                .getPublicUrl(imagePath);
+              imageUrls.push(imageUrlData.publicUrl);
+            }
           }
         }
+      } else {
+        imageUrls.push(urlData.publicUrl);
       }
 
       setResumeUrl(urlData.publicUrl);
@@ -634,10 +671,10 @@ export default function CandidateApplicationWizard({
 
   // Validation for email/phone fields
   const validateField = (question: ApplicationQuestion, value: string) => {
-    if (question.type === "email" && value && !isValidEmail(value)) {
+    if (normalizeQuestionType(question.type) === "email" && value && !isValidEmail(value)) {
       return "Please enter a valid email address";
     }
-    if (question.type === "phone" && value) {
+    if (normalizeQuestionType(question.type) === "phone" && value) {
       const phoneDigits = value.replace(/\D/g, "");
       if (phoneDigits.length < 10) {
         return "Please enter a valid phone number";
@@ -650,7 +687,7 @@ export default function CandidateApplicationWizard({
     let formattedValue = value;
     
     // Format phone numbers
-    if (question.type === "phone") {
+    if (normalizeQuestionType(question.type) === "phone") {
       formattedValue = formatPhoneNumber(value);
     }
 
@@ -669,7 +706,7 @@ export default function CandidateApplicationWizard({
         // Check all required questions are answered and valid
         const hasRequiredAnswers = applicationQuestions.every(q => {
           if (!q.required) return true;
-          if (q.type === "file") {
+          if (normalizeQuestionType(q.type) === "file") {
             return !!questionFileUrls[q.id];
           }
           return answers[q.id] && answers[q.id].trim();
@@ -718,6 +755,11 @@ export default function CandidateApplicationWizard({
       toast.error("Please wait for your resume to finish processing");
       return;
     }
+
+    if (isUploading || Object.values(uploadingQuestions).some(Boolean)) {
+      toast.error("Please wait for all uploads to finish before submitting.");
+      return;
+    }
     
     setIsSubmitting(true);
 
@@ -731,7 +773,7 @@ export default function CandidateApplicationWizard({
           id, // Legacy compat - keep both for now
           question: question?.question || id, 
           answer,
-          type: question?.type || "text", // Include type for file/resume detection
+          type: normalizeQuestionType(question?.type), // Include normalized type for file/resume detection
         };
       });
       
@@ -751,7 +793,7 @@ export default function CandidateApplicationWizard({
       if (finalResumeImageUrls.length === 0) {
         for (const [questionId, fileData] of Object.entries(fileUploads)) {
           const question = applicationQuestions.find(q => q.id === questionId);
-          if (question?.type === "file" && fileData.imageUrls?.length) {
+          if (normalizeQuestionType(question?.type) === "file" && fileData.imageUrls?.length) {
             const questionText = (question.question || questionId).toLowerCase();
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
             if (isResumeQuestion) {
@@ -781,7 +823,7 @@ export default function CandidateApplicationWizard({
         // Look for resume in file question uploads (questionFileUrls)
         for (const [questionId, fileUrl] of Object.entries(questionFileUrls)) {
           const question = applicationQuestions.find(q => q.id === questionId);
-          if (question?.type === "file") {
+          if (normalizeQuestionType(question?.type) === "file") {
             const questionText = (question.question || questionId).toLowerCase();
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
             // ONLY use this as resume if the question explicitly asks for resume/cv
@@ -798,7 +840,7 @@ export default function CandidateApplicationWizard({
       if (!finalResumeUrl) {
         for (const [questionId, answer] of Object.entries(answers)) {
           const question = applicationQuestions.find(q => q.id === questionId);
-          if (question?.type === "file" && typeof answer === "string" && answer.startsWith("http")) {
+          if (normalizeQuestionType(question?.type) === "file" && typeof answer === "string" && answer.startsWith("http")) {
             const questionText = (question.question || questionId).toLowerCase();
             const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
             if (isResumeQuestion) {
@@ -918,12 +960,19 @@ export default function CandidateApplicationWizard({
             setEvaluationState("passed");
           }
         } else {
-          // Manual mode - trigger analysis in background and navigate
-          invokeTriggerAvaAnalysis({
+          // Manual mode - run the analysis before navigating so the employer view is ready.
+          const { error: analysisError } = await invokeTriggerAvaAnalysis({
             applicationId: finalAppId,
-          }).catch(err => console.error("[CandidateApplicationWizard] Background analysis failed:", err));
-          
-          toast.success("Application submitted successfully!");
+          }).catch(err => {
+            console.error("[CandidateApplicationWizard] Background analysis failed:", err);
+            return { data: null, error: err };
+          });
+
+          if (analysisError) {
+            toast.warning("Application submitted. Ava analysis is still processing...");
+          } else {
+            toast.success("Application submitted successfully!");
+          }
           handleClose();
           navigate("/applications");
         }
@@ -1059,14 +1108,17 @@ export default function CandidateApplicationWizard({
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {applicationQuestions.map((question, index) => (
+                {applicationQuestions.map((question, index) => {
+                  const questionType = normalizeQuestionType(question.type);
+
+                  return (
                   <div key={question.id} className="space-y-2">
                     <Label className="text-base">
                       {index + 1}. {question.question}
                       {question.required && <span className="text-destructive ml-1">*</span>}
                     </Label>
                     
-                    {question.type === "textarea" ? (
+                    {questionType === "textarea" ? (
                       <Textarea
                         value={answers[question.id] || ""}
                         onChange={(e) => handleAnswerChange(question.id, e.target.value, question)}
@@ -1077,7 +1129,7 @@ export default function CandidateApplicationWizard({
                         onCut={(e) => e.preventDefault()}
                         onContextMenu={(e) => e.preventDefault()}
                       />
-                    ) : question.type === "select" && question.options ? (
+                    ) : questionType === "select" && question.options ? (
                       <RadioGroup
                         value={answers[question.id] || ""}
                         onValueChange={(value) => setAnswers(prev => ({ ...prev, [question.id]: value }))}
@@ -1092,7 +1144,7 @@ export default function CandidateApplicationWizard({
                           </div>
                         ))}
                       </RadioGroup>
-                    ) : question.type === "email" ? (
+                    ) : questionType === "email" ? (
                       <div className="space-y-1">
                         <Input
                           type="email"
@@ -1109,7 +1161,7 @@ export default function CandidateApplicationWizard({
                           <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
                         )}
                       </div>
-                    ) : question.type === "phone" ? (
+                    ) : questionType === "phone" ? (
                       <div className="space-y-1">
                         <div className="flex gap-2">
                           <CountryCodeSelect
@@ -1129,7 +1181,7 @@ export default function CandidateApplicationWizard({
                           <p className="text-sm text-destructive">{validationErrors[question.id]}</p>
                         )}
                       </div>
-                    ) : question.type === "date" ? (
+                    ) : questionType === "date" ? (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -1164,7 +1216,7 @@ export default function CandidateApplicationWizard({
                           />
                         </PopoverContent>
                       </Popover>
-                    ) : question.type === "file" ? (
+                    ) : questionType === "file" ? (
                       <div className="space-y-2">
                         {/* Hidden file input */}
                         <input
@@ -1257,7 +1309,7 @@ export default function CandidateApplicationWizard({
                       />
                     )}
                   </div>
-                ))}
+                )})}
 
                 {applicationQuestions.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
@@ -1289,7 +1341,7 @@ export default function CandidateApplicationWizard({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,application/pdf"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                       onChange={handleFileInputChange}
                       className="hidden"
                     />
@@ -1373,7 +1425,7 @@ export default function CandidateApplicationWizard({
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Supports PDF only (max 10MB)
+                            Supports PDF or image files (max 10MB)
                           </p>
                         </div>
                       </div>

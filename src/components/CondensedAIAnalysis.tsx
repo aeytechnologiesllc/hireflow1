@@ -7,6 +7,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -47,6 +48,41 @@ interface JobContext {
 
 // Application notes structure from parsedNotes
 interface ApplicationNotes {
+  avaScorecard?: {
+    overallScore?: number;
+    confidence?: number;
+    recommendedAction?: "advance" | "review" | "reject";
+    riskFlags?: string[];
+    rationale?: string;
+    evidenceRefs?: string[];
+  };
+  avaAnalysisMeta?: {
+    provider?: string;
+    model?: string | null;
+    analyzedAt?: string;
+    resume?: {
+      provided?: boolean;
+      analyzed?: boolean;
+      status?: string;
+      textExtracted?: boolean;
+      textLength?: number;
+      imagePagesUsed?: number;
+      visualSources?: string[];
+      url?: string | null;
+    };
+    inputsUsed?: {
+      applicationAnswers?: number;
+      coverLetter?: boolean;
+      quiz?: boolean;
+      typingTest?: boolean;
+      chatSimulation?: boolean;
+      salesSimulation?: boolean;
+      chatInterview?: boolean;
+      portfolio?: boolean;
+      videoIntro?: boolean;
+      voiceInterview?: boolean;
+    };
+  };
   quizResult?: { score: number; passed: boolean; total?: number };
   portfolioResult?: { score: number; feedback?: string; analysis?: string; portfolioUrls?: string[] };
   typingTestResult?: { wpm: number; accuracy: number; passed?: boolean; requiredWpm?: number };
@@ -186,6 +222,36 @@ function humanizeTitle(title: string): string {
     .replace(/_/g, ' ')
     .replace(/\b(ai|cv)\b/gi, match => match.toUpperCase())
     .trim();
+}
+
+function extractActualSummaryFromSections(sections: ParsedSection[]): string | null {
+  const summaryCandidates: string[] = [];
+
+  for (const section of sections) {
+    const titleLower = section.title.toLowerCase();
+    const isOverallSection =
+      titleLower.includes("overall") ||
+      titleLower.includes("assessment") ||
+      titleLower.includes("score explanation");
+
+    for (const item of section.items) {
+      const match = item.match(/^([^:]{2,40}):\s*(.+)$/);
+      if (!match) continue;
+
+      const label = match[1].trim().toLowerCase();
+      const value = sanitizeAnalysisCopy(match[2].trim());
+      if (!value) continue;
+
+      if (label === "summary" || label === "score explanation") {
+        summaryCandidates.push(value);
+      } else if (isOverallSection && (label === "recommendation" || label === "areas of concern")) {
+        summaryCandidates.push(`${humanizeTitle(match[1].trim())}: ${value}`);
+      }
+    }
+  }
+
+  if (summaryCandidates.length === 0) return null;
+  return summaryCandidates.join(" ").trim();
 }
 
 function generateParagraphSummary(items: string[]): string {
@@ -377,6 +443,11 @@ function generateFullSummary(
   authoritativeScore?: number | null,
   jobContext?: JobContext
 ): string {
+  const actualSummary = extractActualSummaryFromSections(sections);
+  if (actualSummary) {
+    return actualSummary;
+  }
+
   // Get phase results from actual notes data (authoritative source)
   const notesPhaseResults = getPhaseResultsFromNotes(applicationNotes);
   
@@ -1398,6 +1469,48 @@ function deriveRecommendationLabel(params: {
   return "Needs more evidence";
 }
 
+function getConfidenceTone(confidence: number | null | undefined) {
+  if (typeof confidence !== "number") return null;
+  if (confidence >= 80) return "High confidence";
+  if (confidence >= 60) return "Medium confidence";
+  return "Low confidence";
+}
+
+function getResumeEvidenceLabel(meta?: ApplicationNotes["avaAnalysisMeta"]) {
+  const resume = meta?.resume;
+  if (!resume?.provided) return "No resume provided";
+  if (!resume.analyzed) return "Application-only analysis";
+  if (resume.status === "text_and_visual") {
+    return `Resume analyzed from text + ${resume.imagePagesUsed || 0} page${resume.imagePagesUsed === 1 ? "" : "s"}`;
+  }
+  if (resume.status === "text_only") return "Resume analyzed from extracted text";
+  if (resume.status === "visual_only") {
+    return `Resume analyzed from ${resume.imagePagesUsed || 1} page image${resume.imagePagesUsed === 1 ? "" : "s"}`;
+  }
+  return "Resume analyzed";
+}
+
+function getEvidenceBadges(notes?: ApplicationNotes) {
+  const badges: string[] = [];
+  const meta = notes?.avaAnalysisMeta;
+  const inputs = meta?.inputsUsed;
+
+  const resumeLabel = getResumeEvidenceLabel(meta);
+  if (resumeLabel) badges.push(resumeLabel);
+  if ((inputs?.applicationAnswers || 0) > 0) badges.push(`${inputs?.applicationAnswers} application answers`);
+  if (inputs?.coverLetter) badges.push("Cover letter");
+  if (inputs?.quiz) badges.push("Quiz");
+  if (inputs?.typingTest) badges.push("Typing test");
+  if (inputs?.chatSimulation) badges.push("Chat simulation");
+  if (inputs?.salesSimulation) badges.push("Sales simulation");
+  if (inputs?.chatInterview) badges.push("Chat interview");
+  if (inputs?.portfolio) badges.push("Portfolio");
+  if (inputs?.videoIntro) badges.push("Video intro");
+  if (inputs?.voiceInterview) badges.push("Voice interview");
+
+  return badges;
+}
+
 export function CondensedAIAnalysis({ 
   content, 
   className, 
@@ -1412,6 +1525,10 @@ export function CondensedAIAnalysis({
 }: CondensedAIAnalysisProps) {
   const parsed = useMemo(() => parseAIAnalysis(content, applicationNotes, voiceInterviewResult, aiScore), [content, applicationNotes, voiceInterviewResult, aiScore]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const scorecard = applicationNotes?.avaScorecard;
+  const analysisMeta = applicationNotes?.avaAnalysisMeta;
+  const evidenceBadges = useMemo(() => getEvidenceBadges(applicationNotes), [applicationNotes]);
+  const confidenceTone = getConfidenceTone(scorecard?.confidence);
   
   // Use authoritative score from database if provided, otherwise use parsed score
   const displayScore = aiScore ?? parsed.score;
@@ -1419,6 +1536,7 @@ export function CondensedAIAnalysis({
   
   // CRITICAL: If application is rejected, override the verdict regardless of AI analysis
   const isRejected = applicationStatus === 'rejected';
+  const wasManualRejection = isRejected && !!rejectedByType && rejectedByType !== "ava";
   const verdictText = deriveRecommendationLabel({
     isRejected,
     recommendation: parsed.recommendation,
@@ -1461,12 +1579,12 @@ export function CondensedAIAnalysis({
         }
       }
       
-      // For employer manual rejections, show rejection reason if provided
-      if (rejectedByType === 'employer') {
+      // For manual rejections by owner or team member, show the explicit reason if provided
+      if (wasManualRejection) {
         if (rejectionReason) {
-          return `Rejected by employer. ${rejectionReason}`;
+          return `Rejected by the hiring team. ${rejectionReason}`;
         }
-        return `This application was manually rejected by the employer. ${parsed.fullSummary || ''}`.trim();
+        return `This application was manually rejected by the hiring team. ${parsed.fullSummary || ''}`.trim();
       }
       
       // Fallback for rejections without type info (legacy data)
@@ -1509,11 +1627,19 @@ export function CondensedAIAnalysis({
                   </div>
                 </div>
               </div>
-              {displayScore !== null && (
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Score {displayScore} • Pass threshold {effectivePassingScore}
-                </p>
-              )}
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {displayScore !== null && (
+                  <span>Score {displayScore} • Pass threshold {effectivePassingScore}</span>
+                )}
+                {confidenceTone && typeof scorecard?.confidence === "number" && (
+                  <Badge variant="outline" className="text-[11px]">
+                    {confidenceTone} • {scorecard.confidence}%
+                  </Badge>
+                )}
+                {analysisMeta?.analyzedAt && (
+                  <span>Updated {new Date(analysisMeta.analyzedAt).toLocaleString()}</span>
+                )}
+              </div>
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Why Ava says this</p>
                 <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
@@ -1527,6 +1653,41 @@ export function CondensedAIAnalysis({
           </div>
         </CardContent>
       </Card>
+
+      {(evidenceBadges.length > 0 || (scorecard?.riskFlags?.length || 0) > 0) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {evidenceBadges.length > 0 && (
+            <Card className="border-border/50 bg-card">
+              <CardContent className="p-4 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Evidence reviewed</p>
+                <div className="flex flex-wrap gap-2">
+                  {evidenceBadges.map((badge) => (
+                    <Badge key={badge} variant="outline" className="text-[11px] whitespace-normal text-left">
+                      {badge}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(scorecard?.riskFlags?.length || 0) > 0 && (
+            <Card className="border-border/50 bg-card">
+              <CardContent className="p-4 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Needs a closer look</p>
+                <div className="space-y-1.5">
+                  {scorecard!.riskFlags!.slice(0, 3).map((flag) => (
+                    <div key={flag} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      <span className="break-words [overflow-wrap:anywhere]">{flag}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
       
       {/* Phase-Based Details Section - Only show completed phases */}
       <PhaseBasedAnalysis 

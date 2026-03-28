@@ -63,6 +63,7 @@ export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   const invokeWithToken = async (accessToken: string | null) => {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/trigger-ava-analysis`, {
       method: "POST",
+      keepalive: true,
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,

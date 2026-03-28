@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callOpenAIChat, type OpenAIMessage } from "../_shared/openai.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.4";
@@ -16,6 +17,7 @@ interface AnalyzeRequest {
   resumeUrl?: string;
   resumeText?: string;
   resumeImage?: string; // Base64-encoded image for vision analysis
+  resumeImages?: Array<{ base64: string; mimeType?: string; page?: number; source?: string }>;
   applicantName?: string; // For cross-reference verification
   applicationAnswers?: Array<{ question: string; answer: string }>; // Structured answers
   coverLetter?: string; // Separate cover letter for cross-reference
@@ -768,6 +770,7 @@ serve(async (req) => {
       resumeUrl, 
       resumeText, 
       resumeImage,
+      resumeImages,
       applicantName,
       applicationAnswers,
       coverLetter 
@@ -788,12 +791,20 @@ serve(async (req) => {
       );
     }
 
+    const normalizedResumeImages = Array.isArray(resumeImages) && resumeImages.length > 0
+      ? resumeImages.filter((entry) => !!entry?.base64)
+      : resumeImage
+        ? [{ base64: resumeImage, mimeType: "image/png" }]
+        : [];
+    const hasResumeText = !!resumeText?.trim();
+    const hasResumeVisuals = normalizedResumeImages.length > 0;
+
     console.log(`Processing ${type} analysis request`);
-    console.log(`Resume extraction: text=${!!resumeText}, image=${!!resumeImage}, url=${!!resumeUrl}`);
+    console.log(`Resume extraction: text=${hasResumeText}, imagePages=${normalizedResumeImages.length}, url=${!!resumeUrl}`);
     console.log(`Cross-reference data: applicantName=${!!applicantName}, answers=${applicationAnswers?.length || 0}, coverLetter=${!!coverLetter}`);
 
     let userContent = content;
-    let resumeExtracted = false;
+    const resumeExtracted = hasResumeText || hasResumeVisuals;
 
     // Add cross-reference context data
     if (applicantName) {
@@ -816,37 +827,50 @@ serve(async (req) => {
       userContent += `\n\n--- JOB CONTEXT ---\n${JSON.stringify(context, null, 2)}`;
     }
 
+    if (hasResumeText) {
+      userContent += `\n\n--- EXTRACTED RESUME TEXT ---\n${resumeText!.slice(0, 14000)}`;
+    }
+
+    if (type === "resume" || type === "application") {
+      userContent += `\n\n--- RESUME EVIDENCE SUMMARY ---`;
+      userContent += `\nResume URL: ${resumeUrl || "Not provided"}`;
+      userContent += `\nResume text extracted: ${hasResumeText ? `Yes (${resumeText!.length} chars)` : "No"}`;
+      userContent += `\nResume images attached: ${normalizedResumeImages.length}`;
+    }
+
     // Build the messages array based on what resume data we have
     // Support vision for BOTH "resume" AND "application" types
-    let messages: any[];
+    let messages: OpenAIMessage[];
 
-    if (resumeImage && (type === "resume" || type === "application")) {
-      // Use vision capability for image-based resume analysis
-      console.log(`Using OpenAI vision for resume image analysis (type: ${type})`);
-      resumeExtracted = true;
-      
+    if ((hasResumeText || hasResumeVisuals) && (type === "resume" || type === "application")) {
+      console.log(`Using resume evidence for ${type} analysis (text=${hasResumeText}, images=${normalizedResumeImages.length})`);
+
+      const userMessageContent: NonNullable<OpenAIMessage["content"]> = [
+        {
+          type: "text",
+          text:
+            userContent +
+            "\n\n--- ANALYSIS RULES ---\nUse the extracted resume text and attached resume pages together when both are available. If either source is incomplete or slightly inconsistent, note uncertainty instead of inventing details. Treat attached images as consecutive resume pages in order.",
+        },
+        ...normalizedResumeImages.slice(0, 3).map((image) => ({
+          type: "image_url" as const,
+          image_url: {
+            url: `data:${image.mimeType || "image/png"};base64,${image.base64}`,
+            detail: "high" as const,
+          },
+        })),
+      ];
+
       messages = [
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: [
-            { 
-              type: "text", 
-              text: userContent + "\n\n--- RESUME IMAGE ---\nThe candidate's resume image is attached below. Please analyze the resume thoroughly from the image and cross-reference with all other data provided above."
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/png;base64,${resumeImage}`,
-                detail: "high" // Use high detail for better text recognition
-              }
-            }
-          ]
-        }
+          content: userMessageContent,
+        },
       ];
     } else {
       // No resume image provided - analyze based on other application data
-      console.log(`No resume image provided for ${type} analysis - will analyze based on other application data`);
+      console.log(`No direct resume evidence provided for ${type} analysis - will analyze based on other application data`);
       
       if (type === "resume" || type === "application") {
         userContent += `\n\n--- CRITICAL RESUME STATUS ---
@@ -871,47 +895,17 @@ Your skill match analysis should be based on what the candidate stated in their 
       ];
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages,
-        max_completion_tokens: 4000,
-        // Add temperature for interview questions to ensure variety on regeneration
-        ...(type === "interview" && { temperature: 0.95 }),
-      }),
+    const openAIResult = await callOpenAIChat({
+      apiKey: OPENAI_API_KEY!,
+      model: OPENAI_MODEL,
+      messages,
+      maxCompletionTokens: 4000,
+      ...(type === "interview" ? { temperature: 0.95 } : {}),
+      timeoutMs: 90000,
+      retries: 3,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "OpenAI credits exhausted or billing is unavailable for this project." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: "Failed to process AI analysis" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const data = await response.json();
-    const analysis = data.choices?.[0]?.message?.content ?? "";
+    const analysis = openAIResult.content ?? "";
 
     const modelUsed = OPENAI_MODEL;
     const provider = "openai";
@@ -924,6 +918,10 @@ Your skill match analysis should be based on what the candidate stated in their 
         type,
         timestamp: new Date().toISOString(),
         resumeExtracted,
+        resumeDataUsed: {
+          text: hasResumeText,
+          imagePages: normalizedResumeImages.length,
+        },
         model: modelUsed,
         provider,
       }),

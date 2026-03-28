@@ -40,6 +40,7 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
+import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedResumeUrl } from "@/utils/resumeFiles";
 
 interface AntiCheatViolation {
   type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
@@ -76,6 +77,25 @@ interface ApplicationDetails {
   } | null;
 }
 
+const normalizeQuestionType = (value: string | null | undefined) => {
+  const normalized = (value || "text").toLowerCase().trim();
+
+  switch (normalized) {
+    case "long_text":
+    case "multi_line":
+      return "textarea";
+    case "file_upload":
+    case "upload":
+      return "file";
+    case "dropdown":
+      return "select";
+    case "short_text":
+      return "text";
+    default:
+      return normalized;
+  }
+};
+
 // Email validation regex
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -92,7 +112,7 @@ const formatPhoneNumber = (value: string) => {
 
 // Helper to detect resume-related file questions
 const isResumeQuestion = (question: { id: string; question: string; type: string }) => {
-  if (question.type !== "file") return false;
+  if (normalizeQuestionType(question.type) !== "file") return false;
   const text = (question.question + " " + question.id).toLowerCase();
   return text.includes("resume") || text.includes("cv") || text.includes("curriculum");
 };
@@ -231,9 +251,44 @@ export default function ApplicationFormPhase() {
   const requiresResume = application?.jobs?.require_resume !== false;
   const hasQuestions = questions.length > 0;
   const isAutoPilot = application?.jobs?.processing_mode === "auto";
+  const hasUploadsInProgress = isUploading || Object.values(uploadingQuestions).some(Boolean);
 
   // Parse notes to check if already submitted
   const notes = application?.notes ? JSON.parse(application.notes) : {};
+  const getLatestStoredNotes = useCallback(async () => {
+    const fallbackNotes = notes || {};
+
+    if (!id) return fallbackNotes;
+
+    const timeoutMs = 3500;
+    const notesLookup = supabase
+      .from("applications")
+      .select("notes")
+      .eq("id", id)
+      .single();
+
+    const result = await Promise.race([
+      notesLookup,
+      new Promise<{ data: null; error: Error }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: new Error("Timed out loading the latest application notes") }), timeoutMs)
+      ),
+    ]);
+
+    if (result.error || !result.data?.notes) {
+      if (result.error) {
+        console.warn("[ApplicationFormPhase] Falling back to in-memory notes:", result.error.message);
+      }
+      return fallbackNotes;
+    }
+
+    try {
+      return typeof result.data.notes === "string"
+        ? JSON.parse(result.data.notes)
+        : (result.data.notes as Record<string, any>);
+    } catch {
+      return fallbackNotes;
+    }
+  }, [id, notes]);
   const hasApplicationAnswers = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
   
   // If application was reconsidered (status reset to pending), allow re-submission
@@ -284,12 +339,12 @@ export default function ApplicationFormPhase() {
       }
       
       // Email
-      if ((q.type === "email" || questionLower.includes("email")) && profile.email) {
+      if ((normalizeQuestionType(q.type) === "email" || questionLower.includes("email")) && profile.email) {
         prefilled[q.id] = profile.email;
       }
       
       // Phone
-      if ((q.type === "phone" || questionLower.includes("phone")) && profile.phone) {
+      if ((normalizeQuestionType(q.type) === "phone" || questionLower.includes("phone")) && profile.phone) {
         // Parse existing phone (might include country code)
         const phoneMatch = profile.phone.match(/^(\+\d+)?\s*(.*)$/);
         if (phoneMatch) {
@@ -326,7 +381,7 @@ export default function ApplicationFormPhase() {
       }
       
       // Pre-fill file questions (resume) from profile
-      if (q.type === "file" && questionLower.includes("resume") && profile.resume_url && !questionFileUrls[q.id]) {
+      if (normalizeQuestionType(q.type) === "file" && questionLower.includes("resume") && profile.resume_url && !questionFileUrls[q.id]) {
         prefilledFileUrls[q.id] = profile.resume_url;
         prefilled[q.id] = profile.resume_url;
       }
@@ -365,9 +420,8 @@ export default function ApplicationFormPhase() {
   }, []);
 
   const handleFileSelect = async (file: File) => {
-    // PDF only for resume uploads
-    if (file.type !== "application/pdf") {
-      toast.error("Please upload a PDF file");
+    if (!isSupportedResumeFile(file)) {
+      toast.error("Please upload a PDF or image file");
       return;
     }
 
@@ -394,30 +448,34 @@ export default function ApplicationFormPhase() {
         .from("resumes")
         .getPublicUrl(fileName);
 
-      // Convert PDF to images for AI analysis (PRIMARY method)
-      const imageBase64s = await convertPdfFileToImages(file, 2);
       const imageUrls: string[] = [];
-      
-      if (imageBase64s.length > 0) {
-        for (let i = 0; i < imageBase64s.length; i++) {
-          const blob = base64ToBlob(imageBase64s[i], "image/png");
-          const imagePath = `${user?.id}/${Date.now()}_page${i + 1}.png`;
-          
-          const { error: imageUploadError } = await supabase.storage
-            .from("resumes")
-            .upload(imagePath, blob, { upsert: true });
-          
-          if (!imageUploadError) {
-            const { data: imageUrlData } = supabase.storage
+      const isPdf = file.type === "application/pdf";
+
+      if (isPdf) {
+        const imageBase64s = await convertPdfFileToImages(file, 3);
+        if (imageBase64s.length > 0) {
+          for (let i = 0; i < imageBase64s.length; i++) {
+            const blob = base64ToBlob(imageBase64s[i], "image/png");
+            const imagePath = `${user?.id}/${Date.now()}_page${i + 1}.png`;
+            
+            const { error: imageUploadError } = await supabase.storage
               .from("resumes")
-              .getPublicUrl(imagePath);
-            imageUrls.push(imageUrlData.publicUrl);
+              .upload(imagePath, blob, { upsert: true });
+            
+            if (!imageUploadError) {
+              const { data: imageUrlData } = supabase.storage
+                .from("resumes")
+                .getPublicUrl(imagePath);
+              imageUrls.push(imageUrlData.publicUrl);
+            }
           }
         }
+      } else {
+        imageUrls.push(urlData.publicUrl);
       }
       
       // Update application with resume URL and image URLs in notes
-      const currentNotes = notes || {};
+      const currentNotes = await getLatestStoredNotes();
       const updatedNotes = {
         ...currentNotes,
         resumeImageUrls: imageUrls,
@@ -441,20 +499,29 @@ export default function ApplicationFormPhase() {
 
   // Question file upload handlers - supports PDFs, docs, and images
   const handleQuestionFileSelect = async (file: File, questionId: string) => {
-    // Accept PDFs, Word docs, and images
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "image/png",
-      "image/jpeg",
-      "image/gif",
-      "image/webp"
-    ];
-    
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF, Word document, or image file");
-      return;
+    const question = questions.find(q => q.id === questionId);
+    const isResumeUpload = !!question && isResumeQuestion(question);
+
+    if (isResumeUpload) {
+      if (!isSupportedResumeFile(file)) {
+        toast.error("Resume uploads must be a PDF or image file");
+        return;
+      }
+    } else {
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp"
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Please upload a PDF, Word document, or image file");
+        return;
+      }
     }
 
     if (file.size > 10 * 1024 * 1024) {
@@ -486,7 +553,7 @@ export default function ApplicationFormPhase() {
 
       if (isPdf) {
         // Convert PDF to images for AI analysis
-        const imageBase64s = await convertPdfFileToImages(file, 2);
+        const imageBase64s = await convertPdfFileToImages(file, 3);
         
         if (imageBase64s.length > 0) {
           for (let i = 0; i < imageBase64s.length; i++) {
@@ -511,23 +578,19 @@ export default function ApplicationFormPhase() {
       }
 
       // Store image URLs for this question in notes
-      const currentNotes = notes || {};
+      const currentNotes = await getLatestStoredNotes();
       const fileUploads = currentNotes.fileUploads || {};
       fileUploads[questionId] = {
         url: urlData.publicUrl,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
         imageUrls: imageUrls,
+        isResume: isResumeUpload,
       };
-      
-      // Check if this is a resume-related question
-      const question = questions.find(q => q.id === questionId);
-      const isResumeQuestion = question?.question?.toLowerCase().includes("resume") || 
-                               questionId.toLowerCase().includes("resume");
-      
+
       const updatedNotes = {
         ...currentNotes,
         fileUploads,
         // If this is a resume question, also store in resumeImageUrls
-        ...(isResumeQuestion && imageUrls.length > 0 ? { resumeImageUrls: imageUrls } : {}),
+        ...(isResumeUpload && imageUrls.length > 0 ? { resumeImageUrls: imageUrls } : {}),
       };
       
       await updateApplication.mutateAsync({
@@ -569,7 +632,7 @@ export default function ApplicationFormPhase() {
       if (q.required && !answers[q.id]?.trim()) {
         errors[q.id] = "This field is required";
       }
-      if (q.type === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
+      if (normalizeQuestionType(q.type) === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
         errors[q.id] = "Please enter a valid email address";
       }
     });
@@ -577,13 +640,11 @@ export default function ApplicationFormPhase() {
     // Validate resume if required and not already uploaded
     // FIXED: Only accept application.resume_url if it looks like an actual resume (PDF in resumes bucket)
     // This prevents non-resume uploads (like "proof of internet speed") from bypassing resume validation
-    const hasValidApplicationResume = application?.resume_url && 
-      application.resume_url.includes('.pdf') && 
-      application.resume_url.includes('/resumes/');
+    const hasValidApplicationResume = isSupportedResumeUrl(application?.resume_url);
     
     // Check if there's a resume-specific file question that has been answered
     const resumeFileQuestion = questions.find(q => 
-      q.type === "file" && 
+      normalizeQuestionType(q.type) === "file" && 
       (q.question.toLowerCase().includes("resume") || 
        q.question.toLowerCase().includes("cv") || 
        q.question.toLowerCase().includes("curriculum") ||
@@ -602,6 +663,11 @@ export default function ApplicationFormPhase() {
   const handleSubmit = async () => {
     if (!application) {
       toast.error("Application not loaded yet. Please refresh and try again.");
+      return;
+    }
+
+    if (hasUploadsInProgress) {
+      toast.error("Please wait for all uploads to finish before submitting.");
       return;
     }
 
@@ -630,47 +696,51 @@ export default function ApplicationFormPhase() {
     try {
       // CRITICAL FIX: If using profile resume, we MUST convert it to images before submission
       // This ensures the backend has resumeImageUrls available for AI analysis
+      const latestNotes = await getLatestStoredNotes();
       let finalResumeUrl = application.resume_url;
-      let finalResumeImageUrls: string[] = notes.resumeImageUrls || [];
+      let finalResumeImageUrls: string[] = latestNotes.resumeImageUrls || [];
       
-      if (usingProfileResume && profile?.resume_url && !notes.resumeImageUrls?.length) {
+      if (usingProfileResume && profile?.resume_url && !latestNotes.resumeImageUrls?.length) {
         toast.info("Preparing your resume for analysis...");
         
         try {
-          // Fetch the PDF from profile
-          const response = await fetch(profile.resume_url);
-          if (!response.ok) throw new Error("Failed to fetch profile resume");
-          const blob = await response.blob();
-          const file = new File([blob], "profile-resume.pdf", { type: "application/pdf" });
-          
-          // Convert PDF to images
-          const imageBase64s = await convertPdfFileToImages(file, 2);
-          
-          if (imageBase64s.length === 0) {
-            throw new Error("Could not extract pages from resume PDF");
-          }
-          
-          // Upload images
-          for (let i = 0; i < imageBase64s.length; i++) {
-            const imageBlob = base64ToBlob(imageBase64s[i], "image/png");
-            const imagePath = `${user?.id}/${Date.now()}_profile_page${i + 1}.png`;
+          if (isImageResumeUrl(profile.resume_url)) {
+            finalResumeImageUrls = [profile.resume_url];
+          } else if (isPdfResumeUrl(profile.resume_url)) {
+            const response = await fetch(profile.resume_url);
+            if (!response.ok) throw new Error("Failed to fetch profile resume");
+            const blob = await response.blob();
+            const file = new File([blob], "profile-resume.pdf", { type: "application/pdf" });
             
-            const { error: uploadError } = await supabase.storage
-              .from("resumes")
-              .upload(imagePath, imageBlob, { upsert: true });
+            const imageBase64s = await convertPdfFileToImages(file, 3);
             
-            if (!uploadError) {
-              const { data: imageUrlData } = supabase.storage
-                .from("resumes")
-                .getPublicUrl(imagePath);
-              finalResumeImageUrls.push(imageUrlData.publicUrl);
+            if (imageBase64s.length === 0) {
+              throw new Error("Could not extract pages from resume PDF");
             }
+            
+            for (let i = 0; i < imageBase64s.length; i++) {
+              const imageBlob = base64ToBlob(imageBase64s[i], "image/png");
+              const imagePath = `${user?.id}/${Date.now()}_profile_page${i + 1}.png`;
+              
+              const { error: uploadError } = await supabase.storage
+                .from("resumes")
+                .upload(imagePath, imageBlob, { upsert: true });
+              
+              if (!uploadError) {
+                const { data: imageUrlData } = supabase.storage
+                  .from("resumes")
+                  .getPublicUrl(imagePath);
+                finalResumeImageUrls.push(imageUrlData.publicUrl);
+              }
+            }
+          } else {
+            throw new Error("Unsupported profile resume format");
           }
           
           finalResumeUrl = profile.resume_url;
         } catch (conversionError) {
           console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
-          toast.error("Could not process your resume. Please upload a new PDF.");
+          toast.error("Could not process your resume. Please upload a PDF or image.");
           setIsSubmitting(false);
           setEvaluationState(null);
           return;
@@ -681,15 +751,15 @@ export default function ApplicationFormPhase() {
       const applicationAnswers = questions.map(q => ({
         questionId: q.id,
         question: q.question,
-        answer: q.type === "phone" && phoneCountryCodes[q.id]
+        answer: normalizeQuestionType(q.type) === "phone" && phoneCountryCodes[q.id]
           ? `${phoneCountryCodes[q.id]} ${answers[q.id] || ""}`
           : answers[q.id] || "",
-        type: q.type,
+        type: normalizeQuestionType(q.type),
       }));
 
       // Update notes with application answers AND resume image URLs
       const updatedNotes = {
-        ...notes,
+        ...latestNotes,
         applicationAnswers,
         ...(finalResumeImageUrls.length > 0 ? { resumeImageUrls: finalResumeImageUrls } : {}),
       };
@@ -802,13 +872,24 @@ export default function ApplicationFormPhase() {
         // We only persist the submission data (done above), trigger analysis, and return to the application.
         // Employers control advancement in manual review mode.
 
-        invokeTriggerAvaAnalysis({
+        const { error: analysisError } = await invokeTriggerAvaAnalysis({
           applicationId: id!,
-        }).catch(err => console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err));
-
-        toast.success("Application submitted successfully!", {
-          description: "Awaiting employer review.",
+        }).catch(err => {
+          console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err);
+          return { data: null, error: err };
         });
+
+        if (analysisError) {
+          toast.warning("Application submitted. Ava analysis is still processing...", {
+            description: "The employer can refresh the recommendation shortly if needed.",
+          });
+        } else {
+          toast.success("Application submitted successfully!", {
+            description: "Ava prepared the employer review using your submitted materials.",
+          });
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["application", id] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         navigate(`/applications/${id}`);
       }
@@ -924,7 +1005,7 @@ export default function ApplicationFormPhase() {
               return true;
             })
             .map((question) => {
-            const questionType = (question.type || "text").toLowerCase();
+            const questionType = normalizeQuestionType(question.type);
             const usePlainInput = questionType === "text" || questionType === "number";
             const useFallbackInput = ![
               "text",
@@ -1355,7 +1436,7 @@ export default function ApplicationFormPhase() {
                       Click to upload or drag and drop your resume
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      PDF only, max 10MB
+                      PDF or image, max 10MB
                     </p>
                   </div>
                 )}
@@ -1363,7 +1444,7 @@ export default function ApplicationFormPhase() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -1396,7 +1477,7 @@ export default function ApplicationFormPhase() {
           <div className="flex justify-end pt-4">
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || hasUploadsInProgress}
               className="gap-2"
               size="lg"
             >
@@ -1404,6 +1485,11 @@ export default function ApplicationFormPhase() {
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Submitting...
+                </>
+              ) : hasUploadsInProgress ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Uploading files...
                 </>
               ) : (
                 <>
