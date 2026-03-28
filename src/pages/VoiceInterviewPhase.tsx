@@ -48,6 +48,8 @@ export default function VoiceInterviewPhase() {
   const [isProcessingEnd, setIsProcessingEnd] = useState(false);
   const [isUserEndingInterview, setIsUserEndingInterview] = useState(false); // Immediate loading when user clicks End
   const [justFinishedSpeaking, setJustFinishedSpeaking] = useState(false);
+  const completionTriggeredRef = useRef(false);
+  const fallbackEndTimeoutRef = useRef<number | null>(null);
 
   // Camera/video states
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -143,7 +145,46 @@ export default function VoiceInterviewPhase() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const clearFallbackEndTimeout = useCallback(() => {
+    if (fallbackEndTimeoutRef.current) {
+      window.clearTimeout(fallbackEndTimeoutRef.current);
+      fallbackEndTimeoutRef.current = null;
+    }
+  }, []);
+
+  const buildManualEndEvaluation = useCallback(() => {
+    const candidateTurns = messages.filter((message) => message.role === "user" && message.content.trim().length > 0);
+    const assistantTurns = messages.filter((message) => message.role === "assistant" && message.content.trim().length > 0);
+
+    return {
+      overall_score: null,
+      recommendation: "review",
+      technical_score: null,
+      communication_score: null,
+      culture_fit_score: null,
+      credibility_rating: "manual_review_required",
+      summary:
+        "The candidate ended the interview manually before Ava returned a structured final evaluation. The transcript and recording were saved for employer review.",
+      concerns: [
+        "Manual end fallback was used because Ava did not finalize the interview automatically.",
+      ],
+      strengths: [],
+      candidate_questions: [],
+      ended_by: "candidate_button_fallback",
+      transcript_turns: messages.length,
+      candidate_turns: candidateTurns.length,
+      ava_turns: assistantTurns.length,
+      duration_seconds: elapsedSeconds,
+    };
+  }, [elapsedSeconds, messages]);
+
   const handleInterviewEnd = useCallback(async (evaluation: any) => {
+    if (completionTriggeredRef.current) {
+      return;
+    }
+
+    completionTriggeredRef.current = true;
+    clearFallbackEndTimeout();
     setInterviewResult(evaluation);
     
     // Show completion screen IMMEDIATELY with processing state
@@ -224,7 +265,7 @@ export default function VoiceInterviewPhase() {
       // Done processing - show completion state
       setIsProcessingEnd(false);
     }
-  }, [applicationId, messages, stopRecording, uploadRecording, cleanupVideo, candidateName, job, videoEnabled]);
+  }, [applicationId, candidateName, cleanupVideo, clearFallbackEndTimeout, job, messages, stopRecording, uploadRecording, videoEnabled]);
 
   const {
     isConnected,
@@ -293,6 +334,12 @@ export default function VoiceInterviewPhase() {
   useEffect(() => {
     loadApplicationData();
   }, [applicationId]);
+
+  useEffect(() => {
+    return () => {
+      clearFallbackEndTimeout();
+    };
+  }, [clearFallbackEndTimeout]);
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
   useEffect(() => {
@@ -438,6 +485,16 @@ export default function VoiceInterviewPhase() {
     sendSystemInstruction(
       "The candidate clicked the End Interview button. Conclude immediately with one brief closing sentence, then call end_interview right away. Do not push back, do not ask more questions, and do not wait for a reply.",
     );
+    clearFallbackEndTimeout();
+    fallbackEndTimeoutRef.current = window.setTimeout(async () => {
+      if (completionTriggeredRef.current) {
+        return;
+      }
+
+      console.warn("[VoiceInterviewPhase] Falling back to manual interview completion");
+      await disconnect().catch(() => {});
+      await handleInterviewEnd(buildManualEndEvaluation());
+    }, 12000);
   };
 
   // Download transcript

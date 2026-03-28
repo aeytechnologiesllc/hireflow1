@@ -416,13 +416,16 @@ async function createJob(page, config) {
   const nextButton = nextButtonCount > 0 ? nextButtons.nth(nextButtonCount - 1) : nextButtons.first();
 
   if (!(await nextButton.isVisible().catch(() => false))) {
-    await captureStepFailure(page, "workflow-next-missing");
-    throw new Error("Workflow step is missing the Next button");
+    const publishButton = page.getByRole("button", { name: /Publish Job/i }).first();
+    if (!(await publishButton.isVisible().catch(() => false))) {
+      await captureStepFailure(page, "workflow-next-missing");
+      throw new Error("Workflow step is missing the Next button");
+    }
+  } else {
+    await nextButton.scrollIntoViewIfNeeded().catch(() => {});
+    await nextButton.click();
+    await waitForReviewStep(page);
   }
-
-  await nextButton.scrollIntoViewIfNeeded().catch(() => {});
-  await nextButton.click();
-  await waitForReviewStep(page);
 
   await page.getByRole("button", { name: /Publish Job/i }).click();
   await page.getByText(/Your Job is Live!/i).waitFor({ timeout: 30000 });
