@@ -28,6 +28,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { renderFormattedText } from "@/lib/formatText";
+import {
+  normalizeCommaSeparatedText,
+  normalizeGeneratedDraftText,
+  normalizeTextBlock,
+} from "@/lib/avaDraftFormatting";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
@@ -142,7 +147,7 @@ const WIZARD_STEPS = [
   { id: "basic", title: "Ava Setup", icon: FileText },
   { id: "details", title: "Job Draft", icon: Briefcase },
   { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
-  { id: "workflow", title: "Candidate Journey", icon: Sparkles },
+  { id: "workflow", title: "Screening Plan", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
 
@@ -275,28 +280,6 @@ const CURRENCIES = [
   { value: "XAF", label: "XAF (FCFA) - Central African CFA Franc" },
 ];
 
-const normalizeCommaSeparatedText = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  return typeof value === "string" ? value : "";
-};
-
-const normalizeTextBlock = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  return typeof value === "string" ? value : "";
-};
-
 const parseCommaSeparatedList = (value: unknown): string[] =>
   normalizeCommaSeparatedText(value)
     .split(",")
@@ -369,6 +352,7 @@ export default function CreateJob() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [generationOverlayMode, setGenerationOverlayMode] = useState<"workflow" | "full_draft">("workflow");
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   
@@ -599,6 +583,22 @@ export default function CreateJob() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const getBaselineBadge = (value: unknown, isListField = false) => {
+    const hasValue = isListField
+      ? normalizeCommaSeparatedText(value).length > 0
+      : normalizeTextBlock(value).length > 0;
+
+    if (isGenerating === "full" || (isGeneratingWorkflow && generationOverlayMode === "full_draft")) {
+      return <Badge variant="outline" className="border-primary/30 text-primary">Generating baseline</Badge>;
+    }
+
+    if (hasValue && jobContentGenerated) {
+      return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Ava baseline</Badge>;
+    }
+
+    return <Badge variant="outline" className="border-border text-muted-foreground">Baseline pending</Badge>;
+  };
+
   const applyGeneratedJobContent = useCallback((baseFormData: AvaJobFormData, data: {
     description?: string;
     responsibilities?: string;
@@ -608,11 +608,11 @@ export default function CreateJob() {
   }) => {
     const nextFormData: AvaJobFormData = {
       ...baseFormData,
-      description: normalizeTextBlock(data.description) || baseFormData.description,
-      responsibilities: normalizeTextBlock(data.responsibilities) || baseFormData.responsibilities,
-      requirements: normalizeTextBlock(data.requirements) || baseFormData.requirements,
-      skills_required: normalizeCommaSeparatedText(data.skills) || baseFormData.skills_required,
-      benefits: normalizeCommaSeparatedText(data.benefits) || baseFormData.benefits,
+      description: normalizeGeneratedDraftText("description", data.description) || baseFormData.description,
+      responsibilities: normalizeGeneratedDraftText("responsibilities", data.responsibilities) || baseFormData.responsibilities,
+      requirements: normalizeGeneratedDraftText("requirements", data.requirements) || baseFormData.requirements,
+      skills_required: normalizeGeneratedDraftText("skills_required", data.skills) || baseFormData.skills_required,
+      benefits: normalizeGeneratedDraftText("benefits", data.benefits) || baseFormData.benefits,
     };
 
     setFormData(nextFormData);
@@ -633,7 +633,15 @@ export default function CreateJob() {
         field,
         context || (formData[field as keyof typeof formData] as string | undefined),
       );
-      handleChange(field, data.content);
+      const nextValue =
+        field === "description" ||
+        field === "responsibilities" ||
+        field === "requirements" ||
+        field === "skills_required" ||
+        field === "benefits"
+          ? normalizeGeneratedDraftText(field, data.content)
+          : data.content;
+      handleChange(field, nextValue);
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} generated!`);
     } catch (error) {
       console.error("Error generating content:", error);
@@ -673,6 +681,7 @@ export default function CreateJob() {
       return;
     }
 
+    setGenerationOverlayMode("workflow");
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
@@ -699,12 +708,33 @@ export default function CreateJob() {
   };
 
   const generateAvaBlueprint = async () => {
+    setGenerationOverlayMode("full_draft");
+    setIsGeneratingWorkflow(true);
+    setWorkflowApiComplete(false);
+    setPendingWorkflowData(null);
+
     const nextFormData = await generateFullJob();
     if (!nextFormData) {
+      setIsGeneratingWorkflow(false);
+      setWorkflowApiComplete(false);
       return;
     }
 
-    await generateWorkflow(nextFormData);
+    try {
+      const data = await generateScreeningPlan(nextFormData, workflowDifficulty, profile?.company_name || null);
+
+      setPendingWorkflowData({
+        application_questions: data.application_questions || [],
+        quiz_questions: data.quiz_questions || [],
+        workflow_steps: data.workflow_steps || [],
+      });
+      setWorkflowApiComplete(true);
+    } catch (error) {
+      console.error("Error generating full Ava blueprint:", error);
+      toast.error("Ava couldn't finish the full draft. Please try again.");
+      setIsGeneratingWorkflow(false);
+      setWorkflowApiComplete(false);
+    }
   };
 
   const regenerateLeanerPlan = async () => {
@@ -1271,7 +1301,7 @@ export default function CreateJob() {
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Ava Setup</CardTitle>
-                  <CardDescription>Share the essentials. Ava will draft the role, candidate journey, and automation rules for you.</CardDescription>
+                  <CardDescription>Share the essentials. Ava will draft the role, screening plan, and automation rules for you.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -1470,24 +1500,36 @@ export default function CreateJob() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <Card className="bg-card border-border">
+                <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Job Draft</CardTitle>
-                  <CardDescription>Review or lightly refine the draft Ava creates from your setup</CardDescription>
+                  <CardDescription>Ava writes the first draft for you. Review it, polish it, and change anything you want.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {!jobContentGenerated && (
                     <Alert className="border-primary/20 bg-primary/5">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      <AlertTitle>Use Ava as the starting point</AlertTitle>
+                      <AlertTitle>Ava will generate the baseline</AlertTitle>
                       <AlertDescription>
-                        Generate with Ava to draft the job and screening plan automatically, then make edits here if needed.
+                        Description, responsibilities, requirements, skills, and benefits are meant to start from Ava. Generate the full draft, then edit the baseline instead of writing from scratch.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {jobContentGenerated && (
+                    <Alert className="border-emerald-500/20 bg-emerald-500/5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <AlertTitle>Ava baseline ready</AlertTitle>
+                      <AlertDescription>
+                        Ava generated the first draft from your setup answers. Use this page to tighten wording, clarify expectations, and make any final changes.
                       </AlertDescription>
                     </Alert>
                   )}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="description">Description *</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="description">Description *</Label>
+                        {getBaselineBadge(formData.description)}
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1515,7 +1557,10 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="responsibilities">Responsibilities</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="responsibilities">Responsibilities</Label>
+                        {getBaselineBadge(formData.responsibilities)}
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1543,7 +1588,10 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="requirements">Requirements</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="requirements">Requirements</Label>
+                        {getBaselineBadge(formData.requirements)}
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1571,7 +1619,10 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="skills">Required Skills</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="skills">Required Skills</Label>
+                        {getBaselineBadge(formData.skills_required, true)}
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1609,11 +1660,11 @@ export default function CreateJob() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-xl sm:text-lg font-bold">Pay & Timeline</CardTitle>
-                  <CardDescription className="text-sm text-muted-foreground leading-relaxed">Set compensation, benefits, and timing before you publish</CardDescription>
-                </CardHeader>
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-xl sm:text-lg font-bold">Pay & Timeline</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground leading-relaxed">Set compensation and timing, then refine the Ava-generated benefits baseline if you want.</CardDescription>
+                  </CardHeader>
                 <CardContent className="space-y-8 sm:space-y-6">
                   {/* Salary Type Selection */}
                   <div className="space-y-3">
@@ -1807,7 +1858,10 @@ export default function CreateJob() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="benefits" className="text-base sm:text-sm font-medium">Benefits</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="benefits" className="text-base sm:text-sm font-medium">Benefits</Label>
+                        {getBaselineBadge(formData.benefits, true)}
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1825,7 +1879,7 @@ export default function CreateJob() {
                     </div>
                     <RichTextarea
                       id="benefits"
-                      placeholder="Health insurance, 401k, Remote work, Unlimited PTO..."
+                      placeholder="Health insurance, 401k match, remote stipend, paid time off..."
                       className="min-h-[80px] sm:min-h-[60px]"
                       style={{ minHeight: 80 }}
                       value={formData.benefits}
@@ -1891,12 +1945,12 @@ export default function CreateJob() {
               {isEditMode ? (
                 <Card className="bg-card border-border">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      Candidate Journey (Read Only)
-                    </CardTitle>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                      Screening Plan (Read Only)
+                      </CardTitle>
                     <CardDescription>
-                      The candidate journey cannot be modified after job creation. You can only edit the job draft and publishing details.
+                      The screening plan cannot be modified after job creation. You can only edit the job draft and publishing details.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1921,10 +1975,10 @@ export default function CreateJob() {
                       <CardHeader>
                         <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
                           <Sparkles className="h-5 w-5 text-primary" />
-                          Candidate Journey
+                          Screening Plan
                         </CardTitle>
                         <CardDescription className="text-sm text-muted-foreground leading-relaxed">
-                          Choose your rigor in Ava Setup first, then let Ava build the job draft and screening plan before you fine-tune the steps here.
+                          Ava handles this for you during generation. Come back here only if you want to review or fine-tune the screening steps before publishing.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -1946,7 +2000,7 @@ export default function CreateJob() {
                           <Sparkles className="h-4 w-4 text-primary" />
                           <AlertTitle>Start from Ava Setup</AlertTitle>
                           <AlertDescription>
-                            Generate the full draft from the first step so Ava can write the job copy, build the candidate journey, and take you straight to the review screen.
+                            Generate the full draft from the first step so Ava can write the job copy, build the screening plan, and take you straight to the review screen.
                           </AlertDescription>
                         </Alert>
                         <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
@@ -1978,10 +2032,10 @@ export default function CreateJob() {
                       <CardHeader>
                         <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
                           <Sparkles className="h-5 w-5 text-primary" />
-                          Candidate Journey
+                          Screening Plan
                         </CardTitle>
                         <CardDescription className="text-sm text-muted-foreground leading-relaxed">
-                          Ava already built the plan. Review candidate effort, fine-tune the steps below, or regenerate from your setup choices.
+                          Ava already built the screening plan. Review candidate effort, fine-tune the steps below, or regenerate from your setup choices.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -2045,7 +2099,7 @@ export default function CreateJob() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-emerald-300">Candidate journey generated successfully</p>
-                      <p className="text-xs text-emerald-300/60">Ava built the screening flow and automation rules for you.</p>
+                      <p className="text-xs text-emerald-300/60">Ava built the screening plan and automation rules for you.</p>
                     </div>
                   </motion.div>
 
@@ -2633,7 +2687,7 @@ export default function CreateJob() {
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Review Your Job Posting</CardTitle>
-                  <CardDescription>Ava drafted the role and candidate journey. Review everything here before you publish.</CardDescription>
+                  <CardDescription>Ava drafted the role and screening plan. Review everything here before you publish.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {!isEditMode && workflowGenerated && (
@@ -2646,8 +2700,8 @@ export default function CreateJob() {
                       >
                         <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
                         <div>
-                          <p className="text-sm font-medium text-emerald-300">Screening plan generated successfully</p>
-                          <p className="text-xs text-emerald-300/70">You are now reviewing Ava’s full draft instead of building the job from scratch.</p>
+                          <p className="text-sm font-medium text-emerald-300">Ava generated the full draft successfully</p>
+                          <p className="text-xs text-emerald-300/70">You are now reviewing the Ava baseline for the role, compensation details, and screening plan instead of building everything from scratch.</p>
                         </div>
                       </motion.div>
 
@@ -2727,7 +2781,7 @@ export default function CreateJob() {
                                       className={currentRiskStyles.button}
                                       onClick={() => setCurrentStep(3)}
                                     >
-                                      Edit candidate journey
+                                      Edit screening plan
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -2827,7 +2881,7 @@ export default function CreateJob() {
                   <div>
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      Candidate Journey
+                      Screening Plan
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                       <div className="p-3 rounded-lg bg-secondary/50">
@@ -3174,6 +3228,7 @@ export default function CreateJob() {
         difficulty={workflowDifficulty}
         isApiComplete={workflowApiComplete}
         onComplete={handleWorkflowComplete}
+        mode={generationOverlayMode}
       />
 
       {/* Job Published Success Dialog */}

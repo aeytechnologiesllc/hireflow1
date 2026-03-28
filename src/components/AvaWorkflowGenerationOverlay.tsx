@@ -9,24 +9,46 @@ interface AvaWorkflowGenerationOverlayProps {
   minDuration?: number;
   onComplete?: () => void;
   isApiComplete?: boolean;
+  mode?: "workflow" | "full_draft";
 }
 
-const STATUS_MESSAGES = [
-  { text: "Analyzing job role...", until: 3000 },
-  { text: "Generating screening questions...", until: 6000 },
-  { text: "Designing skill assessments...", until: 9000 },
-  { text: "Building hiring workflow...", until: 13000 },
-  { text: "Finalizing workflow...", until: Infinity },
-];
+const OVERLAY_CONFIG = {
+  workflow: {
+    title: "Creating your screening plan",
+    subtitlePrefix: "Designing the candidate journey for",
+    minDuration: 12000,
+    messages: [
+      { text: "Analyzing job role...", until: 2200 },
+      { text: "Generating screening questions...", until: 4600 },
+      { text: "Designing skill assessments...", until: 7200 },
+      { text: "Building hiring workflow...", until: 9800 },
+      { text: "Finalizing screening plan...", until: Infinity },
+    ],
+  },
+  full_draft: {
+    title: "Creating your job with Ava",
+    subtitlePrefix: "Generating the full draft for",
+    minDuration: 11000,
+    messages: [
+      { text: "Reviewing your Ava setup...", until: 2200 },
+      { text: "Writing the job description baseline...", until: 4600 },
+      { text: "Drafting responsibilities and requirements...", until: 7200 },
+      { text: "Generating skills, benefits, and pay guidance...", until: 9500 },
+      { text: "Designing the screening plan...", until: Infinity },
+    ],
+  },
+} as const;
 
 export default function AvaWorkflowGenerationOverlay({ 
   isVisible, 
   jobTitle, 
   difficulty,
-  minDuration = 20000,
+  minDuration,
   onComplete,
-  isApiComplete = false
+  isApiComplete = false,
+  mode = "workflow",
 }: AvaWorkflowGenerationOverlayProps) {
+  const config = OVERLAY_CONFIG[mode];
   const [progressRing, setProgressRing] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
   const startTimeRef = useRef<number>(0);
@@ -60,19 +82,19 @@ export default function AvaWorkflowGenerationOverlay({
     if (!isVisible) return;
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;
-      const progress = Math.min((elapsed / minDuration) * 100, 100);
+      const progress = Math.min((elapsed / (minDuration ?? config.minDuration)) * 100, 100);
       setProgressRing(progress);
 
       // Update message index based on elapsed time
-      const newIndex = STATUS_MESSAGES.findIndex(m => elapsed < m.until);
-      setMessageIndex(newIndex === -1 ? STATUS_MESSAGES.length - 1 : newIndex);
+      const newIndex = config.messages.findIndex(m => elapsed < m.until);
+      setMessageIndex(newIndex === -1 ? config.messages.length - 1 : newIndex);
 
       if (progress >= 100 && !animationCompleteRef.current) {
         animationCompleteRef.current = true;
       }
     }, 50);
     return () => clearInterval(interval);
-  }, [isVisible, minDuration]);
+  }, [config.messages, config.minDuration, isVisible, minDuration]);
 
   // Complete when both animation + API done
   useEffect(() => {
@@ -216,10 +238,10 @@ export default function AvaWorkflowGenerationOverlay({
             className="text-center mt-10 mb-3"
           >
             <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-              Creating your workflow
+              {config.title}
             </h2>
             <p className="text-muted-foreground text-sm">
-              Building a custom hiring process for{" "}
+              {config.subtitlePrefix}{" "}
               <span className="text-primary font-medium">{jobTitle}</span>
             </p>
           </motion.div>
@@ -235,7 +257,7 @@ export default function AvaWorkflowGenerationOverlay({
                 transition={{ duration: 0.4 }}
                 className="text-sm text-muted-foreground/80"
               >
-                {STATUS_MESSAGES[messageIndex].text}
+                {config.messages[messageIndex].text}
               </motion.p>
             </AnimatePresence>
           </div>

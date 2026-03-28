@@ -37,6 +37,32 @@ export interface ScreeningPlanGenerationResponse {
   screening_plan_summary?: string;
 }
 
+const RETRY_DELAY_MS = 700;
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function invokeWithRetry<T>(functionName: string, body: Record<string, unknown>, attempts = 2) {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const { data, error } = await supabase.functions.invoke(functionName, { body });
+
+    if (!error && data) {
+      return data as T;
+    }
+
+    lastError = error || new Error(`Function ${functionName} returned no data`);
+
+    if (attempt < attempts - 1) {
+      await wait(RETRY_DELAY_MS);
+    }
+  }
+
+  throw lastError;
+}
+
 function buildGenerationPayload(formData: AvaJobFormData) {
   return {
     title: formData.title,
@@ -70,34 +96,30 @@ export async function generateJobField(
   field: string,
   existingContent?: string,
 ) {
-  const { data, error } = await supabase.functions.invoke("ai-generate-job-content", {
-    body: {
+  const data = await invokeWithRetry<{ content: string }>(
+    "ai-generate-job-content",
+    {
       field,
       existingContent: existingContent || (formData[field as keyof AvaJobFormData] as string | undefined),
       ...buildGenerationPayload(formData),
     },
-  });
+    2,
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return data as { content: string };
+  return data;
 }
 
 export async function generateFullJobPosting(formData: AvaJobFormData) {
-  const { data, error } = await supabase.functions.invoke("ai-generate-job-content", {
-    body: {
+  const data = await invokeWithRetry<FullJobGenerationResponse>(
+    "ai-generate-job-content",
+    {
       field: "full",
       ...buildGenerationPayload(formData),
     },
-  });
+    2,
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return data as FullJobGenerationResponse;
+  return data;
 }
 
 export async function generateScreeningPlan(
@@ -105,8 +127,9 @@ export async function generateScreeningPlan(
   difficulty: string,
   company?: string | null,
 ) {
-  const { data, error } = await supabase.functions.invoke("ai-generate-workflow", {
-    body: {
+  const data = await invokeWithRetry<ScreeningPlanGenerationResponse>(
+    "ai-generate-workflow",
+    {
       title: formData.title,
       description: formData.description,
       company: company || null,
@@ -129,11 +152,8 @@ export async function generateScreeningPlan(
         customer_facing: formData.customer_facing,
       },
     },
-  });
+    2,
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return data as ScreeningPlanGenerationResponse;
+  return data;
 }

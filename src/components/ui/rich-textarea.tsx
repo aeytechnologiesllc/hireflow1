@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Bold, Italic, List } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plainTextToEditorHtml } from "@/lib/avaDraftFormatting";
 
 export interface RichTextareaProps {
   value?: string;
@@ -21,7 +22,7 @@ const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
 
     const editor = useEditor({
       extensions: [StarterKit],
-      content: value || "",
+      content: plainTextToEditorHtml(value || ""),
       editable: !disabled,
       editorProps: {
         attributes: {
@@ -51,9 +52,10 @@ const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
       if (!editor) return;
       const currentHTML = editor.getHTML();
       const normalizedCurrent = currentHTML === "<p></p>" ? "" : currentHTML;
-      if (value !== normalizedCurrent) {
+      const nextContent = plainTextToEditorHtml(value || "");
+      if (nextContent !== normalizedCurrent) {
         isUpdatingRef.current = true;
-        editor.commands.setContent(value || "");
+        editor.commands.setContent(nextContent);
         isUpdatingRef.current = false;
       }
     }, [value, editor]);

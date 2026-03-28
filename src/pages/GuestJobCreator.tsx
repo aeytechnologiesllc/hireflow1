@@ -42,6 +42,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  normalizeCommaSeparatedText,
+  normalizeGeneratedDraftText,
+  normalizeTextBlock,
+} from "@/lib/avaDraftFormatting";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, 
@@ -97,28 +102,6 @@ interface GuestJobData {
   createdAt: number;
 }
 
-const normalizeCommaSeparatedText = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  return typeof value === "string" ? value : "";
-};
-
-const normalizeTextBlock = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  return typeof value === "string" ? value : "";
-};
-
 const parseCommaSeparatedList = (value: unknown): string[] =>
   normalizeCommaSeparatedText(value)
     .split(",")
@@ -140,7 +123,7 @@ const WIZARD_STEPS = [
   { id: "basic", title: "Ava Setup", icon: FileText },
   { id: "details", title: "Job Draft", icon: Users },
   { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
-  { id: "workflow", title: "Candidate Journey", icon: Sparkles },
+  { id: "workflow", title: "Screening Plan", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
 
@@ -216,6 +199,7 @@ export default function GuestJobCreator() {
   const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [generationOverlayMode, setGenerationOverlayMode] = useState<"workflow" | "full_draft">("workflow");
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
 
@@ -238,6 +222,22 @@ export default function GuestJobCreator() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const getBaselineBadge = (value: unknown, isListField = false) => {
+    const hasValue = isListField
+      ? normalizeCommaSeparatedText(value).length > 0
+      : normalizeTextBlock(value).length > 0;
+
+    if (isGenerating === "full" || (isGeneratingWorkflow && generationOverlayMode === "full_draft")) {
+      return <Badge variant="outline" className="border-primary/30 text-primary">Generating baseline</Badge>;
+    }
+
+    if (hasValue && jobContentGenerated) {
+      return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Ava baseline</Badge>;
+    }
+
+    return <Badge variant="outline" className="border-border text-muted-foreground">Baseline pending</Badge>;
+  };
+
   const applyGeneratedJobContent = (baseFormData: AvaJobFormData, data: {
     description?: string;
     responsibilities?: string;
@@ -247,11 +247,11 @@ export default function GuestJobCreator() {
   }) => {
     const nextFormData: AvaJobFormData = {
       ...baseFormData,
-      description: normalizeTextBlock(data.description) || baseFormData.description,
-      responsibilities: normalizeTextBlock(data.responsibilities) || baseFormData.responsibilities,
-      requirements: normalizeTextBlock(data.requirements) || baseFormData.requirements,
-      skills_required: normalizeCommaSeparatedText(data.skills) || baseFormData.skills_required,
-      benefits: normalizeCommaSeparatedText(data.benefits) || baseFormData.benefits,
+      description: normalizeGeneratedDraftText("description", data.description) || baseFormData.description,
+      responsibilities: normalizeGeneratedDraftText("responsibilities", data.responsibilities) || baseFormData.responsibilities,
+      requirements: normalizeGeneratedDraftText("requirements", data.requirements) || baseFormData.requirements,
+      skills_required: normalizeGeneratedDraftText("skills_required", data.skills) || baseFormData.skills_required,
+      benefits: normalizeGeneratedDraftText("benefits", data.benefits) || baseFormData.benefits,
     };
 
     setFormData(nextFormData);
@@ -326,7 +326,15 @@ export default function GuestJobCreator() {
     setIsGenerating(field);
     try {
       const data = await generateJobField(formData, field);
-      handleChange(field, data.content);
+      const nextValue =
+        field === "description" ||
+        field === "responsibilities" ||
+        field === "requirements" ||
+        field === "skills_required" ||
+        field === "benefits"
+          ? normalizeGeneratedDraftText(field, data.content)
+          : data.content;
+      handleChange(field, nextValue);
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')} generated!`);
     } catch (error) {
       console.error("Error generating content:", error);
@@ -363,6 +371,7 @@ export default function GuestJobCreator() {
       return;
     }
 
+    setGenerationOverlayMode("workflow");
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     
@@ -384,12 +393,33 @@ export default function GuestJobCreator() {
   };
 
   const generateAvaBlueprint = async () => {
+    setGenerationOverlayMode("full_draft");
+    setIsGeneratingWorkflow(true);
+    setWorkflowApiComplete(false);
+    setPendingWorkflowData(null);
+
     const nextFormData = await generateFullJob();
     if (!nextFormData) {
+      setIsGeneratingWorkflow(false);
+      setWorkflowApiComplete(false);
       return;
     }
 
-    await generateWorkflow(nextFormData);
+    try {
+      const data = await generateScreeningPlan(nextFormData, workflowDifficulty);
+
+      setPendingWorkflowData({
+        application_questions: data.application_questions || [],
+        quiz_questions: data.quiz_questions || [],
+        workflow_steps: data.workflow_steps || [],
+      });
+      setWorkflowApiComplete(true);
+    } catch (error) {
+      console.error("Error generating full Ava blueprint:", error);
+      toast.error("Ava couldn't finish the full draft. Please try again.");
+      setIsGeneratingWorkflow(false);
+      setWorkflowApiComplete(false);
+    }
   };
 
   const handleWorkflowComplete = () => {
@@ -610,7 +640,7 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Ava Setup</CardTitle>
-                  <CardDescription>Share the essentials, then let Ava build the role and candidate journey for you</CardDescription>
+                  <CardDescription>Share the essentials, then let Ava build the role and screening plan for you</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -712,21 +742,33 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Job Draft</CardTitle>
-                  <CardDescription>Review or lightly refine the draft Ava creates from your setup</CardDescription>
+                  <CardDescription>Ava writes the first draft for you. Review it, polish it, and change anything you want.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {!jobContentGenerated && (
                     <Alert className="border-primary/20 bg-primary/5">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      <AlertTitle>Use Ava as the starting point</AlertTitle>
+                      <AlertTitle>Ava will generate the baseline</AlertTitle>
                       <AlertDescription>
-                        Generate with Ava to draft the job and screening plan automatically, then make edits here if needed.
+                        Description, responsibilities, requirements, skills, and benefits are meant to start from Ava. Generate the full draft, then edit the baseline instead of writing from scratch.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {jobContentGenerated && (
+                    <Alert className="border-emerald-500/20 bg-emerald-500/5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <AlertTitle>Ava baseline ready</AlertTitle>
+                      <AlertDescription>
+                        Ava generated the first draft from your setup answers. Use this page to tighten wording, clarify expectations, and make any final changes.
                       </AlertDescription>
                     </Alert>
                   )}
                   <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="description">Description *</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="description">Description *</Label>
+                          {getBaselineBadge(formData.description)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -753,7 +795,10 @@ export default function GuestJobCreator() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="responsibilities">Responsibilities</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="responsibilities">Responsibilities</Label>
+                          {getBaselineBadge(formData.responsibilities)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -780,7 +825,10 @@ export default function GuestJobCreator() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="requirements">Requirements</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="requirements">Requirements</Label>
+                          {getBaselineBadge(formData.requirements)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -807,7 +855,10 @@ export default function GuestJobCreator() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="skills">Required Skills</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="skills">Required Skills</Label>
+                          {getBaselineBadge(formData.skills_required, true)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -848,7 +899,7 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="text-lg">Pay & Timeline</CardTitle>
-                    <CardDescription>Set compensation, benefits, and timing before you publish</CardDescription>
+                    <CardDescription>Set compensation and timing, then refine the Ava-generated benefits baseline if you want.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Salary Type Selection */}
@@ -1004,7 +1055,10 @@ export default function GuestJobCreator() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="benefits">Benefits</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="benefits">Benefits</Label>
+                          {getBaselineBadge(formData.benefits, true)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1727,7 +1781,7 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="text-lg">Review Your Job Posting</CardTitle>
-                    <CardDescription>Ava drafted the role and candidate journey. Sign up to publish it.</CardDescription>
+                    <CardDescription>Ava drafted the role and screening plan. Sign up to publish it.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {workflowGenerated && (
@@ -1736,14 +1790,14 @@ export default function GuestJobCreator() {
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.45 }}
-                          className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
-                        >
-                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
-                          <div>
-                            <p className="text-sm font-medium text-emerald-300">Screening plan generated successfully</p>
-                            <p className="text-xs text-emerald-300/70">Review Ava’s draft, then create your employer account to publish it.</p>
-                          </div>
-                        </motion.div>
+                        className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+                      >
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                        <div>
+                            <p className="text-sm font-medium text-emerald-300">Ava generated the full draft successfully</p>
+                            <p className="text-xs text-emerald-300/70">Review the Ava baseline for the role, compensation details, and screening plan, then create your employer account to publish it.</p>
+                        </div>
+                      </motion.div>
 
                         <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
                           <CardHeader className="pb-3">
@@ -1869,7 +1923,7 @@ export default function GuestJobCreator() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-primary" />
-                      Candidate Journey
+                      Screening Plan
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1943,6 +1997,7 @@ export default function GuestJobCreator() {
         difficulty={workflowDifficulty}
         isApiComplete={workflowApiComplete}
         onComplete={handleWorkflowComplete}
+        mode={generationOverlayMode}
       />
 
       {/* Signup Modal */}

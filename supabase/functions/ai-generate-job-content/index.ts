@@ -160,9 +160,9 @@ ${job_type ? `Job Type: ${job_type}` : ""}
 ${location ? `Location: ${location}` : ""}
 
 Return a JSON object with these fields:
-- description: A compelling 2-3 paragraph description of the role and opportunity (plain text, no markdown)
-- responsibilities: 5-7 bullet points of key responsibilities. Each line starting with "• " and an action verb. NO markdown (no **, no *, no bold).
-- requirements: 5-7 bullet points of required qualifications. Each line starting with "• ". NO markdown (no **, no *, no bold). NO category labels.
+- description: A compelling 2-3 paragraph description of the role and opportunity. Separate paragraphs with blank lines. Plain text only, no markdown.
+- responsibilities: 5-7 bullet points of key responsibilities. Each bullet must be on its own new line, starting with "• " and an action verb. NO markdown (no **, no *, no bold).
+- requirements: 5-7 bullet points of required qualifications. Each bullet must be on its own new line, starting with "• ". NO markdown (no **, no *, no bold). NO category labels.
 - skills: Comma-separated list of 6-10 relevant technical and soft skills
 - benefits: Comma-separated list of 5-8 common benefits
 
@@ -186,7 +186,12 @@ ${existingContent ? `Improve upon this existing content: ${existingContent}` : "
 ${guidedSetupBlock}
 ${constraintReminder}
 
-Return only the description text, no headers or formatting.`;
+Formatting rules:
+- Return plain text only
+- Use 2-3 short paragraphs
+- Separate each paragraph with a blank line
+- No headers, labels, or markdown
+`;
   }
 
   if (field === "responsibilities") {
@@ -203,6 +208,7 @@ ${guidedSetupBlock}
 ${constraintReminder}
 FORMATTING RULES (MUST FOLLOW):
 - Each responsibility on its own line starting with "• "
+- Do not place multiple bullets on the same line
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
 - NO category labels or headers
 - Clean plain text only`;
@@ -223,6 +229,7 @@ ${guidedSetupBlock}
 ${constraintReminder}
 FORMATTING RULES (MUST FOLLOW):
 - Each requirement on its own line starting with "• "
+- Do not place multiple bullets on the same line
 - NO markdown formatting whatsoever (no **, no *, no #, no bold)
 - NO category labels like "Education:" or "Skills:"
 - Clean plain text only`;
