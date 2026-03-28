@@ -207,8 +207,9 @@ export default function JoinTeam() {
         description: "You've successfully joined the team.",
       });
 
-      // Redirect to team dashboard
-      navigate("/team-portal");
+      // Force a fresh app bootstrap so auth + team membership state picks up
+      // the newly inserted team_members row before rendering the shell.
+      window.location.replace("/team-portal");
     } catch (err: any) {
       toast({
         title: "Error",
