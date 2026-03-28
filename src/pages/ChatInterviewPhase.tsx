@@ -789,7 +789,8 @@ export default function ChatInterviewPhase() {
   }
 
   const minQuestions = 5;
-  const canEndInterview = questionCount >= minQuestions;
+  const candidateResponseCount = messages.filter((message) => message.role === "user").length;
+  const canEndInterview = questionCount >= minQuestions || candidateResponseCount >= minQuestions;
 
   // Show rejection screen for autopilot mode failure
   if (state === "rejected" && rejectedAppData) {
