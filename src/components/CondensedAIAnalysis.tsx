@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { motion, useSpring, useTransform } from "framer-motion";
+import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import {
   ChevronDown,
   CheckCircle2,
@@ -772,25 +772,7 @@ function parseAIAnalysis(
 
 // ============= Sub-components =============
 
-function useAnimatedCounter(value: number) {
-  const spring = useSpring(0, { stiffness: 50, damping: 20 });
-  const display = useTransform(spring, (current) => Math.round(current));
-  const [displayValue, setDisplayValue] = useState(0);
-  
-  useEffect(() => {
-    spring.set(value);
-  }, [value, spring]);
-  
-  useEffect(() => {
-    const unsubscribe = display.on("change", (v) => setDisplayValue(v));
-    return unsubscribe;
-  }, [display]);
-  
-  return displayValue;
-}
-
 function ScoreRing({ score, size = "md", isLoading = false }: { score: number; size?: "sm" | "md"; isLoading?: boolean }) {
-  const displayScore = useAnimatedCounter(score);
   const circumference = 94.2;
   const targetDasharray = (score / 100) * circumference;
   
@@ -828,7 +810,7 @@ function ScoreRing({ score, size = "md", isLoading = false }: { score: number; s
         {isLoading ? (
           <span className={cn(textSize, "font-semibold text-muted-foreground")}>...</span>
         ) : (
-          <span className={cn(textSize, "font-semibold text-foreground")}>{displayScore}</span>
+          <span className={cn(textSize, "font-semibold text-foreground")}>{score}</span>
         )}
       </div>
     </div>
