@@ -220,7 +220,7 @@ export default function ApplicantDetailsDialog({
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  Ava's Analysis
+                  Ava's Recommendation
                 </h3>
                 <Card className="bg-primary/5 border-primary/20">
                   <CardContent className="p-4">
@@ -242,7 +242,7 @@ export default function ApplicantDetailsDialog({
             <Button onClick={handleAnalyze} disabled={isAnalyzing}>
               {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Sparkles className="mr-2 h-4 w-4" />
-              Run Ava Analysis
+              Generate Recommendation
             </Button>
           )}
         </DialogFooter>

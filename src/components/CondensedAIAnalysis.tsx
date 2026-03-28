@@ -157,6 +157,19 @@ function cleanPlaceholderFromText(text: string): string {
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 
+function sanitizeAnalysisCopy(text: string): string {
+  if (!text) return "";
+
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function humanizeStatus(status: string): string {
   if (isPlaceholderValue(status)) return '';
   
@@ -1288,7 +1301,7 @@ function PhaseBasedAnalysis({
           "h-4 w-4 transition-transform",
           isDetailOpen && "rotate-180"
         )} />
-        <span>View phase-by-phase analysis ({completedPhases.length} phase{completedPhases.length !== 1 ? 's' : ''} completed)</span>
+        <span>See evaluation breakdown ({completedPhases.length} step{completedPhases.length !== 1 ? 's' : ''} completed)</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-2 space-y-3">
@@ -1312,7 +1325,7 @@ function PhaseBasedAnalysis({
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {phase.summary}
+                  {sanitizeAnalysisCopy(phase.summary)}
                 </p>
               </div>
             </div>
@@ -1338,6 +1351,53 @@ interface CondensedAIAnalysisProps {
   isAnalyzing?: boolean; // Whether re-analysis is in progress
 }
 
+function deriveRecommendationLabel(params: {
+  isRejected: boolean;
+  recommendation: string | null;
+  score: number | null;
+  passingScore?: number | null;
+}) {
+  if (params.isRejected) {
+    return "Do not move forward";
+  }
+
+  const recommendation = sanitizeAnalysisCopy(params.recommendation || "").toLowerCase();
+  if (
+    recommendation.includes("not recommend") ||
+    recommendation.includes("reject") ||
+    recommendation.includes("do not") ||
+    recommendation.includes("pass on")
+  ) {
+    return "Do not move forward";
+  }
+
+  if (
+    recommendation.includes("proceed") ||
+    recommendation.includes("advance") ||
+    recommendation.includes("hire") ||
+    recommendation.includes("strong") ||
+    recommendation.includes("move forward")
+  ) {
+    return "Move forward";
+  }
+
+  if (
+    recommendation.includes("consider") ||
+    recommendation.includes("review") ||
+    recommendation.includes("caution") ||
+    recommendation.includes("additional information") ||
+    recommendation.includes("clarify")
+  ) {
+    return "Review manually";
+  }
+
+  if (params.score !== null && params.passingScore != null) {
+    return params.score >= params.passingScore ? "Review manually" : "Hold for now";
+  }
+
+  return "Needs more evidence";
+}
+
 export function CondensedAIAnalysis({ 
   content, 
   className, 
@@ -1355,22 +1415,18 @@ export function CondensedAIAnalysis({
   
   // Use authoritative score from database if provided, otherwise use parsed score
   const displayScore = aiScore ?? parsed.score;
+  const effectivePassingScore = passingScore ?? 60;
   
   // CRITICAL: If application is rejected, override the verdict regardless of AI analysis
   const isRejected = applicationStatus === 'rejected';
-  
-  // Determine verdict display - use actual recommendation from AI (but override if rejected)
-  const recLower = parsed.recommendation?.toLowerCase() || '';
-  const isPositiveRec = !isRejected && (
-                        recLower.includes('proceed') ||
-                        recLower.includes('strong') ||
-                        recLower.includes('hire') ||
-                        (recLower.includes('recommend') && !recLower.includes('not recommend')));
-  const isNegativeRec = isRejected || 
-                        recLower.includes('not recommend') ||
-                        recLower.includes('reject') ||
-                        recLower.includes('do not') ||
-                        recLower.includes('pass on');
+  const verdictText = deriveRecommendationLabel({
+    isRejected,
+    recommendation: parsed.recommendation,
+    score: displayScore,
+    passingScore,
+  });
+  const isPositiveRec = verdictText === "Move forward";
+  const isNegativeRec = verdictText === "Do not move forward";
 
   const verdictIcon = isRejected
     ? <XCircle className="h-5 w-5 text-red-400" />
@@ -1379,16 +1435,6 @@ export function CondensedAIAnalysis({
       : isNegativeRec
         ? <XCircle className="h-5 w-5 text-red-400" />
         : <AlertTriangle className="h-5 w-5 text-amber-400" />;
-
-  // Override verdict text when rejected
-  let verdictText: string;
-  if (isRejected) {
-    verdictText = "Rejected";
-  } else if (parsed.recommendation) {
-    verdictText = parsed.recommendation.replace(/^\*\*|\*\*$/g, '').trim();
-  } else {
-    verdictText = "Pending";
-  }
 
   const verdictColor = isRejected
     ? "text-red-400"
@@ -1436,35 +1482,44 @@ export function CondensedAIAnalysis({
       // Generic fallback if no score info
       return `This application has been rejected. ${parsed.fullSummary}`;
     }
-    return parsed.fullSummary;
+    return sanitizeAnalysisCopy(parsed.fullSummary);
   }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
+  const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
   
   
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Current Hiring Signal Header */}
+      {/* Ava Recommendation Header */}
       <div className="space-y-0.5">
-        <h3 className="text-lg font-semibold text-foreground">Current Hiring Signal</h3>
-        <p className="text-xs text-muted-foreground">Based on completed evaluation phases</p>
+        <h3 className="text-lg font-semibold text-foreground">Ava Recommendation</h3>
+        <p className="text-xs text-muted-foreground">Based on the evidence collected so far</p>
       </div>
       
-      {/* Signal Summary Card */}
+      {/* Recommendation Summary Card */}
       <Card className="border-border/50 bg-card">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 {verdictIcon}
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Status</span>
-                  <span className={cn("text-base font-semibold", verdictColor)}>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-medium text-muted-foreground">Recommended next step</span>
+                  <div className={cn("text-base font-semibold", verdictColor)}>
                     {verdictText}
-                  </span>
+                  </div>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                {displaySummary}
-              </p>
+              {displayScore !== null && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Score {displayScore} • Pass threshold {effectivePassingScore}
+                </p>
+              )}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Why Ava says this</p>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {cleanedDisplaySummary}
+                </p>
+              </div>
             </div>
             {displayScore !== null && (
               <ScoreRing score={displayScore} isLoading={isAnalyzing} />

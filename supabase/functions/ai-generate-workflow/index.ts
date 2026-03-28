@@ -73,7 +73,7 @@ const FAMILY_GUIDANCE: Record<string, { profile: string; preferredSteps: string[
   },
   support: {
     profile: "Prioritize empathy, response quality, and handling pressure in customer interactions.",
-    preferredSteps: ["chat_simulation", "video_message", "chat_interview"],
+    preferredSteps: ["chat_simulation", "chat_interview"],
   },
   sales: {
     profile: "Prioritize persuasion, discovery, objection handling, and energy.",
@@ -173,6 +173,50 @@ function insertBeforeFinalInterview(workflowSteps: WorkflowStep[], step: Workflo
   }
 
   workflowSteps.push(step);
+}
+
+function buildVideoMessageConfig(family: string, guidedSetup?: GuidedSetup) {
+  const languageNote = guidedSetup?.language_requirements
+    ? ` If the role needs ${guidedSetup.language_requirements}, mention how you would communicate clearly in that context.`
+    : "";
+
+  switch (family) {
+    case "sales":
+      return {
+        maxDuration: 90,
+        prompt: `In 60 to 90 seconds, introduce yourself as if you were opening a first conversation with a qualified prospect. Show how you build rapport, ask a strong discovery question, and guide the next step.${languageNote}`,
+      };
+    case "technical":
+      return {
+        maxDuration: 90,
+        prompt: "In 60 to 90 seconds, explain a technical problem you solved recently, the tradeoffs you considered, and how you communicated the decision to others.",
+      };
+    case "field_service":
+      return {
+        maxDuration: 75,
+        prompt: "In up to 75 seconds, explain how you would handle an unexpected issue on site while keeping the customer informed and the work moving safely.",
+      };
+    case "retail_hospitality":
+      return {
+        maxDuration: 75,
+        prompt: "In up to 75 seconds, describe how you would welcome a customer, understand what they need, and keep the interaction upbeat under pressure.",
+      };
+    case "healthcare":
+      return {
+        maxDuration: 90,
+        prompt: "In 60 to 90 seconds, describe how you communicate calmly, protect trust, and keep details accurate when a patient or family member is anxious.",
+      };
+    case "executive":
+      return {
+        maxDuration: 120,
+        prompt: "In up to 2 minutes, describe a leadership decision that required judgment, tradeoffs, and clear communication across stakeholders.",
+      };
+    default:
+      return {
+        maxDuration: 60,
+        prompt: "Record a brief video introducing yourself and explaining how your background fits this role.",
+      };
+  }
 }
 
 function buildGuidedSetupQuestions(guidedSetup: GuidedSetup | undefined, title: string) {
@@ -352,14 +396,23 @@ function ensureFamilyWorkflowSteps(
     });
   }
 
-  if ((guidedSetup?.customer_facing || family === "retail_hospitality" || family === "executive") && !hasStepType("video_message")) {
+  const shouldAddVideoMessage =
+    !hasStepType("video_message") &&
+    (family === "sales" ||
+      family === "field_service" ||
+      family === "retail_hospitality" ||
+      family === "healthcare" ||
+      family === "executive" ||
+      (guidedSetup?.customer_facing && family !== "support"));
+
+  if (shouldAddVideoMessage) {
     insertBeforeFinalInterview(workflowSteps, {
       id: "step_video_message",
       type: "video_message",
       title: "Communication Snapshot",
       description: "Record a short response so Ava can assess clarity, presence, and professionalism.",
       required: true,
-      config: { max_duration_seconds: 90 },
+      config: buildVideoMessageConfig(family, guidedSetup),
     });
   }
 
@@ -581,6 +634,39 @@ function postProcessWorkflowData(
   data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "voice_interview");
   ensureFamilyWorkflowSteps(data.workflow_steps, family, request.guided_setup, requirePortfolio);
 
+  data.workflow_steps = data.workflow_steps.map((step) => {
+    if (step.type !== "video_message") {
+      return step;
+    }
+
+    const existingConfig: Record<string, unknown> =
+      step.config && typeof step.config === "object" ? step.config as Record<string, unknown> : {};
+    const defaultConfig = buildVideoMessageConfig(family, request.guided_setup);
+    const maxDuration =
+      typeof existingConfig.maxDuration === "number"
+        ? existingConfig.maxDuration
+        : typeof existingConfig.max_duration_seconds === "number"
+          ? existingConfig.max_duration_seconds
+          : defaultConfig.maxDuration;
+    const prompt =
+      typeof existingConfig.prompt === "string" && existingConfig.prompt.trim().length > 0
+        ? existingConfig.prompt
+        : defaultConfig.prompt;
+
+    return {
+      ...step,
+      config: {
+        ...existingConfig,
+        maxDuration,
+        prompt,
+      },
+    };
+  });
+
+  if (family === "support" && data.workflow_steps.some((step) => step.type === "chat_simulation")) {
+    data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "video_message");
+  }
+
   const hasFinalInterview = data.workflow_steps.some((step) => step.type === "chat_interview");
   if (!hasFinalInterview) {
     data.workflow_steps.push({
@@ -701,6 +787,7 @@ Hard rules:
 - Always include these application questions: Full Name, Email Address, Phone Number, Current or Most Recent Job Title, Years of Experience.
 - Include Upload Resume only when require_resume is not false.
 - Keep the workflow concise to reduce candidate drop-off.
+- Avoid adding friction just because the role is customer-facing. Every deeper step should change the hiring decision.
 - If customer-facing is yes, bias toward communication and scenario questions.
 - If deal-breakers are provided, reflect them in the screening focus.
 - Do not include voice_interview in workflow_steps.
@@ -713,11 +800,13 @@ Quiz question rules:
 
 Workflow step rules:
 - typing_test for execution-heavy or data-entry style work.
-- video_message for communication-heavy roles.
+- video_message only when spoken presence is a decisive signal for the role.
 - chat_simulation for support roles.
 - sales_simulation for sales roles.
 - portfolio_upload only when required.
 - chat_interview must be the final step.
+- For support roles, prefer chat_simulation over video_message and do not stack both unless there is a strong reason.
+- When returning video_message, config must use maxDuration and include a role-specific prompt.
 
 Return ONLY valid JSON with this shape:
 {

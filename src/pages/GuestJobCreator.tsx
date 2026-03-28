@@ -84,7 +84,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
-import { DEFAULT_GUIDED_JOB_SETUP, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
+import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 
 interface GuestJobData {
   formData: AvaJobFormData;
@@ -96,28 +96,6 @@ interface GuestJobData {
   passingScore: number;
   createdAt: number;
 }
-
-// Workflow phase warning threshold
-const PHASE_WARNING_THRESHOLD = 4;
-
-// Helper to estimate candidate completion time
-const getEstimatedCompletionTime = (
-  steps: any[], 
-  quizCount: number
-): number => {
-  const timeMap: Record<string, number> = {
-    typing_test: 5,
-    video_message: 5,
-    chat_simulation: 10,
-    sales_simulation: 10,
-    portfolio_upload: 5,
-    chat_interview: 15,
-    voice_interview: 15,
-  };
-  const quizTime = Math.ceil(quizCount * 0.5); // 30 sec per question
-  const stepsTime = steps.reduce((acc, s) => acc + (timeMap[s.type] || 5), 0);
-  return quizTime + stepsTime + 5; // +5 for application form base
-};
 
 const normalizeCommaSeparatedText = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -159,10 +137,10 @@ const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; d
 };
 
 const WIZARD_STEPS = [
-  { id: "basic", title: "Basic Info", icon: FileText },
-  { id: "details", title: "Job Details", icon: Users },
-  { id: "compensation", title: "Compensation", icon: DollarSign },
-  { id: "workflow", title: "Screening Plan", icon: Sparkles },
+  { id: "basic", title: "Ava Setup", icon: FileText },
+  { id: "details", title: "Job Draft", icon: Users },
+  { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
+  { id: "workflow", title: "Candidate Journey", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
 
@@ -411,7 +389,6 @@ export default function GuestJobCreator() {
       return;
     }
 
-    setCurrentStep(3);
     await generateWorkflow(nextFormData);
   };
 
@@ -422,6 +399,8 @@ export default function GuestJobCreator() {
       setQuizQuestions(pendingWorkflowData.quiz_questions);
       setWorkflowSteps(pendingWorkflowData.workflow_steps);
       setWorkflowGenerated(true);
+      setPhaseWarningDismissed(false);
+      setCurrentStep(4);
       setPendingWorkflowData(null);
       toast.success("Ava built the screening plan!");
     }
@@ -473,6 +452,39 @@ export default function GuestJobCreator() {
     workflowSteps,
     requireResume: true,
   });
+  const screeningPlanRisk = assessScreeningPlanRisk({
+    applicationQuestions,
+    quizQuestions,
+    workflowSteps,
+    requireResume: true,
+  });
+  const screeningRiskAlertStyles = {
+    good: {
+      alert: "border-emerald-500/30 bg-emerald-500/10",
+      title: "text-emerald-200",
+      text: "text-emerald-200/80",
+      button: "text-emerald-100 hover:text-white hover:bg-emerald-500/20",
+    },
+    caution: {
+      alert: "border-amber-500/30 bg-amber-500/10",
+      title: "text-amber-200",
+      text: "text-amber-200/80",
+      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+    },
+    long: {
+      alert: "border-amber-500/30 bg-amber-500/10",
+      title: "text-amber-200",
+      text: "text-amber-200/80",
+      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+    },
+    very_long: {
+      alert: "border-rose-500/30 bg-rose-500/10",
+      title: "text-rose-200",
+      text: "text-rose-200/80",
+      button: "text-rose-100 hover:text-white hover:bg-rose-500/20",
+    },
+  } as const;
+  const currentRiskStyles = screeningRiskAlertStyles[screeningPlanRisk.level];
 
   if (authLoading) {
     return (
@@ -512,7 +524,7 @@ export default function GuestJobCreator() {
               </Link>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Create New Job</h2>
-                <p className="text-muted-foreground mt-1">Ava-powered job posting wizard</p>
+                <p className="text-muted-foreground mt-1">Start with Ava, then review the full draft before you publish.</p>
               </div>
             </div>
             
@@ -531,7 +543,7 @@ export default function GuestJobCreator() {
                 ) : (
                   <>
                     <Wand2 className="h-4 w-4" />
-                    Generate with Ava
+                    Generate Full Draft
                   </>
                 )}
               </Button>
@@ -597,8 +609,8 @@ export default function GuestJobCreator() {
               >
                 <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Basic Information</CardTitle>
-                  <CardDescription>Share the essentials, then let Ava build the role and screening plan for you</CardDescription>
+                  <CardTitle className="text-lg">Ava Setup</CardTitle>
+                  <CardDescription>Share the essentials, then let Ava build the role and candidate journey for you</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -699,7 +711,7 @@ export default function GuestJobCreator() {
               >
                 <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Job Details</CardTitle>
+                  <CardTitle className="text-lg">Job Draft</CardTitle>
                   <CardDescription>Review or lightly refine the draft Ava creates from your setup</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -835,8 +847,8 @@ export default function GuestJobCreator() {
               >
                 <Card className="bg-card border-border">
                   <CardHeader>
-                    <CardTitle className="text-lg">Compensation & Benefits</CardTitle>
-                    <CardDescription>Salary range and perks</CardDescription>
+                    <CardTitle className="text-lg">Pay & Timeline</CardTitle>
+                    <CardDescription>Set compensation, benefits, and timing before you publish</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Salary Type Selection */}
@@ -1611,27 +1623,27 @@ export default function GuestJobCreator() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {/* Phase warning banner */}
-                        {workflowSteps.length >= PHASE_WARNING_THRESHOLD && !phaseWarningDismissed && (
-                          <Alert className="border-amber-500/30 bg-amber-500/10">
-                            <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            <AlertTitle className="text-amber-200">You've added {workflowSteps.length} screening steps</AlertTitle>
-                            <AlertDescription className="text-amber-200/80">
-                              <p className="mb-2">
-                                Long application processes can lead to candidate drop-off. Consider keeping your workflow to 3-4 steps for the best completion rates.
-                              </p>
-                              <div className="flex items-center justify-between">
+                        {/* Candidate friction banner */}
+                        {screeningPlanRisk.level !== "good" && !phaseWarningDismissed && (
+                          <Alert className={currentRiskStyles.alert}>
+                            <AlertTriangle className={cn("h-4 w-4", currentRiskStyles.title)} />
+                            <AlertTitle className={currentRiskStyles.title}>{screeningPlanRisk.title}</AlertTitle>
+                            <AlertDescription className={currentRiskStyles.text}>
+                              <p className="mb-3">{screeningPlanRisk.description}</p>
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="flex items-center gap-2 text-sm">
                                   <Clock className="h-4 w-4" />
-                                  <span>Est. candidate time: ~{getEstimatedCompletionTime(workflowSteps, quizQuestions.length)} minutes</span>
+                                  <span>
+                                    Candidate journey: ~{screeningPlanOverview.estimatedMinutes} minutes across {screeningPlanOverview.phaseCount} phases
+                                  </span>
                                 </div>
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
-                                  className="text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
+                                  className={currentRiskStyles.button}
                                   onClick={() => setPhaseWarningDismissed(true)}
                                 >
-                                  Got it
+                                  Keep as is
                                 </Button>
                               </div>
                             </AlertDescription>
@@ -1715,9 +1727,62 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="text-lg">Review Your Job Posting</CardTitle>
-                    <CardDescription>Everything looks good? Sign up to publish!</CardDescription>
+                    <CardDescription>Ava drafted the role and candidate journey. Sign up to publish it.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
+                    {workflowGenerated && (
+                      <div className="space-y-4">
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.45 }}
+                          className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+                        >
+                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                          <div>
+                            <p className="text-sm font-medium text-emerald-300">Screening plan generated successfully</p>
+                            <p className="text-xs text-emerald-300/70">Review Ava’s draft, then create your employer account to publish it.</p>
+                          </div>
+                        </motion.div>
+
+                        <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
+                          <CardHeader className="pb-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <CardTitle className="text-base">Candidate experience preview</CardTitle>
+                                <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                              </div>
+                              <Badge variant="secondary" className="w-fit">
+                                {screeningPlanRisk.badgeLabel}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="grid gap-3 md:grid-cols-4">
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
+                              <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Phase count</p>
+                              <p className="mt-1 text-lg font-semibold text-foreground">{screeningPlanOverview.phaseCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidate effort</p>
+                              <p className="mt-1 text-sm font-semibold text-foreground">{screeningPlanRisk.badgeLabel}</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Required materials</p>
+                              <p className="mt-1 text-sm font-medium text-foreground">
+                                {screeningPlanOverview.requiredMaterials.length > 0
+                                  ? screeningPlanOverview.requiredMaterials.join(", ")
+                                  : "None beyond the application"}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
                     {/* Job Summary */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
@@ -1804,7 +1869,7 @@ export default function GuestJobCreator() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-primary" />
-                      Generated Workflow
+                      Candidate Journey
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

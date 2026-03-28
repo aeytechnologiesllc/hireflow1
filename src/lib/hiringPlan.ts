@@ -21,6 +21,13 @@ export interface ScreeningPlanSummary {
   summary: string;
 }
 
+export interface ScreeningPlanRisk {
+  level: "good" | "caution" | "long" | "very_long";
+  badgeLabel: string;
+  title: string;
+  description: string;
+}
+
 export interface ScreeningPlanRationale {
   title: string;
   overview: string;
@@ -94,6 +101,15 @@ const STEP_TIME_MINUTES: Record<string, number> = {
   chat_interview: 15,
   voice_interview: 15,
 };
+
+const HIGH_FRICTION_STEP_TYPES = new Set([
+  "video_message",
+  "chat_simulation",
+  "sales_simulation",
+  "portfolio_upload",
+  "chat_interview",
+  "voice_interview",
+]);
 
 const STEP_REASON_OVERRIDES: Record<string, string> = {
   typing_test: "Ava added a typing check because this role depends on speed, written accuracy, and steady execution under routine pressure.",
@@ -196,6 +212,57 @@ export function summarizeScreeningPlan(params: {
     requiredMaterials,
     stepLabels,
     summary: summaryParts.join(" + "),
+  };
+}
+
+export function assessScreeningPlanRisk(params: {
+  applicationQuestions?: Array<{ id?: string }> | null;
+  quizQuestions?: Array<{ id?: string }> | null;
+  workflowSteps?: Array<{ type?: string }> | null;
+  requireResume?: boolean | null;
+}): ScreeningPlanRisk {
+  const summary = summarizeScreeningPlan(params);
+  const workflowSteps = Array.isArray(params.workflowSteps) ? params.workflowSteps : [];
+  const highFrictionStepCount = workflowSteps.filter((step) => HIGH_FRICTION_STEP_TYPES.has(step.type || "")).length;
+  const materialsFriction = summary.requiredMaterials.length >= 2 ? 1 : 0;
+  const frictionScore =
+    highFrictionStepCount +
+    materialsFriction +
+    (summary.phaseCount >= 5 ? 1 : 0) +
+    (summary.estimatedMinutes >= 35 ? 1 : 0);
+
+  if (summary.estimatedMinutes > 40 || frictionScore >= 5) {
+    return {
+      level: "very_long",
+      badgeLabel: "High drop-off risk",
+      title: "Ava generated a high-friction screening plan",
+      description: `Estimated candidate time is about ${summary.estimatedMinutes} minutes. Consider shortening or merging one of the deeper evaluation steps before you publish.`,
+    };
+  }
+
+  if (summary.estimatedMinutes > 30 || frictionScore >= 4) {
+    return {
+      level: "long",
+      badgeLabel: "Long candidate journey",
+      title: "Ava generated a longer screening plan",
+      description: `Estimated candidate time is about ${summary.estimatedMinutes} minutes. This can still work, but it is worth tightening if you want stronger completion rates.`,
+    };
+  }
+
+  if (summary.estimatedMinutes >= 20 || frictionScore >= 3) {
+    return {
+      level: "caution",
+      badgeLabel: "Moderate candidate effort",
+      title: "Ava generated a moderately demanding plan",
+      description: `Estimated candidate time is about ${summary.estimatedMinutes} minutes. Keep the deeper steps focused so the process feels deliberate instead of heavy.`,
+    };
+  }
+
+  return {
+    level: "good",
+    badgeLabel: "Balanced candidate effort",
+    title: "Candidate effort looks balanced",
+    description: `Estimated candidate time is about ${summary.estimatedMinutes} minutes. This plan should feel thorough without adding unusual friction on its own.`,
   };
 }
 

@@ -2278,7 +2278,7 @@ export default function ApplicantDetails() {
         </motion.div>
       )}
 
-      {/* AVA's Analysis - Animated */}
+      {/* Ava's Recommendation - Animated */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -2289,7 +2289,7 @@ export default function ApplicantDetails() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-foreground">AVA's Analysis</span>
+              <span className="font-semibold text-foreground">Ava's Recommendation</span>
             </div>
             
             <div className="flex items-center gap-3">
@@ -2314,7 +2314,7 @@ export default function ApplicantDetails() {
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      {!isMobile && "Re-analyze"}
+                      {!isMobile && "Refresh Recommendation"}
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -2329,12 +2329,12 @@ export default function ApplicantDetails() {
             </div>
           </div>
 
-          {/* What AVA analyzed */}
+          {/* Evidence reviewed */}
           {application.ai_analysis && (
             <>
-              {/* Hide "AVA analyzed" badges on mobile */}
+              {/* Hide evidence badges on mobile */}
               <div className="hidden md:flex items-center gap-2 mb-4 flex-wrap">
-                <span className="text-sm text-muted-foreground">AVA analyzed:</span>
+                <span className="text-sm text-muted-foreground">Evidence reviewed:</span>
                 {resumeUrl && (
                   <Badge variant="outline" className="text-xs">Resume</Badge>
                 )}
@@ -2386,7 +2386,7 @@ export default function ApplicantDetails() {
           {!application.ai_analysis && (
             <div className="text-center py-8">
               <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="font-semibold text-foreground mb-2">No Analysis Yet</h3>
+              <h3 className="font-semibold text-foreground mb-2">No Recommendation Yet</h3>
               
               {!hasValidApplicationData ? (
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mx-auto max-w-md">
@@ -2403,12 +2403,12 @@ export default function ApplicantDetails() {
               ) : (
                 <>
                   <p className="text-muted-foreground text-sm mb-4">
-                    Run Ava analysis to get Ava's recommendation on this candidate.
+                    Generate Ava's recommendation from the evidence collected so far.
                   </p>
                   <Button onClick={handleReanalyze} disabled={isAnalyzing}>
                     {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Run Ava Analysis
+                    Generate Recommendation
                   </Button>
                 </>
               )}

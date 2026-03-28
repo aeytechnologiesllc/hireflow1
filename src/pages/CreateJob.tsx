@@ -107,7 +107,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { RefreshCw } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
-import { DEFAULT_GUIDED_JOB_SETUP, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
+import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 
 interface ApplicationQuestion {
   id: string;
@@ -139,12 +139,14 @@ interface WorkflowStep {
 }
 
 const WIZARD_STEPS = [
-  { id: "basic", title: "Basic Info", icon: FileText },
-  { id: "details", title: "Job Details", icon: Briefcase },
-  { id: "compensation", title: "Compensation", icon: DollarSign },
-  { id: "workflow", title: "Screening Plan", icon: Sparkles },
+  { id: "basic", title: "Ava Setup", icon: FileText },
+  { id: "details", title: "Job Draft", icon: Briefcase },
+  { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
+  { id: "workflow", title: "Candidate Journey", icon: Sparkles },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
+
+const DIFFICULTY_ORDER = ["easy", "medium", "hard", "intense"] as const;
 
 const DIFFICULTY_OPTIONS = [
   { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Zap, color: "text-green-500", borderColor: "border-green-500", bgColor: "bg-green-500/10", shadowColor: "shadow-green-500/20" },
@@ -272,28 +274,6 @@ const CURRENCIES = [
   { value: "XOF", label: "XOF (CFA) - West African CFA Franc" },
   { value: "XAF", label: "XAF (FCFA) - Central African CFA Franc" },
 ];
-
-// Workflow phase warning threshold
-const PHASE_WARNING_THRESHOLD = 4;
-
-// Helper to estimate candidate completion time
-const getEstimatedCompletionTime = (
-  steps: WorkflowStep[], 
-  quizCount: number
-): number => {
-  const timeMap: Record<string, number> = {
-    typing_test: 5,
-    video_message: 5,
-    chat_simulation: 10,
-    sales_simulation: 10,
-    portfolio_upload: 5,
-    chat_interview: 15,
-    voice_interview: 15,
-  };
-  const quizTime = Math.ceil(quizCount * 0.5); // 30 sec per question
-  const stepsTime = steps.reduce((acc, s) => acc + (timeMap[s.type] || 5), 0);
-  return quizTime + stepsTime + 5; // +5 for application form base
-};
 
 const normalizeCommaSeparatedText = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -684,7 +664,10 @@ export default function CreateJob() {
     }
   };
 
-  const generateWorkflow = async (sourceFormData: AvaJobFormData = formData) => {
+  const generateWorkflow = async (
+    sourceFormData: AvaJobFormData = formData,
+    difficultyOverride: string = workflowDifficulty,
+  ) => {
     if (!sourceFormData.title || !sourceFormData.description) {
       toast.error("Please fill in job title and description first");
       return;
@@ -695,7 +678,7 @@ export default function CreateJob() {
     setPendingWorkflowData(null);
     
     try {
-      const data = await generateScreeningPlan(sourceFormData, workflowDifficulty, profile?.company_name || null);
+      const data = await generateScreeningPlan(sourceFormData, difficultyOverride, profile?.company_name || null);
 
       // Store the data but don't dismiss yet - wait for animation to complete
       setPendingWorkflowData({
@@ -721,8 +704,18 @@ export default function CreateJob() {
       return;
     }
 
-    setCurrentStep(3);
     await generateWorkflow(nextFormData);
+  };
+
+  const regenerateLeanerPlan = async () => {
+    const currentIndex = DIFFICULTY_ORDER.indexOf(workflowDifficulty as (typeof DIFFICULTY_ORDER)[number]);
+    const nextDifficulty = currentIndex > 0 ? DIFFICULTY_ORDER[currentIndex - 1] : DIFFICULTY_ORDER[0];
+
+    if (nextDifficulty !== workflowDifficulty) {
+      setWorkflowDifficulty(nextDifficulty);
+    }
+
+    await generateWorkflow(formData, nextDifficulty);
   };
 
   // Called by overlay when BOTH animation AND API are complete
@@ -754,6 +747,8 @@ export default function CreateJob() {
       
       setWorkflowSteps(finalWorkflowSteps);
       setWorkflowGenerated(true);
+      setPhaseWarningDismissed(false);
+      setCurrentStep(4);
     }
     // Now dismiss the overlay
     setIsGeneratingWorkflow(false);
@@ -1108,10 +1103,10 @@ export default function CreateJob() {
   const getWizardSteps = () => {
     if (isEditMode) {
       return [
-        { id: "basic", title: "Basic Info", icon: FileText },
-        { id: "details", title: "Job Details", icon: Briefcase },
-        { id: "compensation", title: "Compensation", icon: DollarSign },
-        { id: "workflow", title: "Screening Plan (View Only)", icon: Sparkles },
+        { id: "basic", title: "Setup", icon: FileText },
+        { id: "details", title: "Job Draft", icon: Briefcase },
+        { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
+        { id: "workflow", title: "Screening Plan", icon: Sparkles },
         { id: "review", title: "Review & Update", icon: Eye },
       ];
     }
@@ -1120,6 +1115,12 @@ export default function CreateJob() {
 
   const wizardSteps = getWizardSteps();
   const screeningPlanOverview = summarizeScreeningPlan({
+    applicationQuestions,
+    quizQuestions,
+    workflowSteps,
+    requireResume: true,
+  });
+  const screeningPlanRisk = assessScreeningPlanRisk({
     applicationQuestions,
     quizQuestions,
     workflowSteps,
@@ -1146,6 +1147,33 @@ export default function CreateJob() {
     passingScore,
     processingMode,
   });
+  const screeningRiskAlertStyles = {
+    good: {
+      alert: "border-emerald-500/30 bg-emerald-500/10",
+      title: "text-emerald-200",
+      text: "text-emerald-200/80",
+      button: "text-emerald-100 hover:text-white hover:bg-emerald-500/20",
+    },
+    caution: {
+      alert: "border-amber-500/30 bg-amber-500/10",
+      title: "text-amber-200",
+      text: "text-amber-200/80",
+      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+    },
+    long: {
+      alert: "border-amber-500/30 bg-amber-500/10",
+      title: "text-amber-200",
+      text: "text-amber-200/80",
+      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+    },
+    very_long: {
+      alert: "border-rose-500/30 bg-rose-500/10",
+      title: "text-rose-200",
+      text: "text-rose-200/80",
+      button: "text-rose-100 hover:text-white hover:bg-rose-500/20",
+    },
+  } as const;
+  const currentRiskStyles = screeningRiskAlertStyles[screeningPlanRisk.level];
 
   return (
     <div className="space-y-8 sm:space-y-6">
@@ -1160,17 +1188,16 @@ export default function CreateJob() {
               {isEditMode ? "Edit Job" : "Create New Job"}
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground mt-1.5 leading-relaxed">
-              {isEditMode ? "Update your job posting" : "Ava-powered job posting wizard"}
+              {isEditMode ? "Update your job posting" : "Start with Ava, then review the full draft before you publish."}
             </p>
           </div>
         </div>
         
-        {currentStep < 3 && (
+        {!isEditMode && currentStep === 0 && (
           <Button 
             onClick={generateAvaBlueprint}
             disabled={!formData.title || isGenerating === "full"}
             className="gap-2"
-            variant="outline"
           >
             {isGenerating === "full" ? (
               <>
@@ -1180,7 +1207,7 @@ export default function CreateJob() {
             ) : (
               <>
                 <Wand2 className="h-4 w-4" />
-                Generate with Ava
+                {jobContentGenerated && workflowGenerated ? "Regenerate Full Draft" : "Generate Full Draft"}
               </>
             )}
           </Button>
@@ -1243,8 +1270,8 @@ export default function CreateJob() {
             >
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Basic Information</CardTitle>
-                  <CardDescription>Share the essentials, then let Ava build the role and screening plan for you</CardDescription>
+                  <CardTitle className="text-lg">Ava Setup</CardTitle>
+                  <CardDescription>Share the essentials. Ava will draft the role, candidate journey, and automation rules for you.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -1330,6 +1357,106 @@ export default function CreateJob() {
                     }}
                     onChange={handleGuidedSetupChange}
                   />
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-foreground">Ava preferences</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Decide how rigorous Ava should be before you generate the draft. Ava will use these choices for the job copy and screening plan, then take you straight to review.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">Screening rigor</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {DIFFICULTY_OPTIONS.map((option) => {
+                          const Icon = option.icon;
+                          const isSelected = workflowDifficulty === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              onClick={() => {
+                                setWorkflowDifficulty(option.value);
+                                setWorkflowGenerated(false);
+                              }}
+                              className={cn(
+                                "p-4 rounded-xl border-2 transition-all text-left min-h-[90px] sm:min-h-[100px]",
+                                isSelected
+                                  ? `${option.borderColor} ${option.bgColor} shadow-lg ${option.shadowColor} ring-2 ring-offset-2 ring-offset-background scale-[1.02] sm:scale-100`
+                                  : "border-border bg-card hover:border-muted-foreground/30",
+                              )}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <Icon className={cn("h-5 w-5 mt-0.5 shrink-0", option.color)} />
+                                <div>
+                                  <div className="text-base sm:text-sm font-bold tracking-tight">{option.label}</div>
+                                  <div className="text-xs text-muted-foreground/90 leading-relaxed mt-1">{option.description}</div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                        <div className="space-y-0.5">
+                          <Label className="text-base sm:text-sm font-bold">Passing Score</Label>
+                          <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                            Minimum Ava score to auto-advance candidates
+                          </p>
+                        </div>
+                        <motion.div
+                          key={passingScore}
+                          initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                          animate={{ scale: 1 }}
+                          className="text-3xl sm:text-2xl font-bold text-primary tabular-nums shrink-0"
+                        >
+                          {passingScore}%
+                        </motion.div>
+                      </div>
+                      <div className="pt-1">
+                        <Slider
+                          value={[passingScore]}
+                          onValueChange={([value]) => setPassingScore(value)}
+                          min={30}
+                          max={95}
+                          step={5}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground/70 pt-1">
+                        <span>Lenient (30%)</span>
+                        <span>Strict (95%)</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">What happens after you generate?</span>
+                      </div>
+                      <div className="space-y-2 text-xs text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <Bot className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-foreground">Autopilot default:</span>{" "}
+                            Ava scores every candidate against this threshold and can advance or reject automatically when the evidence is clear.
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Hand className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-foreground">Your next step:</span>{" "}
+                            After generation, you land on a review page with the full job draft, candidate-experience preview, and screening plan.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -1345,7 +1472,7 @@ export default function CreateJob() {
             >
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Job Details</CardTitle>
+                  <CardTitle className="text-lg">Job Draft</CardTitle>
                   <CardDescription>Review or lightly refine the draft Ava creates from your setup</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -1484,8 +1611,8 @@ export default function CreateJob() {
             >
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-xl sm:text-lg font-bold">Compensation & Benefits</CardTitle>
-                  <CardDescription className="text-sm text-muted-foreground leading-relaxed">Salary range and perks</CardDescription>
+                  <CardTitle className="text-xl sm:text-lg font-bold">Pay & Timeline</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground leading-relaxed">Set compensation, benefits, and timing before you publish</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8 sm:space-y-6">
                   {/* Salary Type Selection */}
@@ -1766,10 +1893,10 @@ export default function CreateJob() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-primary" />
-                      Ava Screening Plan (Read Only)
+                      Candidate Journey (Read Only)
                     </CardTitle>
                     <CardDescription>
-                      The screening plan cannot be modified after job creation. You can only edit job details.
+                      The candidate journey cannot be modified after job creation. You can only edit the job draft and publishing details.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1782,185 +1909,126 @@ export default function CreateJob() {
                         {applicationQuestions.length} application questions • {quizQuestions.length} assessment questions • {workflowSteps.length} screening steps
                       </p>
                       <p className="text-xs text-muted-foreground mt-3">
-                        Use "View Workflow" from the job menu to see full details
+                        Use "View Screening Plan" from the job menu to see full details
                       </p>
                     </div>
                   </CardContent>
                 </Card>
               ) : (
                 <>
-                  {/* Create Mode: Difficulty Selection and Generation */}
-                  <Card className="bg-card border-border">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-primary" />
-                        Ava Screening Plan
-                      </CardTitle>
-                      <CardDescription className="text-sm text-muted-foreground leading-relaxed">
-                        Set the rigor level Ava should use, then generate the full screening plan
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6 pt-2">
-                      <div className="space-y-3">
-                        <Label className="text-base sm:text-sm font-semibold mb-1">Screening Difficulty</Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {DIFFICULTY_OPTIONS.map((option) => {
-                            const Icon = option.icon;
-                            const isSelected = workflowDifficulty === option.value;
-                            return (
-                              <button
-                                key={option.value}
-                                onClick={() => {
-                                  setWorkflowDifficulty(option.value);
-                                  setWorkflowGenerated(false);
-                                }}
-                                className={cn(
-                                  "p-4 rounded-xl border-2 transition-all text-left min-h-[90px] sm:min-h-[100px]",
-                                  isSelected
-                                    ? `${option.borderColor} ${option.bgColor} shadow-lg ${option.shadowColor} ring-2 ring-offset-2 ring-offset-background scale-[1.02] sm:scale-100`
-                                    : "border-border bg-card hover:border-muted-foreground/30"
-                                )}
-                              >
-                                <div className="flex items-start gap-2.5">
-                                  <Icon className={cn("h-5 w-5 mt-0.5 shrink-0", option.color)} />
-                                  <div>
-                                    <div className="text-base sm:text-sm font-bold tracking-tight">{option.label}</div>
-                                    <div className="text-xs text-muted-foreground/90 leading-relaxed mt-1">{option.description}</div>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <Separator className="my-1 sm:my-0" />
-
-                      {/* Passing Score - Always visible since we default to Auto mode */}
-                      <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
-                          <div className="space-y-0.5">
-                            <Label className="text-base sm:text-sm font-bold">Passing Score</Label>
-                            <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                              Minimum Ava score to auto-advance candidates
-                            </p>
+                  {!workflowGenerated ? (
+                    <Card className="bg-card border-border">
+                      <CardHeader>
+                        <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-primary" />
+                          Candidate Journey
+                        </CardTitle>
+                        <CardDescription className="text-sm text-muted-foreground leading-relaxed">
+                          Choose your rigor in Ava Setup first, then let Ava build the job draft and screening plan before you fine-tune the steps here.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Selected rigor</p>
+                            <p className="mt-1 text-lg font-semibold capitalize text-foreground">{workflowDifficulty}</p>
                           </div>
-                          <motion.div 
-                            key={passingScore}
-                            initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
-                            animate={{ scale: 1 }}
-                            className="text-3xl sm:text-2xl font-bold text-primary tabular-nums shrink-0"
-                          >
-                            {passingScore}%
-                          </motion.div>
-                        </div>
-                        <div className="pt-1">
-                          <Slider
-                            value={[passingScore]}
-                            onValueChange={([value]) => setPassingScore(value)}
-                            min={30}
-                            max={95}
-                            step={5}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground/70 pt-1">
-                          <span>Lenient (30%)</span>
-                          <span>Strict (95%)</span>
-                        </div>
-                      </div>
-
-                      {/* WPM slider moved to typing test phase card below */}
-
-                      {/* Autopilot Explainer */}
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium text-foreground">What is Autopilot vs Human Review?</span>
-                        </div>
-                        <div className="space-y-2 text-xs text-muted-foreground">
-                          <div className="flex items-start gap-2">
-                            <Bot className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-medium text-foreground">Autopilot (Default):</span>{" "}
-                              Ava automatically advances candidates who score above your passing threshold and sends respectful rejections to those who don't.
-                            </div>
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Passing score</p>
+                            <p className="mt-1 text-lg font-semibold text-foreground">{passingScore}%</p>
                           </div>
-                          <div className="flex items-start gap-2">
-                            <Hand className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-medium text-foreground">Human Review:</span>{" "}
-                              You review and decide on every candidate. Ava still scores and analyzes, but you control all advancement decisions.
-                            </div>
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">What happens next</p>
+                            <p className="mt-1 text-sm font-medium text-foreground">Ava generates first, then you review and publish.</p>
                           </div>
                         </div>
-                        <p className="text-xs text-muted-foreground/60 text-center leading-relaxed pt-1">
-                          💡 You can switch between modes anytime from the Jobs page
-                        </p>
-                      </div>
-
-                      {/* Generate with AVA Button */}
-                      <div className="flex justify-center sm:justify-end pt-2">
-                        {workflowGenerated ? (
+                        <Alert className="border-primary/20 bg-primary/5">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <AlertTitle>Start from Ava Setup</AlertTitle>
+                          <AlertDescription>
+                            Generate the full draft from the first step so Ava can write the job copy, build the candidate journey, and take you straight to the review screen.
+                          </AlertDescription>
+                        </Alert>
+                        <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                          <Button variant="outline" onClick={() => setCurrentStep(0)}>
+                            Back to Ava Setup
+                          </Button>
                           <Button
-                            onClick={generateWorkflow}
+                            onClick={jobContentGenerated ? () => generateWorkflow() : generateAvaBlueprint}
+                            disabled={isGenerating === "full" || isGeneratingWorkflow || !formData.title}
+                            className="gap-2"
+                          >
+                            {(isGenerating === "full" || isGeneratingWorkflow) ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4" />
+                                {jobContentGenerated ? "Generate Screening Plan" : "Generate Full Draft"}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card className="bg-card border-border">
+                      <CardHeader>
+                        <CardTitle className="text-xl sm:text-lg font-bold flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-primary" />
+                          Candidate Journey
+                        </CardTitle>
+                        <CardDescription className="text-sm text-muted-foreground leading-relaxed">
+                          Ava already built the plan. Review candidate effort, fine-tune the steps below, or regenerate from your setup choices.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-3 md:grid-cols-4">
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Rigor</p>
+                            <p className="mt-1 text-lg font-semibold capitalize text-foreground">{workflowDifficulty}</p>
+                          </div>
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Passing score</p>
+                            <p className="mt-1 text-lg font-semibold text-foreground">{passingScore}%</p>
+                          </div>
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
+                            <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
+                          </div>
+                          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidate effort</p>
+                            <p className="mt-1 text-sm font-semibold text-foreground">{screeningPlanRisk.badgeLabel}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                          <Button variant="outline" onClick={() => setCurrentStep(0)}>
+                            Change Ava Setup
+                          </Button>
+                          <Button
+                            onClick={() => generateWorkflow()}
                             disabled={isGeneratingWorkflow}
                             variant="outline"
-                            className="gap-2 px-5"
+                            className="gap-2"
                           >
                             {isGeneratingWorkflow ? (
                               <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Regenerating...</span>
+                                Regenerating...
                               </>
                             ) : (
                               <>
                                 <RefreshCw className="h-4 w-4" />
-                                <span>Retry Screening Plan</span>
+                                Regenerate Screening Plan
                               </>
                             )}
                           </Button>
-                        ) : (
-                          <motion.div
-                            className="relative w-full sm:w-auto"
-                            animate={{
-                              boxShadow: [
-                                "0 0 20px -5px rgba(217, 70, 239, 0.4)",
-                                "0 0 35px -5px rgba(217, 70, 239, 0.6)",
-                                "0 0 20px -5px rgba(217, 70, 239, 0.4)"
-                              ]
-                            }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                            style={{ borderRadius: "0.5rem" }}
-                          >
-                            <Button
-                              onClick={generateWorkflow}
-                              disabled={isGeneratingWorkflow}
-                              className={cn(
-                                "gap-2 px-6 py-4 sm:py-3 relative overflow-hidden w-full sm:w-auto",
-                                "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
-                                "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
-                                "text-white font-semibold border-0"
-                              )}
-                              size="lg"
-                            >
-                              {isGeneratingWorkflow ? (
-                                <>
-                                  <Loader2 className="h-5 w-5 animate-spin" />
-                                  <span>Generating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="h-5 w-5" />
-                                  <span>Generate Screening Plan</span>
-                                </>
-                              )}
-                            </Button>
-                          </motion.div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               )}
 
@@ -1976,15 +2044,22 @@ export default function CreateJob() {
                   >
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-emerald-300">Screening plan generated successfully</p>
-                      <p className="text-xs text-emerald-300/60">Ava built the candidate journey and automation rules for you.</p>
+                      <p className="text-sm font-medium text-emerald-300">Candidate journey generated successfully</p>
+                      <p className="text-xs text-emerald-300/60">Ava built the screening flow and automation rules for you.</p>
                     </div>
                   </motion.div>
 
                   <Card className="bg-card border-border">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Candidate experience snapshot</CardTitle>
-                      <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-base">Candidate experience snapshot</CardTitle>
+                          <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">
+                          {screeningPlanRisk.badgeLabel}
+                        </Badge>
+                      </div>
                     </CardHeader>
                     <CardContent className="grid gap-3 md:grid-cols-3">
                       <div className="rounded-lg border border-border bg-secondary/40 p-3">
@@ -2397,28 +2472,41 @@ export default function CreateJob() {
                         </CardHeader>
                         <CollapsibleContent>
                           <CardContent className="space-y-4 pt-0">
-                      {/* Phase warning banner */}
-                      {workflowSteps.length >= PHASE_WARNING_THRESHOLD && !phaseWarningDismissed && (
-                        <Alert className="border-amber-500/30 bg-amber-500/10">
-                          <AlertTriangle className="h-4 w-4 text-amber-500" />
-                          <AlertTitle className="text-amber-200">You've added {workflowSteps.length} screening steps</AlertTitle>
-                          <AlertDescription className="text-amber-200/80">
-                            <p className="mb-2">
-                              Long application processes can lead to candidate drop-off. Consider keeping your workflow to 3-4 steps for the best completion rates.
+                      {/* Candidate friction banner */}
+                      {screeningPlanRisk.level !== "good" && !phaseWarningDismissed && (
+                        <Alert className={currentRiskStyles.alert}>
+                          <AlertTriangle className={cn("h-4 w-4", currentRiskStyles.title)} />
+                          <AlertTitle className={currentRiskStyles.title}>{screeningPlanRisk.title}</AlertTitle>
+                          <AlertDescription className={currentRiskStyles.text}>
+                            <p className="mb-3">
+                              {screeningPlanRisk.description}
                             </p>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="flex items-center gap-2 text-sm">
                                 <Clock className="h-4 w-4" />
-                                <span>Est. candidate time: ~{getEstimatedCompletionTime(workflowSteps, quizQuestions.length)} minutes</span>
+                                <span>
+                                  Candidate journey: ~{screeningPlanOverview.estimatedMinutes} minutes across {screeningPlanOverview.phaseCount} phases
+                                </span>
                               </div>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
-                                onClick={() => setPhaseWarningDismissed(true)}
-                              >
-                                Got it
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={currentRiskStyles.button}
+                                  onClick={() => void regenerateLeanerPlan()}
+                                  disabled={isGeneratingWorkflow}
+                                >
+                                  {isGeneratingWorkflow ? "Shortening..." : "Shorten with Ava"}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={currentRiskStyles.button}
+                                  onClick={() => setPhaseWarningDismissed(true)}
+                                >
+                                  Keep as is
+                                </Button>
+                              </div>
                             </div>
                           </AlertDescription>
                         </Alert>
@@ -2545,9 +2633,121 @@ export default function CreateJob() {
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-lg">Review Your Job Posting</CardTitle>
-                  <CardDescription>Review all details before publishing</CardDescription>
+                  <CardDescription>Ava drafted the role and candidate journey. Review everything here before you publish.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {!isEditMode && workflowGenerated && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45 }}
+                        className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+                      >
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                        <div>
+                          <p className="text-sm font-medium text-emerald-300">Screening plan generated successfully</p>
+                          <p className="text-xs text-emerald-300/70">You are now reviewing Ava’s full draft instead of building the job from scratch.</p>
+                        </div>
+                      </motion.div>
+
+                      <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
+                        <CardHeader className="pb-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <CardTitle className="text-base">Candidate experience preview</CardTitle>
+                              <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                            </div>
+                            <Badge variant="secondary" className="w-fit">
+                              {screeningPlanRisk.badgeLabel}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid gap-3 md:grid-cols-4">
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
+                              <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Phase count</p>
+                              <p className="mt-1 text-lg font-semibold text-foreground">{screeningPlanOverview.phaseCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidate effort</p>
+                              <p className="mt-1 text-sm font-semibold text-foreground">{screeningPlanRisk.badgeLabel}</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Required materials</p>
+                              <p className="mt-1 text-sm font-medium text-foreground">
+                                {screeningPlanOverview.requiredMaterials.length > 0
+                                  ? screeningPlanOverview.requiredMaterials.join(", ")
+                                  : "None beyond the application"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                            <div className="mb-2 flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              <h4 className="text-sm font-medium text-foreground">{screeningPlanRationale.title}</h4>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{screeningPlanRationale.overview}</p>
+                            {screeningPlanRationale.focusAreas.length > 0 && (
+                              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                {screeningPlanRationale.focusAreas.slice(0, 4).map((item) => (
+                                  <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                    <span>{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {screeningPlanRisk.level !== "good" && !phaseWarningDismissed && (
+                            <Alert className={currentRiskStyles.alert}>
+                              <AlertTriangle className={cn("h-4 w-4", currentRiskStyles.title)} />
+                              <AlertTitle className={currentRiskStyles.title}>{screeningPlanRisk.title}</AlertTitle>
+                              <AlertDescription className={currentRiskStyles.text}>
+                                <div className="space-y-3">
+                                  <p>{screeningPlanRisk.description}</p>
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={currentRiskStyles.button}
+                                      onClick={() => setPhaseWarningDismissed(true)}
+                                    >
+                                      Keep as is
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={currentRiskStyles.button}
+                                      onClick={() => setCurrentStep(3)}
+                                    >
+                                      Edit candidate journey
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={currentRiskStyles.button}
+                                      onClick={() => void regenerateLeanerPlan()}
+                                      disabled={isGeneratingWorkflow}
+                                    >
+                                      {isGeneratingWorkflow ? "Shortening..." : "Shorten with Ava"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+
                   <div>
                     <h3 className="text-xl font-bold">{formData.title || "Untitled Position"}</h3>
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -2627,7 +2827,7 @@ export default function CreateJob() {
                   <div>
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      Hiring Workflow
+                      Candidate Journey
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                       <div className="p-3 rounded-lg bg-secondary/50">
@@ -2640,11 +2840,11 @@ export default function CreateJob() {
                       </div>
                       <div className="p-3 rounded-lg bg-secondary/50">
                         <div className="text-2xl font-bold text-primary">{workflowSteps.length}</div>
-                        <div className="text-xs text-muted-foreground">Workflow Steps</div>
+                        <div className="text-xs text-muted-foreground">Deeper Evaluation Steps</div>
                       </div>
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
-                      Difficulty: <Badge variant="outline" className="ml-1">{workflowDifficulty}</Badge>
+                      Candidate effort: <Badge variant="outline" className="ml-1">{screeningPlanRisk.badgeLabel}</Badge>
                     </div>
                   </div>
                 </CardContent>
