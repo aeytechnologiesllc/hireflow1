@@ -2814,93 +2814,234 @@ export default function CreateJob() {
 
                   <Separator />
 
-                  {formData.description && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Description</h4>
-                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.description)}</div>
-                    </div>
-                  )}
-
-                  {formData.responsibilities && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Responsibilities</h4>
-                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.responsibilities)}</div>
-                    </div>
-                  )}
-
-                  {formData.requirements && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Requirements</h4>
-                      <div className="text-muted-foreground text-sm">{renderFormattedText(formData.requirements)}</div>
-                    </div>
-                  )}
-
-                  {parseCommaSeparatedList(formData.skills_required).length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Required Skills</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {parseCommaSeparatedList(formData.skills_required).map((skill, i) => (
-                          <Badge key={i} className="bg-primary/10 text-primary">
-                            {skill.trim()}
-                          </Badge>
-                        ))}
+                  <Card className="border-border/70 bg-secondary/10">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <CardTitle className="text-base">Edit the draft here</CardTitle>
+                          <CardDescription>
+                            This is the working draft. Any changes you make here are what will be published.
+                          </CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentStep(1)}>
+                          Open Job Draft Step
+                        </Button>
                       </div>
-                    </div>
-                  )}
-
-                  {(formData.salary_min || formData.salary_max || formData.salary_fixed) && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Salary</h4>
-                      <p className="text-muted-foreground">
-                        {formData.salary_currency}{" "}
-                        {formData.salary_type === "fixed" 
-                          ? parseInt(formData.salary_fixed).toLocaleString()
-                          : `${parseInt(formData.salary_min).toLocaleString()} - ${parseInt(formData.salary_max).toLocaleString()}`
-                        }
-                        {" "}/ {formData.salary_period}
-                      </p>
-                    </div>
-                  )}
-
-                  {parseCommaSeparatedList(formData.benefits).length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-2">Benefits</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {parseCommaSeparatedList(formData.benefits).map((benefit, i) => (
-                          <Badge key={i} variant="outline">
-                            {benefit.trim()}
-                          </Badge>
-                        ))}
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="review-description">Description</Label>
+                        <RichTextarea
+                          id="review-description"
+                          value={formData.description}
+                          onChange={(val) => handleChange("description", val)}
+                          className="min-h-[160px]"
+                          style={{ minHeight: 160 }}
+                          placeholder="Ava will draft the role summary here."
+                        />
                       </div>
-                    </div>
-                  )}
 
-                  <Separator />
+                      <div className="space-y-2">
+                        <Label htmlFor="review-responsibilities">Responsibilities</Label>
+                        <RichTextarea
+                          id="review-responsibilities"
+                          value={formData.responsibilities}
+                          onChange={(val) => handleChange("responsibilities", val)}
+                          className="min-h-[150px]"
+                          style={{ minHeight: 150 }}
+                          placeholder="Ava will draft the day-to-day responsibilities here."
+                        />
+                      </div>
 
-                  {/* Workflow Summary */}
-                  <div>
-                    <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Screening Plan
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                      <div className="p-3 rounded-lg bg-secondary/50">
-                        <div className="text-2xl font-bold text-primary">{applicationQuestions.length}</div>
-                        <div className="text-xs text-muted-foreground">Application Questions</div>
+                      <div className="space-y-2">
+                        <Label htmlFor="review-requirements">Requirements</Label>
+                        <RichTextarea
+                          id="review-requirements"
+                          value={formData.requirements}
+                          onChange={(val) => handleChange("requirements", val)}
+                          className="min-h-[150px]"
+                          style={{ minHeight: 150 }}
+                          placeholder="Ava will draft the requirements here."
+                        />
                       </div>
-                      <div className="p-3 rounded-lg bg-secondary/50">
-                        <div className="text-2xl font-bold text-primary">{quizQuestions.length}</div>
-                        <div className="text-xs text-muted-foreground">Quiz Questions</div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="review-skills">Required Skills</Label>
+                        <Input
+                          id="review-skills"
+                          value={formData.skills_required}
+                          onChange={(event) => handleChange("skills_required", event.target.value)}
+                          placeholder="Separate skills with commas"
+                          className="bg-background"
+                        />
                       </div>
-                      <div className="p-3 rounded-lg bg-secondary/50">
-                        <div className="text-2xl font-bold text-primary">{workflowSteps.length}</div>
-                        <div className="text-xs text-muted-foreground">Deeper Evaluation Steps</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-border/70 bg-secondary/10">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <CardTitle className="text-base">Compensation and benefits</CardTitle>
+                          <CardDescription>
+                            Keep the pay details simple here, or jump back if you want to change the full compensation setup.
+                          </CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentStep(2)}>
+                          Open Pay Step
+                        </Button>
                       </div>
-                    </div>
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      Candidate effort: <Badge variant="outline" className="ml-1">{screeningPlanRisk.badgeLabel}</Badge>
-                    </div>
-                  </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {(formData.salary_min || formData.salary_max || formData.salary_fixed) && (
+                        <div className="rounded-lg border border-border bg-background/70 p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current salary</p>
+                          <p className="mt-1 text-sm text-foreground">
+                            {formData.salary_currency}{" "}
+                            {formData.salary_type === "fixed"
+                              ? parseInt(formData.salary_fixed).toLocaleString()
+                              : `${parseInt(formData.salary_min).toLocaleString()} - ${parseInt(formData.salary_max).toLocaleString()}`}
+                            {" "}/ {formData.salary_period}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="review-benefits">Benefits</Label>
+                        <RichTextarea
+                          id="review-benefits"
+                          value={formData.benefits}
+                          onChange={(val) => handleChange("benefits", val)}
+                          className="min-h-[110px]"
+                          style={{ minHeight: 110 }}
+                          placeholder="List the benefits or perks candidates should see."
+                        />
+                        <p className="text-xs text-muted-foreground">Use commas or short bullet-style lines. Ava formatting will keep it readable.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-border/70 bg-secondary/10">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            Screening plan details
+                          </CardTitle>
+                          <CardDescription>
+                            Review exactly what candidates will complete. Expand each phase to inspect the questions and deeper evaluation steps.
+                          </CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentStep(3)}>
+                          Edit Screening Plan
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 text-center">
+                        <div className="rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold text-primary">{screeningPlanOverview.phaseCount}</div>
+                          <div className="text-xs text-muted-foreground">Total phases</div>
+                        </div>
+                        <div className="rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold text-primary">{applicationQuestions.length}</div>
+                          <div className="text-xs text-muted-foreground">Application prompts</div>
+                        </div>
+                        <div className="rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold text-primary">{quizQuestions.length}</div>
+                          <div className="text-xs text-muted-foreground">Assessment questions</div>
+                        </div>
+                        <div className="rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold text-primary">{workflowSteps.length}</div>
+                          <div className="text-xs text-muted-foreground">Deeper evaluation steps</div>
+                        </div>
+                      </div>
+
+                      <Accordion type="multiple" className="w-full space-y-3">
+                        <AccordionItem value="application" className="rounded-lg border border-border bg-background/70 px-4">
+                          <AccordionTrigger className="text-sm">
+                            <div className="text-left">
+                              <p className="font-medium text-foreground">Phase 1: Application</p>
+                              <p className="text-xs text-muted-foreground">
+                                {applicationQuestions.length} questions in the first phase
+                              </p>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-2 pb-4">
+                            {applicationQuestions.map((question, index) => (
+                              <div key={question.id || `${question.question}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="text-sm text-foreground">{index + 1}. {question.question}</p>
+                                  {question.required && <Badge variant="outline">Required</Badge>}
+                                </div>
+                                {question.placeholder && (
+                                  <p className="mt-1 text-xs text-muted-foreground">Prompt hint: {question.placeholder}</p>
+                                )}
+                              </div>
+                            ))}
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="assessment" className="rounded-lg border border-border bg-background/70 px-4">
+                          <AccordionTrigger className="text-sm">
+                            <div className="text-left">
+                              <p className="font-medium text-foreground">Phase 2: Timed assessment</p>
+                              <p className="text-xs text-muted-foreground">
+                                {quizQuestions.length} questions, about ~{Math.ceil(quizQuestions.reduce((total, question) => total + (question.time_limit_seconds || 0), 0) / 60) || 0} minutes
+                              </p>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-2 pb-4">
+                            {quizQuestions.length > 0 ? quizQuestions.map((question, index) => (
+                              <div key={question.id || `${question.question}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="text-sm text-foreground">{index + 1}. {question.question}</p>
+                                  <Badge variant="outline">{question.category || "Assessment"}</Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Time limit: {question.time_limit_seconds || 0}s
+                                  {question.fit_context ? ` • ${question.fit_context}` : ""}
+                                </p>
+                              </div>
+                            )) : (
+                              <p className="text-sm text-muted-foreground">No timed assessment questions were added to this plan.</p>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="deeper-steps" className="rounded-lg border border-border bg-background/70 px-4">
+                          <AccordionTrigger className="text-sm">
+                            <div className="text-left">
+                              <p className="font-medium text-foreground">Phase 3+: Deeper evaluation</p>
+                              <p className="text-xs text-muted-foreground">
+                                {workflowSteps.length} interview or simulation step{workflowSteps.length === 1 ? "" : "s"}
+                              </p>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-3 pb-4">
+                            {workflowSteps.map((step, index) => {
+                              const rationale = screeningPlanRationale.stepReasons[index];
+                              return (
+                                <div key={step.id || `${step.title}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-medium text-foreground">{step.title}</p>
+                                      <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
+                                    </div>
+                                    <Badge variant="outline">Phase {index + 3}</Badge>
+                                  </div>
+                                  {rationale?.reason && (
+                                    <p className="mt-2 text-xs text-muted-foreground">Why Ava added this: {rationale.reason}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CardContent>
+                  </Card>
                 </CardContent>
               </Card>
             </motion.div>
