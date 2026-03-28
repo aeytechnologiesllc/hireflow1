@@ -202,6 +202,8 @@ export default function GuestJobCreator() {
   const [generationOverlayMode, setGenerationOverlayMode] = useState<"workflow" | "full_draft">("workflow");
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const overlayStartedAtRef = useRef<number | null>(null);
+  const workflowFinishTimerRef = useRef<number | null>(null);
 
   // If user is already logged in, redirect to full creator
   useEffect(() => {
@@ -213,6 +215,14 @@ export default function GuestJobCreator() {
       navigate("/jobs/create");
     }
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    return () => {
+      if (workflowFinishTimerRef.current !== null) {
+        window.clearTimeout(workflowFinishTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleChange = (field: string, value: string | boolean | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -373,7 +383,13 @@ export default function GuestJobCreator() {
       return;
     }
 
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+      workflowFinishTimerRef.current = null;
+    }
+
     setGenerationOverlayMode("workflow");
+    overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     
@@ -381,12 +397,14 @@ export default function GuestJobCreator() {
       const data = await generateScreeningPlan(sourceFormData, workflowDifficulty);
 
       // Store the data and mark API as complete - let overlay animation finish
-      setPendingWorkflowData({
+      const completedWorkflowData = {
         application_questions: data.application_questions || [],
         quiz_questions: data.quiz_questions || [],
         workflow_steps: data.workflow_steps || [],
-      });
+      };
+      setPendingWorkflowData(completedWorkflowData);
       setWorkflowApiComplete(true);
+      scheduleWorkflowCompletion(completedWorkflowData, "workflow");
     } catch (error) {
       console.error("Error generating workflow:", error);
       toast.error("Failed to generate workflow. Please try again.");
@@ -395,7 +413,13 @@ export default function GuestJobCreator() {
   };
 
   const generateAvaBlueprint = async () => {
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+      workflowFinishTimerRef.current = null;
+    }
+
     setGenerationOverlayMode("full_draft");
+    overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
@@ -410,12 +434,14 @@ export default function GuestJobCreator() {
     try {
       const data = await generateScreeningPlan(nextFormData, workflowDifficulty);
 
-      setPendingWorkflowData({
+      const completedWorkflowData = {
         application_questions: data.application_questions || [],
         quiz_questions: data.quiz_questions || [],
         workflow_steps: data.workflow_steps || [],
-      });
+      };
+      setPendingWorkflowData(completedWorkflowData);
       setWorkflowApiComplete(true);
+      scheduleWorkflowCompletion(completedWorkflowData, "full_draft");
     } catch (error) {
       console.error("Error generating full Ava blueprint:", error);
       toast.error("Ava couldn't finish the full draft. Please try again.");
@@ -424,12 +450,12 @@ export default function GuestJobCreator() {
     }
   };
 
-  const handleWorkflowComplete = () => {
+  const handleWorkflowComplete = useCallback((completedWorkflowData: typeof pendingWorkflowData = pendingWorkflowData) => {
     // Apply the pending workflow data
-    if (pendingWorkflowData) {
-      setApplicationQuestions(pendingWorkflowData.application_questions);
-      setQuizQuestions(pendingWorkflowData.quiz_questions);
-      setWorkflowSteps(pendingWorkflowData.workflow_steps);
+    if (completedWorkflowData) {
+      setApplicationQuestions(completedWorkflowData.application_questions);
+      setQuizQuestions(completedWorkflowData.quiz_questions);
+      setWorkflowSteps(completedWorkflowData.workflow_steps);
       setWorkflowGenerated(true);
       setPhaseWarningDismissed(false);
       setCurrentStep(4);
@@ -438,7 +464,25 @@ export default function GuestJobCreator() {
     }
     setIsGeneratingWorkflow(false);
     setWorkflowApiComplete(false);
-  };
+  }, [pendingWorkflowData]);
+
+  const scheduleWorkflowCompletion = useCallback((
+    completedWorkflowData: NonNullable<typeof pendingWorkflowData>,
+    mode: "workflow" | "full_draft",
+  ) => {
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+    }
+
+    const minVisibleMs = mode === "full_draft" ? 2600 : 2200;
+    const elapsed = overlayStartedAtRef.current ? Date.now() - overlayStartedAtRef.current : minVisibleMs;
+    const remaining = Math.max(minVisibleMs - elapsed, 0);
+
+    workflowFinishTimerRef.current = window.setTimeout(() => {
+      handleWorkflowComplete(completedWorkflowData);
+      workflowFinishTimerRef.current = null;
+    }, remaining);
+  }, [handleWorkflowComplete]);
 
   const handlePublish = () => {
     if (!jobContentGenerated || !workflowGenerated) {
@@ -1997,8 +2041,6 @@ export default function GuestJobCreator() {
         isVisible={isGeneratingWorkflow}
         jobTitle={formData.title || "your new role"}
         difficulty={workflowDifficulty}
-        isApiComplete={workflowApiComplete}
-        onComplete={handleWorkflowComplete}
         mode={generationOverlayMode}
       />
 

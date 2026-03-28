@@ -485,6 +485,8 @@ export default function CreateJob() {
     job_code?: string | null;
   } | null>(null);
   const [showPublishedDialog, setShowPublishedDialog] = useState(false);
+  const overlayStartedAtRef = useRef<number | null>(null);
+  const workflowFinishTimerRef = useRef<number | null>(null);
 
   // Load existing job data for edit mode
   useEffect(() => {
@@ -697,6 +699,14 @@ export default function CreateJob() {
     }
   }, [activeReviewEditor, currentStep]);
 
+  useEffect(() => {
+    return () => {
+      if (workflowFinishTimerRef.current !== null) {
+        window.clearTimeout(workflowFinishTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleChange = (field: string, value: string | boolean | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -805,7 +815,13 @@ export default function CreateJob() {
       return;
     }
 
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+      workflowFinishTimerRef.current = null;
+    }
+
     setGenerationOverlayMode("workflow");
+    overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
@@ -814,12 +830,14 @@ export default function CreateJob() {
       const data = await generateScreeningPlan(sourceFormData, difficultyOverride, profile?.company_name || null);
 
       // Store the data but don't dismiss yet - wait for animation to complete
-      setPendingWorkflowData({
+      const completedWorkflowData = {
         application_questions: data.application_questions || [],
         quiz_questions: data.quiz_questions || [],
         workflow_steps: data.workflow_steps || [],
-      });
-      setWorkflowApiComplete(true); // Signal to overlay that API is done
+      };
+      setPendingWorkflowData(completedWorkflowData);
+      setWorkflowApiComplete(true);
+      scheduleWorkflowCompletion(completedWorkflowData, "workflow");
       
     } catch (error) {
       console.error("Error generating workflow:", error);
@@ -832,7 +850,13 @@ export default function CreateJob() {
   };
 
   const generateAvaBlueprint = async () => {
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+      workflowFinishTimerRef.current = null;
+    }
+
     setGenerationOverlayMode("full_draft");
+    overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
@@ -847,12 +871,14 @@ export default function CreateJob() {
     try {
       const data = await generateScreeningPlan(nextFormData, workflowDifficulty, profile?.company_name || null);
 
-      setPendingWorkflowData({
+      const completedWorkflowData = {
         application_questions: data.application_questions || [],
         quiz_questions: data.quiz_questions || [],
         workflow_steps: data.workflow_steps || [],
-      });
+      };
+      setPendingWorkflowData(completedWorkflowData);
       setWorkflowApiComplete(true);
+      scheduleWorkflowCompletion(completedWorkflowData, "full_draft");
     } catch (error) {
       console.error("Error generating full Ava blueprint:", error);
       toast.error("Ava couldn't finish the full draft. Please try again.");
@@ -872,16 +898,15 @@ export default function CreateJob() {
     await generateWorkflow(formData, nextDifficulty);
   };
 
-  // Called by overlay when BOTH animation AND API are complete
-  const handleWorkflowComplete = () => {
-    if (pendingWorkflowData) {
-      setApplicationQuestions(pendingWorkflowData.application_questions);
-      setQuizQuestions(pendingWorkflowData.quiz_questions);
+  const handleWorkflowComplete = useCallback((completedWorkflowData: typeof pendingWorkflowData = pendingWorkflowData) => {
+    if (completedWorkflowData) {
+      setApplicationQuestions(completedWorkflowData.application_questions);
+      setQuizQuestions(completedWorkflowData.quiz_questions);
       
       // If user has premium voice interview access, replace chat_interview with voice_interview
-      let finalWorkflowSteps = pendingWorkflowData.workflow_steps;
+      let finalWorkflowSteps = completedWorkflowData.workflow_steps;
       if (hasVoiceInterviewAccess) {
-        finalWorkflowSteps = pendingWorkflowData.workflow_steps.map(step => {
+        finalWorkflowSteps = completedWorkflowData.workflow_steps.map(step => {
           if (step.type === 'chat_interview') {
             return {
               ...step,
@@ -904,11 +929,29 @@ export default function CreateJob() {
       setPhaseWarningDismissed(false);
       setCurrentStep(4);
     }
-    // Now dismiss the overlay
+
     setIsGeneratingWorkflow(false);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
-  };
+  }, [hasVoiceInterviewAccess, pendingWorkflowData]);
+
+  const scheduleWorkflowCompletion = useCallback((
+    completedWorkflowData: NonNullable<typeof pendingWorkflowData>,
+    mode: "workflow" | "full_draft",
+  ) => {
+    if (workflowFinishTimerRef.current !== null) {
+      window.clearTimeout(workflowFinishTimerRef.current);
+    }
+
+    const minVisibleMs = mode === "full_draft" ? 2600 : 2200;
+    const elapsed = overlayStartedAtRef.current ? Date.now() - overlayStartedAtRef.current : minVisibleMs;
+    const remaining = Math.max(minVisibleMs - elapsed, 0);
+
+    workflowFinishTimerRef.current = window.setTimeout(() => {
+      handleWorkflowComplete(completedWorkflowData);
+      workflowFinishTimerRef.current = null;
+    }, remaining);
+  }, [handleWorkflowComplete]);
 
   const handleSubmit = async (status: "draft" | "published") => {
     if (!formData.title || !formData.description) {
@@ -3493,8 +3536,6 @@ export default function CreateJob() {
         isVisible={isGeneratingWorkflow}
         jobTitle={formData.title || "your new role"}
         difficulty={workflowDifficulty}
-        isApiComplete={workflowApiComplete}
-        onComplete={handleWorkflowComplete}
         mode={generationOverlayMode}
       />
 
