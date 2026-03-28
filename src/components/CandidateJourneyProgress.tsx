@@ -115,7 +115,7 @@ export function CandidateJourneyProgress({
           {/* Mini step visualization - only show on larger screens or when few phases */}
           {phases.length <= 8 && (
             <div className="mt-4 overflow-x-auto pb-1">
-              <div className="flex min-w-full items-start gap-2">
+              <div className="inline-flex min-w-max items-start gap-3 px-2">
               {phases.map((phase, index) => {
                 const isCompleted = completedPhases.includes(index);
                 const isCurrent = index === currentPhaseIndex;
@@ -125,7 +125,7 @@ export function CandidateJourneyProgress({
                 return (
                   <div
                     key={phase.id}
-                    className="relative flex min-w-[76px] flex-1 justify-center pt-1"
+                    className="relative flex w-[112px] shrink-0 justify-center pt-1"
                   >
                     {showConnector && (
                       <div
@@ -133,7 +133,7 @@ export function CandidateJourneyProgress({
                           "absolute top-4 h-px rounded-full",
                           completedPhases.includes(index) ? "bg-success/60" : "bg-muted"
                         )}
-                        style={{ left: "calc(50% + 14px)", right: "-8px" }}
+                        style={{ left: "calc(50% + 14px)", right: "-calc(50% - 14px)" }}
                       />
                     )}
 
@@ -157,7 +157,7 @@ export function CandidateJourneyProgress({
 
                       <div
                         className={cn(
-                          "hidden min-h-[2.5rem] max-w-[84px] text-center text-[10px] leading-tight break-words [overflow-wrap:anywhere] sm:block",
+                          "hidden min-h-[2.75rem] max-w-[96px] text-center text-[11px] leading-tight break-words [overflow-wrap:anywhere] sm:block",
                           isCompleted && "text-success",
                           isCurrent && "font-medium text-primary",
                           isPending && "text-muted-foreground"
