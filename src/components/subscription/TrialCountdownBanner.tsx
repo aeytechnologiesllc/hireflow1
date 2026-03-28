@@ -43,16 +43,19 @@ export default function TrialCountdownBanner() {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
-      <span className={`${isCritical ? "text-destructive" : isUrgent ? "text-amber-500" : ""}`}>
+    <button
+      type="button"
+      onClick={() => navigate("/settings?tab=subscription")}
+      title={`Trial ends in ${formatTime()}. Open subscription settings.`}
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/10"
+    >
+      <span className="hidden text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70 xl:inline">
+        Trial
+      </span>
+      <span className={`font-medium ${isCritical ? "text-destructive" : isUrgent ? "text-amber-500" : "text-foreground"}`}>
         {formatTimeCompact()} left
       </span>
-      <button
-        onClick={() => navigate("/settings?tab=subscription")}
-        className="text-primary hover:text-primary/80 transition-colors"
-      >
-        Upgrade
-      </button>
-    </div>
+      <span className="hidden font-medium text-primary 2xl:inline">Upgrade</span>
+    </button>
   );
 }

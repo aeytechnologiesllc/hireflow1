@@ -81,7 +81,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+      <div className="flex min-w-0 items-center gap-1.5 md:gap-3 flex-shrink-0">
         {/* Trial Countdown */}
         {role === 'employer' && <TrialCountdownBanner />}
         
@@ -91,14 +91,14 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2">
-              <Avatar className="h-8 w-8">
+            <Button variant="ghost" className="flex min-w-0 max-w-[8.5rem] items-center gap-2 px-2 sm:max-w-[9.5rem] md:max-w-[11rem] lg:max-w-[13rem]">
+              <Avatar className="h-8 w-8 flex-shrink-0">
                 <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium hidden md:block">{firstName}</span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:block" />
+              <span className="hidden truncate text-sm font-medium lg:block">{firstName}</span>
+              <ChevronDown className="hidden h-4 w-4 flex-shrink-0 text-muted-foreground lg:block" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-popover border-border">
