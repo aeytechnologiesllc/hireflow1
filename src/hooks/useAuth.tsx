@@ -18,6 +18,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getFallbackRoleFromUser(user: User | null): AppRole | null {
+  const rawRole = user?.user_metadata?.role;
+
+  if (rawRole === "employer" || rawRole === "candidate" || rawRole === "team_member" || rawRole === "developer") {
+    return rawRole;
+  }
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -57,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(async () => {
           const { user: verifiedUser } = await validateSession();
           if (verifiedUser) {
-            fetchUserRole(verifiedUser.id);
+            fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser));
             checkTeamMembership(verifiedUser.id);
           }
         }, 0);
@@ -76,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { user: verifiedUser } = await validateSession();
         if (verifiedUser) {
           await Promise.all([
-            fetchUserRole(verifiedUser.id),
+            fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser)),
             checkTeamMembership(verifiedUser.id),
           ]);
         }
@@ -88,28 +98,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string, fallbackRole: AppRole | null = null) => {
     try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
+      const readResolvedRole = async () => {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
 
-      if (error) {
-        console.error("Error fetching user role:", error);
-        return;
+        if (error) {
+          throw error;
+        }
+
+        const roles = (data ?? []).map((r) => r.role as AppRole);
+        const resolved: AppRole | null =
+          roles.includes("developer") ? "developer" :
+          roles.includes("employer") ? "employer" :
+          roles.includes("team_member") ? "team_member" :
+          roles.includes("candidate") ? "candidate" :
+          null;
+
+        return resolved;
+      };
+
+      let resolved = await readResolvedRole();
+
+      if (!resolved && (fallbackRole === "employer" || fallbackRole === "candidate")) {
+        // First-time accounts can momentarily authenticate before their role row exists.
+        // Use the intended portal role immediately, then persist it if needed.
+        setRole(fallbackRole);
+
+        const { error } = await supabase.rpc("assign_user_role", { p_role: fallbackRole });
+        if (error) {
+          console.error("Error assigning fallback role:", error);
+          return;
+        }
+
+        resolved = await readResolvedRole();
       }
 
-      // Handle multiple roles - prioritize developer > employer > team_member > candidate
-      const roles = (data ?? []).map(r => r.role as AppRole);
-      const resolved: AppRole | null = 
-        roles.includes("developer") ? "developer" :
-        roles.includes("employer") ? "employer" :
-        roles.includes("team_member") ? "team_member" :
-        roles.includes("candidate") ? "candidate" :
-        null;
-
-      setRole(resolved);
+      setRole(resolved ?? fallbackRole ?? null);
     } catch (error) {
       console.error("Error fetching user role:", error);
     }
