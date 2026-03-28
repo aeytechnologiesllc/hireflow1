@@ -954,6 +954,8 @@ export default function SalesSimulationPhase() {
                     onClick={sendMessage} 
                     disabled={!inputValue.trim() || isTyping} 
                     className="h-[80px] px-4 bg-green-600 hover:bg-green-700"
+                    aria-label="Send message"
+                    title="Send message"
                   >
                     <Send className="h-5 w-5" />
                   </Button>

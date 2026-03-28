@@ -975,6 +975,8 @@ export default function ChatSimulationPhase() {
                     onClick={sendMessage} 
                     disabled={!inputValue.trim() || isTyping}
                     className="h-[80px] px-4"
+                    aria-label="Send message"
+                    title="Send message"
                   >
                     <Send className="h-5 w-5" />
                   </Button>

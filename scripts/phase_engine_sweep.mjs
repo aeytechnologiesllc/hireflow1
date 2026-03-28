@@ -319,6 +319,32 @@ async function waitForReviewStep(page) {
   await settle(page, 1500);
 }
 
+async function captureStepFailure(page, name) {
+  await screenshot(page, name);
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  await fs.writeFile(path.join(OUTPUT_DIR, `${name}.txt`), bodyText, "utf8");
+}
+
+async function openWorkflowEditor(page) {
+  const workflowStepButton = page.getByRole("button", { name: /^Screening Plan$/ }).first();
+  if (await workflowStepButton.isVisible().catch(() => false)) {
+    await workflowStepButton.click();
+    await settle(page, 1200);
+  } else {
+    const editWorkflowButton = page.getByRole("button", { name: /^Edit Screening Plan$/ }).first();
+    if (await editWorkflowButton.isVisible().catch(() => false)) {
+      await editWorkflowButton.click();
+      await settle(page, 1200);
+    }
+  }
+
+  const addStepButton = page.getByRole("button", { name: /^Add Step$/i }).first();
+  if (!(await addStepButton.isVisible().catch(() => false))) {
+    await captureStepFailure(page, "workflow-editor-missing");
+    throw new Error("Workflow editor did not open");
+  }
+}
+
 async function createJob(page, config) {
   log("create-job", config.title);
   await ensureEmployerCreateJobAccess(page);
@@ -366,20 +392,19 @@ async function createJob(page, config) {
     await waitForReviewStep(page);
   }
 
-  const screeningPlanStep = page.getByRole("button", { name: /^Screening Plan$/ }).first();
-  if (await screeningPlanStep.isVisible().catch(() => false)) {
-    await screeningPlanStep.click();
-    await settle(page, 1200);
-  } else {
-    await page.getByRole("button", { name: /^Edit Screening Plan$/ }).first().click();
-    await settle(page, 1200);
-  }
+  await openWorkflowEditor(page);
 
   for (const stepLabel of config.extraSteps) {
     await addWorkflowStepIfAvailable(page, stepLabel);
   }
 
-  await page.getByRole("button", { name: /^Next$/i }).click();
+  const nextButton = page.getByRole("button", { name: /^Next$/i }).first();
+  if (!(await nextButton.isVisible().catch(() => false))) {
+    await captureStepFailure(page, "workflow-next-missing");
+    throw new Error("Workflow step is missing the Next button");
+  }
+
+  await nextButton.click();
   await waitForReviewStep(page);
 
   await page.getByRole("button", { name: /Publish Job/i }).click();

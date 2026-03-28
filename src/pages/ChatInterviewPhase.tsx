@@ -976,7 +976,13 @@ export default function ChatInterviewPhase() {
                       }
                     }}
                   />
-                  <Button onClick={sendMessage} disabled={isTyping || !inputValue.trim()} className="h-[80px]">
+                  <Button
+                    onClick={sendMessage}
+                    disabled={isTyping || !inputValue.trim()}
+                    className="h-[80px]"
+                    aria-label="Send message"
+                    title="Send message"
+                  >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
