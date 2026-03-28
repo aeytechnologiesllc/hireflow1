@@ -85,6 +85,57 @@ function parseStorageUrl(url: string): { bucket: string; path: string } | null {
   return null;
 }
 
+function looksLikeImageFile(url: string, contentType?: string | null): boolean {
+  const lowerUrl = url.toLowerCase();
+  const lowerContentType = (contentType || "").toLowerCase();
+  return (
+    lowerContentType.startsWith("image/") ||
+    [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".heic", ".heif"].some((extension) =>
+      lowerUrl.endsWith(extension),
+    )
+  );
+}
+
+function formatApplicationAnswersForPrompt(rawAnswers: unknown): string {
+  if (Array.isArray(rawAnswers)) {
+    const formatted = rawAnswers
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const record = entry as Record<string, unknown>;
+        const question = typeof record.question === "string" ? record.question.trim() : "Question";
+        const answerValue = record.answer;
+        const answer =
+          typeof answerValue === "string"
+            ? answerValue.trim()
+            : answerValue === null || typeof answerValue === "undefined"
+              ? ""
+              : JSON.stringify(answerValue);
+        return answer ? `- ${question}: ${answer}` : `- ${question}: No answer provided`;
+      })
+      .filter(Boolean);
+
+    return formatted.length > 0 ? formatted.join("\n") : "Not available";
+  }
+
+  if (rawAnswers && typeof rawAnswers === "object") {
+    const formatted = Object.entries(rawAnswers as Record<string, unknown>)
+      .map(([question, answer]) => {
+        const normalizedAnswer =
+          typeof answer === "string"
+            ? answer.trim()
+            : answer === null || typeof answer === "undefined"
+              ? ""
+              : JSON.stringify(answer);
+        return normalizedAnswer ? `- ${question}: ${normalizedAnswer}` : null;
+      })
+      .filter(Boolean);
+
+    return formatted.length > 0 ? formatted.join("\n") : "Not available";
+  }
+
+  return "Not available";
+}
+
 // Attempt to fetch and extract text from a PDF URL with signed URL fallback
 async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<string | null> {
   try {
@@ -121,6 +172,11 @@ async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<st
     
     const contentType = response.headers.get('content-type') || '';
     console.log('[fetchResumeText] Content-Type:', contentType);
+
+    if (looksLikeImageFile(resumeUrl, contentType)) {
+      console.log('[fetchResumeText] Resume is an image file - skipping text decode and relying on interview questions instead');
+      return null;
+    }
     
     // Get the PDF as array buffer
     const arrayBuffer = await response.arrayBuffer();
@@ -236,11 +292,59 @@ serve(async (req) => {
     const { mode, applicationId, jobId, language = 'en', duration = 10, subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse, currentRoute, googleCalendarConnected, googleRefreshToken } = await req.json() as VoiceSessionRequest;
     console.log("Voice session request:", { mode, applicationId, jobId, language, duration, userId: user.id, subscriptionPlan, countryCode, isFirstUse, currentRoute, hasGoogleCal: !!googleCalendarConnected });
 
+    // Resolve who owns the voice entitlement for this session.
+    // Assistant mode bills the signed-in employer. Candidate interview mode bills the employer
+    // attached to the application, not the candidate taking the interview.
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    let voiceOwnerUserId = user.id;
+
+    if (mode === "interview") {
+      if (!applicationId) {
+        throw new Error("Application ID required for interview mode");
+      }
+
+      const { data: interviewApplication, error: interviewApplicationError } = await adminClient
+        .from("applications")
+        .select("id, candidate_id, job_id, jobs!inner(employer_id)")
+        .eq("id", applicationId)
+        .single();
+
+      if (interviewApplicationError || !interviewApplication) {
+        console.error("[ava-voice-session] Interview application lookup failed:", interviewApplicationError);
+        throw new Error("Application not found");
+      }
+
+      if (interviewApplication.candidate_id !== user.id) {
+        console.error("[ava-voice-session] Candidate does not own application:", {
+          requesterId: user.id,
+          applicationId,
+          candidateId: interviewApplication.candidate_id,
+        });
+        return new Response(
+          JSON.stringify({ error: "You do not have permission to access this interview" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      voiceOwnerUserId = (interviewApplication.jobs as { employer_id?: string } | null)?.employer_id || user.id;
+    }
+
+    console.log("[ava-voice-session] Voice entitlement owner:", {
+      requesterId: user.id,
+      voiceOwnerUserId,
+      mode,
+      applicationId: applicationId || null,
+    });
+
     // Check subscription for voice access
-    const { data: subscription } = await supabaseClient
+    const { data: subscription } = await adminClient
       .from("subscriptions")
       .select("plan_type, status")
-      .eq("user_id", user.id)
+      .eq("user_id", voiceOwnerUserId)
       .maybeSingle();
 
     // Check access - only Enterprise and Trial can use voice
@@ -256,15 +360,10 @@ serve(async (req) => {
     }
 
     // Get active voice credits from voice_credits table (FIFO by expiration)
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
     let { data: voiceCredits } = await adminClient
       .from("voice_credits")
       .select("id, minutes_remaining, expires_at")
-      .eq("user_id", user.id)
+      .eq("user_id", voiceOwnerUserId)
       .eq("status", "active")
       .gt("expires_at", new Date().toISOString())
       .gt("minutes_remaining", 0)
@@ -283,7 +382,7 @@ serve(async (req) => {
       await adminClient
         .from("voice_credits")
         .update({ status: 'expired' })
-        .eq("user_id", user.id)
+        .eq("user_id", voiceOwnerUserId)
         .eq("status", "active")
         .lt("expires_at", new Date().toISOString());
       
@@ -294,7 +393,7 @@ serve(async (req) => {
       const { data: newCredit, error: insertError } = await adminClient
         .from("voice_credits")
         .insert({
-          user_id: user.id,
+          user_id: voiceOwnerUserId,
           source: 'subscription',
           minutes_granted: 150,
           minutes_remaining: 150,
@@ -315,7 +414,7 @@ serve(async (req) => {
       const { data: refreshedCredits } = await adminClient
         .from("voice_credits")
         .select("id, minutes_remaining, expires_at")
-        .eq("user_id", user.id)
+        .eq("user_id", voiceOwnerUserId)
         .eq("status", "active")
         .gt("expires_at", new Date().toISOString())
         .gt("minutes_remaining", 0)
@@ -1282,7 +1381,7 @@ ${application.ai_analysis || 'Not analyzed yet'}
 **IMPORTANT:** If the previous AI analysis mentions "RESUME_UNAVAILABLE" or similar, IGNORE that flag. Check the "RESUME CONTENT" or "RESUME FILE UPLOADED" section above - that is the current truth about the resume. The previous analysis may be stale.
 
 APPLICATION ANSWERS:
-${notes.applicationAnswers ? Object.entries(notes.applicationAnswers).map(([q, a]) => `- ${q}: ${a}`).join('\n') : 'Not available'}
+${formatApplicationAnswersForPrompt(notes.applicationAnswers)}
 
 QUIZ RESULTS:
 ${notes.quizAnswers ? `
@@ -1398,7 +1497,7 @@ Even if you notice time is up, you MUST ALWAYS complete this sequence:
 The time limit is a GUIDE, not a hard cutoff. It's better to go 1-2 minutes over than to end rudely.
 
 === CRITICAL MINIMUM TIME RULE (DO NOT VIOLATE) ===
-**ABSOLUTE MINIMUM:** You CANNOT call end_interview before at least ${timeCheckpoint1} minutes (60% of ${interviewDuration} min) have passed.
+**ABSOLUTE MINIMUM:** You CANNOT call end_interview before at least ${timeCheckpoint1} minutes (60% of ${interviewDuration} min) have passed, UNLESS the candidate explicitly asks to stop, clicks an end button, becomes unresponsive, or there is a technical issue.
 - If you feel you've covered everything early, keep asking deeper follow-up questions
 - Ask about career goals, situational questions, culture fit, challenges they've overcome
 - DO NOT rush through the interview just because you got basic answers
@@ -1561,11 +1660,11 @@ Don't just accept an answer and move on. Dig ONE level deeper on EVERY response.
 
 5. **Inconsistencies** → "Wait - earlier you said [X], now you're saying [Y]. Explain that for me."
 
-6. **Candidate tries to end early** → Push back HARD. You are paid to assess this candidate.
-   - FIRST attempt: "We're not done yet. I have more questions and it's important we cover them. Let's continue."
-   - SECOND attempt: "I hear you, but ending now means an incomplete assessment. That won't look good. Are you absolutely sure?"
-   - THIRD attempt (only then give in): "Alright, your choice. I'll note that you ended the interview early." → Call end_interview
-   - DO NOT accept early termination without AT LEAST 2 pushbacks first
+6. **Candidate explicitly asks to stop or clicks an end button** → Honor it immediately and professionally.
+   - Give one brief closing line
+   - Then call end_interview right away
+   - DO NOT push back, guilt them, or ask more questions
+   - DO NOT require multiple attempts before ending
 
 === HANDLING CANDIDATE SILENCE/INACTIVITY (CRITICAL) ===
 You may receive system messages like "[SYSTEM: The candidate has been silent for a while...]"

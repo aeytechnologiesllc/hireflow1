@@ -35,6 +35,32 @@ const isAuthInvokeError = (error: unknown) => {
   );
 };
 
+const isNetworkInvokeError = (error: unknown) => {
+  if (!error) return false;
+
+  const maybeError = error as {
+    message?: string;
+    name?: string;
+    context?: { status?: number };
+  };
+
+  const message = maybeError.message?.toLowerCase() ?? "";
+  const status = maybeError.context?.status;
+
+  if (typeof status === "number" && status >= 400) {
+    return false;
+  }
+
+  return (
+    maybeError.name === "AbortError" ||
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("load failed") ||
+    message.includes("err_aborted") ||
+    message.includes("aborted")
+  );
+};
+
 async function getAccessTokenWithRetry() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const {
@@ -61,47 +87,60 @@ export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   payload: TriggerAvaAnalysisPayload,
 ) {
   const invokeWithToken = async (accessToken: string | null) => {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/trigger-ava-analysis`, {
-      method: "POST",
-      keepalive: true,
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        ...(accessToken
-          ? {
-              Authorization: `Bearer ${accessToken}`,
-            }
-          : {}),
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/trigger-ava-analysis`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          ...(accessToken
+            ? {
+                Authorization: `Bearer ${accessToken}`,
+              }
+            : {}),
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const responseText = await response.text();
-    const parsedBody = responseText ? safeParseJson(responseText) : null;
+      const responseText = await response.text();
+      const parsedBody = responseText ? safeParseJson(responseText) : null;
 
-    if (!response.ok) {
+      if (!response.ok) {
+        return {
+          data: null,
+          error: {
+            message:
+              (parsedBody &&
+              typeof parsedBody === "object" &&
+              "message" in parsedBody &&
+              typeof parsedBody.message === "string"
+                ? parsedBody.message
+                : responseText) || `trigger-ava-analysis returned ${response.status}`,
+            context: {
+              status: response.status,
+              body: parsedBody ?? responseText,
+            },
+          },
+        };
+      }
+
+      return {
+        data: (parsedBody as T | null) ?? null,
+        error: null,
+      };
+    } catch (error) {
       return {
         data: null,
         error: {
-          message:
-            (parsedBody &&
-            typeof parsedBody === "object" &&
-            "message" in parsedBody &&
-            typeof parsedBody.message === "string"
-              ? parsedBody.message
-              : responseText) || `trigger-ava-analysis returned ${response.status}`,
+          message: error instanceof Error ? error.message : "Failed to reach trigger-ava-analysis",
           context: {
-            status: response.status,
-            body: parsedBody ?? responseText,
+            status: null,
+            body: null,
           },
         },
       };
     }
-
-    return {
-      data: (parsedBody as T | null) ?? null,
-      error: null,
-    };
   };
 
   const initialToken = await getAccessTokenWithRetry();
@@ -113,6 +152,13 @@ export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
     if (refreshedToken && refreshedToken !== initialToken) {
       result = await invokeWithToken(refreshedToken);
     }
+  }
+
+  if (result.error && isNetworkInvokeError(result.error)) {
+    await wait(350);
+
+    const retryToken = await getAccessTokenWithRetry();
+    result = await invokeWithToken(retryToken ?? initialToken);
   }
 
   return result;

@@ -242,6 +242,7 @@ export default function VoiceInterviewPhase() {
     connect,
     disconnect,
     sendTextMessage,
+    sendSystemInstruction,
     getAvaAudioElement,
     retryConnection,
     nudgeAva,
@@ -434,7 +435,9 @@ export default function VoiceInterviewPhase() {
 
   const endInterview = () => {
     setIsUserEndingInterview(true); // Show loading immediately
-    sendTextMessage("I would like to end the interview now.");
+    sendSystemInstruction(
+      "The candidate clicked the End Interview button. Conclude immediately with one brief closing sentence, then call end_interview right away. Do not push back, do not ask more questions, and do not wait for a reply.",
+    );
   };
 
   // Download transcript

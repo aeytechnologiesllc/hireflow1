@@ -43,10 +43,10 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.ava-voice-session]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ava-voice-tools]
-verify_jwt = true
+verify_jwt = false
 
 [functions.elevenlabs-tts]
 verify_jwt = false
@@ -76,7 +76,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.deduct-voice-minutes]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-applicant-limit]
 verify_jwt = false

@@ -935,7 +935,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     });
   }, [clearProcessingTimeout, startProcessingTimeout, toast]);
 
-  const sendTextMessage = useCallback((text: string) => {
+  const sendRealtimeInstruction = useCallback((text: string, echoInTranscript: boolean) => {
     if (!dcRef.current || dcRef.current.readyState !== 'open') {
       toast({
         variant: 'destructive',
@@ -955,8 +955,18 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }));
     dcRef.current.send(JSON.stringify({ type: 'response.create' }));
 
-    optionsRef.current.onTranscript?.(text, 'user');
+    if (echoInTranscript) {
+      optionsRef.current.onTranscript?.(text, 'user');
+    }
   }, [toast]);
+
+  const sendTextMessage = useCallback((text: string) => {
+    sendRealtimeInstruction(text, true);
+  }, [sendRealtimeInstruction]);
+
+  const sendSystemInstruction = useCallback((text: string) => {
+    sendRealtimeInstruction(`[SYSTEM: ${text}]`, false);
+  }, [sendRealtimeInstruction]);
 
   // Expose audio element for video recording mixing
   const getAvaAudioElement = useCallback(() => {
@@ -968,6 +978,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     connect,
     disconnect,
     sendTextMessage,
+    sendSystemInstruction,
     getAvaAudioElement,
     retryConnection,
     nudgeAva,

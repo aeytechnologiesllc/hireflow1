@@ -219,6 +219,13 @@ async function ensureEmployerCreateJobAccess(page) {
   await settle(page, 2000);
 
   for (let index = 0; index < 10; index += 1) {
+    const bodyText = (await page.locator("body").innerText().catch(() => "")).trim();
+    if (!bodyText) {
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      await settle(page, 1500);
+      continue;
+    }
+
     if (await page.locator("#title").isVisible().catch(() => false)) {
       return;
     }
@@ -272,6 +279,11 @@ async function setPassingScoreToMinimum(page) {
 }
 
 async function addWorkflowStepIfAvailable(page, label) {
+  const existingStep = page.getByText(new RegExp(`^${label}$`, "i")).first();
+  if (await existingStep.isVisible().catch(() => false)) {
+    return true;
+  }
+
   const addBothInterviews = page.getByRole("button", { name: /Add Both Interviews/i }).first();
   if (await addBothInterviews.isVisible().catch(() => false)) {
     await addBothInterviews.click();
@@ -290,6 +302,7 @@ async function addWorkflowStepIfAvailable(page, label) {
     );
   }
 
+  await addStepButton.scrollIntoViewIfNeeded().catch(() => {});
   await addStepButton.click();
   const item = page.getByRole("menuitem", { name: new RegExp(label, "i") }).first();
   await item.waitFor({ state: "visible", timeout: 5000 });
@@ -398,12 +411,16 @@ async function createJob(page, config) {
     await addWorkflowStepIfAvailable(page, stepLabel);
   }
 
-  const nextButton = page.getByRole("button", { name: /^Next$/i }).first();
+  const nextButtons = page.getByRole("button", { name: /^Next$/i });
+  const nextButtonCount = await nextButtons.count();
+  const nextButton = nextButtonCount > 0 ? nextButtons.nth(nextButtonCount - 1) : nextButtons.first();
+
   if (!(await nextButton.isVisible().catch(() => false))) {
     await captureStepFailure(page, "workflow-next-missing");
     throw new Error("Workflow step is missing the Next button");
   }
 
+  await nextButton.scrollIntoViewIfNeeded().catch(() => {});
   await nextButton.click();
   await waitForReviewStep(page);
 
@@ -586,6 +603,24 @@ async function waitForTextareaEnabled(page, timeout = 20000) {
   );
 }
 
+async function startConversationPhase(page, buttonName) {
+  const startButton = page.getByRole("button", { name: buttonName }).first();
+  await startButton.waitFor({ state: "visible", timeout: 30000 });
+  await startButton.scrollIntoViewIfNeeded().catch(() => {});
+  await startButton.click({ force: true });
+  await settle(page, 1200);
+  await page.waitForFunction(
+    () => {
+      const textarea = document.querySelector("textarea");
+      const introButton = Array.from(document.querySelectorAll("button")).find((button) =>
+        /start (simulation|interview|meeting)/i.test(button.textContent || ""),
+      );
+      return !!textarea && !introButton;
+    },
+    { timeout: 30000 },
+  );
+}
+
 async function completeQuiz(page) {
   log("phase", "quiz");
   await page.waitForLoadState("domcontentloaded");
@@ -648,9 +683,11 @@ async function completeQuiz(page) {
 async function completeTypingTest(page) {
   log("phase", "typing");
   await clickIfVisible(page.getByRole("button", { name: /Start Typing Test/i }), 5000);
+  await page.getByRole("button", { name: /Finish Early/i }).waitFor({ state: "visible", timeout: 30000 });
+  await page.locator("textarea").first().waitFor({ state: "visible", timeout: 30000 });
   await settle(page, 1200);
 
-  const targetText = ((await page.locator("p.font-mono").textContent()) || "").trim();
+  const targetText = ((await page.locator("p.font-mono").last().textContent()) || "").trim();
   if (!targetText) {
     throw new Error("Typing test target text not found");
   }
@@ -667,7 +704,9 @@ async function completeVideoIntro(page) {
   log("phase", "video-intro");
   await clickIfVisible(page.getByRole("button", { name: /Enable Camera/i }), 5000);
   await settle(page, 1500);
-  await page.getByRole("button", { name: /Start Recording/i }).click();
+  const startRecording = page.getByRole("button", { name: /Start Recording/i }).first();
+  await startRecording.waitFor({ state: "visible", timeout: 30000 });
+  await startRecording.click();
   await page.waitForTimeout(4500);
   await page.getByRole("button", { name: /Stop Recording/i }).click();
   await settle(page, 1500);
@@ -703,8 +742,7 @@ async function completeChatConversation(page, labels) {
 
 async function completeChatSimulation(page) {
   log("phase", "chat-simulation");
-  await clickIfVisible(page.getByRole("button", { name: /Start Simulation/i }), 5000);
-  await settle(page, 2000);
+  await startConversationPhase(page, /Start Simulation/i);
   await completeChatConversation(page, {
     send: /Send/i,
     end: /End Simulation & Submit/i,
@@ -720,8 +758,7 @@ async function completeChatSimulation(page) {
 
 async function completeChatInterview(page) {
   log("phase", "chat-interview");
-  await clickIfVisible(page.getByRole("button", { name: /Start Interview/i }), 5000);
-  await settle(page, 2000);
+  await startConversationPhase(page, /Start Interview/i);
   await completeChatConversation(page, {
     send: /Send/i,
     end: /End Interview & Submit/i,
@@ -737,8 +774,7 @@ async function completeChatInterview(page) {
 
 async function completeSalesSimulation(page) {
   log("phase", "sales-simulation");
-  await clickIfVisible(page.getByRole("button", { name: /Start Meeting/i }), 5000);
-  await settle(page, 2000);
+  await startConversationPhase(page, /Start Meeting/i);
   await completeChatConversation(page, {
     send: /Send/i,
     end: /End Call & Submit/i,
@@ -755,15 +791,37 @@ async function completeSalesSimulation(page) {
 async function completeVoiceInterview(page) {
   log("phase", "voice-interview");
   await clickIfVisible(page.getByRole("button", { name: /Enable Camera & Microphone/i }), 10000);
-  await settle(page, 2500);
-  await page.getByRole("button", { name: /My Setup Works/i }).click();
-  await settle(page, 800);
-  await page.getByRole("button", { name: /Start Video Interview/i }).click();
+  await settle(page, 1500);
+
+  const setupWorksButton = page.getByRole("button", { name: /My Setup Works/i }).first();
+  const startVideoButton = page.getByRole("button", { name: /Start Video Interview/i }).first();
+
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll("button")).some((button) =>
+        /my setup works|start video interview/i.test(button.textContent || ""),
+      ),
+    undefined,
+    { timeout: 30000 },
+  );
+
+  if (await setupWorksButton.isVisible().catch(() => false)) {
+    await setupWorksButton.click();
+    await settle(page, 800);
+  }
+
+  await startVideoButton.waitFor({ state: "visible", timeout: 30000 });
+  await startVideoButton.click();
 
   await page.waitForTimeout(25000);
   const endInterview = page.getByRole("button", { name: /End Interview/i });
   if (await endInterview.isVisible().catch(() => false)) {
-    await endInterview.click();
+    await endInterview.scrollIntoViewIfNeeded().catch(() => {});
+    try {
+      await endInterview.click({ timeout: 5000 });
+    } catch {
+      await endInterview.click({ force: true, timeout: 5000 }).catch(() => {});
+    }
   }
 
   await page.getByText(/Processing Interview|Interview Complete!/i).waitFor({ timeout: 120000 });
@@ -781,7 +839,7 @@ async function openApplicantDetail(page, applicationId) {
 async function configureAvaInterview(page) {
   await clickIfVisible(page.getByRole("button", { name: /Configure Interview/i }), 10000);
   await settle(page, 1000);
-  await page.getByRole("button", { name: /5 min/i }).click();
+  await page.getByRole("button", { name: /Quick screening/i }).first().click();
   await page.getByRole("button", { name: /^Next$/i }).click();
   await settle(page, 500);
   await page.getByRole("button", { name: /Start Interview/i }).click();
