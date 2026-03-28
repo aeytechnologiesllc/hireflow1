@@ -51,6 +51,17 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    const { data: employerRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("role", "employer")
+      .maybeSingle();
+
+    if (!employerRole) {
+      throw new Error("Only employer account owners can manage subscriptions");
+    }
+
     // Check if user has EVER had a subscription record (any status = not eligible for trial)
     const { data: existingSub } = await supabaseAdmin
       .from("subscriptions")
@@ -130,6 +141,7 @@ serve(async (req) => {
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
       ui_mode: "embedded",
+      redirect_on_completion: "if_required",
       subscription_data: {
         ...(eligibleForTrial ? { trial_period_days: 7 } : {}),
         metadata: {

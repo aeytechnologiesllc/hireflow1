@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   EmbeddedCheckoutProvider,
@@ -7,6 +7,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2, RefreshCw } from "lucide-react";
@@ -14,7 +15,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import SubscriptionSuccessModal from "./SubscriptionSuccessModal";
 
 const stripePromise = loadStripe(
-  "pk_test_51SYwD8JoMc2msNl4N5h2xsl4PudL7EfI4IaTkYXkQ5xvRyJgL8Ysafhgi0Hyi3HXW2yHvWHXwoayQlkndkkchGY300VdwdmLq3"
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+    "pk_test_51SYwD8JoMc2msNl4N5h2xsl4PudL7EfI4IaTkYXkQ5xvRyJgL8Ysafhgi0Hyi3HXW2yHvWHXwoayQlkndkkchGY300VdwdmLq3"
 );
 
 interface EmbeddedCheckoutDialogProps {
@@ -82,6 +84,13 @@ export default function EmbeddedCheckoutDialog({
     await doSync();
   };
 
+  const checkoutOptions = useMemo(() => {
+    return {
+      clientSecret: clientSecret ?? "",
+      onComplete: handleComplete,
+    };
+  }, [clientSecret, handleComplete]);
+
   const handleOpenChange = async (open: boolean) => {
     if (!open) {
       if (!paymentComplete) {
@@ -105,6 +114,9 @@ export default function EmbeddedCheckoutDialog({
     <Dialog open={!!clientSecret} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
         <DialogTitle className="sr-only">Checkout</DialogTitle>
+        <DialogDescription className="sr-only">
+          Complete your HireFlow subscription securely with Stripe.
+        </DialogDescription>
         <div className="min-h-[400px]">
           {paymentComplete ? (
             <SubscriptionSuccessModal
@@ -114,8 +126,9 @@ export default function EmbeddedCheckoutDialog({
           ) : (
             <>
               <EmbeddedCheckoutProvider
+                key={clientSecret}
                 stripe={stripePromise}
-                options={{ clientSecret, onComplete: handleComplete }}
+                options={checkoutOptions}
               >
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>

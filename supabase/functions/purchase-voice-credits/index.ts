@@ -45,6 +45,17 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    const { data: employerRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("role", "employer")
+      .maybeSingle();
+
+    if (!employerRole) {
+      throw new Error("Only employer account owners can purchase voice credits");
+    }
+
     // Verify user has Business or Enterprise subscription
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")

@@ -85,6 +85,29 @@ export function useSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const invokeAuthedFunction = async <TData = unknown>(
+    functionName: string,
+    body?: Record<string, unknown>,
+  ) => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      throw new Error("Your session expired. Please sign in again.");
+    }
+
+    const { data, error } = await supabase.functions.invoke(functionName, {
+      body,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (error) throw error;
+    return data as TData;
+  };
+
   // All hooks declared first in consistent order
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -99,42 +122,30 @@ export function useSubscription() {
 
   const createCheckoutSession = useMutation({
     mutationFn: async ({ planType, countryCode, interval = 'monthly' }: { planType: 'growth' | 'business'; countryCode: string; interval?: 'monthly' | 'yearly' }) => {
-      const { data, error } = await supabase.functions.invoke('stripe-checkout', {
-        body: {
+      return invokeAuthedFunction<{ clientSecret: string }>('stripe-checkout', {
           planType,
           countryCode,
           interval,
           successUrl: `${window.location.origin}/dashboard?subscription=success`,
-        },
       });
-      if (error) throw error;
-      return data as { clientSecret: string };
     },
   });
 
   const createBillingPortal = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('create-billing-portal', {
-        body: {
-          returnUrl: `${window.location.origin}/settings`,
-        },
+      return invokeAuthedFunction('create-billing-portal', {
+        returnUrl: `${window.location.origin}/settings`,
       });
-      if (error) throw error;
-      return data;
     },
   });
 
   const purchaseVoiceCredits = useMutation({
     mutationFn: async ({ packSize }: { packSize?: string } = {}) => {
-      const { data, error } = await supabase.functions.invoke('purchase-voice-credits', {
-        body: {
+      return invokeAuthedFunction('purchase-voice-credits', {
           packSize: packSize || 'standard',
           successUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=success`,
           cancelUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=canceled`,
-        },
       });
-      if (error) throw error;
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
@@ -156,9 +167,7 @@ export function useSubscription() {
 
   const syncSubscription = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('sync-subscription');
-      if (error) throw error;
-      return data;
+      return invokeAuthedFunction('sync-subscription');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
@@ -192,6 +201,11 @@ export function useSubscription() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'documents' },
+        () => queryClient.invalidateQueries({ queryKey: ['subscription', user.id] })
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'document_requests' },
         () => queryClient.invalidateQueries({ queryKey: ['subscription', user.id] })
       )
       .subscribe();

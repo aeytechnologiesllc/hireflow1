@@ -189,7 +189,7 @@ export default function SubscriptionSettings() {
                     <p className="text-xs text-muted-foreground">Billed {pricing.growth.yearlyFormatted}/year</p>
                   )}
                   <ul className="space-y-2 text-sm">
-                    {["3 Active Jobs", "50 Applicants/month", "Ava Screening", "Documents"].map((feature) => (
+                    {["3 Job Slots", "50 Applicants", "Ava Screening", "Document Workflows"].map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-primary flex-shrink-0" />
                         <span className="text-muted-foreground">{feature}</span>
@@ -356,7 +356,7 @@ export default function SubscriptionSettings() {
 
       {/* Usage Stats */}
       <div className="p-6 rounded-xl border border-border bg-card/50">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Usage This Period</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Plan Usage</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <UsageStat
             icon={Briefcase}
@@ -372,7 +372,7 @@ export default function SubscriptionSettings() {
           />
           <UsageStat
             icon={FileText}
-            label="Documents"
+            label="Document Workflows"
             current={usage.documents_sent}
             limit={limits.documents}
           />

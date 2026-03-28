@@ -40,6 +40,22 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: employerRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("role", "employer")
+      .maybeSingle();
+
+    if (!employerRole) {
+      throw new Error("Only employer account owners can sync subscriptions");
+    }
+
     // Initialize Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
@@ -109,14 +125,18 @@ serve(async (req) => {
     
     // Map price IDs to plan types - Updated to match current Stripe prices
     const businessPriceIds = [
-      "price_1SeWL7JoMc2msNl4380r2cSi", // business monthly
-      "price_1SeWL9JoMc2msNl4NNQVohgY", // business yearly
-    ];
+      Deno.env.get("STRIPE_BUSINESS_MONTHLY_PRICE_ID"),
+      Deno.env.get("STRIPE_BUSINESS_YEARLY_PRICE_ID"),
+      "price_1SeWL7JoMc2msNl4380r2cSi",
+      "price_1SeWL9JoMc2msNl4NNQVohgY",
+    ].filter(Boolean);
     
     const growthPriceIds = [
-      "price_1SeWKzJoMc2msNl4m1z9SDUL", // growth monthly
-      "price_1SeWL5JoMc2msNl4j8st2mmO", // growth yearly
-    ];
+      Deno.env.get("STRIPE_GROWTH_MONTHLY_PRICE_ID"),
+      Deno.env.get("STRIPE_GROWTH_YEARLY_PRICE_ID"),
+      "price_1SeWKzJoMc2msNl4m1z9SDUL",
+      "price_1SeWL5JoMc2msNl4j8st2mmO",
+    ].filter(Boolean);
     
     if (priceId && businessPriceIds.includes(priceId)) {
       planType = "business";
@@ -126,12 +146,6 @@ serve(async (req) => {
       logStep("Unknown price ID, defaulting to growth", { priceId });
     }
     logStep("Determined plan type", { planType, priceId });
-
-    // Use admin client to update database
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
 
     // Upsert subscription data
     const subscriptionData = {

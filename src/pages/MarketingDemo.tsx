@@ -1393,7 +1393,7 @@ function Scene9CTA() {
     {
       name: "Growth",
       price: pricing.growth.monthly,
-      features: ["3 Active Jobs", "50 Applicants/Job", "Ava Analysis"],
+      features: ["3 Job Slots", "50 Applicants", "Ava Analysis"],
       color: "from-blue-500 to-cyan-500"
     },
     {

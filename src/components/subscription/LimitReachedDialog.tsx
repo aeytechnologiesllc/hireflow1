@@ -160,7 +160,7 @@ export function LimitReachedDialog({
               </Button>
             </div>
             <ul className="mt-3 space-y-1.5 text-sm">
-              {["3 Active Jobs", "50 Applicants/month", "Document Workflows"].map((f) => (
+              {["3 Job Slots", "50 Applicants", "Document Workflows"].map((f) => (
                 <li key={f} className="flex items-center gap-2">
                   <Check className="h-3.5 w-3.5 text-primary" />
                   <span className="text-muted-foreground">{f}</span>

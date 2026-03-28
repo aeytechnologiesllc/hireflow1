@@ -144,7 +144,7 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
                 </Button>
               </div>
               <ul className="mt-3 space-y-1 text-sm">
-                {["3 Active Jobs", "50 Applicants/month", "Document Workflows"].map((f) => (
+                {["3 Job Slots", "50 Applicants", "Document Workflows"].map((f) => (
                   <li key={f} className="flex items-center gap-2">
                     <Check className="h-3 w-3 text-emerald-400" />
                     <span className="text-gray-400">{f}</span>

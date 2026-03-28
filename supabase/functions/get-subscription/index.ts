@@ -192,11 +192,11 @@ serve(async (req) => {
       
       const appIds = (apps || []).map(a => a.id);
       if (appIds.length > 0) {
-        const { count: docCount } = await supabaseAdmin
+        const { count: generatedDocCount } = await supabaseAdmin
           .from("documents")
           .select("*", { count: "exact", head: true })
           .in("application_id", appIds);
-        documentsCount = docCount || 0;
+        documentsCount += generatedDocCount || 0;
 
         // Count AI analyses (applications with ai_score)
         const { count: analysisCount } = await supabaseAdmin
@@ -207,6 +207,13 @@ serve(async (req) => {
         aiAnalysesCount = analysisCount || 0;
       }
     }
+
+    const { count: documentRequestCount } = await supabaseAdmin
+      .from("document_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("employer_id", effectiveOwnerId);
+
+    documentsCount += documentRequestCount || 0;
 
     const { count: teamCount } = await supabaseAdmin
       .from("team_members")

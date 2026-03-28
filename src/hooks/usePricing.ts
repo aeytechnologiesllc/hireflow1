@@ -123,24 +123,6 @@ function formatPrice(amount: number, symbol: string, currency: string): string {
   return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// Client-side fallback geolocation using free API
-async function fallbackGeolocation(): Promise<string | null> {
-  try {
-    // Try ipapi.co (free, no key needed, 1000 requests/day)
-    const response = await fetch('https://ipapi.co/country/', {
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    });
-    if (response.ok) {
-      const countryCode = await response.text();
-      if (countryCode && countryCode.length === 2) {
-        return countryCode.trim().toUpperCase();
-      }
-    }
-  } catch (err) {
-  }
-  return null;
-}
-
 export function usePricing(): PricingData {
   const [countryCode, setCountryCode] = useState<string>("US");
   const [isLoading, setIsLoading] = useState(true);
@@ -153,7 +135,7 @@ export function usePricing(): PricingData {
         if (cached && cached !== 'XX' && cached !== 'unknown') {
           setCountryCode(cached);
           setIsLoading(false);
-          // Still try to update in background
+          return;
         }
 
         // Call geolocate-ip edge function
@@ -163,27 +145,11 @@ export function usePricing(): PricingData {
           const code = data.countryCode;
           setCountryCode(code);
           localStorage.setItem("user_country", code);
-          setIsLoading(false);
-          return;
-        }
-
-        // Edge function failed or returned XX - try client-side fallback
-        const fallbackCode = await fallbackGeolocation();
-        
-        if (fallbackCode) {
-          setCountryCode(fallbackCode);
-          localStorage.setItem("user_country", fallbackCode);
         } else {
-          // Last resort - default to US
           setCountryCode("US");
         }
       } catch (err) {
-        // Try fallback even on error
-        const fallbackCode = await fallbackGeolocation();
-        if (fallbackCode) {
-          setCountryCode(fallbackCode);
-          localStorage.setItem("user_country", fallbackCode);
-        }
+        setCountryCode("US");
       } finally {
         setIsLoading(false);
       }

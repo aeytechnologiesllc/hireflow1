@@ -62,7 +62,7 @@ export default function TrialExpiredOverlay() {
       price: billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly,
       period: billingInterval === "monthly" ? "/month" : "/mo",
       yearlyTotal: pricing.growth.yearlyFormatted,
-      features: ["3 Active Jobs", "50 Applicants/month", "Ava Screening", "Document Workflows"],
+      features: ["3 Job Slots", "50 Applicants", "Ava Screening", "Document Workflows"],
     },
     {
       id: "business" as const,

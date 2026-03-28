@@ -82,22 +82,22 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.sync-subscription]
-verify_jwt = true
+verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
 
 [functions.stripe-checkout]
-verify_jwt = true
+verify_jwt = false
 
 [functions.get-subscription]
 verify_jwt = false
 
 [functions.create-billing-portal]
-verify_jwt = true
+verify_jwt = false
 
 [functions.purchase-voice-credits]
-verify_jwt = true
+verify_jwt = false
 
 [functions.verify-voice-credits-purchase]
 verify_jwt = true

@@ -31,9 +31,29 @@ serve(async (req) => {
     // Get employer's subscription
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
-      .select("plan_type, status")
+      .select("plan_type, status, trial_end")
       .eq("user_id", employerId)
       .maybeSingle();
+
+    const hasActiveSubscriptionAccess =
+      !subscription ||
+      subscription.status === "active" ||
+      (subscription.status === "trialing" &&
+        (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
+
+    if (!hasActiveSubscriptionAccess) {
+      console.log("[check-applicant-limit] Employer subscription inactive, blocking application", {
+        employerId,
+        status: subscription?.status,
+      });
+      return new Response(
+        JSON.stringify({
+          limitReached: true,
+          message: "This employer is not currently accepting new applications. Please try again later or contact the employer."
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get plan limits
     const planType = subscription?.plan_type || 'trial';
