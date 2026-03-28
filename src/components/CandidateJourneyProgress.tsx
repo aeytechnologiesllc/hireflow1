@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Clock, CheckCircle, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { calculateRemainingTime, phaseDurationEstimates } from "@/lib/phaseDurations";
+import { calculateRemainingTime } from "@/lib/phaseDurations";
 
 interface Phase {
   id: string;
@@ -114,65 +114,61 @@ export function CandidateJourneyProgress({
 
           {/* Mini step visualization - only show on larger screens or when few phases */}
           {phases.length <= 8 && (
-            <div className="mt-4 flex items-center justify-between overflow-x-auto gap-1 pb-1">
+            <div className="mt-4 overflow-x-auto pb-1">
+              <div className="flex min-w-full items-start gap-2">
               {phases.map((phase, index) => {
                 const isCompleted = completedPhases.includes(index);
                 const isCurrent = index === currentPhaseIndex;
                 const isPending = index > currentPhaseIndex && !isCompleted;
+                const showConnector = index < phases.length - 1;
 
                 return (
                   <div
                     key={phase.id}
-                    className="flex min-w-0 flex-1 flex-col items-center overflow-hidden"
+                    className="relative flex min-w-[76px] flex-1 justify-center pt-1"
                   >
-                    {/* Step indicator */}
-                    <div
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center transition-all",
-                        isCompleted && "bg-success text-success-foreground",
-                        isCurrent && "bg-primary text-primary-foreground ring-2 ring-primary/30",
-                        isPending && "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {isCompleted ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : isCurrent ? (
-                        <span className="text-xs font-medium">{index + 1}</span>
-                      ) : (
-                        <Circle className="h-3 w-3" />
-                      )}
+                    {showConnector && (
+                      <div
+                        className={cn(
+                          "absolute top-4 h-px rounded-full",
+                          completedPhases.includes(index) ? "bg-success/60" : "bg-muted"
+                        )}
+                        style={{ left: "calc(50% + 14px)", right: "-8px" }}
+                      />
+                    )}
+
+                    <div className="relative z-10 flex flex-col items-center gap-2 px-1">
+                      <div
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-full transition-all",
+                          isCompleted && "bg-success text-success-foreground",
+                          isCurrent && "bg-primary text-primary-foreground ring-2 ring-primary/30",
+                          isPending && "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : isCurrent ? (
+                          <span className="text-xs font-medium">{index + 1}</span>
+                        ) : (
+                          <Circle className="h-3 w-3" />
+                        )}
+                      </div>
+
+                      <div
+                        className={cn(
+                          "hidden min-h-[2.5rem] max-w-[84px] text-center text-[10px] leading-tight break-words [overflow-wrap:anywhere] sm:block",
+                          isCompleted && "text-success",
+                          isCurrent && "font-medium text-primary",
+                          isPending && "text-muted-foreground"
+                        )}
+                      >
+                        {phase.title}
+                      </div>
                     </div>
-                    
-                    {/* Phase name - hidden on mobile for space */}
-                    <span
-                      className={cn(
-                        "mt-1 hidden max-w-[72px] px-1 text-center text-[10px] leading-tight break-words [overflow-wrap:anywhere] sm:line-clamp-2 sm:block",
-                        isCompleted && "text-success",
-                        isCurrent && "text-primary font-medium",
-                        isPending && "text-muted-foreground"
-                      )}
-                    >
-                      {phase.title}
-                    </span>
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* Connecting lines between steps */}
-          {phases.length <= 8 && (
-            <div className="relative -mt-12 sm:-mt-[3.25rem] mx-3 h-0">
-              <div className="absolute top-3 left-0 right-0 flex">
-                {phases.slice(0, -1).map((_, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      "flex-1 h-0.5 mx-0.5",
-                      completedPhases.includes(index) ? "bg-success" : "bg-muted"
-                    )}
-                  />
-                ))}
               </div>
             </div>
           )}
