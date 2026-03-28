@@ -55,7 +55,7 @@ export function EvaluationScreen({
             subtitle={
               nextPhaseName && onStartNextPhase 
                 ? "You've successfully completed this phase and can move on to the next step."
-                : "You've completed all candidate phases! The employer will review your application and may invite you to an Ava Interview."
+                : "You've completed all required steps. The employer will review your application and may invite you to an Ava Interview."
             }
           >
             <div className="space-y-3 pt-2">

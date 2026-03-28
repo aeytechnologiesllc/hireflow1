@@ -84,7 +84,7 @@ export function CandidateJourneyProgress({
           {/* Header */}
           <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <h3 className="min-w-0 break-words font-semibold text-foreground [overflow-wrap:anywhere]">
-              Your Application Journey
+              Application Overview
             </h3>
             {!isComplete && remainingTime.maxMinutes > 0 && (
               <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground sm:justify-end">

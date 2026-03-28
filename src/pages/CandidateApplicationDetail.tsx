@@ -814,7 +814,7 @@ export default function CandidateApplicationDetail() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Your Application Journey
+            Phase Breakdown
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
