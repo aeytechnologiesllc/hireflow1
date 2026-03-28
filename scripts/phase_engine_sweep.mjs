@@ -395,7 +395,12 @@ async function createJob(page, config) {
     generateButton = page.getByRole("button", { name: /Generate Full Draft|Regenerate Full Draft/i }).first();
   }
 
-  await generateButton.waitFor({ state: "visible", timeout: 30000 });
+  try {
+    await generateButton.waitFor({ state: "visible", timeout: 30000 });
+  } catch (error) {
+    await captureStepFailure(page, "generate-draft-missing");
+    throw error;
+  }
   await generateButton.click();
 
   try {
@@ -435,7 +440,25 @@ async function createJob(page, config) {
     await waitForReviewStep(page);
   }
 
-  await page.getByRole("button", { name: /Publish Job/i }).click();
+  const publishButton = page.getByRole("button", { name: /Publish Job/i }).first();
+  await publishButton.scrollIntoViewIfNeeded().catch(() => {});
+  try {
+    await page.waitForFunction(
+      () => {
+        const button = Array.from(document.querySelectorAll("button")).find((candidate) =>
+          /publish job/i.test(candidate.textContent || ""),
+        );
+        return !!button && button instanceof HTMLButtonElement && !button.disabled;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
+  } catch (error) {
+    await captureStepFailure(page, "publish-job-disabled");
+    throw error;
+  }
+
+  await publishButton.click();
   await page.getByText(/Your Job is Live!/i).waitFor({ timeout: 30000 });
 
   const jobCode = ((await page.getByText(/^JOB-[A-Z0-9]{6}$/).first().textContent()) || "").trim();
@@ -881,7 +904,7 @@ async function completeVoiceInterview(page) {
   }
 
   try {
-    await page.getByText(/Processing Interview|Interview Complete!/i).waitFor({ timeout: 120000 });
+    await page.getByText(/Processing Interview|Interview Complete!|Video Interview Submitted/i).waitFor({ timeout: 120000 });
   } catch (error) {
     await screenshot(page, "voice-completion-missing");
     const bodyText = await page.locator("body").innerText().catch(() => "");
@@ -894,7 +917,7 @@ async function completeVoiceInterview(page) {
   }
   await page.waitForTimeout(15000);
 
-  await clickIfVisible(page.getByRole("button", { name: /Return to Applications/i }), 30000);
+  await clickIfVisible(page.getByRole("button", { name: /Return to Applications|Back to Application/i }), 30000);
   await settle(page, 3000);
 }
 

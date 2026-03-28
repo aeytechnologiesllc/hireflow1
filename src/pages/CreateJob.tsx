@@ -415,6 +415,9 @@ export default function CreateJob() {
   const { limits, usage, isWithinLimit } = useSubscription();
   const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
   const canCreateMoreJobs = isEditMode || isWithinLimit('jobs');
+  const jobsLimit = limits?.jobs ?? -1;
+  const jobsUsed = usage?.jobs_created ?? 0;
+  const showPublishLimitWarning = !isEditMode && !canCreateMoreJobs;
   const canManageJobs = role === "employer" || (isTeamMember && teamPermissions?.canCreateJobs);
   const guestDraftHydratedRef = useRef(false);
   
@@ -3237,26 +3240,40 @@ export default function CreateJob() {
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => handleSubmit("draft")}
-                disabled={isSubmitting}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save Draft
-              </Button>
-              <Button
-                onClick={() => handleSubmit("published")}
-                disabled={isSubmitting || !formData.title || !formData.description || !canCreateMoreJobs}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Publish Job
-              </Button>
+            <div className="flex flex-col items-end gap-3">
+              {showPublishLimitWarning && (
+                <Alert className="max-w-xl border-amber-500/40 bg-amber-500/10 text-left">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <AlertTitle className="text-amber-300">Publishing is paused until you free up a job slot</AlertTitle>
+                  <AlertDescription className="text-amber-200/80">
+                    You are using {jobsUsed}
+                    {jobsLimit > -1 ? ` of ${jobsLimit}` : ""} active job slot{jobsUsed === 1 ? "" : "s"} on this plan.
+                    Save this as a draft for now, or upgrade/close an existing job before publishing.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => handleSubmit("draft")}
+                  disabled={isSubmitting}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Draft
+                </Button>
+                <Button
+                  onClick={() => handleSubmit("published")}
+                  disabled={isSubmitting || !formData.title || !formData.description || !canCreateMoreJobs}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  Publish Job
+                </Button>
+              </div>
             </div>
           )}
         </div>
