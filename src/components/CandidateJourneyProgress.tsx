@@ -56,14 +56,14 @@ export function CandidateJourneyProgress({
   if (variant === "inline") {
     return (
       <div className={cn("space-y-2", className)}>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="min-w-0 break-words text-muted-foreground [overflow-wrap:anywhere]">
             Step {Math.min(currentPhaseIndex + 1, totalPhases)} of {totalPhases}
           </span>
           {!isComplete && remainingTime.maxMinutes > 0 && (
-            <span className="flex items-center gap-1 text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              {remainingTime.label} remaining
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{remainingTime.label} remaining</span>
             </span>
           )}
         </div>
@@ -82,16 +82,18 @@ export function CandidateJourneyProgress({
       <Card className="bg-card/50 border-primary/20">
         <CardContent className="p-4 sm:p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Your Application Journey</h3>
+          <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <h3 className="min-w-0 break-words font-semibold text-foreground [overflow-wrap:anywhere]">
+              Your Application Journey
+            </h3>
             {!isComplete && remainingTime.maxMinutes > 0 && (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground sm:justify-end">
                 <Clock className="h-4 w-4" />
-                <span>{remainingTime.label} remaining</span>
+                <span className="min-w-0 break-words [overflow-wrap:anywhere]">{remainingTime.label} remaining</span>
               </div>
             )}
             {isComplete && (
-              <div className="flex items-center gap-1.5 text-sm text-success">
+              <div className="flex items-center gap-1.5 text-sm text-success sm:justify-end">
                 <CheckCircle className="h-4 w-4" />
                 <span>Complete!</span>
               </div>
@@ -100,11 +102,11 @@ export function CandidateJourneyProgress({
 
           {/* Progress bar with step indicator */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm mb-1">
-              <span className="font-medium text-foreground">
+            <div className="mb-1 flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere]">
                 Step {Math.min(currentPhaseIndex + 1, totalPhases)} of {totalPhases}
               </span>
-              <span className="text-muted-foreground">{progressPercentage}% complete</span>
+              <span className="shrink-0 text-muted-foreground">{progressPercentage}% complete</span>
             </div>
             
             <Progress value={progressPercentage} className="h-2.5" />
@@ -121,7 +123,7 @@ export function CandidateJourneyProgress({
                 return (
                   <div
                     key={phase.id}
-                    className="flex flex-col items-center min-w-0 flex-1"
+                    className="flex min-w-0 flex-1 flex-col items-center overflow-hidden"
                   >
                     {/* Step indicator */}
                     <div
@@ -144,7 +146,7 @@ export function CandidateJourneyProgress({
                     {/* Phase name - hidden on mobile for space */}
                     <span
                       className={cn(
-                        "text-[10px] mt-1 text-center truncate max-w-[60px] hidden sm:block",
+                        "mt-1 hidden max-w-[72px] px-1 text-center text-[10px] leading-tight break-words [overflow-wrap:anywhere] sm:line-clamp-2 sm:block",
                         isCompleted && "text-success",
                         isCurrent && "text-primary font-medium",
                         isPending && "text-muted-foreground"

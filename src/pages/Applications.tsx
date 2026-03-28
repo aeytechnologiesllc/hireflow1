@@ -131,31 +131,31 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
               )}
             </div>
 
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
               {job?.location && (
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  <span>{job.location}</span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <MapPin className="h-4 w-4 shrink-0" />
+                  <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
                 </div>
               )}
               {job?.job_type && (
-                <div className="flex items-center gap-1">
-                  <Briefcase className="h-4 w-4" />
-                  <span>{job.job_type}</span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <Briefcase className="h-4 w-4 shrink-0" />
+                  <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                <span>Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
+              <div className="flex min-w-0 items-center gap-1">
+                <Calendar className="h-4 w-4 shrink-0" />
+                <span className="break-words [overflow-wrap:anywhere]">Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-4">
               </div>
 
               {/* Action Indicator - Clickable button to jump to phase */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-3">
                 {displayState.showActionButton && actionConfig && (
                   <Button
                     size="sm"

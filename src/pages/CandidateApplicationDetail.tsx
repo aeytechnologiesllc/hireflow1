@@ -673,27 +673,27 @@ export default function CandidateApplicationDetail() {
       {/* Job Info Card */}
       <Card className="bg-card border-border">
         <CardContent className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">{job?.title}</h1>
-              <p className="text-muted-foreground mt-1">{job?.department || "Company"}</p>
+          <div className="flex min-w-0 items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-2xl font-bold text-foreground [overflow-wrap:anywhere]">{job?.title}</h1>
+              <p className="mt-1 break-words text-muted-foreground [overflow-wrap:anywhere]">{job?.department || "Company"}</p>
               
-              <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 {job?.location && (
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    <span>{job.location}</span>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
                   </div>
                 )}
                 {job?.job_type && (
-                  <div className="flex items-center gap-1">
-                    <Briefcase className="h-4 w-4" />
-                    <span>{job.job_type}</span>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <Briefcase className="h-4 w-4 shrink-0" />
+                    <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  <span className="break-words [overflow-wrap:anywhere]">Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
                 </div>
               </div>
             </div>
@@ -820,9 +820,9 @@ export default function CandidateApplicationDetail() {
         <CardContent className="space-y-6">
           {/* Progress Bar */}
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium text-foreground">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 break-words text-muted-foreground [overflow-wrap:anywhere]">Progress</span>
+              <span className="min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere]">
                 {effectivePhaseIndex + 1} of {phases.length} phases
               </span>
             </div>
@@ -842,7 +842,7 @@ export default function CandidateApplicationDetail() {
               return (
                 <div
                   key={phase.id}
-                  className={`flex items-center gap-4 p-4 rounded-lg transition-all ${
+                  className={`flex flex-col gap-4 rounded-lg p-4 transition-all sm:flex-row sm:items-center ${
                     isCurrent
                       ? "bg-primary/10 border-2 border-primary"
                       : isCompleted
@@ -872,10 +872,10 @@ export default function CandidateApplicationDetail() {
                   </div>
 
                   {/* Phase Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h3
-                        className={`font-semibold ${
+                        className={`min-w-0 break-words font-semibold leading-tight [overflow-wrap:anywhere] ${
                           isCurrent ? "text-primary" : isCompleted ? "text-success" : "text-muted-foreground"
                         }`}
                       >
@@ -938,14 +938,14 @@ export default function CandidateApplicationDetail() {
                     )}
 
                   {isCurrent && status === "pending" && !isRejected && (
-                    <div className="flex items-center gap-2 text-yellow-500">
+                    <div className="flex shrink-0 items-center gap-2 text-yellow-500 sm:ml-auto">
                       <Clock className="h-5 w-5" />
                       <span className="text-sm font-medium">Awaiting Review</span>
                     </div>
                   )}
 
                   {isCompleted && (
-                    <CheckCircle className="h-6 w-6 text-success flex-shrink-0" />
+                    <CheckCircle className="h-6 w-6 flex-shrink-0 text-success sm:ml-auto" />
                   )}
                 </div>
               );
