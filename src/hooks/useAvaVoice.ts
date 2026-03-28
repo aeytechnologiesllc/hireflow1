@@ -595,6 +595,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
         case 'response.audio_transcript.delta':
           if (event.delta) {
+            setState(s =>
+              s.hasReceivedFirstAudio
+                ? s
+                : { ...s, hasReceivedFirstAudio: true, isProcessing: false, isStuck: false }
+            );
             optionsRef.current.onTranscript?.(event.delta, 'assistant');
           }
           break;

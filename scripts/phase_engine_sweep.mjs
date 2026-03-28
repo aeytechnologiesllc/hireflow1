@@ -413,9 +413,17 @@ async function createJob(page, config) {
 
   const nextButtons = page.getByRole("button", { name: /^Next$/i });
   const nextButtonCount = await nextButtons.count();
-  const nextButton = nextButtonCount > 0 ? nextButtons.nth(nextButtonCount - 1) : nextButtons.first();
+  let nextButton = null;
 
-  if (!(await nextButton.isVisible().catch(() => false))) {
+  for (let index = nextButtonCount - 1; index >= 0; index -= 1) {
+    const candidate = nextButtons.nth(index);
+    if (await candidate.isVisible().catch(() => false)) {
+      nextButton = candidate;
+      break;
+    }
+  }
+
+  if (!nextButton) {
     const publishButton = page.getByRole("button", { name: /Publish Job/i }).first();
     if (!(await publishButton.isVisible().catch(() => false))) {
       await captureStepFailure(page, "workflow-next-missing");
@@ -560,14 +568,21 @@ async function submitApplication(page, candidate, jobCode) {
 
   if (/\/candidate\/auth/i.test(page.url())) {
     await signInOnCurrentPage(page, candidate.email, candidate.password);
-    await clickIfVisible(page.getByRole("button", { name: /Start Applying/i }), 5000);
+    await completeCandidateOnboarding(page);
     await settle(page, 1000);
     await clickIfVisible(page.getByRole("button", { name: /Apply Now/i }), 8000);
   } else {
     await clickIfVisible(page.getByRole("button", { name: /Apply Now/i }), 8000);
   }
 
-  await page.getByRole("heading", { name: /Complete Your Application/i }).waitFor({ timeout: 30000 });
+  await page.waitForFunction(
+    () =>
+      document.body.innerText.includes("Complete Your Application") ||
+      document.body.innerText.includes("Submit Application") ||
+      document.body.innerText.includes("Upload Resume"),
+    undefined,
+    { timeout: 30000 },
+  );
   await fillVisibleApplicationFields(page, candidate);
 
   const resumePath = await createResumeFile(candidate.email.replace(/[@.]/g, "_"));
@@ -806,20 +821,24 @@ async function completeSalesSimulation(page) {
 
 async function completeVoiceInterview(page) {
   log("phase", "voice-interview");
-  await clickIfVisible(page.getByRole("button", { name: /Enable Camera & Microphone/i }), 10000);
+  const enabledMedia = await clickIfVisible(page.getByRole("button", { name: /Enable Camera & Microphone/i }), 10000);
   await settle(page, 1500);
 
   const setupWorksButton = page.getByRole("button", { name: /My Setup Works/i }).first();
   const startVideoButton = page.getByRole("button", { name: /Start Video Interview/i }).first();
 
-  await page.waitForFunction(
-    () =>
-      Array.from(document.querySelectorAll("button")).some((button) =>
-        /my setup works|start video interview/i.test(button.textContent || ""),
-      ),
-    undefined,
-    { timeout: 30000 },
-  );
+  if (enabledMedia) {
+    await setupWorksButton.waitFor({ state: "visible", timeout: 30000 });
+  } else {
+    await page.waitForFunction(
+      () =>
+        Array.from(document.querySelectorAll("button")).some((button) =>
+          /my setup works|start video interview/i.test(button.textContent || ""),
+        ),
+      undefined,
+      { timeout: 30000 },
+    );
+  }
 
   if (await setupWorksButton.isVisible().catch(() => false)) {
     await setupWorksButton.click();
@@ -827,10 +846,31 @@ async function completeVoiceInterview(page) {
   }
 
   await startVideoButton.waitFor({ state: "visible", timeout: 30000 });
+  await page.waitForFunction(
+    () => {
+      const button = Array.from(document.querySelectorAll("button")).find((candidate) =>
+        /start video interview/i.test(candidate.textContent || ""),
+      );
+      return !!button && button instanceof HTMLButtonElement && !button.disabled;
+    },
+    undefined,
+    { timeout: 30000 },
+  );
   await startVideoButton.click();
 
-  await page.waitForTimeout(25000);
   const endInterview = page.getByRole("button", { name: /End Interview/i });
+  await page.waitForFunction(
+    () => {
+      const button = Array.from(document.querySelectorAll("button")).find((candidate) =>
+        /end interview/i.test(candidate.textContent || ""),
+      );
+      return !!button && button instanceof HTMLButtonElement && !button.disabled;
+    },
+    undefined,
+    { timeout: 60000 },
+  );
+
+  await page.waitForTimeout(25000);
   if (await endInterview.isVisible().catch(() => false)) {
     await endInterview.scrollIntoViewIfNeeded().catch(() => {});
     try {
@@ -840,7 +880,18 @@ async function completeVoiceInterview(page) {
     }
   }
 
-  await page.getByText(/Processing Interview|Interview Complete!/i).waitFor({ timeout: 120000 });
+  try {
+    await page.getByText(/Processing Interview|Interview Complete!/i).waitFor({ timeout: 120000 });
+  } catch (error) {
+    await screenshot(page, "voice-completion-missing");
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    await fs.writeFile(
+      path.join(OUTPUT_DIR, "voice-completion-missing.txt"),
+      bodyText,
+      "utf8",
+    );
+    throw error;
+  }
   await page.waitForTimeout(15000);
 
   await clickIfVisible(page.getByRole("button", { name: /Return to Applications/i }), 30000);

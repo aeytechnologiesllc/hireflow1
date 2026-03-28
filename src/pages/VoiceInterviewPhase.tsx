@@ -308,6 +308,10 @@ export default function VoiceInterviewPhase() {
     justFinishedSpeaking,
   });
 
+  const hasAssistantResponse = messages.some(
+    (message) => message.role === "assistant" && message.content.trim().length > 0
+  );
+
   // Track when user finishes speaking for encouraging expression
   const wasListeningRef = useRef(false);
   useEffect(() => {
@@ -743,7 +747,7 @@ Duration: ${formatTime(elapsedSeconds)}
         <div className="space-y-4 relative">
           {/* Connecting to Ava Overlay - shows until first audio is received */}
           <AnimatePresence>
-            {isConnected && !hasReceivedFirstAudio && !showCompletionScreen && !isEndingInterview && !isUserEndingInterview && (
+            {isConnected && !hasReceivedFirstAudio && !hasAssistantResponse && !showCompletionScreen && !isEndingInterview && !isUserEndingInterview && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
