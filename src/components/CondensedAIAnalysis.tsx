@@ -1703,6 +1703,11 @@ export function CondensedAIAnalysis({
     return parsedSummary;
   }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale, needsMoreEvidence, pendingSignals]);
   const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
+  const decisionStatusLabel = scorecard?.decisionState
+    ? needsMoreEvidence
+      ? "Decision status: Gathering evidence"
+      : "Decision status: Ready for review"
+    : null;
   const scoreSummaryLabel = displayScore !== null
     ? needsMoreEvidence
       ? `Provisional score ${displayScore}/100 • Pass threshold ${effectivePassingScore}/100`
@@ -1735,6 +1740,14 @@ export function CondensedAIAnalysis({
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {evidenceBasis && (
                   <span>{evidenceBasis}</span>
+                )}
+                {decisionStatusLabel && (
+                  <Badge
+                    variant="outline"
+                    className={needsMoreEvidence ? "text-[11px] border-amber-500/40 text-amber-300" : "text-[11px]"}
+                  >
+                    {decisionStatusLabel}
+                  </Badge>
                 )}
                 {scoreSummaryLabel && (
                   <span>{scoreSummaryLabel}</span>

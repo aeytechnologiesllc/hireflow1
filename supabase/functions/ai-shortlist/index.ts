@@ -16,11 +16,16 @@ const OPENAI_MODEL = Deno.env.get("OPENAI_SHORTLIST_MODEL") || "gpt-5.4";
 
 type Recommendation = "strong_yes" | "yes" | "maybe" | "no";
 type RecommendedAction = "advance" | "review" | "reject";
+type DecisionState = "ready_for_decision" | "needs_more_evidence";
+type AutopilotAction = "advance" | "reject" | "defer";
 
 interface RankedCandidateScorecard {
   overallScore: number;
   confidence: number;
   recommendedAction: RecommendedAction;
+  decisionState?: DecisionState;
+  pendingHighSignalPhases?: string[];
+  autopilotAction?: AutopilotAction;
   dimensionScores: {
     hardRequirements: number;
     roleCompetency: number;
@@ -100,6 +105,32 @@ function inferAction(score: number): RecommendedAction {
   return "reject";
 }
 
+function normalizePendingSignals(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((signal) => String(signal || "").trim())
+    .filter(Boolean);
+}
+
+function deriveFallbackDecisionState(app: any, notes: Record<string, any>, dimensionScores: ReturnType<typeof buildDimensionScores>) {
+  const observedHighSignalCount = [
+    toNumber(notes.quizResult?.score ?? notes.quiz?.score, 0),
+    toNumber(notes.typingTestResult?.overallScore ?? notes.typingTestResult?.score, 0),
+    toNumber(notes.chatSimulationResult?.overallScore, 0),
+    toNumber(notes.salesSimulationResult?.overallScore, 0),
+    toNumber(app.voice_interview_result?.overall_score ?? app.voice_interview_result?.overallScore, 0),
+    toNumber(notes.portfolioResult?.overallScore, 0),
+    toNumber(notes.videoIntroResult?.overallScore ?? notes.videoIntroResult?.score, 0),
+    toNumber(notes.chatInterviewResult?.overallScore ?? notes.chatInterviewResult?.score, 0),
+  ].filter((value) => value > 0).length;
+
+  if (observedHighSignalCount > 0 || dimensionScores.evidenceQuality >= 65) {
+    return "ready_for_decision" as const;
+  }
+
+  return "needs_more_evidence" as const;
+}
+
 function buildDimensionScores(app: any, score: number) {
   const notes = parseMaybeJson<Record<string, any>>(app.notes) || {};
   const hasResume = !!app.resume_url || !!notes.resumeImageUrls || !!notes.resumeUrl;
@@ -129,7 +160,7 @@ function buildDimensionScores(app: any, score: number) {
   };
 }
 
-function buildScorecard(app: any, score: number): RankedCandidateScorecard {
+export function buildScorecard(app: any, score: number): RankedCandidateScorecard {
   const notes = parseMaybeJson<Record<string, any>>(app.notes) || {};
   const storedScorecard = notes.avaScorecard;
 
@@ -149,6 +180,11 @@ function buildScorecard(app: any, score: number): RankedCandidateScorecard {
         workStyleFit: clampScore(toNumber(dimensions.workStyleFit ?? dimensions.work_style_fit, score)),
         evidenceQuality: clampScore(toNumber(dimensions.evidenceQuality ?? dimensions.evidence_quality, score)),
       },
+      decisionState: storedScorecard.decisionState === "needs_more_evidence" ? "needs_more_evidence" : "ready_for_decision",
+      pendingHighSignalPhases: normalizePendingSignals(storedScorecard.pendingHighSignalPhases),
+      autopilotAction: ["advance", "reject", "defer"].includes(storedScorecard.autopilotAction)
+        ? storedScorecard.autopilotAction
+        : undefined,
       riskFlags: Array.isArray(storedScorecard.riskFlags) ? storedScorecard.riskFlags.map(String) : [],
       rationale: String(storedScorecard.rationale || "Structured scorecard available"),
     };
@@ -167,17 +203,27 @@ function buildScorecard(app: any, score: number): RankedCandidateScorecard {
   }
 
   const dimensionScores = buildDimensionScores(app, score);
+  const decisionState = deriveFallbackDecisionState(app, notes, dimensionScores);
+  const pendingHighSignalPhases = decisionState === "needs_more_evidence" ? ["Further assessment signals"] : [];
+
   return {
     overallScore: clampScore(score),
-    confidence: clampScore(Math.min(95, Math.max(35, score + (riskFlags.length === 0 ? 10 : -5)))),
-    recommendedAction: inferAction(score),
+    confidence: decisionState === "needs_more_evidence"
+      ? clampScore(Math.min(68, Math.max(28, dimensionScores.evidenceQuality - 8)))
+      : clampScore(Math.min(95, Math.max(35, score + (riskFlags.length === 0 ? 10 : -5)))),
+    recommendedAction: decisionState === "needs_more_evidence" ? "review" : inferAction(score),
+    decisionState,
+    pendingHighSignalPhases,
+    autopilotAction: decisionState === "needs_more_evidence" ? "defer" : inferAction(score) === "advance" ? "advance" : "reject",
     dimensionScores,
     riskFlags,
-    rationale: score >= 80
-      ? "Strong overall fit with multiple signals pointing to readiness."
-      : score >= 60
-        ? "Mixed but promising profile that deserves manual review."
-        : "Candidate needs more evidence or stronger assessment results.",
+    rationale: decisionState === "needs_more_evidence"
+      ? "This score is provisional until more assessment evidence arrives."
+      : score >= 80
+        ? "Strong overall fit with multiple signals pointing to readiness."
+        : score >= 60
+          ? "Mixed but promising profile that deserves manual review."
+          : "Candidate needs stronger assessment results or evidence.",
   };
 }
 
@@ -233,23 +279,34 @@ function buildApplicantSummaries(applications: any[]) {
   });
 }
 
-function buildFallbackShortlist(jobTitle: string, jobDescription: string | null, applications: any[]): ShortlistResult {
+export function buildFallbackShortlist(jobTitle: string, jobDescription: string | null, applications: any[]): ShortlistResult {
   const candidates = buildApplicantSummaries(applications)
     .sort((a, b) => b.score - a.score)
     .map((entry, index) => {
       const scorecard = buildScorecard(entry.app, entry.score);
+      const needsMoreEvidence = scorecard.decisionState === "needs_more_evidence";
       return {
         rank: index + 1,
         candidateName: entry.name,
         aiScore: scorecard.overallScore,
-        keyDifferentiator: scorecard.overallScore >= 80
-          ? "Strong demonstrated fit across available signals"
+        keyDifferentiator: needsMoreEvidence
+          ? "Awaiting more evidence before a final shortlist decision"
+          : scorecard.overallScore >= 80
+            ? "Strong demonstrated fit across available signals"
+            : scorecard.overallScore >= 60
+              ? "Solid profile with some evidence gaps"
+              : "Needs stronger evidence for this role",
+        strengths: needsMoreEvidence
+          ? ["Initial profile collected"]
           : scorecard.overallScore >= 60
-            ? "Solid profile with some evidence gaps"
-            : "Needs stronger evidence for this role",
-        strengths: scorecard.overallScore >= 60 ? ["Relevant experience", "Assessment signals"] : ["Basic profile present"],
-        concerns: scorecard.riskFlags.length > 0 ? scorecard.riskFlags : ["Limited signal depth"],
-        recommendation: inferRecommendation(scorecard.overallScore),
+            ? ["Relevant experience", "Assessment signals"]
+            : ["Basic profile present"],
+        concerns: scorecard.riskFlags.length > 0
+          ? scorecard.riskFlags
+          : needsMoreEvidence
+            ? ["Awaiting more assessment evidence"]
+            : ["Limited signal depth"],
+        recommendation: needsMoreEvidence ? "maybe" : inferRecommendation(scorecard.overallScore),
         scorecard,
         applicationId: entry.app.id,
       };
@@ -314,21 +371,35 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
       toNumber(candidate.aiScore ?? candidate.scorecard?.overallScore ?? matchingApp?.ai_score, 0),
     );
     const scorecard = candidate.scorecard || buildScorecard(matchingApp || {}, score);
+    const needsMoreEvidence = scorecard.decisionState === "needs_more_evidence";
 
     return {
       rank: toNumber(candidate.rank, index + 1),
       candidateName: String(candidate.candidateName || matchingApp?.profiles?.full_name || `Candidate ${index + 1}`),
       aiScore: score,
-      keyDifferentiator: String(candidate.keyDifferentiator || scorecard.rationale || "Strong overall fit"),
+      keyDifferentiator: String(
+        candidate.keyDifferentiator ||
+          (needsMoreEvidence ? "Awaiting more evidence before a final shortlist decision" : scorecard.rationale) ||
+          "Strong overall fit",
+      ),
       strengths: Array.isArray(candidate.strengths) ? candidate.strengths.map(String) : [],
       concerns: Array.isArray(candidate.concerns) ? candidate.concerns.map(String) : [],
-      recommendation: ["strong_yes", "yes", "maybe", "no"].includes(candidate.recommendation) ? candidate.recommendation : inferRecommendation(score),
+      recommendation: needsMoreEvidence
+        ? "maybe"
+        : ["strong_yes", "yes", "maybe", "no"].includes(candidate.recommendation)
+          ? candidate.recommendation
+          : inferRecommendation(score),
       scorecard: {
         overallScore: scorecard.overallScore ?? score,
         confidence: clampScore(toNumber(candidate.scorecard?.confidence ?? scorecard.confidence, 65)),
-        recommendedAction: ["advance", "review", "reject"].includes(candidate.scorecard?.recommendedAction)
-          ? candidate.scorecard.recommendedAction
-          : inferAction(score),
+        recommendedAction: scorecard.decisionState === "needs_more_evidence"
+          ? "review"
+          : ["advance", "review", "reject"].includes(candidate.scorecard?.recommendedAction)
+            ? candidate.scorecard.recommendedAction
+            : inferAction(score),
+        decisionState: scorecard.decisionState,
+        pendingHighSignalPhases: scorecard.pendingHighSignalPhases,
+        autopilotAction: scorecard.autopilotAction,
         dimensionScores: candidate.scorecard?.dimensionScores || scorecard.dimensionScores,
         riskFlags: Array.isArray(candidate.scorecard?.riskFlags) ? candidate.scorecard.riskFlags.map(String) : scorecard.riskFlags,
         rationale: String(candidate.scorecard?.rationale || scorecard.rationale || ""),
@@ -361,6 +432,7 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
   };
 }
 
+if (import.meta.main) {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -500,3 +572,4 @@ Recommendation values:
     });
   }
 });
+}

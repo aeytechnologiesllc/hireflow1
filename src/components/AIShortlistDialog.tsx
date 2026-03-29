@@ -62,6 +62,15 @@ const rankColors = [
   "from-amber-600 to-amber-700",  // Bronze for #3
 ];
 
+function formatSignalLabel(signal: string) {
+  return signal
+    .replace(/_/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function CandidateCard({ 
   candidate, 
   onViewDetails, 
@@ -73,6 +82,10 @@ function CandidateCard({
 }) {
   const config = recommendationConfig[candidate.recommendation];
   const RankIcon = candidate.rank <= 3 ? Trophy : null;
+  const needsMoreEvidence = candidate.scorecard?.decisionState === "needs_more_evidence";
+  const pendingSignals = (candidate.scorecard?.pendingHighSignalPhases || []).map(formatSignalLabel);
+  const scoreColor = needsMoreEvidence ? "text-amber-300" : "text-primary";
+  const barColor = needsMoreEvidence ? "bg-amber-300" : "bg-primary";
 
   return (
     <Card className="bg-card/50 border-border hover:border-primary/30 transition-all">
@@ -109,24 +122,37 @@ function CandidateCard({
             </div>
 
             {/* AI Score */}
-            {candidate.aiScore && (
+            {candidate.aiScore !== null && candidate.aiScore !== undefined && (
               <div className="flex items-center gap-2 mt-2">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className={`h-3.5 w-3.5 ${scoreColor}`} />
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-20 bg-secondary rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-primary rounded-full"
+                      className={`h-full ${barColor} rounded-full`}
                       style={{ width: `${candidate.aiScore}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium text-primary">{candidate.aiScore}%</span>
+                  <span className={`text-xs font-medium ${scoreColor}`}>
+                    {needsMoreEvidence ? `Provisional ${candidate.aiScore}%` : `${candidate.aiScore}%`}
+                  </span>
                 </div>
                 {candidate.scorecard?.confidence ? (
                   <Badge variant="outline" className="text-[10px]">
-                    {candidate.scorecard.confidence}% confidence
+                    {needsMoreEvidence ? "Evidence confidence" : "Confidence"} {candidate.scorecard.confidence}%
                   </Badge>
                 ) : null}
+                {needsMoreEvidence && (
+                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300">
+                    Awaiting more evidence
+                  </Badge>
+                )}
               </div>
+            )}
+
+            {needsMoreEvidence && pendingSignals.length > 0 && (
+              <p className="mt-2 text-xs text-amber-300/90">
+                Pending signals: {pendingSignals.join(", ")}
+              </p>
             )}
 
             {/* Key Differentiator */}

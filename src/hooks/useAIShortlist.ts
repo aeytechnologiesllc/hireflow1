@@ -15,6 +15,9 @@ export interface RankedCandidate {
     overallScore: number;
     confidence: number;
     recommendedAction: "advance" | "review" | "reject";
+    decisionState?: "ready_for_decision" | "needs_more_evidence";
+    pendingHighSignalPhases?: string[];
+    autopilotAction?: "advance" | "reject" | "defer";
     dimensionScores: {
       hardRequirements: number;
       roleCompetency: number;
