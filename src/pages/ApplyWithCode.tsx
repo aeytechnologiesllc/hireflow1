@@ -123,6 +123,7 @@ export default function ApplyWithCode() {
   const [error, setError] = useState("");
   const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
   const autoLoadedCodeRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isEmployer = role === "employer";
   const candidateJobPath = (jobId: string) => (role === "candidate" ? `/job/${jobId}` : `/candidate/job/${jobId}`);
@@ -202,6 +203,15 @@ export default function ApplyWithCode() {
     }
   };
 
+  const handleSearchAnotherCode = useCallback(() => {
+    setPreviewJob(null);
+    setError("");
+    setJobCode("");
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, []);
+
   if (isEmployer) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -219,98 +229,36 @@ export default function ApplyWithCode() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh]">
-      {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4">
-          <KeyRound className="h-8 w-8 text-white" />
-        </div>
-        <h1 className="text-4xl font-bold text-foreground">Enter Job Code</h1>
-        <p className="text-muted-foreground mt-2 max-w-md">
-          Enter the application code you received from the employer to view and apply for the position
-        </p>
-      </motion.div>
-
-      {/* Code Entry Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="w-full max-w-md"
-      >
-        <Card className="bg-card border-border">
-          <CardContent className="p-8">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="job-code" className="text-base font-medium">
-                  Job Application Code
-                </Label>
-                <Input
-                  id="job-code"
-                  value={jobCode}
-                  onChange={(e) => {
-                    setJobCode(e.target.value.toUpperCase());
-                    setError("");
-                    setPreviewJob(null);
-                  }}
-                  onKeyDown={handleKeyPress}
-                  placeholder="Enter code (e.g., ABC123)"
-                  className="text-xl font-mono tracking-[0.3em] uppercase text-center h-14"
-                />
-              </div>
-
-              <Button 
-                onClick={() => void handleSearch()} 
-                disabled={isSearching || !jobCode.trim()}
-                size="lg"
-                className="w-full h-12 text-lg"
-              >
-                {isSearching ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="h-5 w-5 mr-2" />
-                    Find Position
-                  </>
-                )}
-              </Button>
-
-              {/* Error State */}
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive"
-                  >
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span className="text-sm">{error}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <p className="text-sm text-muted-foreground text-center">
-                The employer will provide you with this code
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      <AnimatePresence>
-        {previewJob && (
+    <div className="flex min-h-[70vh] flex-col items-center justify-center">
+      <AnimatePresence mode="wait">
+        {previewJob ? (
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            key="job-preview-state"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.2 }}
-            className="w-full max-w-2xl mt-8"
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.22 }}
+            className="w-full max-w-2xl"
           >
+            <div className="mb-6 text-center">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+                <CheckCircle2 className="h-4 w-4" />
+                Position found
+              </div>
+              <h1 className="text-4xl font-bold text-foreground">Review the role</h1>
+              <p className="mt-2 text-muted-foreground">
+                Make sure this is the right job, then continue to the application.
+              </p>
+              <button
+                type="button"
+                onClick={handleSearchAnotherCode}
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Search another code
+              </button>
+            </div>
+
             <Card className="relative overflow-hidden border-border bg-card shadow-xl">
               <div className="h-1.5 bg-gradient-to-r from-primary via-cyan-400 to-emerald-400" />
               <CardContent className="p-6 sm:p-8 space-y-6">
@@ -399,12 +347,94 @@ export default function ApplyWithCode() {
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => setPreviewJob(null)}
+                    onClick={handleSearchAnotherCode}
                     className="gap-2"
                   >
                     <RefreshCw className="h-4 w-4" />
                     Search another code
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="job-search-state"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.22 }}
+            className="w-full max-w-md"
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent">
+                <KeyRound className="h-8 w-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold text-foreground">Enter Job Code</h1>
+              <p className="mt-2 max-w-md text-muted-foreground">
+                Enter the application code you received from the employer to view and apply for the position
+              </p>
+            </motion.div>
+
+            <Card className="bg-card border-border">
+              <CardContent className="p-8">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="job-code" className="text-base font-medium">
+                      Job Application Code
+                    </Label>
+                    <Input
+                      id="job-code"
+                      ref={inputRef}
+                      value={jobCode}
+                      onChange={(e) => {
+                        setJobCode(e.target.value.toUpperCase());
+                        setError("");
+                        setPreviewJob(null);
+                      }}
+                      onKeyDown={handleKeyPress}
+                      placeholder="Enter code (e.g., ABC123)"
+                      className="h-14 text-center font-mono text-xl uppercase tracking-[0.3em]"
+                    />
+                  </div>
+
+                  <Button 
+                    onClick={() => void handleSearch()} 
+                    disabled={isSearching || !jobCode.trim()}
+                    size="lg"
+                    className="w-full h-12 text-lg"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-5 w-5" />
+                        Find Position
+                      </>
+                    )}
+                  </Button>
+
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-destructive"
+                      >
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span className="text-sm">{error}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    The employer will provide you with this code
+                  </p>
                 </div>
               </CardContent>
             </Card>
