@@ -143,20 +143,12 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 {job.status}
               </span>
               {job.processing_mode && (
-                <div className="relative">
-                  {showFirstJobTooltip && job.processing_mode === "auto" && (
-                    <FirstJobTooltip 
-                      show={showFirstJobTooltip} 
-                      onDismiss={onTooltipDismiss || (() => {})} 
-                    />
-                  )}
-                  <ProcessingModeToggle
-                    jobId={job.id}
-                    jobTitle={job.title}
-                    currentMode={job.processing_mode as "auto" | "manual"}
-                    disabled={!canEdit}
-                  />
-                </div>
+                <ProcessingModeToggle
+                  jobId={job.id}
+                  jobTitle={job.title}
+                  currentMode={job.processing_mode as "auto" | "manual"}
+                  disabled={!canEdit}
+                />
               )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
@@ -165,6 +157,13 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                 </span>
               )}
             </div>
+
+            {showFirstJobTooltip && job.processing_mode === "auto" && (
+              <FirstJobTooltip 
+                show={showFirstJobTooltip} 
+                onDismiss={onTooltipDismiss || (() => {})} 
+              />
+            )}
 
             {job.job_code && (
               <div className="flex items-center gap-2 text-sm">
