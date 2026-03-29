@@ -7,6 +7,8 @@ const BASE_URL = process.env.BASE_URL || "https://hireflow1-iota.vercel.app";
 const OUTPUT_DIR =
   process.env.OUTPUT_DIR ||
   "/Users/shahz/Documents/HIreFlow/hireflow1_codex/output/playwright/autopilot-handoff-check";
+const HEADED = /^(1|true|yes)$/i.test(process.env.HEADED || "");
+const SLOW_MO = Number(process.env.SLOW_MO || 0);
 const timestamp = Date.now();
 
 const employer = {
@@ -575,7 +577,7 @@ async function run() {
 
   try {
     log("launch-browser");
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: !HEADED, slowMo: Number.isFinite(SLOW_MO) ? SLOW_MO : 0 });
     const employerContext = await browser.newContext();
     const candidateContext = await browser.newContext();
     const employerPage = await employerContext.newPage();

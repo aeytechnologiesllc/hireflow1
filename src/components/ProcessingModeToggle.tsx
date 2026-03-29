@@ -219,9 +219,9 @@ export function ProcessingModeToggle({
 
         if (summaryParts.length > 0) {
           toast.success(`Autopilot catch-up complete: ${summaryParts.join(" • ")}`);
-        } else if (result.totals.processed > 0) {
+        } else if (result.totals.processed > 0 && result.totals.failed === 0) {
           toast.info("Autopilot reviewed waiting applicants with no immediate status changes.");
-        } else {
+        } else if (result.totals.failed === 0) {
           toast.info("Autopilot is on. No waiting applicants needed catch-up.");
         }
 
