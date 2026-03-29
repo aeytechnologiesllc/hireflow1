@@ -33,14 +33,27 @@ function hasCompletedPhase(
   phaseType: string,
   notes: string | Record<string, any> | null,
   voiceInterviewResult: any,
+  application: {
+    ai_score?: number | null;
+    ai_analysis?: string | null;
+    resume_url?: string | null;
+    cover_letter?: string | null;
+  },
 ) {
   const parsedNotes = parseNotes(notes);
 
   switch (phaseType) {
     case "application":
-      return Array.isArray(parsedNotes.applicationAnswers)
-        && parsedNotes.applicationAnswers.length > 0
-        && parsedNotes.applicationAnswers.some((answer: any) => answer.answer && String(answer.answer).trim() !== "");
+      return (
+        (Array.isArray(parsedNotes.applicationAnswers)
+          && parsedNotes.applicationAnswers.length > 0
+          && parsedNotes.applicationAnswers.some((answer: any) => answer.answer && String(answer.answer).trim() !== ""))
+        || !!application.resume_url
+        || !!application.cover_letter
+        || typeof application.ai_score === "number"
+        || !!application.ai_analysis
+        || Object.keys(parsedNotes).length > 0
+      );
     case "typing_test":
       return !!parsedNotes.typingTestResult;
     case "quiz":
@@ -143,9 +156,9 @@ serve(async (req) => {
 
     const { data: applications, error: applicationsError } = await supabaseAdmin
       .from("applications")
-      .select("id, candidate_id, ai_score, phase, notes, voice_interview_result, status")
+      .select("id, candidate_id, ai_score, ai_analysis, phase, notes, voice_interview_result, status, resume_url, cover_letter")
       .eq("job_id", jobId)
-      .in("status", ["pending", "reviewing", "in_progress"]);
+      .not("status", "in", "(rejected,hired,offered)");
 
     if (applicationsError) {
       return jsonResponse({ error: "Failed to load applications", details: applicationsError.message }, 500);
@@ -195,7 +208,7 @@ serve(async (req) => {
             ? "quiz"
             : (workflowSteps.find((step: any) => step?.id === phaseId)?.type || "unknown");
 
-      if (!hasCompletedPhase(phaseId, phaseType, application.notes as any, application.voice_interview_result)) {
+      if (!hasCompletedPhase(phaseId, phaseType, application.notes as any, application.voice_interview_result, application)) {
         continue;
       }
 

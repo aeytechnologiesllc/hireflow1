@@ -185,7 +185,23 @@ export function ProcessingModeToggle({
       onModeActivated?.(pendingMode);
 
       if (pendingMode === "auto") {
-        const result = await applyAutopilotCatchUp(jobId);
+        let result: Awaited<ReturnType<typeof applyAutopilotCatchUp>> | null = null;
+        try {
+          result = await applyAutopilotCatchUp(jobId);
+        } catch (error) {
+          console.error("Autopilot catch-up failed after mode update:", error);
+          toast.error("Autopilot turned on, but the catch-up pass failed.", {
+            description: "Open the applicant list and refresh recommendations, then try engaging autopilot again if needed.",
+            duration: 6000,
+          });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["applications"] }),
+            queryClient.invalidateQueries({ queryKey: ["application"] }),
+            queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+          ]);
+          return;
+        }
+
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["applications"] }),
           queryClient.invalidateQueries({ queryKey: ["application"] }),
