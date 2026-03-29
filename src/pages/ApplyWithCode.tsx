@@ -264,7 +264,7 @@ export default function ApplyWithCode() {
               </div>
 
               <Button 
-                onClick={handleSearch} 
+                onClick={() => void handleSearch()} 
                 disabled={isSearching || !jobCode.trim()}
                 size="lg"
                 className="w-full h-12 text-lg"
