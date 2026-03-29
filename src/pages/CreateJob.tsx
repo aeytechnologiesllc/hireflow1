@@ -731,6 +731,10 @@ export default function CreateJob() {
       return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Ava baseline</Badge>;
     }
 
+    if (hasValue) {
+      return null;
+    }
+
     return <Badge variant="outline" className="border-border text-muted-foreground">Baseline pending</Badge>;
   };
 
