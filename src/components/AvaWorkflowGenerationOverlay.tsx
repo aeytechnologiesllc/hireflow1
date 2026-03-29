@@ -38,16 +38,61 @@ const INITIAL_PROGRESS = {
   full_draft: 8,
 } as const;
 
-const STAGE_PROGRESS_MODEL = {
+const SESSION_PROGRESS_SEGMENTS = {
   workflow: {
-    drafting: { entry: 12, settle: 32, drift: 42, easeMs: 2200, driftMs: 2600 },
-    screening: { entry: 18, settle: 84, drift: 90, easeMs: 3600, driftMs: 3600 },
-    finalizing: { entry: 84, settle: 97, drift: 99.2, easeMs: 2200, driftMs: 2200 },
+    drafting: [],
+    screening: [
+      { durationMs: 2200, to: 34 },
+      { durationMs: 3200, to: 66 },
+      { durationMs: 3600, to: 85 },
+      { durationMs: 5200, to: 94.5 },
+      { durationMs: 9000, to: 98.8 },
+    ],
+    finalizing: [
+      { durationMs: 2200, to: 34 },
+      { durationMs: 3200, to: 66 },
+      { durationMs: 3600, to: 85 },
+      { durationMs: 5200, to: 96.8 },
+      { durationMs: 9000, to: 99.2 },
+    ],
   },
   full_draft: {
-    drafting: { entry: 8, settle: 54, drift: 62, easeMs: 3400, driftMs: 3200 },
-    screening: { entry: 54, settle: 88, drift: 93.5, easeMs: 3600, driftMs: 3000 },
-    finalizing: { entry: 88, settle: 97, drift: 99.2, easeMs: 2200, driftMs: 2200 },
+    drafting: [
+      { durationMs: 2400, to: 24 },
+      { durationMs: 2600, to: 42 },
+      { durationMs: 3200, to: 58 },
+      { durationMs: 4000, to: 72 },
+      { durationMs: 7000, to: 82 },
+    ],
+    screening: [
+      { durationMs: 2400, to: 24 },
+      { durationMs: 2600, to: 42 },
+      { durationMs: 3200, to: 58 },
+      { durationMs: 4000, to: 76 },
+      { durationMs: 5200, to: 90 },
+      { durationMs: 9000, to: 98.6 },
+    ],
+    finalizing: [
+      { durationMs: 2400, to: 24 },
+      { durationMs: 2600, to: 42 },
+      { durationMs: 3200, to: 58 },
+      { durationMs: 4000, to: 76 },
+      { durationMs: 5200, to: 92 },
+      { durationMs: 9000, to: 99.2 },
+    ],
+  },
+} as const;
+
+const STAGE_PROGRESS_FLOORS = {
+  workflow: {
+    drafting: 12,
+    screening: 18,
+    finalizing: 90,
+  },
+  full_draft: {
+    drafting: 8,
+    screening: 48,
+    finalizing: 92,
   },
 } as const;
 
@@ -102,27 +147,39 @@ function easeOutCubic(value: number) {
   return 1 - Math.pow(1 - value, 3);
 }
 
-function getStageDesiredProgress(
+function getSessionDesiredProgress(
   mode: "workflow" | "full_draft",
   stage: OverlayGenerationStage,
-  stageElapsedMs: number,
+  elapsedMs: number,
   isApiComplete: boolean,
 ) {
   if (isApiComplete) {
     return 100;
   }
 
-  const model = STAGE_PROGRESS_MODEL[mode][stage];
-  const settleProgress = clamp(stageElapsedMs / model.easeMs, 0, 1);
-  const settledValue = model.entry + (model.settle - model.entry) * easeOutCubic(settleProgress);
+  const segments = SESSION_PROGRESS_SEGMENTS[mode][stage];
+  const stageFloor = STAGE_PROGRESS_FLOORS[mode][stage];
 
-  if (stageElapsedMs <= model.easeMs) {
-    return settledValue;
+  if (segments.length === 0) {
+    return stageFloor;
   }
 
-  const driftElapsed = stageElapsedMs - model.easeMs;
-  const driftProgress = 1 - Math.exp(-driftElapsed / model.driftMs);
-  return model.settle + (model.drift - model.settle) * driftProgress;
+  let previousStop = INITIAL_PROGRESS[mode];
+  let consumedMs = 0;
+
+  for (const segment of segments) {
+    const segmentEnd = consumedMs + segment.durationMs;
+    if (elapsedMs <= segmentEnd) {
+      const localProgress = clamp((elapsedMs - consumedMs) / segment.durationMs, 0, 1);
+      const eased = easeOutCubic(localProgress);
+      return Math.max(stageFloor, previousStop + (segment.to - previousStop) * eased);
+    }
+
+    consumedMs = segmentEnd;
+    previousStop = segment.to;
+  }
+
+  return Math.max(stageFloor, previousStop);
 }
 
 function buildActivityItems(
@@ -212,7 +269,7 @@ export default function AvaWorkflowGenerationOverlay({
   const [progressRing, setProgressRing] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
   const progressFrameRef = useRef<number | null>(null);
-  const stageStartedAtRef = useRef<number>(Date.now());
+  const overlayStartedAtRef = useRef<number>(Date.now());
   const stageKeyRef = useRef<string>("");
 
   // Particles - reduced to 20
@@ -231,7 +288,7 @@ export default function AvaWorkflowGenerationOverlay({
   // Reset on show
   useEffect(() => {
     if (isVisible) {
-      stageStartedAtRef.current = Date.now();
+      overlayStartedAtRef.current = Date.now();
       stageKeyRef.current = `${mode}:${stage}`;
       setProgressRing(INITIAL_PROGRESS[mode]);
       setMessageIndex(0);
@@ -251,7 +308,6 @@ export default function AvaWorkflowGenerationOverlay({
     const nextStageKey = `${mode}:${stage}`;
     if (stageKeyRef.current !== nextStageKey) {
       stageKeyRef.current = nextStageKey;
-      stageStartedAtRef.current = Date.now();
       setMessageIndex(0);
     }
   }, [isVisible, mode, stage]);
@@ -274,8 +330,8 @@ export default function AvaWorkflowGenerationOverlay({
     if (!isVisible) return;
 
     const animateProgress = () => {
-      const stageElapsedMs = Date.now() - stageStartedAtRef.current;
-      const desiredProgress = getStageDesiredProgress(mode, stage, stageElapsedMs, isApiComplete);
+      const sessionElapsedMs = Date.now() - overlayStartedAtRef.current;
+      const desiredProgress = getSessionDesiredProgress(mode, stage, sessionElapsedMs, isApiComplete);
 
       setProgressRing((previous) => {
         const boundedDesired = isApiComplete ? 100 : Math.max(desiredProgress, previous);
@@ -285,9 +341,9 @@ export default function AvaWorkflowGenerationOverlay({
         }
 
         const easedStep = clamp(
-          Math.abs(gap) * (isApiComplete ? 0.2 : 0.11),
-          isApiComplete ? 0.9 : 0.12,
-          isApiComplete ? 3.8 : 0.9,
+          Math.abs(gap) * (isApiComplete ? 0.22 : 0.14),
+          isApiComplete ? 1.1 : 0.14,
+          isApiComplete ? 4.5 : 1.1,
         );
         const next = previous + Math.sign(gap) * easedStep;
         return clamp(next, 0, boundedDesired);
