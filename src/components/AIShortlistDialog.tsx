@@ -208,6 +208,10 @@ function CandidateCard({
   );
 }
 
+function formatCategoryLabel(category: string) {
+  return category.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim();
+}
+
 export default function AIShortlistDialog({
   open,
   onOpenChange,
@@ -279,27 +283,37 @@ export default function AIShortlistDialog({
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <Card className="bg-card/60 border-border">
                   <CardContent className="p-3">
-                    <p className="text-xs text-muted-foreground">Average score</p>
+                    <p className="text-xs text-muted-foreground">
+                      {shortlist.scorecardSummary.decisionReadyCount > 0 ? "Decision-ready avg" : "Provisional avg"}
+                    </p>
                     <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.averageScore}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-card/60 border-border">
                   <CardContent className="p-3">
-                    <p className="text-xs text-muted-foreground">Top score</p>
+                    <p className="text-xs text-muted-foreground">
+                      {shortlist.scorecardSummary.decisionReadyCount > 0 ? "Top ready score" : "Top provisional score"}
+                    </p>
                     <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.highestScore}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-card/60 border-border">
                   <CardContent className="p-3">
-                    <p className="text-xs text-muted-foreground">Lowest score</p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">{shortlist.scorecardSummary.lowestScore}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {shortlist.scorecardSummary.decisionReadyCount > 0 ? "Still provisional" : "Decision-ready"}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">
+                      {shortlist.scorecardSummary.decisionReadyCount > 0
+                        ? shortlist.scorecardSummary.provisionalCount
+                        : shortlist.scorecardSummary.decisionReadyCount}
+                    </p>
                   </CardContent>
                 </Card>
                 <Card className="bg-card/60 border-border">
                   <CardContent className="p-3">
                     <p className="text-xs text-muted-foreground">Strongest category</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">
-                      {shortlist.scorecardSummary.strongestCategory.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}
+                      {formatCategoryLabel(shortlist.scorecardSummary.strongestCategory)}
                     </p>
                   </CardContent>
                 </Card>

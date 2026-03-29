@@ -65,11 +65,38 @@ interface ShortlistResult {
     lowestScore: number;
     strongestCategory: string;
     commonRiskFlags: string[];
+    decisionReadyCount: number;
+    provisionalCount: number;
   };
   jobId: string;
   jobTitle: string;
   candidateCount: number;
   generatedAt: string;
+}
+
+function buildScorecardSummary(candidates: RankedCandidate[]) {
+  const decisionReadyCandidates = candidates.filter((candidate) => candidate.scorecard?.decisionState !== "needs_more_evidence");
+  const provisionalCount = candidates.length - decisionReadyCandidates.length;
+  const summaryPool = decisionReadyCandidates.length > 0 ? decisionReadyCandidates : candidates;
+  const scores = summaryPool.map((candidate) => candidate.aiScore ?? 0);
+  const averageScore = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
+  const highestScore = scores.length ? Math.max(...scores) : 0;
+  const lowestScore = scores.length ? Math.min(...scores) : 0;
+  const strongestCategory = summaryPool[0]?.scorecard
+    ? Object.entries(summaryPool[0].scorecard.dimensionScores).sort((a, b) => b[1] - a[1])[0]?.[0] || "roleCompetency"
+    : "roleCompetency";
+
+  return {
+    averageScore,
+    highestScore,
+    lowestScore,
+    strongestCategory,
+    commonRiskFlags: Array.from(
+      new Set(candidates.flatMap((candidate) => candidate.scorecard?.riskFlags || [])),
+    ).slice(0, 5),
+    decisionReadyCount: decisionReadyCandidates.length,
+    provisionalCount,
+  };
 }
 
 function parseMaybeJson<T>(value: unknown): T | null {
@@ -312,17 +339,17 @@ export function buildFallbackShortlist(jobTitle: string, jobDescription: string 
       };
     });
 
-  const scores = candidates.map((candidate) => candidate.aiScore ?? 0);
-  const averageScore = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
-  const highestScore = scores.length ? Math.max(...scores) : 0;
-  const lowestScore = scores.length ? Math.min(...scores) : 0;
-  const strongestCategory = candidates[0]?.scorecard
-    ? Object.entries(candidates[0].scorecard.dimensionScores).sort((a, b) => b[1] - a[1])[0]?.[0] || "roleCompetency"
-    : "roleCompetency";
-
   const interviewImmediately = candidates.filter((candidate) => candidate.recommendation === "strong_yes" || candidate.recommendation === "yes").map((candidate) => candidate.candidateName);
   const considerWithReservations = candidates.filter((candidate) => candidate.recommendation === "maybe").map((candidate) => candidate.candidateName);
   const pass = candidates.filter((candidate) => candidate.recommendation === "no").map((candidate) => candidate.candidateName);
+  const scorecardSummary = buildScorecardSummary(candidates);
+  const scoreSpread = scorecardSummary.highestScore - scorecardSummary.lowestScore;
+  const provisionalVerb = scorecardSummary.provisionalCount === 1 ? "needs" : "need";
+  const provisionalTail = scorecardSummary.provisionalCount > 0
+    ? scorecardSummary.decisionReadyCount > 0
+      ? ` ${scorecardSummary.provisionalCount} candidate${scorecardSummary.provisionalCount === 1 ? "" : "s"} still ${provisionalVerb} more evidence, so the score summary emphasizes the ${scorecardSummary.decisionReadyCount} decision-ready profile${scorecardSummary.decisionReadyCount === 1 ? "" : "s"}.`
+      : ` All candidates are still gathering evidence, so the score summary remains provisional.`
+    : "";
 
   return {
     rankedCandidates: candidates,
@@ -330,7 +357,7 @@ export function buildFallbackShortlist(jobTitle: string, jobDescription: string 
       `The strongest candidates for ${jobTitle} are the ones with the clearest evidence signals and the most complete assessment trails.`,
       jobDescription ? "The role description points to a mix of skill fit and follow-through, so evidence quality matters alongside experience." : "Without a long role description, the ranking leans more heavily on observed assessment performance.",
       candidates.length > 1
-        ? `There is a ${highestScore - lowestScore} point spread between the top and bottom candidates, showing meaningful separation in readiness.`
+        ? `There is a ${scoreSpread} point spread between the top and bottom candidates in the current score summary, showing meaningful separation in readiness.`
         : "Only one candidate was available, so comparison depth is limited.",
     ],
     quickDecision: {
@@ -339,17 +366,9 @@ export function buildFallbackShortlist(jobTitle: string, jobDescription: string 
       pass,
     },
     summaryStatement: candidates.length
-      ? `Based on the available signals, ${candidates[0].candidateName} is the leading candidate for ${jobTitle}. The shortlist reflects a mix of assessed performance, supporting evidence, and overall consistency.`
+      ? `Based on the available signals, ${candidates[0].candidateName} is the leading candidate for ${jobTitle}. The shortlist reflects a mix of assessed performance, supporting evidence, and overall consistency.${provisionalTail}`
       : `No candidates were available for ${jobTitle}.`,
-    scorecardSummary: {
-      averageScore,
-      highestScore,
-      lowestScore,
-      strongestCategory,
-      commonRiskFlags: Array.from(
-        new Set(candidates.flatMap((candidate) => candidate.scorecard?.riskFlags || [])),
-      ).slice(0, 5),
-    },
+    scorecardSummary,
     jobId: "",
     jobTitle,
     candidateCount: applications.length,
@@ -410,6 +429,16 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
 
   const fallback = buildFallbackShortlist(jobTitle, jobDescription, applications);
   const finalCandidates = normalizedCandidates.length ? normalizedCandidates : fallback.rankedCandidates;
+  const scorecardSummary = buildScorecardSummary(finalCandidates);
+  const summaryStatementBase = String(shortlist.summaryStatement || fallback.summaryStatement);
+  const provisionalVerb = scorecardSummary.provisionalCount === 1 ? "needs" : "need";
+  const summaryStatement = scorecardSummary.provisionalCount > 0 && !/gathering evidence|need more evidence|score summary/i.test(summaryStatementBase)
+    ? `${summaryStatementBase} ${
+        scorecardSummary.decisionReadyCount > 0
+          ? `${scorecardSummary.provisionalCount} candidate${scorecardSummary.provisionalCount === 1 ? "" : "s"} still ${provisionalVerb} more evidence, so the score summary below reflects decision-ready profiles first.`
+          : "All candidates are still gathering evidence, so the score summary remains provisional."
+      }`.trim()
+    : summaryStatementBase;
 
   return {
     rankedCandidates: finalCandidates,
@@ -423,8 +452,8 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
           pass: Array.isArray(shortlist.quickDecision.pass) ? shortlist.quickDecision.pass.map(String) : fallback.quickDecision.pass,
         }
       : fallback.quickDecision,
-    summaryStatement: String(shortlist.summaryStatement || fallback.summaryStatement),
-    scorecardSummary: shortlist.scorecardSummary || fallback.scorecardSummary,
+    summaryStatement,
+    scorecardSummary,
     jobId,
     jobTitle,
     candidateCount,

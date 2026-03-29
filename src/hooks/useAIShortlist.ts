@@ -47,6 +47,8 @@ export interface ShortlistResult {
     lowestScore: number;
     strongestCategory: string;
     commonRiskFlags: string[];
+    decisionReadyCount: number;
+    provisionalCount: number;
   };
   jobId: string;
   jobTitle: string;
