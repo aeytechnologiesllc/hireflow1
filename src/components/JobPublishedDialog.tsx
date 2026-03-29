@@ -170,10 +170,27 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                 )}
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-muted-foreground">Code</span>
-              <div className="font-mono font-bold text-foreground">{job.job_code}</div>
-            </div>
+            <button
+              type="button"
+              onClick={() => job.job_code && copyToClipboard(job.job_code, "code")}
+              className="group ml-3 flex shrink-0 flex-col items-end rounded-lg border border-transparent px-3 py-2 text-right transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              aria-label={job.job_code ? `Copy job code ${job.job_code}` : "Copy job code"}
+            >
+              <span className="text-xs text-muted-foreground transition-colors group-hover:text-primary">
+                {copiedCode ? "Copied" : "Code"}
+              </span>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="font-mono font-bold text-foreground">{job.job_code}</span>
+                {copiedCode ? (
+                  <Check className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <Copy className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                )}
+              </div>
+              <span className="mt-1 text-[11px] text-muted-foreground/80 transition-colors group-hover:text-primary/90">
+                Click to copy
+              </span>
+            </button>
           </motion.div>
 
           {/* Share to Job Boards */}
@@ -238,18 +255,6 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => job.job_code && copyToClipboard(job.job_code, "code")}
-                className="shrink-0"
-              >
-                {copiedCode ? (
-                  <Check className="h-4 w-4 text-emerald-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
             </div>
           </motion.div>
 
