@@ -54,6 +54,7 @@ interface ApplicationQuestion {
   type: "text" | "textarea" | "select" | "email" | "phone" | "file" | "date" | "number" | string;
   required: boolean;
   options?: string[];
+  placeholder?: string;
 }
 
 interface ApplicationDetails {
@@ -74,7 +75,14 @@ interface ApplicationDetails {
     workflow_steps: any[] | null;
     require_resume: boolean | null;
     quiz_questions: any[] | null;
+    must_haves: string | null;
+    deal_breakers: string | null;
   } | null;
+}
+
+interface QuestionCriteriaContext {
+  title: string;
+  items: string[];
 }
 
 const normalizeQuestionType = (value: string | null | undefined) => {
@@ -117,6 +125,71 @@ const isResumeQuestion = (question: { id: string; question: string; type: string
   return text.includes("resume") || text.includes("cv") || text.includes("curriculum");
 };
 
+const parseCriteriaItems = (value?: string | null) => {
+  if (!value) return [];
+
+  const normalized = value
+    .replace(/\r/g, "\n")
+    .replace(/•/g, "\n")
+    .replace(/\s*-\s+/g, "\n")
+    .trim();
+
+  const segments = normalized.includes("\n")
+    ? normalized.split("\n")
+    : normalized.split(",");
+
+  return segments
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.replace(/^[*-]\s*/, "").trim());
+};
+
+const getQuestionCriteriaContext = (
+  question: ApplicationQuestion,
+  job: ApplicationDetails["jobs"],
+): QuestionCriteriaContext | null => {
+  if (!job) return null;
+
+  const questionText = question.question.toLowerCase();
+  const placeholderItems = parseCriteriaItems(question.placeholder);
+  const mustHaveItems = parseCriteriaItems(job.must_haves);
+  const dealBreakerItems = parseCriteriaItems(job.deal_breakers);
+
+  const asksAboutNonNegotiables =
+    questionText.includes("non-negotiable") ||
+    questionText.includes("deal-breaker") ||
+    questionText.includes("deal breaker") ||
+    questionText.includes("conflicts with");
+
+  if (asksAboutNonNegotiables) {
+    const items = placeholderItems.length > 0 ? placeholderItems : dealBreakerItems;
+    if (items.length > 0) {
+      return {
+        title: "Non-negotiables for this role",
+        items,
+      };
+    }
+  }
+
+  const asksAboutMustHaves =
+    questionText.includes("must-have") ||
+    questionText.includes("must have") ||
+    questionText.includes("direct experience") ||
+    questionText.includes("requirements");
+
+  if (asksAboutMustHaves) {
+    const items = placeholderItems.length > 0 ? placeholderItems : mustHaveItems;
+    if (items.length > 0) {
+      return {
+        title: "Must-have requirements for this role",
+        items,
+      };
+    }
+  }
+
+  return null;
+};
+
 export default function ApplicationFormPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
@@ -140,6 +213,7 @@ export default function ApplicationFormPhase() {
   const [draggingQuestion, setDraggingQuestion] = useState<string | null>(null);
   const questionFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [usingProfileResume, setUsingProfileResume] = useState(false);
+  const [expandedCriteriaQuestionId, setExpandedCriteriaQuestionId] = useState<string | null>(null);
 
   // Evaluation screen state
   const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
@@ -210,7 +284,7 @@ export default function ApplicationFormPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume, quiz_questions)")
+        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume, quiz_questions, must_haves, deal_breakers)")
         .eq("id", id!)
         .single();
 
@@ -1017,6 +1091,8 @@ export default function ApplicationFormPhase() {
               "select",
               "file",
             ].includes(questionType);
+            const criteriaContext = getQuestionCriteriaContext(question, application?.jobs ?? null);
+            const isCriteriaExpanded = expandedCriteriaQuestionId === question.id;
 
             return (
             <div key={question.id} className="space-y-2" data-field={question.id}>
@@ -1024,6 +1100,44 @@ export default function ApplicationFormPhase() {
                 {question.question}
                 {question.required && <span className="text-destructive ml-1">*</span>}
               </Label>
+
+              {criteriaContext && (
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto justify-start px-0 text-sm font-medium text-primary hover:bg-transparent hover:text-primary/90"
+                    onClick={() =>
+                      setExpandedCriteriaQuestionId((current) =>
+                        current === question.id ? null : question.id,
+                      )
+                    }
+                  >
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    {isCriteriaExpanded ? "Hide quick view" : `View ${criteriaContext.title.toLowerCase()}`}
+                  </Button>
+
+                  {isCriteriaExpanded && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 sm:p-4">
+                      <p className="text-sm font-medium text-foreground break-words">
+                        {criteriaContext.title}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                        {criteriaContext.items.map((item, index) => (
+                          <li
+                            key={`${question.id}-criteria-${index}`}
+                            className="flex items-start gap-2 break-words"
+                          >
+                            <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
+                            <span className="min-w-0 break-words">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {usePlainInput && (
                 <Input
