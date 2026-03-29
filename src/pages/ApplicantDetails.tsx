@@ -1212,7 +1212,7 @@ export default function ApplicantDetails() {
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
           applicationId: application.id,
-          force: true,
+          force: false,
           autopilotDecision: false,
           currentPhaseId: application.phase,
         },
@@ -1223,7 +1223,13 @@ export default function ApplicantDetails() {
       // Invalidate and refetch to get the updated score from the database
       await queryClient.invalidateQueries({ queryKey: ["application", id] });
       
-      toast.success("Ava analysis completed!");
+      if (data?.reused) {
+        toast.success("Recommendation checked", {
+          description: "No new evidence was found, so Ava kept the existing recommendation.",
+        });
+      } else {
+        toast.success("Ava analysis completed!");
+      }
     } catch (error) {
       console.error("Ava analysis error:", error);
       toast.error("Failed to run Ava analysis");

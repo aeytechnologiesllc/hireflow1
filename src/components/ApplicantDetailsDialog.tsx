@@ -55,7 +55,7 @@ export default function ApplicantDetailsDialog({
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
           applicationId: application.id,
-          force: true, // Force re-analysis
+          force: false,
           autopilotDecision: application.jobs?.processing_mode === "auto",
           currentPhaseId: application.phase,
         },
@@ -69,7 +69,13 @@ export default function ApplicantDetailsDialog({
         onAnalyze(data.analysis || "Analysis completed", data.score || null);
       }
 
-      toast.success("Ava analysis completed!");
+      if (data?.reused) {
+        toast.success("Recommendation checked", {
+          description: "No new evidence was found, so Ava kept the existing recommendation.",
+        });
+      } else {
+        toast.success("Ava analysis completed!");
+      }
     } catch (error) {
       console.error("Ava analysis error:", error);
       toast.error("Failed to run Ava analysis");
