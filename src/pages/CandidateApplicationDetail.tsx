@@ -317,11 +317,14 @@ export default function CandidateApplicationDetail() {
     const statusChanged = previousStatusRef.current !== application.status;
     const phaseChanged = previousPhaseRef.current !== application.phase;
     
-    // Only show screen if this is first load and change was recent
+    // Always show the rejected experience when opening a rejected application.
+    if (previousStatusRef.current === null && application.status === "rejected") {
+      setStatusScreen("rejected");
+    }
+
+    // Only show other celebratory/transition screens if this is first load and change was recent
     if (previousStatusRef.current === null && isRecent) {
-      if (application.status === "rejected") {
-        setStatusScreen("rejected");
-      } else if (application.status === "hired") {
+      if (application.status === "hired") {
         setStatusScreen("hired");
       } else if (application.status === "interview") {
         fetchInterviewDetails(application.id);
@@ -356,15 +359,6 @@ export default function CandidateApplicationDetail() {
       };
     }
   }, [candidateInterview]);
-
-  // Redirect rejected candidates back to applications list (lock access)
-  useEffect(() => {
-    if (application?.status === "rejected" && role === "candidate") {
-      toast.info("This application is closed. View your feedback from the applications list.");
-      navigate("/applications");
-    }
-  }, [application?.status, role, navigate]);
-
 
   // Build phases from workflow
   const phases = (() => {

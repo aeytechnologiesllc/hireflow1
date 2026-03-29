@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
+import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { 
   getApplicationDisplayState, 
   statusColors, 
@@ -78,12 +79,14 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
   };
 
   // Determine if tile should be locked (no navigation)
-  const isLocked = displayState.isRejected || displayState.isPendingReview || displayState.isWaitingPhase;
+  const isLocked = displayState.isPendingReview || displayState.isWaitingPhase;
 
   return (
     <Card 
       className={`bg-card border-border transition-all group relative overflow-hidden ${
-        isLocked
+        displayState.isRejected
+          ? "border-border/60 cursor-pointer hover:border-destructive/40"
+          : isLocked
           ? "border-border/50 opacity-80 cursor-default"
           : displayState.showActionButton 
             ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5 cursor-pointer" 
@@ -276,7 +279,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 </AlertDialog>
                 
                 {displayState.isRejected ? (
-                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  <Eye className="h-5 w-5 text-muted-foreground group-hover:text-destructive transition-colors" />
                 ) : (
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                 )}
@@ -299,6 +302,11 @@ export default function Applications() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
   const [blueprintApplicationId, setBlueprintApplicationId] = useState<string | null>(null);
+  const [rejectedAnnouncement, setRejectedAnnouncement] = useState<{
+    applicationId: string;
+    jobTitle?: string | null;
+    companyName?: string | null;
+  } | null>(null);
 
   const handleDeleteApplication = (id: string) => {
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
@@ -324,6 +332,20 @@ export default function Applications() {
           filter: `candidate_id=eq.${user.id}`,
         },
         (payload) => {
+          const newStatus = payload.new.status as string | undefined;
+          const oldStatus = payload.old?.status as string | undefined;
+
+          if (newStatus === "rejected" && oldStatus !== "rejected") {
+            const updatedApplicationId = payload.new.id as string;
+            const existingApplication = applications?.find((application) => application.id === updatedApplicationId);
+
+            setRejectedAnnouncement({
+              applicationId: updatedApplicationId,
+              jobTitle: existingApplication?.jobs?.title,
+              companyName: existingApplication?.jobs?.department,
+            });
+          }
+
           refetch();
         }
       )
@@ -332,7 +354,7 @@ export default function Applications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, isEmployer, refetch]);
+  }, [user, isEmployer, refetch, applications]);
 
   const filteredApplications = applications?.filter((app) => {
     const matchesSearch = app.jobs?.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -369,6 +391,14 @@ export default function Applications() {
 
   return (
     <div className="space-y-6">
+      <CandidateStatusScreen
+        state={rejectedAnnouncement ? "rejected" : null}
+        jobTitle={rejectedAnnouncement?.jobTitle ?? undefined}
+        companyName={rejectedAnnouncement?.companyName ?? undefined}
+        applicationId={rejectedAnnouncement?.applicationId}
+        onClose={() => setRejectedAnnouncement(null)}
+      />
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-foreground">My Applications</h2>
