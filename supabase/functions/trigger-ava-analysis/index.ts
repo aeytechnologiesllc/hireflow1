@@ -8,40 +8,25 @@ import {
   isResumeQuestion,
   type ResumeVisualInput,
 } from "../_shared/resume.ts";
+import {
+  buildAvaScorecard,
+  buildEvidenceFingerprint,
+  inferJobFamily,
+  resolveAutopilotAction,
+  type AvaScorecard,
+  type AutopilotAction,
+} from "../_shared/autopilot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type RecommendedAction = "advance" | "review" | "reject";
-
-interface AvaScorecard {
-  overallScore: number;
-  confidence: number;
-  recommendedAction: RecommendedAction;
-  hardRequirementStatus: "met" | "mixed" | "at_risk";
-  dimensionScores: {
-    hard_requirements: number;
-    role_competency: number;
-    communication: number;
-    execution_reliability: number;
-    work_style_fit: number;
-    evidence_quality: number;
-  };
-  riskFlags: string[];
-  rationale: string;
-  evidenceRefs: string[];
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function averageOf(values: Array<number | null | undefined>, fallback: number) {
-  const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  if (numbers.length === 0) return fallback;
-  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(
+    JSON.stringify(body),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 }
 
 function weightedAverage(values: Array<{ value: number | null | undefined; weight: number }>, fallback: number) {
@@ -62,299 +47,239 @@ function weightedAverage(values: Array<{ value: number | null | undefined; weigh
   return weightedTotal / weightTotal;
 }
 
-function inferJobFamily(title: string | null | undefined, description: string | null | undefined) {
-  const haystack = `${title || ""} ${description || ""}`.toLowerCase();
-  if (haystack.match(/support|customer service|customer success|help desk/)) return "support";
-  if (haystack.match(/sales|account executive|business development|closer/)) return "sales";
-  if (haystack.match(/designer|creative|illustrator|animator|photographer|videographer|brand/)) return "creative";
-  if (haystack.match(/engineer|developer|software|data|technical|devops|product/)) return "technical";
-  if (haystack.match(/admin|operations|coordinator|assistant|scheduler/)) return "operations_admin";
-  if (haystack.match(/retail|hospitality|restaurant|server|barista|store/)) return "retail_hospitality";
-  if (haystack.match(/nurse|healthcare|medical|clinic|therapist/)) return "healthcare";
-  if (haystack.match(/field|installer|technician|maintenance|route/)) return "field_service";
-  if (haystack.match(/chief|vp|vice president|director|head of|executive/)) return "executive";
-  return "general";
-}
-
-function formatNaturalList(items: string[]) {
-  if (items.length === 0) return "";
-  if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
-}
-
-function isEntryLevelRole(experienceLevel: string | null | undefined, title: string | null | undefined) {
-  const haystack = `${experienceLevel || ""} ${title || ""}`.toLowerCase();
-  return /entry|junior|intern|trainee|associate/.test(haystack);
-}
-
-function buildAvaScorecard(params: {
-  finalScore: number | null;
-  passingScore: number;
-  quizScore: number | null;
-  typingTest?: Record<string, any> | null;
-  voiceScore: number | null;
-  portfolioScore: number | null;
-  chatSimulationScore: number | null;
-  salesSimulationScore: number | null;
-  chatInterviewScore: number | null;
-  videoIntroScore: number | null;
-  videoIntroSubmitted: boolean;
-  analysisText: string;
-  resumeUnavailable: boolean;
-  resumeTextUsed: boolean;
-  resumeImageCount: number;
-  applicationAnswerCount: number;
-  coverLetterProvided: boolean;
+function getAutopilotNextPhase(params: {
+  currentPhaseId: string | null;
   workflowSteps: any[];
-  jobTitle?: string | null;
-  jobDescription?: string | null;
-  jobSkillsRequired?: string[] | null;
-  experienceLevel?: string | null;
+  hasQuizQuestions: boolean;
+}) {
+  const { currentPhaseId, workflowSteps, hasQuizQuestions } = params;
+  const phaseId = currentPhaseId || "application";
+  const nonVoiceSteps = workflowSteps.filter((step: any) => step?.type !== "voice_interview");
+
+  if (phaseId === "application") {
+    if (hasQuizQuestions) {
+      return { nextPhaseId: "quiz", nextPhaseTitle: "Quiz" };
+    }
+    if (nonVoiceSteps.length > 0) {
+      return { nextPhaseId: nonVoiceSteps[0].id, nextPhaseTitle: nonVoiceSteps[0].title || nonVoiceSteps[0].type };
+    }
+    return null;
+  }
+
+  if (phaseId === "quiz") {
+    if (nonVoiceSteps.length > 0) {
+      return { nextPhaseId: nonVoiceSteps[0].id, nextPhaseTitle: nonVoiceSteps[0].title || nonVoiceSteps[0].type };
+    }
+    return null;
+  }
+
+  const currentIndex = workflowSteps.findIndex((step: any) => step?.id === phaseId);
+  if (currentIndex === -1) {
+    return { nextPhaseId: phaseId, nextPhaseTitle: phaseId };
+  }
+
+  const remainingSteps = workflowSteps.slice(currentIndex + 1);
+  for (const step of remainingSteps) {
+    if (step?.type === "voice_interview") {
+      return null;
+    }
+    return { nextPhaseId: step.id, nextPhaseTitle: step.title || step.type };
+  }
+
+  return { nextPhaseId: "review", nextPhaseTitle: "Review" };
+}
+
+async function notifyEmployerInterviewReady(params: {
+  supabaseAdmin: ReturnType<typeof createClient>;
+  employerId: string | null | undefined;
+  job: any;
+  profile: any;
+  applicationId: string;
+  score: number | null;
+}) {
+  const { supabaseAdmin, employerId, job, profile, applicationId, score } = params;
+  if (!employerId) return;
+
+  try {
+    const candidateName = profile?.full_name || profile?.email || "A candidate";
+    const jobTitle = job?.title || "your job posting";
+
+    await supabaseAdmin.from("notifications").insert({
+      user_id: employerId,
+      type: "interview",
+      title: "Candidate Ready for AIVA Interview",
+      message: `${candidateName} scored ${score ?? "N/A"}% and is ready for the AIVA voice interview for ${jobTitle}`,
+      link: `/applicants/${applicationId}`,
+      is_read: false,
+    });
+
+    await supabaseAdmin.functions.invoke("send-notification-email", {
+      body: {
+        type: "interview_ready",
+        recipient_user_id: employerId,
+        data: {
+          candidate_name: candidateName,
+          job_title: jobTitle,
+          score: score?.toString(),
+        },
+      },
+    });
+  } catch (notifyError) {
+    console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
+  }
+}
+
+async function handleAutopilotDecision(params: {
+  supabaseAdmin: ReturnType<typeof createClient>;
+  application: any;
+  applicationId: string;
+  currentPhaseId: string | null;
+  passingScore: number;
+  score: number | null;
+  scorecard: AvaScorecard | null;
+  profile: any;
+  job: any;
+  previewOnly: boolean;
 }) {
   const {
-    finalScore,
+    supabaseAdmin,
+    application,
+    applicationId,
+    currentPhaseId,
     passingScore,
-    quizScore,
-    typingTest,
-    voiceScore,
-    portfolioScore,
-    chatSimulationScore,
-    salesSimulationScore,
-    chatInterviewScore,
-    videoIntroScore,
-    videoIntroSubmitted,
-    analysisText,
-    resumeUnavailable,
-    resumeTextUsed,
-    resumeImageCount,
-    applicationAnswerCount,
-    coverLetterProvided,
-    workflowSteps,
-    jobTitle,
-    jobDescription,
-    jobSkillsRequired,
-    experienceLevel,
+    score,
+    scorecard,
+    profile,
+    job,
+    previewOnly,
   } = params;
 
-  const safeScore = clampPercent(finalScore ?? 0);
-  const family = inferJobFamily(jobTitle, jobDescription);
-  const entryLevel = isEntryLevelRole(experienceLevel, jobTitle);
-  const riskFlags: string[] = [];
-  const evidenceRefs: string[] = [];
+  const workflowSteps = (job?.workflow_steps as any[]) || [];
+  const quizQuestions = job?.quiz_questions as any[] | undefined;
+  const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+  const autopilotAction = resolveAutopilotAction(score, passingScore, scorecard);
+  const nextPhase = getAutopilotNextPhase({
+    currentPhaseId,
+    workflowSteps,
+    hasQuizQuestions,
+  });
 
-  if (!resumeUnavailable) {
-    evidenceRefs.push("resume");
-    if (resumeTextUsed) evidenceRefs.push("resume_text");
-    if (resumeImageCount > 0) evidenceRefs.push(`resume_images:${resumeImageCount}`);
-  }
-  if (applicationAnswerCount > 0) evidenceRefs.push(`application_answers:${applicationAnswerCount}`);
-  if (coverLetterProvided) evidenceRefs.push("cover_letter");
-  if (typeof quizScore === "number") evidenceRefs.push(`quiz:${quizScore}`);
-  if (typingTest?.wpm) evidenceRefs.push(`typing:${typingTest.wpm}wpm`);
-  if (typeof voiceScore === "number") evidenceRefs.push(`voice:${voiceScore}`);
-  if (typeof portfolioScore === "number") evidenceRefs.push(`portfolio:${portfolioScore}`);
-  if (typeof chatSimulationScore === "number") evidenceRefs.push(`chat_simulation:${chatSimulationScore}`);
-  if (typeof salesSimulationScore === "number") evidenceRefs.push(`sales_simulation:${salesSimulationScore}`);
-  if (typeof chatInterviewScore === "number") evidenceRefs.push(`chat_interview:${chatInterviewScore}`);
-  if (typeof videoIntroScore === "number") evidenceRefs.push(`video_intro:${videoIntroScore}`);
-  else if (videoIntroSubmitted) evidenceRefs.push("video_intro_submitted");
-  if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
-
-  if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
-  if (safeScore < passingScore) riskFlags.push("Overall score is below the passing threshold");
-  if (/WRONG_RESUME/i.test(analysisText)) riskFlags.push("Resume may not belong to this candidate or role");
-  if (/INVALID_DOCUMENT/i.test(analysisText)) riskFlags.push("Uploaded file did not behave like a valid resume");
-  if (/SUSPICIOUS/i.test(analysisText)) riskFlags.push("Resume details need manual verification");
-  if (/MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
-  if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
-  if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
-  if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && /Missing Critical Skills/i.test(analysisText)) {
-    riskFlags.push("Required skill alignment needs a closer look");
+  if (previewOnly) {
+    return jsonResponse({
+      success: true,
+      previewOnly: true,
+      score,
+      decision: autopilotAction === "reject" ? "rejected" : "advanced",
+      autopilotAction,
+      nextPhaseId: nextPhase?.nextPhaseId ?? null,
+      nextPhaseTitle: nextPhase?.nextPhaseTitle ?? null,
+      scorecard,
+    });
   }
 
-  const familyPrimarySignals: Record<string, Array<number | null | undefined>> = {
-    support: [chatSimulationScore, voiceScore, chatInterviewScore, quizScore],
-    sales: [salesSimulationScore, voiceScore, chatInterviewScore, quizScore],
-    creative: [portfolioScore, videoIntroScore, chatInterviewScore, safeScore],
-    technical: [quizScore, chatInterviewScore, safeScore],
-    operations_admin: [typingTest?.score as number | undefined, typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined, quizScore, safeScore],
-    field_service: [quizScore, voiceScore, safeScore],
-    retail_hospitality: [videoIntroScore, voiceScore, chatInterviewScore, safeScore],
-    healthcare: [voiceScore, quizScore, safeScore],
-    executive: [videoIntroScore, chatInterviewScore, voiceScore, safeScore],
-    general: [quizScore, voiceScore, chatInterviewScore, safeScore],
-  };
+  if (autopilotAction === "reject") {
+    const rejectReason = scorecard?.hardRejectReason
+      ? `${scorecard.hardRejectReason}.`
+      : `Overall Ava score of ${score || 0}% is below the passing threshold of ${passingScore}%.`;
 
-  const primarySignalAverage = averageOf(familyPrimarySignals[family] || familyPrimarySignals.general, safeScore);
-  const workflowTypes = Array.isArray(workflowSteps)
-    ? workflowSteps.map((step: any) => String(step?.type || "").toLowerCase()).filter(Boolean)
-    : [];
-  const pendingHighSignalPhases: string[] = [];
+    const { error: rejectError } = await supabaseAdmin
+      .from("applications")
+      .update({
+        status: "rejected",
+        rejected_by_type: "ava",
+        phase_ai_analysis: rejectReason,
+      })
+      .eq("id", applicationId);
 
-  if (workflowTypes.includes("chat_simulation") && typeof chatSimulationScore !== "number") pendingHighSignalPhases.push("chat simulation");
-  if (workflowTypes.includes("sales_simulation") && typeof salesSimulationScore !== "number") pendingHighSignalPhases.push("sales simulation");
-  if (workflowTypes.includes("chat_interview") && typeof chatInterviewScore !== "number") pendingHighSignalPhases.push("chat interview");
-  if (workflowTypes.includes("voice_interview") && typeof voiceScore !== "number") pendingHighSignalPhases.push("Ava interview");
-  if (workflowTypes.includes("typing_test") && typeof typingTest?.score !== "number") pendingHighSignalPhases.push("typing test");
-  if (workflowTypes.includes("portfolio_upload") && typeof portfolioScore !== "number") pendingHighSignalPhases.push("portfolio review");
-  if ((workflowTypes.includes("video_intro") || workflowTypes.includes("video_message")) && !videoIntroSubmitted) pendingHighSignalPhases.push("video response");
+    if (rejectError) {
+      console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
+    }
 
-  const hardRequirements = clampPercent(
-    weightedAverage(
-      [
-        { value: safeScore, weight: 0.45 },
-        { value: quizScore, weight: 0.25 },
-        { value: primarySignalAverage, weight: 0.2 },
-        { value: portfolioScore, weight: family === "creative" ? 0.1 : 0.05 },
-      ],
-      safeScore,
-    ) - (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 10 : 0),
-  );
-  const roleCompetency = clampPercent(
-    weightedAverage(
-      [
-        { value: safeScore, weight: 0.35 },
-        { value: primarySignalAverage, weight: 0.35 },
-        { value: quizScore, weight: family === "technical" ? 0.2 : 0.1 },
-        { value: salesSimulationScore, weight: family === "sales" ? 0.2 : 0.05 },
-        { value: chatSimulationScore, weight: family === "support" ? 0.2 : 0.05 },
-        { value: portfolioScore, weight: family === "creative" ? 0.2 : 0.05 },
-      ],
-      safeScore,
-    ),
-  );
-  const communication = clampPercent(
-    weightedAverage(
-      [
-        { value: voiceScore, weight: 0.35 },
-        { value: videoIntroScore, weight: 0.2 },
-        { value: chatSimulationScore, weight: family === "support" ? 0.2 : 0.1 },
-        { value: salesSimulationScore, weight: family === "sales" ? 0.2 : 0.1 },
-        { value: chatInterviewScore, weight: 0.2 },
-        { value: safeScore - 4, weight: 0.05 },
-      ],
-      safeScore - 4,
-    ),
-  );
-  const executionReliability = clampPercent(
-    weightedAverage(
-      [
-        { value: safeScore, weight: 0.3 },
-        { value: quizScore, weight: 0.25 },
-        { value: typingTest?.score as number | undefined, weight: family === "operations_admin" ? 0.25 : 0.1 },
-        { value: typingTest?.accuracy ? Math.round(typingTest.accuracy) : undefined, weight: 0.15 },
-        { value: chatInterviewScore, weight: 0.1 },
-      ],
-      safeScore,
-    ),
-  );
-  const workStyleFit = clampPercent(
-    weightedAverage(
-      [
-        { value: safeScore, weight: 0.35 },
-        { value: chatSimulationScore, weight: 0.15 },
-        { value: voiceScore, weight: 0.15 },
-        { value: chatInterviewScore, weight: 0.2 },
-        { value: videoIntroScore, weight: 0.15 },
-      ],
-      safeScore - 3,
-    ),
-  );
-  const evidenceQuality = clampPercent(
-    28 +
-      evidenceRefs.length * 8 +
-      (primarySignalAverage >= Math.max(passingScore, 60) ? 8 : 0) -
-      (resumeUnavailable ? 8 : 0) +
-      (resumeTextUsed ? 6 : 0) +
-      (resumeImageCount > 1 ? 4 : 0),
-  );
+    try {
+      const jobTitle = job?.title || "this position";
+      const { data: employerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_name")
+        .eq("user_id", job?.employer_id)
+        .single();
 
-  const rawConfidence = clampPercent(
-    38 +
-      evidenceRefs.length * 5 +
-      (applicationAnswerCount >= 4 ? 4 : applicationAnswerCount > 0 ? 2 : 0) +
-      (coverLetterProvided ? 3 : 0) +
-      (primarySignalAverage >= passingScore ? 6 : 0) +
-      (safeScore >= passingScore ? 8 : -Math.min(20, Math.round((passingScore - safeScore) * 0.45))) +
-      (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0) +
-      (resumeTextUsed ? 7 : 0) +
-      (resumeImageCount > 0 ? 4 : 0),
-  );
-  const confidenceCap = safeScore >= passingScore
-    ? Math.min(100, safeScore + 15)
-    : Math.max(35, safeScore + 20);
-  const confidence = Math.min(rawConfidence, confidenceCap);
+      await supabaseAdmin.functions.invoke("send-notification-email", {
+        body: {
+          type: "status_rejected",
+          recipientUserId: application.candidate_id,
+          data: {
+            job_title: jobTitle,
+            company_name: employerProfile?.company_name || undefined,
+          },
+        },
+      });
+    } catch (emailError) {
+      console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
+    }
 
-  const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] =
-    riskFlags.some((flag) => flag.includes("Critical role-fit") || flag.includes("authenticity"))
-      ? "at_risk"
-      : safeScore >= passingScore
-        ? "met"
-        : "mixed";
-
-  let recommendedAction: RecommendedAction = "reject";
-  const advanceBuffer = entryLevel ? 6 : 10;
-  const reviewFloor = entryLevel ? Math.max(42, passingScore - 12) : Math.max(45, passingScore - 8);
-
-  if (safeScore >= passingScore + advanceBuffer && confidence >= 65 && hardRequirementStatus !== "at_risk") {
-    recommendedAction = "advance";
-  } else if (safeScore >= reviewFloor || primarySignalAverage >= passingScore) {
-    recommendedAction = "review";
+    return jsonResponse({
+      success: true,
+      message: "Analysis completed, candidate rejected",
+      score,
+      decision: "rejected",
+      reason: rejectReason,
+      autopilotAction,
+      scorecard,
+    });
   }
 
-  const pendingPhaseLabel = pendingHighSignalPhases.length > 0
-    ? formatNaturalList(Array.from(new Set(pendingHighSignalPhases)))
-    : null;
-  const rationale =
-    recommendedAction === "advance"
-      ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support automatic advancement.`
-      : recommendedAction === "review"
-        ? pendingPhaseLabel
-          ? `Signals are mixed so far for this ${family.replace(/_/g, " ")} role. ${pendingPhaseLabel.charAt(0).toUpperCase()}${pendingPhaseLabel.slice(1)} ${pendingHighSignalPhases.length === 1 ? "is" : "are"} still pending, so a human should review the evidence collected so far before making a final call.`
-          : `Signals are mixed or confidence is moderate for this ${family.replace(/_/g, " ")} role, so this applicant should land in human review instead of being auto-rejected.`
-        : pendingPhaseLabel
-          ? `The evidence collected so far is below the role threshold. ${pendingPhaseLabel.charAt(0).toUpperCase()}${pendingPhaseLabel.slice(1)} ${pendingHighSignalPhases.length === 1 ? "is" : "are"} still pending, so Ava is basing this recommendation on the submitted materials available right now.`
-          : "Available evidence is below the role threshold, so Ava recommends rejection.";
+  if (!nextPhase) {
+    await notifyEmployerInterviewReady({
+      supabaseAdmin,
+      employerId: job?.employer_id,
+      job,
+      profile,
+      applicationId,
+      score,
+    });
 
-  const scorecard: AvaScorecard = {
-    overallScore: safeScore,
-    confidence,
-    recommendedAction,
-    hardRequirementStatus,
-    dimensionScores: {
-      hard_requirements: hardRequirements,
-      role_competency: roleCompetency,
-      communication,
-      execution_reliability: executionReliability,
-      work_style_fit: workStyleFit,
-      evidence_quality: evidenceQuality,
-    },
-    riskFlags: Array.from(new Set(riskFlags)),
-    rationale,
-    evidenceRefs,
-  };
+    return jsonResponse({
+      success: true,
+      message: "Analysis completed, awaiting employer configuration for Ava interview",
+      score,
+      decision: "needs_employer_approval",
+      reason: "Next phase is Ava Interview which requires employer configuration",
+      autopilotAction,
+      scorecard,
+    });
+  }
 
-  return scorecard;
+  const phaseAnalysis = autopilotAction === "defer"
+    ? scorecard?.rationale || "Ava needs more evidence and has moved the candidate to the next phase."
+    : scorecard?.rationale || application.phase_ai_analysis;
+
+  const { error: advanceError } = await supabaseAdmin
+    .from("applications")
+    .update({
+      phase: nextPhase.nextPhaseId,
+      status: "reviewing",
+      phase_ai_analysis: phaseAnalysis,
+    })
+    .eq("id", applicationId);
+
+  if (advanceError) {
+    console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
+  }
+
+  return jsonResponse({
+    success: true,
+    message: autopilotAction === "defer"
+      ? "Analysis completed, candidate advanced for more evidence"
+      : "Analysis completed, candidate advanced",
+    score,
+    decision: "advanced",
+    autopilotAction,
+    nextPhaseId: nextPhase.nextPhaseId,
+    nextPhaseTitle: nextPhase.nextPhaseTitle,
+    scorecard,
+  });
 }
 
-function resolveAutopilotAction(
-  score: number | null,
-  passingScore: number,
-  scorecard?: AvaScorecard | null,
-): RecommendedAction {
-  // Product rule: auto mode is threshold-based. Manual review nuance lives in the scorecard/UI,
-  // but autopilot itself should advance at/above threshold and reject below threshold.
-  if (score !== null) {
-    return score >= passingScore ? "advance" : "reject";
-  }
-
-  if (scorecard?.recommendedAction === "advance") {
-    return "advance";
-  }
-
-  return "reject";
-}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -363,7 +288,7 @@ serve(async (req) => {
   }
 
   try {
-    const { applicationId, force = false, autopilotDecision = false, currentPhaseId = null } = await req.json();
+    const { applicationId, force = false, autopilotDecision = false, previewOnly = false, currentPhaseId = null } = await req.json();
     
     if (!applicationId) {
       return new Response(
@@ -372,7 +297,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force, "autopilotDecision:", autopilotDecision, "currentPhaseId:", currentPhaseId);
+    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force, "autopilotDecision:", autopilotDecision, "previewOnly:", previewOnly, "currentPhaseId:", currentPhaseId);
 
     // Create admin client to bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -463,342 +388,10 @@ serve(async (req) => {
       );
     }
 
-    // ========== AI ANALYSES LIMIT CHECK ==========
-    if (employerId) {
-      // Get employer's subscription
-      const { data: subscription } = await supabaseAdmin
-        .from("subscriptions")
-        .select("plan_type, status, trial_end")
-        .eq("user_id", employerId)
-        .maybeSingle();
-
-      const hasActiveSubscriptionAccess =
-        !subscription ||
-        subscription.status === "active" ||
-        (subscription.status === "trialing" &&
-          (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
-
-      if (!hasActiveSubscriptionAccess) {
-        return new Response(
-          JSON.stringify({
-            error: "Subscription inactive",
-            message: "This employer's subscription is not active, so Ava analysis is unavailable."
-          }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Get plan limits
-      const planType = subscription?.plan_type || 'trial';
-      const aiAnalysesLimits: Record<string, number> = {
-        trial: 15,
-        growth: 100,
-        business: -1, // unlimited
-        enterprise: -1, // unlimited
-      };
-      const aiLimit = aiAnalysesLimits[planType] ?? 15;
-
-      // Only check if there's a limit (not unlimited)
-      if (aiLimit !== -1) {
-        // Count existing AI analyses for this employer's applications
-        const { data: employerJobs } = await supabaseAdmin
-          .from("jobs")
-          .select("id")
-          .eq("employer_id", employerId);
-
-        const jobIds = (employerJobs || []).map((j: any) => j.id);
-
-        if (jobIds.length > 0) {
-          const { count: analysisCount } = await supabaseAdmin
-            .from("applications")
-            .select("*", { count: "exact", head: true })
-            .in("job_id", jobIds)
-            .not("ai_score", "is", null);
-
-          const currentCount = analysisCount || 0;
-
-          if (currentCount >= aiLimit) {
-            console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
-            return new Response(
-              JSON.stringify({ 
-                error: "AI analysis limit reached", 
-                message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
-                limitReached: true 
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-          console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
-        }
-      }
-    }
-    // ========== END LIMIT CHECK ==========
-
     // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
     if (application.status === "rejected" && !force) {
       console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
-      return new Response(
-        JSON.stringify({ success: true, message: "Application already rejected", skipped: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // RACE CONDITION FIX: Skip if analysis was just completed recently (within 10 seconds)
-    // BUT: Allow re-analysis if NEW phase data exists that wasn't previously analyzed
-    if (!force && application.ai_analysis && application.ai_score !== null) {
-      const lastUpdated = new Date(application.updated_at).getTime();
-      const now = Date.now();
-      
-      // Parse notes to detect what phases have data BEFORE the general parsing below
-      let tempNotes: Record<string, any> = {};
-      try {
-        tempNotes = application.notes ? JSON.parse(application.notes) : {};
-      } catch { tempNotes = {}; }
-      
-      // Check if there's NEW phase data that might not be in the current analysis
-      const hasQuizData = !!(tempNotes.quizResult || tempNotes.quiz);
-      const hasVoiceData = !!application.voice_interview_result;
-      const hasSalesData = !!tempNotes.salesSimulationResult;
-      const hasChatSimData = !!tempNotes.chatSimulationResult;
-      const hasChatIntData = !!tempNotes.chatInterviewResult;
-      const hasTypingData = !!tempNotes.typingTestResult;
-      const hasPortfolioData = !!tempNotes.portfolioResult;
-      
-      // Check what the existing analysis already covers
-      const analysisText = application.ai_analysis || "";
-      const analysisIncludesQuiz = analysisText.includes("Quiz Performance") || analysisText.includes("quiz score");
-      const analysisIncludesVoice = analysisText.includes("Voice Interview") || analysisText.includes("voice interview");
-      const analysisIncludesSales = analysisText.includes("Sales Simulation");
-      const analysisIncludesChatSim = analysisText.includes("Chat Simulation");
-      const analysisIncludesChatInt = analysisText.includes("Chat Interview");
-      const analysisIncludesTyping = analysisText.includes("Typing Test");
-      const analysisIncludesPortfolio = analysisText.includes("Portfolio");
-      
-      const hasNewData = (hasQuizData && !analysisIncludesQuiz) || 
-                         (hasVoiceData && !analysisIncludesVoice) ||
-                         (hasSalesData && !analysisIncludesSales) ||
-                         (hasChatSimData && !analysisIncludesChatSim) ||
-                         (hasChatIntData && !analysisIncludesChatInt) ||
-                         (hasTypingData && !analysisIncludesTyping) ||
-                         (hasPortfolioData && !analysisIncludesPortfolio);
-      
-      if (now - lastUpdated < 10000 && !hasNewData) {
-        // If autopilotDecision is requested, we still need to run pass/fail logic
-        // using existing score - don't skip completely
-        if (!autopilotDecision) {
-          console.log("[trigger-ava-analysis] Analysis was just completed, no new phase data, skipping");
-          return new Response(
-            JSON.stringify({ success: true, message: "Analysis already present", skipped: true, score: application.ai_score }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        } else {
-          console.log("[trigger-ava-analysis] Analysis exists but autopilotDecision requested - will evaluate pass/fail with existing score:", application.ai_score);
-          
-          // Run autopilot decision with existing score
-          const existingScore = application.ai_score;
-          const jobData = application.jobs as any;
-          const passingScore = (jobData?.passing_score as number) || 60;
-          const workflowSteps = (jobData?.workflow_steps as any[]) || [];
-          const quizQuestions = jobData?.quiz_questions as any[] | undefined;
-          const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-          const existingScorecard = (tempNotes.avaScorecard || null) as AvaScorecard | null;
-          const autopilotAction = resolveAutopilotAction(existingScore, passingScore, existingScorecard);
-          
-          console.log("[trigger-ava-analysis] Autopilot decision with existing score:", existingScore, "passingScore:", passingScore, "action:", autopilotAction);
-          
-          if (autopilotAction === "review") {
-            const reviewReason = existingScorecard?.rationale || "Ava collected mixed signals, so this application has been routed to human review.";
-
-            const { error: reviewError } = await supabaseAdmin
-              .from("applications")
-              .update({
-                phase: "review",
-                status: "reviewing",
-                phase_ai_analysis: reviewReason,
-              })
-              .eq("id", applicationId);
-
-            if (reviewError) {
-              console.error("[trigger-ava-analysis] Failed to route application to review:", reviewError);
-            }
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                message: "Ava routed this application to human review",
-                score: existingScore,
-                decision: "advanced",
-                nextPhaseId: "review",
-                nextPhaseTitle: "Review",
-                routedToReview: true,
-                scorecard: existingScorecard,
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-
-          if (autopilotAction === "advance" && existingScore !== null) {
-            // PASSED - determine next phase and advance
-            let nextPhaseId = "application";
-            let nextPhaseTitle = "Application";
-            
-            // SAFETY GATE: Filter out voice_interview from auto-advance targets
-            const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
-            
-            if (currentPhaseId === "application") {
-              if (hasQuizQuestions) {
-                nextPhaseId = "quiz";
-                nextPhaseTitle = "Quiz";
-              } else if (nonVoiceSteps.length > 0) {
-                nextPhaseId = nonVoiceSteps[0].id;
-                nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
-              } else {
-                // Only voice_interview steps exist - cannot auto-advance
-                console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
-                return new Response(
-                  JSON.stringify({ 
-                    success: true, 
-                    message: "Analysis exists, awaiting employer configuration for Ava interview",
-                    score: existingScore,
-                    decision: "needs_employer_approval",
-                    reason: "Next phase is Ava Interview which requires employer configuration",
-                  }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            } else if (currentPhaseId === "quiz") {
-              if (nonVoiceSteps.length > 0) {
-                nextPhaseId = nonVoiceSteps[0].id;
-                nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
-              } else {
-                console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
-                return new Response(
-                  JSON.stringify({ 
-                    success: true, 
-                    message: "Analysis exists, awaiting employer configuration for Ava interview",
-                    score: existingScore,
-                    decision: "needs_employer_approval",
-                  }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            } else {
-              // Find current step and advance to next non-voice step
-              const currentIndex = workflowSteps.findIndex((s: any) => s.id === currentPhaseId);
-              const remainingSteps = workflowSteps.slice(currentIndex + 1).filter((s: any) => s.type !== 'voice_interview');
-              if (remainingSteps.length > 0) {
-                nextPhaseId = remainingSteps[0].id;
-                nextPhaseTitle = remainingSteps[0].title || remainingSteps[0].type;
-              } else {
-                return new Response(
-                  JSON.stringify({ 
-                    success: true, 
-                    message: "Analysis exists, awaiting employer configuration for Ava interview",
-                    score: existingScore,
-                    decision: "needs_employer_approval",
-                  }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            }
-            
-            // Advance to next phase
-            const { error: advanceError } = await supabaseAdmin
-              .from("applications")
-              .update({ phase: nextPhaseId })
-              .eq("id", applicationId);
-            
-            if (advanceError) {
-              console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
-            } else {
-              console.log("[trigger-ava-analysis] Advanced candidate to:", nextPhaseId);
-            }
-            
-            return new Response(
-              JSON.stringify({ 
-                success: true, 
-                message: "Autopilot advanced candidate",
-                score: existingScore,
-                decision: "advanced",
-                nextPhase: nextPhaseId,
-                nextPhaseId,
-                nextPhaseTitle,
-                scorecard: existingScorecard,
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          } else {
-            // FAILED - reject the application
-            const rejectReason = `Overall Ava score of ${existingScore || 0}% is below the passing threshold of ${passingScore}%.`;
-            
-            console.log("[trigger-ava-analysis] Autopilot FAILED with existing score: rejecting application, score=", existingScore);
-            
-            const { error: rejectError } = await supabaseAdmin
-              .from("applications")
-              .update({
-                status: "rejected",
-                rejected_by_type: "ava",
-                phase_ai_analysis: rejectReason,
-              })
-              .eq("id", applicationId);
-            
-            if (rejectError) {
-              console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
-            }
-            
-            // Send rejection notification email to candidate
-            try {
-              const jobTitle = jobData?.title || "this position";
-              
-              const { data: employerProfile } = await supabaseAdmin
-                .from("profiles")
-                .select("company_name")
-                .eq("user_id", jobData?.employer_id)
-                .single();
-              
-              const companyName = employerProfile?.company_name || undefined;
-              
-              await supabaseAdmin.functions.invoke("send-notification-email", {
-                body: {
-                  type: "status_rejected",
-                  recipientUserId: application.candidate_id,
-                  data: {
-                    job_title: jobTitle,
-                    company_name: companyName,
-                  },
-                },
-              });
-              
-              console.log("[trigger-ava-analysis] Sent rejection email to candidate");
-            } catch (emailError) {
-              console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
-            }
-            
-            return new Response(
-              JSON.stringify({ 
-                success: true, 
-                message: "Autopilot rejected candidate (existing score)",
-                score: existingScore,
-                decision: "rejected",
-                reason: rejectReason,
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        }
-      }
-      
-      if (hasNewData) {
-        console.log("[trigger-ava-analysis] New phase data detected, re-analyzing:", { 
-          hasQuizData, analysisIncludesQuiz, 
-          hasVoiceData, analysisIncludesVoice,
-          hasSalesData, analysisIncludesSales,
-          hasChatSimData, analysisIncludesChatSim,
-          hasChatIntData, analysisIncludesChatInt,
-          hasTypingData, analysisIncludesTyping,
-          hasPortfolioData, analysisIncludesPortfolio
-        });
-      }
+      return jsonResponse({ success: true, message: "Application already rejected", skipped: true });
     }
 
     // Fetch profile separately using candidate_id
@@ -949,6 +542,169 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     // Fall back to profile only if not provided in application
     const candidateName = applicationName || profile?.full_name || "Unknown";
     const candidateEmail = applicationEmail || "Not provided in application";
+    const quizData = parsedNotes.quizResult || parsedNotes.quiz;
+    const evidenceFingerprint = buildEvidenceFingerprint({
+      currentPhaseId: currentPhaseId || application.phase || "application",
+      passingScore: job?.passing_score || 60,
+      workflowSteps: workflowSteps.map((step: any) => ({ id: step.id, type: step.type, title: step.title || step.type })),
+      quizQuestionCount: Array.isArray(job?.quiz_questions) ? job.quiz_questions.length : 0,
+      resumeUrl: detectedResumeUrl || null,
+      applicationAnswers: textAnswers.map((answer: any) => ({
+        question: answer.question,
+        answer: answer.answer,
+      })),
+      coverLetter: application.cover_letter || null,
+      quizResult: quizData
+        ? {
+            score: quizData.score || quizData.percentage || null,
+            correct: quizData.correct || null,
+            total: quizData.total || null,
+            passed: quizData.passed ?? null,
+          }
+        : null,
+      typingTest: parsedNotes.typingTestResult
+        ? {
+            score: parsedNotes.typingTestResult.score || null,
+            wpm: parsedNotes.typingTestResult.wpm || null,
+            accuracy: parsedNotes.typingTestResult.accuracy || null,
+            requiredWpm: parsedNotes.typingTestResult.requiredWpm || null,
+          }
+        : null,
+      chatSimulation: parsedNotes.chatSimulationResult
+        ? {
+            score: parsedNotes.chatSimulationResult.score || parsedNotes.chatSimulationResult.overallScore || null,
+            empathy: parsedNotes.chatSimulationResult.empathy || null,
+            problemSolving: parsedNotes.chatSimulationResult.problemSolving || null,
+          }
+        : null,
+      chatInterview: parsedNotes.chatInterviewResult
+        ? {
+            score: parsedNotes.chatInterviewResult.score || parsedNotes.chatInterviewResult.overall_score || null,
+            recommendation: parsedNotes.chatInterviewResult.recommendation || null,
+            messageCount: parsedNotes.chatInterviewResult.messageCount || null,
+          }
+        : null,
+      salesSimulation: parsedNotes.salesSimulationResult
+        ? {
+            score: parsedNotes.salesSimulationResult.score || parsedNotes.salesSimulationResult.overallScore || null,
+            discovery: parsedNotes.salesSimulationResult.discovery || null,
+            objectionHandling: parsedNotes.salesSimulationResult.objectionHandling || null,
+          }
+        : null,
+      videoIntro: parsedNotes.videoIntroResult || parsedNotes.videoIntroUrl
+        ? {
+            score: parsedNotes.videoIntroResult?.score || null,
+            submitted: !!parsedNotes.videoIntroUrl,
+          }
+        : null,
+      portfolio: parsedNotes.portfolioResult
+        ? {
+            score: parsedNotes.portfolioResult.aiAnalysis?.score || parsedNotes.portfolioResult.score || null,
+            fileCount: parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || null,
+          }
+        : null,
+      voiceInterview: application.voice_interview_result
+        ? {
+            overallScore: application.voice_interview_result.overall_score || null,
+            recommendation: application.voice_interview_result.recommendation || null,
+          }
+        : null,
+    });
+    const existingScorecard = (parsedNotes.avaScorecard || null) as AvaScorecard | null;
+    const existingAnalysisMeta = (parsedNotes.avaAnalysisMeta || {}) as Record<string, any>;
+    const canReuseExistingAnalysis =
+      !force &&
+      !!application.ai_analysis &&
+      application.ai_score !== null &&
+      !!existingScorecard?.decisionState &&
+      existingAnalysisMeta?.evidenceFingerprint === evidenceFingerprint;
+
+    if (canReuseExistingAnalysis) {
+      console.log("[trigger-ava-analysis] Reusing frozen analysis for unchanged evidence snapshot");
+
+      if (!autopilotDecision && !previewOnly) {
+        return jsonResponse({
+          success: true,
+          message: "Analysis already present",
+          skipped: true,
+          reused: true,
+          score: application.ai_score,
+          scorecard: existingScorecard,
+        });
+      }
+
+      return await handleAutopilotDecision({
+        supabaseAdmin,
+        application,
+        applicationId,
+        currentPhaseId: currentPhaseId || application.phase,
+        passingScore: (job?.passing_score as number) || 60,
+        score: application.ai_score,
+        scorecard: existingScorecard,
+        profile,
+        job,
+        previewOnly,
+      });
+    }
+
+    // ========== AI ANALYSES LIMIT CHECK ==========
+    if (employerId) {
+      const { data: subscription } = await supabaseAdmin
+        .from("subscriptions")
+        .select("plan_type, status, trial_end")
+        .eq("user_id", employerId)
+        .maybeSingle();
+
+      const hasActiveSubscriptionAccess =
+        !subscription ||
+        subscription.status === "active" ||
+        (subscription.status === "trialing" &&
+          (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
+
+      if (!hasActiveSubscriptionAccess) {
+        return jsonResponse({
+          error: "Subscription inactive",
+          message: "This employer's subscription is not active, so Ava analysis is unavailable.",
+        }, 403);
+      }
+
+      const planType = subscription?.plan_type || "trial";
+      const aiAnalysesLimits: Record<string, number> = {
+        trial: 15,
+        growth: 100,
+        business: -1,
+        enterprise: -1,
+      };
+      const aiLimit = aiAnalysesLimits[planType] ?? 15;
+
+      if (aiLimit !== -1) {
+        const { data: employerJobs } = await supabaseAdmin
+          .from("jobs")
+          .select("id")
+          .eq("employer_id", employerId);
+
+        const jobIds = (employerJobs || []).map((entry: any) => entry.id);
+        if (jobIds.length > 0) {
+          const { count: analysisCount } = await supabaseAdmin
+            .from("applications")
+            .select("*", { count: "exact", head: true })
+            .in("job_id", jobIds)
+            .not("ai_score", "is", null);
+
+          const currentCount = analysisCount || 0;
+          if (currentCount >= aiLimit) {
+            console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
+            return jsonResponse({
+              error: "AI analysis limit reached",
+              message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
+              limitReached: true,
+            }, 403);
+          }
+          console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
+        }
+      }
+    }
+    // ========== END LIMIT CHECK ==========
 
     let content = `
 Job Title: ${job?.title || "Unknown"}
@@ -1006,7 +762,6 @@ Typing Test Results:
     }
 
     // Add Quiz answers if available
-    const quizData = parsedNotes.quizResult || parsedNotes.quiz;
     if (quizData) {
       content += `
 Quiz Performance:
@@ -1330,10 +1085,12 @@ ${interviewType} Interview with AVA Results:
     
     console.log("[trigger-ava-analysis] Final score after weighting and floors:", finalScore, "(AI raw score was:", newScore, ")");
     const passingScore = (job?.passing_score as number) || 60;
+    const quizConfigured = Array.isArray(job?.quiz_questions) && job.quiz_questions.length > 0;
     const scorecard = buildAvaScorecard({
       finalScore,
       passingScore,
       quizScore,
+      quizConfigured,
       typingTest,
       voiceScore: voiceResult?.overall_score || null,
       portfolioScore,
@@ -1353,11 +1110,13 @@ ${interviewType} Interview with AVA Results:
       jobDescription: job?.description || null,
       jobSkillsRequired: Array.isArray(job?.skills_required) ? (job.skills_required as string[]) : null,
       experienceLevel: job?.experience_level || null,
+      evidenceFingerprint,
     });
     const analysisMeta = {
       provider: analysisData?.provider || "openai",
       model: analysisData?.model || null,
       analyzedAt: new Date().toISOString(),
+      evidenceFingerprint,
       resume: {
         provided: !!detectedResumeUrl,
         analyzed: !resumeUnavailable,
@@ -1408,388 +1167,33 @@ ${interviewType} Interview with AVA Results:
 
     if (updateError) {
       console.error("[trigger-ava-analysis] Failed to update application:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Failed to save analysis", details: updateError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Failed to save analysis", details: updateError.message }, 500);
     }
 
     console.log("[trigger-ava-analysis] Analysis completed successfully for application:", applicationId, "score:", finalScore);
 
-    // Handle autopilot decision if requested
-    if (autopilotDecision) {
-      const quizQuestions = job?.quiz_questions as any[] | undefined;
-      const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-      const workflowSteps = (job?.workflow_steps as any[]) || [];
-      const autopilotAction = resolveAutopilotAction(finalScore, passingScore, scorecard);
-      
-      console.log("[trigger-ava-analysis] Autopilot decision: score=", finalScore, "passingScore=", passingScore, "hasQuizQuestions=", hasQuizQuestions, "action=", autopilotAction);
-      
-      if (autopilotAction === "review") {
-        const { error: reviewError } = await supabaseAdmin
-          .from("applications")
-          .update({
-            phase: "review",
-            status: "reviewing",
-            phase_ai_analysis: scorecard.rationale,
-          })
-          .eq("id", applicationId);
-
-        if (reviewError) {
-          console.error("[trigger-ava-analysis] Failed to route application to review:", reviewError);
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "Analysis completed and routed to human review",
-            score: finalScore,
-            decision: "advanced",
-            nextPhaseId: "review",
-            nextPhaseTitle: "Review",
-            routedToReview: true,
-            scorecard,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      if (autopilotAction === "advance" && finalScore !== null) {
-        // PASSED - determine next phase and advance
-        let nextPhaseId = "application";
-        let nextPhaseTitle = "Application";
-        
-        // SAFETY GATE: Filter out voice_interview from auto-advance targets
-        // voice_interview requires employer to configure duration, language, etc.
-        const nonVoiceSteps = workflowSteps.filter((s: any) => s.type !== 'voice_interview');
-        
-        if (currentPhaseId === "application") {
-          if (hasQuizQuestions) {
-            nextPhaseId = "quiz";
-            nextPhaseTitle = "Quiz";
-          } else if (nonVoiceSteps.length > 0) {
-            nextPhaseId = nonVoiceSteps[0].id;
-            nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
-          } else {
-            // Only voice_interview steps exist - cannot auto-advance, needs employer config
-            console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
-            
-            // Notify employer that candidate is ready for AIVA interview
-            try {
-              const candidateName = profile?.full_name || profile?.email || "A candidate";
-              const jobTitle = job?.title || "your job posting";
-              
-              // Create in-app notification for employer
-              await supabaseAdmin.from("notifications").insert({
-                user_id: job.employer_id,
-                type: "interview",
-                title: "Candidate Ready for AIVA Interview",
-                message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
-                link: `/applicants/${applicationId}`,
-                is_read: false,
-              });
-              
-              // Send email notification
-              await supabaseAdmin.functions.invoke("send-notification-email", {
-                body: {
-                  type: "interview_ready",
-                  recipient_user_id: job.employer_id,
-                  data: {
-                    candidate_name: candidateName,
-                    job_title: jobTitle,
-                    score: finalScore?.toString(),
-                  },
-                },
-              });
-              
-              console.log("[trigger-ava-analysis] Notified employer that candidate is ready for AIVA interview");
-            } catch (notifyError) {
-              console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
-            }
-            
-            return new Response(
-              JSON.stringify({ 
-                success: true, 
-                message: "Analysis completed, awaiting employer configuration for Ava interview",
-                score: finalScore,
-                decision: "needs_employer_approval",
-                reason: "Next phase is Ava Interview which requires employer configuration",
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        } else if (currentPhaseId === "quiz") {
-          if (nonVoiceSteps.length > 0) {
-            nextPhaseId = nonVoiceSteps[0].id;
-            nextPhaseTitle = nonVoiceSteps[0].title || nonVoiceSteps[0].type;
-          } else {
-            // Only voice_interview steps exist - cannot auto-advance, needs employer config
-            console.log("[trigger-ava-analysis] Autopilot: Only voice_interview steps available - requires employer configuration");
-            
-            // Notify employer that candidate is ready for AIVA interview
-            try {
-              const candidateName = profile?.full_name || profile?.email || "A candidate";
-              const jobTitle = job?.title || "your job posting";
-              
-              // Create in-app notification for employer
-              await supabaseAdmin.from("notifications").insert({
-                user_id: job.employer_id,
-                type: "interview",
-                title: "Candidate Ready for AIVA Interview",
-                message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
-                link: `/applicants/${applicationId}`,
-                is_read: false,
-              });
-              
-              // Send email notification
-              await supabaseAdmin.functions.invoke("send-notification-email", {
-                body: {
-                  type: "interview_ready",
-                  recipient_user_id: job.employer_id,
-                  data: {
-                    candidate_name: candidateName,
-                    job_title: jobTitle,
-                    score: finalScore?.toString(),
-                  },
-                },
-              });
-              
-              console.log("[trigger-ava-analysis] Notified employer that candidate is ready for AIVA interview");
-            } catch (notifyError) {
-              console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
-            }
-            
-            return new Response(
-              JSON.stringify({ 
-                success: true, 
-                message: "Analysis completed, awaiting employer configuration for Ava interview",
-                score: finalScore,
-                decision: "needs_employer_approval",
-                reason: "Next phase is Ava Interview which requires employer configuration",
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        } else {
-          // Handle workflow step phases (typing_test, chat_simulation, sales_simulation, etc.)
-          // Find current step index in workflow
-          const currentStepIndex = workflowSteps.findIndex((s: any) => s.id === currentPhaseId);
-          
-          console.log("[trigger-ava-analysis] Handling workflow step phase:", currentPhaseId, "at index:", currentStepIndex);
-          
-          if (currentStepIndex !== -1) {
-            // Find next step in workflow (non-voice steps only for auto-advance)
-            let nextStepIndex = currentStepIndex + 1;
-            
-            // Skip to next non-voice step, or stop if next is voice_interview
-            while (nextStepIndex < workflowSteps.length) {
-              const nextStep = workflowSteps[nextStepIndex];
-              
-              if (nextStep.type === 'voice_interview') {
-                // voice_interview requires employer to configure - notify and stop
-                console.log("[trigger-ava-analysis] Next step is voice_interview - requires employer configuration");
-                
-                try {
-                  const candidateName = profile?.full_name || profile?.email || "A candidate";
-                  const jobTitle = job?.title || "your job posting";
-                  
-                  await supabaseAdmin.from("notifications").insert({
-                    user_id: job.employer_id,
-                    type: "interview",
-                    title: "Candidate Ready for AIVA Interview",
-                    message: `${candidateName} scored ${finalScore}% and is ready for the AIVA voice interview for ${jobTitle}`,
-                    link: `/applicants/${applicationId}`,
-                    is_read: false,
-                  });
-                  
-                  await supabaseAdmin.functions.invoke("send-notification-email", {
-                    body: {
-                      type: "interview_ready",
-                      recipient_user_id: job.employer_id,
-                      data: {
-                        candidate_name: candidateName,
-                        job_title: jobTitle,
-                        score: finalScore?.toString(),
-                      },
-                    },
-                  });
-                } catch (notifyError) {
-                  console.error("[trigger-ava-analysis] Failed to notify employer:", notifyError);
-                }
-                
-                return new Response(
-                  JSON.stringify({ 
-                    success: true, 
-                    score: finalScore,
-                    decision: "needs_employer_approval",
-                    reason: "Next phase is Ava Interview which requires employer configuration",
-                  }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-              
-              // Found a valid non-voice step
-              nextPhaseId = nextStep.id;
-              nextPhaseTitle = nextStep.title || nextStep.type;
-              console.log("[trigger-ava-analysis] Next workflow step found:", nextPhaseId, nextPhaseTitle);
-              break;
-            }
-            
-            // If we've exhausted all workflow steps, candidate has completed everything
-            if (nextStepIndex >= workflowSteps.length) {
-              nextPhaseId = "review";
-              nextPhaseTitle = "Review";
-              console.log("[trigger-ava-analysis] All workflow steps completed, advancing to review");
-            }
-          } else {
-            // Phase ID not found in workflow - might be a special phase, log and continue
-            console.log("[trigger-ava-analysis] Phase not found in workflow steps:", currentPhaseId);
-            // Keep the current phase
-            nextPhaseId = currentPhaseId;
-            nextPhaseTitle = currentPhaseId;
-          }
-        }
-        
-        console.log("[trigger-ava-analysis] Autopilot PASSED: advancing to phase:", nextPhaseId);
-        
-        const { error: advanceError } = await supabaseAdmin
-          .from("applications")
-          .update({
-            phase: nextPhaseId,
-            status: "reviewing",
-          })
-          .eq("id", applicationId);
-        
-        if (advanceError) {
-          console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
-        }
-        
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: "Analysis completed, candidate advanced",
-            score: finalScore,
-            decision: "advanced",
-            nextPhaseId,
-            nextPhaseTitle,
-            scorecard,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } else {
-        // FAILED - reject the application
-        // Extract key reasons from the AI analysis for a more informative rejection reason
-        const analysisText = analysisData?.analysis || '';
-        
-        // Try to find specific concerns from the AI response
-        const areasOfConcernMatch = analysisText.match(/Areas of Concern[:\s]*[\n-]*((?:[-•]\s*[^\n]+\n?)+)/i);
-        const penaltiesMatch = analysisText.match(/Penalties Applied[:\s]*[\n-]*((?:[-•]?\s*[^\n]+\n?)+)/i);
-        const summaryMatch = analysisText.match(/Summary[:\s]*([^\n*]+)/i);
-        const redFlagsMatch = analysisText.match(/Red Flags[:\s]*([^\n]+)/i);
-        const missingSkillsMatch = analysisText.match(/Missing Skills[:\s]*([^\n]+)/i);
-        
-        const concerns: string[] = [];
-        
-        // Extract areas of concern
-        if (areasOfConcernMatch) {
-          const concernItems = areasOfConcernMatch[1].split(/\n/).filter(Boolean);
-          concernItems.forEach((item: string) => {
-            const cleaned = item.replace(/^[-•]\s*/, '').trim();
-            if (cleaned && !cleaned.toLowerCase().includes('none')) {
-              concerns.push(cleaned);
-            }
-          });
-        }
-        
-        // Extract red flags
-        if (redFlagsMatch && !redFlagsMatch[1].toLowerCase().includes('none detected')) {
-          concerns.push(redFlagsMatch[1].trim());
-        }
-        
-        // Extract missing skills
-        if (missingSkillsMatch && !missingSkillsMatch[1].toLowerCase().includes('none')) {
-          concerns.push(`Missing skills: ${missingSkillsMatch[1].trim()}`);
-        }
-        
-        // Use summary if we don't have specific concerns
-        let rejectReason: string;
-        if (concerns.length > 0) {
-          const topConcerns = concerns.slice(0, 2).join('. ');
-          rejectReason = `Score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%. Key issues: ${topConcerns}`;
-        } else if (summaryMatch) {
-          rejectReason = `Score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%. ${summaryMatch[1].trim()}`;
-        } else {
-          rejectReason = `Overall Ava score of ${finalScore || 0}% is below the passing threshold of ${passingScore}%.`;
-        }
-        
-        console.log("[trigger-ava-analysis] Autopilot FAILED: rejecting application, score=", finalScore, "reason=", rejectReason);
-        
-        const { error: rejectError } = await supabaseAdmin
-          .from("applications")
-          .update({
-            status: "rejected",
-            rejected_by_type: "ava",
-            phase_ai_analysis: rejectReason,
-          })
-          .eq("id", applicationId);
-        
-        if (rejectError) {
-          console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
-        }
-        
-        // Send rejection notification email to candidate
-        try {
-          const jobTitle = job?.title || "this position";
-          
-          // Fetch employer profile for company name
-          const { data: employerProfile } = await supabaseAdmin
-            .from("profiles")
-            .select("company_name")
-            .eq("user_id", job?.employer_id)
-            .single();
-          
-          const companyName = employerProfile?.company_name || undefined;
-          
-          await supabaseAdmin.functions.invoke("send-notification-email", {
-            body: {
-              type: "status_rejected",
-              recipientUserId: application.candidate_id,
-              data: {
-                job_title: jobTitle,
-                company_name: companyName,
-              },
-            },
-          });
-          console.log("[trigger-ava-analysis] Rejection notification email sent to candidate");
-        } catch (emailError) {
-          console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
-          // Don't fail the whole operation if email fails
-        }
-        
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: "Analysis completed, candidate rejected",
-            score: finalScore,
-            decision: "rejected",
-            reason: rejectReason,
-            scorecard,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if (autopilotDecision || previewOnly) {
+      return await handleAutopilotDecision({
+        supabaseAdmin,
+        application,
+        applicationId,
+        currentPhaseId: currentPhaseId || application.phase,
+        passingScore,
+        score: finalScore,
+        scorecard,
+        profile,
+        job,
+        previewOnly,
+      });
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Analysis completed and saved",
-        score: finalScore,
-        forced: force,
-        scorecard,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ 
+      success: true, 
+      message: "Analysis completed and saved",
+      score: finalScore,
+      forced: force,
+      scorecard,
+    });
 
   } catch (error) {
     console.error("[trigger-ava-analysis] Unexpected error:", error);

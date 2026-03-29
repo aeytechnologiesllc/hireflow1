@@ -1,296 +1,175 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Hand, Rocket, Loader2, Info } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Hand, Info, Loader2, Rocket, ShieldAlert } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUpdateJob } from "@/hooks/useJobs";
-import { processAutopilotCatchUp } from "@/utils/processAutopilotCatchUp";
-import { getAtRiskApplicants, AtRiskApplicant } from "@/utils/getAtRiskApplicants";
-import { toast } from "sonner";
+import {
+  applyAutopilotCatchUp,
+  getAutopilotImpactPreview,
+  type AutopilotImpactApplicant,
+  type AutopilotImpactPreview,
+} from "@/utils/autopilotBatch";
 
 interface ProcessingModeToggleProps {
   jobId: string;
   jobTitle: string;
   currentMode: "auto" | "manual";
   disabled?: boolean;
+  onModeActivated?: (mode: "auto" | "manual") => void;
 }
 
-// Rocket Thrust Animation Overlay - with actual launch sequence
-function AutopilotEngagedOverlay({ onComplete }: { onComplete: () => void }) {
-  const [phase, setPhase] = useState<"thrust" | "launch" | "confirm">("thrust");
+const actionMeta = {
+  reject: {
+    title: "Will reject now",
+    description: "These applicants already hit a hard fail or are below threshold with enough evidence collected.",
+    accent: "text-red-400",
+    border: "border-red-500/20",
+    bg: "bg-red-500/5",
+    score: "text-red-300",
+  },
+  advance: {
+    title: "Will advance now",
+    description: "These applicants already meet the current evidence threshold and are ready for the next step.",
+    accent: "text-emerald-400",
+    border: "border-emerald-500/20",
+    bg: "bg-emerald-500/5",
+    score: "text-emerald-300",
+  },
+  defer: {
+    title: "Will continue gathering evidence",
+    description: "Ava will move these applicants forward because later high-signal phases are still needed before a final decision.",
+    accent: "text-amber-300",
+    border: "border-amber-500/20",
+    bg: "bg-amber-500/5",
+    score: "text-amber-200",
+  },
+  review: {
+    title: "Needs employer setup",
+    description: "These applicants cannot be fully auto-processed yet, usually because the next phase requires employer configuration.",
+    accent: "text-sky-300",
+    border: "border-sky-500/20",
+    bg: "bg-sky-500/5",
+    score: "text-sky-200",
+  },
+} as const;
 
-  useEffect(() => {
-    // Phase 1: Thrust buildup (0-1.2s)
-    const launchTimer = setTimeout(() => setPhase("launch"), 1200);
-    // Phase 2: Launch complete, show text (1.2s + 0.8s = 2s)
-    const confirmTimer = setTimeout(() => setPhase("confirm"), 2000);
-    // Phase 3: Auto-dismiss (2s + 1s = 3s)
-    const completeTimer = setTimeout(onComplete, 3000);
-    
-    return () => {
-      clearTimeout(launchTimer);
-      clearTimeout(confirmTimer);
-      clearTimeout(completeTimer);
-    };
-  }, [onComplete]);
+function ImpactSection({
+  action,
+  applicants,
+}: {
+  action: keyof typeof actionMeta;
+  applicants: AutopilotImpactApplicant[];
+}) {
+  if (applicants.length === 0) return null;
+
+  const meta = actionMeta[action];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm overflow-hidden"
-    >
-      <div className="flex flex-col items-center gap-6 relative">
-        {/* Rocket with thrust - launches upward */}
-        <motion.div 
-          className="relative"
-          animate={
-            phase === "thrust" 
-              ? { y: [0, -6, 0, -8, 0, -4, 0], x: [-2, 2, -1, 1, -2, 2, 0] }
-              : phase === "launch"
-              ? { y: -800, scale: 0.5 }
-              : { y: -800 }
-          }
-          transition={
-            phase === "thrust"
-              ? { duration: 0.4, repeat: 3, ease: "easeInOut" }
-              : { duration: 0.8, ease: [0.4, 0, 0.2, 1] }
-          }
-        >
-          {/* Rocket */}
-          <motion.div
-            className="relative z-10"
-            animate={phase === "thrust" ? { scale: [1, 1.08, 1] } : {}}
-            transition={{ duration: 0.3, repeat: 4 }}
-          >
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center shadow-2xl">
-              <Rocket className="h-10 w-10 text-white" />
+    <div className={cn("rounded-lg border p-4", meta.border, meta.bg)}>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-3">
+          <h4 className={cn("font-medium", meta.accent)}>{meta.title}</h4>
+          <Badge variant="outline" className="text-[11px]">
+            {applicants.length}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">{meta.description}</p>
+      </div>
+
+      <ScrollArea className="mt-3 max-h-[160px]">
+        <div className="space-y-2">
+          {applicants.map((applicant) => (
+            <div
+              key={applicant.applicationId}
+              className="flex items-start justify-between gap-3 rounded-md bg-background/60 px-3 py-2"
+            >
+              <div className="min-w-0 space-y-0.5">
+                <div className="truncate text-sm font-medium text-foreground">{applicant.candidateName}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {applicant.pendingHighSignalPhases?.length
+                    ? `Pending: ${applicant.pendingHighSignalPhases.join(", ")}`
+                    : applicant.rationale || applicant.currentPhaseId}
+                </div>
+              </div>
+              {typeof applicant.score === "number" && (
+                <div className={cn("shrink-0 text-sm font-semibold", meta.score)}>
+                  {Math.round(applicant.score)}%
+                </div>
+              )}
             </div>
-          </motion.div>
-          
-          {/* Exhaust flames - intensify during launch */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
-            {[...Array(phase === "launch" ? 20 : 12)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute rounded-full"
-                style={{
-                  width: phase === "launch" ? "12px" : "8px",
-                  height: phase === "launch" ? "12px" : "8px",
-                  background: i % 2 === 0 
-                    ? "linear-gradient(to bottom, #f97316, #dc2626)" 
-                    : "linear-gradient(to bottom, #fbbf24, #f97316)",
-                }}
-                initial={{ 
-                  y: 0, 
-                  x: (Math.random() - 0.5) * (phase === "launch" ? 40 : 20),
-                  opacity: 1, 
-                  scale: 1 
-                }}
-                animate={{ 
-                  y: [0, phase === "launch" ? 150 : 80], 
-                  opacity: [1, 0],
-                  scale: [1, 0.2]
-                }}
-                transition={{
-                  duration: phase === "launch" ? 0.3 : 0.5,
-                  repeat: Infinity,
-                  delay: i * 0.05,
-                  ease: "easeOut"
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Glow effect - intensifies before launch */}
-          <motion.div
-            className="absolute inset-0 -z-10 rounded-full bg-purple-500/50 blur-xl"
-            animate={
-              phase === "thrust" 
-                ? { scale: [1, 1.8, 1.2, 2, 1], opacity: [0.5, 0.9, 0.6, 1, 0.5] }
-                : { scale: 3, opacity: 0 }
-            }
-            transition={{ duration: phase === "thrust" ? 1.2 : 0.5 }}
-          />
-        </motion.div>
-
-        {/* Trail particles left behind after launch */}
-        <AnimatePresence>
-          {phase === "launch" && (
-            <motion.div 
-              className="absolute top-1/2 left-1/2 -translate-x-1/2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              {[...Array(8)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-3 h-3 rounded-full bg-gradient-to-b from-purple-400 to-fuchsia-500"
-                  initial={{ y: 0, opacity: 1, scale: 1 }}
-                  animate={{ 
-                    y: 100 + i * 30, 
-                    opacity: 0,
-                    scale: 0.3
-                  }}
-                  transition={{ 
-                    duration: 1,
-                    delay: i * 0.08,
-                    ease: "easeOut"
-                  }}
-                  style={{ x: (Math.random() - 0.5) * 30 }}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Text - appears after launch */}
-        <AnimatePresence>
-          {phase === "confirm" && (
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="text-center"
-            >
-              <motion.h2 
-                className="text-3xl font-bold tracking-wider text-white mb-2"
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                AUTOPILOT ENGAGED
-              </motion.h2>
-              <p className="text-purple-300 text-lg">Ava is now in control</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  );
-}
-
-// Manual Control Animation Overlay
-function ManualControlOverlay({ onComplete }: { onComplete: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 2500);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-    >
-      <div className="flex flex-col items-center gap-6">
-        {/* Hand with grip animation */}
-        <motion.div className="relative">
-          <motion.div
-            className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-2xl"
-            animate={{ 
-              scale: [1, 1.1, 1],
-              rotate: [0, -5, 5, 0]
-            }}
-            transition={{ duration: 0.8, repeat: 3 }}
-          >
-            <Hand className="h-10 w-10 text-white" />
-          </motion.div>
-          
-          {/* Control pulse rings */}
-          {[...Array(3)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute inset-0 rounded-full border-2 border-orange-400/50"
-              initial={{ scale: 1, opacity: 0.6 }}
-              animate={{ scale: [1, 2, 2.5], opacity: [0.6, 0.3, 0] }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                delay: i * 0.4,
-                ease: "easeOut"
-              }}
-            />
           ))}
-
-          {/* Glow effect */}
-          <motion.div
-            className="absolute inset-0 -z-10 rounded-full bg-orange-500/50 blur-xl"
-            animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
-            transition={{ duration: 1, repeat: 3 }}
-          />
-        </motion.div>
-
-        {/* Text */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="text-center"
-        >
-          <motion.h2 
-            className="text-3xl font-bold tracking-wider text-white mb-2"
-            animate={{ opacity: [0.8, 1, 0.8] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            YOU HAVE FULL CONTROL
-          </motion.h2>
-          <p className="text-orange-300 text-lg">Every decision is yours</p>
-        </motion.div>
-      </div>
-    </motion.div>
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
 
-export function ProcessingModeToggle({ 
-  jobId, 
-  jobTitle, 
-  currentMode, 
-  disabled 
+export function ProcessingModeToggle({
+  jobId,
+  jobTitle,
+  currentMode,
+  disabled,
+  onModeActivated,
 }: ProcessingModeToggleProps) {
+  const queryClient = useQueryClient();
+  const updateJob = useUpdateJob();
   const [showDialog, setShowDialog] = useState(false);
   const [pendingMode, setPendingMode] = useState<"auto" | "manual" | null>(null);
-  const [showSuccessOverlay, setShowSuccessOverlay] = useState<"auto" | "manual" | null>(null);
-  const [atRiskApplicants, setAtRiskApplicants] = useState<AtRiskApplicant[]>([]);
-  const [passingScore, setPassingScore] = useState(60);
-  const [loadingAtRisk, setLoadingAtRisk] = useState(false);
-  const updateJob = useUpdateJob();
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [preview, setPreview] = useState<AutopilotImpactPreview | null>(null);
 
-  const handleButtonClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const groupedPreview = useMemo(() => {
+    const applicants = preview?.applicants || [];
+    return {
+      reject: applicants.filter((applicant) => applicant.action === "reject"),
+      advance: applicants.filter((applicant) => applicant.action === "advance"),
+      defer: applicants.filter((applicant) => applicant.action === "defer"),
+      review: applicants.filter((applicant) => applicant.action === "review"),
+    };
+  }, [preview]);
+
+  const handleButtonClick = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (disabled) return;
-    
-    const newMode = currentMode === "auto" ? "manual" : "auto";
-    setPendingMode(newMode);
-    
-    // If switching to autopilot, fetch at-risk applicants first
-    if (newMode === "auto") {
-      setLoadingAtRisk(true);
+
+    const nextMode = currentMode === "auto" ? "manual" : "auto";
+    setPendingMode(nextMode);
+    setPreview(null);
+
+    if (nextMode === "auto") {
+      setLoadingPreview(true);
       try {
-        const result = await getAtRiskApplicants(jobId);
-        setAtRiskApplicants(result.atRiskApplicants);
-        setPassingScore(result.passingScore);
+        const previewResult = await getAutopilotImpactPreview(jobId);
+        setPreview(previewResult);
       } catch (error) {
-        console.error("Failed to fetch at-risk applicants:", error);
-        setAtRiskApplicants([]);
+        console.error("Failed to load autopilot preview:", error);
+        toast.error("Failed to load autopilot preview");
       } finally {
-        setLoadingAtRisk(false);
+        setLoadingPreview(false);
       }
-    } else {
-      setAtRiskApplicants([]);
     }
-    
+
     setShowDialog(true);
+  };
+
+  const handleCancel = () => {
+    setShowDialog(false);
+    setPendingMode(null);
+    setPreview(null);
+    setLoadingPreview(false);
   };
 
   const handleConfirm = async () => {
@@ -303,103 +182,91 @@ export function ProcessingModeToggle({
       });
 
       setShowDialog(false);
-      setShowSuccessOverlay(pendingMode);
+      onModeActivated?.(pendingMode);
 
-      // If switching to autopilot, process pending applications in background
       if (pendingMode === "auto") {
-        processAutopilotCatchUp(jobId).then((result) => {
-          if (result.failed > 0) {
-            toast.error(`Autopilot had trouble updating ${result.failed} applicant${result.failed > 1 ? 's' : ''}`, {
-              description: "Some updates failed. Please try again or check the applicant details.",
-              duration: 6000,
-            });
-          }
-          if (result.rejected > 0) {
-            toast.warning(`Ava rejected ${result.rejected} applicant${result.rejected > 1 ? 's' : ''} below passing score`, {
-              description: "View their profiles for detailed rejection reasons",
-              duration: 5000,
-            });
-          }
-          if (result.advanced > 0) {
-            toast.success(`Ava advanced ${result.advanced} applicant${result.advanced > 1 ? 's' : ''} to the next phase`);
-          }
-          if (result.processed > 0 && result.advanced === 0 && result.rejected === 0 && result.failed === 0) {
-            toast.info(`Ava reviewed ${result.processed} applicants — none ready to advance yet`);
-          }
-        }).catch((error) => {
-          console.error("Autopilot catch-up error:", error);
-          toast.error("Autopilot catch-up failed", {
-            description: "Please try toggling autopilot again.",
+        const result = await applyAutopilotCatchUp(jobId);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["applications"] }),
+          queryClient.invalidateQueries({ queryKey: ["application"] }),
+          queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        ]);
+
+        const summaryParts = [
+          result.totals.reject ? `${result.totals.reject} rejected` : null,
+          result.totals.advance ? `${result.totals.advance} advanced` : null,
+          result.totals.defer ? `${result.totals.defer} gathering more evidence` : null,
+          result.totals.review ? `${result.totals.review} need setup` : null,
+        ].filter(Boolean);
+
+        if (summaryParts.length > 0) {
+          toast.success(`Autopilot catch-up complete: ${summaryParts.join(" • ")}`);
+        } else if (result.totals.processed > 0) {
+          toast.info("Autopilot reviewed waiting applicants with no immediate status changes.");
+        } else {
+          toast.info("Autopilot is on. No waiting applicants needed catch-up.");
+        }
+
+        if (result.totals.failed > 0) {
+          toast.error(`Autopilot had trouble updating ${result.totals.failed} applicant${result.totals.failed > 1 ? "s" : ""}.`, {
+            description: "Please reopen those applicant details and refresh the recommendation.",
+            duration: 6000,
           });
-        });
+        }
+      } else {
+        toast.success("Manual mode engaged. Ava will stop moving applicants automatically.");
       }
     } catch (error) {
       console.error("Failed to update processing mode:", error);
       toast.error("Failed to update processing mode");
+    } finally {
+      setPendingMode(null);
+      setPreview(null);
+      setLoadingPreview(false);
     }
-    
-    setPendingMode(null);
-    setAtRiskApplicants([]);
   };
-
-  const handleCancel = () => {
-    setShowDialog(false);
-    setPendingMode(null);
-    setAtRiskApplicants([]);
-  };
-
-  const hasAtRiskApplicants = atRiskApplicants.length > 0;
 
   return (
     <>
-      {/* Subtle Theme-Aligned Toggle Button */}
       <motion.button
         onClick={handleButtonClick}
-        disabled={disabled || updateJob.isPending}
+        disabled={disabled}
         className={cn(
-          "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all duration-300",
-          "border backdrop-blur-sm",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-          "bg-muted/50 text-muted-foreground border-muted-foreground/30",
-          "hover:bg-primary/10 hover:text-primary hover:border-primary/30 hover:shadow-[0_0_20px_hsl(var(--primary)/0.2)]"
+          "relative flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 disabled:opacity-50",
+          currentMode === "auto"
+            ? "border-purple-500/30 bg-purple-500/10 text-purple-100 hover:bg-purple-500/15"
+            : "border-orange-500/30 bg-orange-500/10 text-orange-100 hover:bg-orange-500/15",
         )}
-        whileHover={{ scale: disabled ? 1 : 1.02 }}
-        whileTap={{ scale: disabled ? 1 : 0.98 }}
+        whileHover={disabled ? {} : { scale: 1.02 }}
+        whileTap={disabled ? {} : { scale: 0.98 }}
       >
-        {updateJob.isPending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : currentMode === "auto" ? (
+        {currentMode === "auto" ? (
           <>
             <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="relative"
+              className="rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-600 p-1.5 text-white"
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
-              <Hand className="h-3.5 w-3.5" />
-              <motion.div
-                className="absolute inset-0 rounded-full bg-primary/40 blur-sm -z-10"
-                animate={{ opacity: [0.4, 0.7, 0.4] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
+              <Rocket className="h-3.5 w-3.5" />
             </motion.div>
             <span>Take Control</span>
           </>
         ) : (
           <>
             <motion.div
-              animate={{ y: [0, -1.5, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              className="rounded-full bg-gradient-to-r from-orange-500 to-amber-600 p-1.5 text-white"
+              animate={{ rotate: [0, -8, 8, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
-              <Rocket className="h-3.5 w-3.5" />
+              <Hand className="h-3.5 w-3.5" />
             </motion.div>
             <span>Engage Autopilot</span>
           </>
         )}
       </motion.button>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className={cn("sm:max-w-md", hasAtRiskApplicants && "sm:max-w-lg")} onClick={(e) => e.stopPropagation()}>
+      <Dialog open={showDialog} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className={cn("sm:max-w-md", pendingMode === "auto" && "sm:max-w-2xl")} onClick={(event) => event.stopPropagation()}>
           <AnimatePresence mode="wait">
             {pendingMode === "auto" ? (
               <motion.div
@@ -408,84 +275,85 @@ export function ProcessingModeToggle({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <DialogHeader className="text-center pb-4">
-                  <motion.div 
-                    className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center"
-                    animate={{ 
-                      y: [0, -8, 0],
-                      scale: [1, 1.05, 1],
-                    }}
-                    transition={{ 
-                      duration: 2, 
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
+                <DialogHeader className="pb-4 text-center">
+                  <motion.div
+                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-xl"
+                    animate={{ y: [0, -6, 0], scale: [1, 1.03, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <Rocket className="h-8 w-8 text-white" />
+                    <Rocket className="h-8 w-8" />
                   </motion.div>
                   <DialogTitle className="text-xl">Engage Autopilot Mode?</DialogTitle>
-                  <DialogDescription className="text-center mt-2">
-                    Ava will automatically analyze applicants, score them, and advance qualified 
-                    candidates through each phase. You'll still have full visibility and can 
-                    override any decisions.
+                  <DialogDescription className="mt-2 text-center">
+                    Ava will pick up from the current applicant state, apply the same evidence-gated rule to everyone waiting,
+                    and keep moving candidates only when enough evidence exists.
                   </DialogDescription>
                 </DialogHeader>
 
-                {/* At-Risk Applicants Notice - Subtle Info Style */}
-                {loadingAtRisk ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Checking applicants...</span>
+                {loadingPreview ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Building autopilot impact preview...
                   </div>
-                ) : hasAtRiskApplicants && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="my-4"
-                  >
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-                      <div className="flex items-start gap-3">
-                        <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="font-medium text-foreground">
-                            Note: {atRiskApplicants.length} candidate{atRiskApplicants.length > 1 ? 's' : ''} below threshold
-                          </h4>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {atRiskApplicants.length === 1 ? 'This candidate' : 'These candidates'} scored below {passingScore}% and will be rejected.
-                          </p>
-                          
-                          <ScrollArea className="mt-3 max-h-[120px]">
-                            <div className="space-y-1.5">
-                              {atRiskApplicants.map((applicant) => (
-                                <div 
-                                  key={applicant.id}
-                                  className="flex items-center justify-between text-sm bg-muted/50 rounded-md px-3 py-1.5"
-                                >
-                                  <span className="text-muted-foreground">{applicant.candidateName}</span>
-                                  <span className="text-amber-600 dark:text-amber-400 font-medium">{applicant.aiScore}%</span>
-                                </div>
-                              ))}
-                            </div>
-                          </ScrollArea>
-                        </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                        <div className="text-2xl font-semibold text-red-400">{preview?.totals.reject || 0}</div>
+                        <div className="text-sm text-muted-foreground">Will reject now</div>
+                      </div>
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                        <div className="text-2xl font-semibold text-emerald-400">{preview?.totals.advance || 0}</div>
+                        <div className="text-sm text-muted-foreground">Will advance now</div>
+                      </div>
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                        <div className="text-2xl font-semibold text-amber-300">{preview?.totals.defer || 0}</div>
+                        <div className="text-sm text-muted-foreground">Will gather more evidence</div>
                       </div>
                     </div>
-                  </motion.div>
+
+                    <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+                      <Info className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <p>
+                          Passing threshold for <span className="font-medium text-foreground">{jobTitle}</span>:{" "}
+                          <span className="font-medium text-foreground">{preview?.passingScore ?? 60}%</span>
+                        </p>
+                        <p>
+                          Applicants with explicit hard conflicts can be rejected now. Applicants with only early evidence will be moved
+                          to the next high-signal phase instead of being failed too early.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <ImpactSection action="reject" applicants={groupedPreview.reject} />
+                      <ImpactSection action="advance" applicants={groupedPreview.advance} />
+                      <ImpactSection action="defer" applicants={groupedPreview.defer} />
+                      <ImpactSection action="review" applicants={groupedPreview.review} />
+                    </div>
+
+                    {!preview?.totals.processed && (
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+                        No waiting applicants are currently eligible for immediate autopilot catch-up.
+                      </div>
+                    )}
+                  </div>
                 )}
 
-                <DialogFooter className="flex gap-2 sm:justify-center mt-4">
+                <DialogFooter className="mt-6 flex gap-2 sm:justify-center">
                   <Button variant="outline" onClick={handleCancel}>
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleConfirm}
-                    disabled={updateJob.isPending || loadingAtRisk}
-                    className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-400 hover:to-fuchsia-500 text-white"
+                    disabled={updateJob.isPending || loadingPreview}
+                    className="bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:from-purple-400 hover:to-fuchsia-500"
                   >
                     {updateJob.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <Rocket className="h-4 w-4 mr-2" />
+                      <Rocket className="mr-2 h-4 w-4" />
                     )}
                     Engage Autopilot
                   </Button>
@@ -498,39 +366,43 @@ export function ProcessingModeToggle({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <DialogHeader className="text-center pb-4">
-                  <motion.div 
-                    className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center"
-                    animate={{ 
-                      rotate: [0, -10, 10, 0],
-                    }}
-                    transition={{ 
-                      duration: 2, 
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
+                <DialogHeader className="pb-4 text-center">
+                  <motion.div
+                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-xl"
+                    animate={{ rotate: [0, -10, 10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <Hand className="h-8 w-8 text-white" />
+                    <Hand className="h-8 w-8" />
                   </motion.div>
                   <DialogTitle className="text-xl">Switch to Manual Mode?</DialogTitle>
-                  <DialogDescription className="text-center mt-2">
-                    You'll review each applicant personally and decide when to advance them 
-                    through phases. Ava will still provide scores and insights to help you decide.
+                  <DialogDescription className="mt-2 text-center">
+                    You will make the next move for every applicant yourself. Ava will keep scoring and summarizing evidence,
+                    but automatic reject and advance actions will stop.
                   </DialogDescription>
                 </DialogHeader>
-                <DialogFooter className="flex gap-2 sm:justify-center mt-4">
+
+                <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-orange-300" />
+                    <p className="text-sm text-muted-foreground">
+                      Existing applicants will stay where they are. Nothing will be auto-rejected or auto-advanced after you take control.
+                    </p>
+                  </div>
+                </div>
+
+                <DialogFooter className="mt-6 flex gap-2 sm:justify-center">
                   <Button variant="outline" onClick={handleCancel}>
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleConfirm}
                     disabled={updateJob.isPending}
-                    className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white"
+                    className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-400 hover:to-amber-500"
                   >
                     {updateJob.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <Hand className="h-4 w-4 mr-2" />
+                      <Hand className="mr-2 h-4 w-4" />
                     )}
                     Take Control
                   </Button>
@@ -540,16 +412,6 @@ export function ProcessingModeToggle({
           </AnimatePresence>
         </DialogContent>
       </Dialog>
-
-      {/* Success Overlays */}
-      <AnimatePresence>
-        {showSuccessOverlay === "auto" && (
-          <AutopilotEngagedOverlay onComplete={() => setShowSuccessOverlay(null)} />
-        )}
-        {showSuccessOverlay === "manual" && (
-          <ManualControlOverlay onComplete={() => setShowSuccessOverlay(null)} />
-        )}
-      </AnimatePresence>
     </>
   );
 }

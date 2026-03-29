@@ -46,6 +46,7 @@ CRITICAL PHASE-EVALUATION RULE:
 - A phase that is still pending is NOT a weakness, failure, or red flag.
 - Only evaluate completed phases using the evidence actually provided.
 - If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
+- Never say a candidate lacks capability simply because a future phase is still pending. Say the phase is pending and explain what additional evidence it could provide.
 
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
@@ -360,6 +361,7 @@ CRITICAL PHASE-EVALUATION RULE:
 - A phase that is still pending is NOT a weakness, failure, or red flag.
 - Only evaluate completed phases using the evidence actually provided.
 - If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
+- Never say a candidate lacks capability simply because a future phase is still pending. Say the phase is pending and explain what additional evidence it could provide.
 
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:

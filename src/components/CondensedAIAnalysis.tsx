@@ -52,6 +52,13 @@ interface ApplicationNotes {
     overallScore?: number;
     confidence?: number;
     recommendedAction?: "advance" | "review" | "reject";
+    autopilotAction?: "advance" | "reject" | "defer";
+    decisionState?: "ready_for_decision" | "needs_more_evidence";
+    evidenceFingerprint?: string;
+    evidenceFloorMet?: boolean;
+    pendingHighSignalPhases?: string[];
+    completedHighSignalPhases?: string[];
+    hardRejectReason?: string | null;
     riskFlags?: string[];
     rationale?: string;
     evidenceRefs?: string[];
@@ -60,6 +67,7 @@ interface ApplicationNotes {
     provider?: string;
     model?: string | null;
     analyzedAt?: string;
+    evidenceFingerprint?: string;
     resume?: {
       provided?: boolean;
       analyzed?: boolean;
@@ -1430,9 +1438,14 @@ function deriveRecommendationLabel(params: {
   score: number | null;
   passingScore?: number | null;
   scorecardAction?: "advance" | "review" | "reject";
+  decisionState?: "ready_for_decision" | "needs_more_evidence";
 }) {
   if (params.isRejected) {
     return "Do not move forward";
+  }
+
+  if (params.decisionState === "needs_more_evidence") {
+    return "Continue to next phase";
   }
 
   if (params.scorecardAction === "advance") {
@@ -1505,6 +1518,42 @@ function getResumeEvidenceLabel(meta?: ApplicationNotes["avaAnalysisMeta"]) {
   return "Resume analyzed";
 }
 
+function formatSignalLabel(signal: string) {
+  return signal
+    .replace(/_/g, " ")
+    .replace(/\bava\b/gi, "Ava")
+    .replace(/\bintro\b/gi, "Intro")
+    .replace(/\bquiz\b/gi, "Quiz")
+    .replace(/\bchat\b/gi, "Chat")
+    .replace(/\bvoice\b/gi, "Voice")
+    .replace(/\bvideo\b/gi, "Video")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function getEvidenceBasis(notes?: ApplicationNotes) {
+  const meta = notes?.avaAnalysisMeta;
+  const inputs = meta?.inputsUsed;
+  const parts: string[] = [];
+
+  if (meta?.resume?.provided) parts.push("resume");
+  if ((inputs?.applicationAnswers || 0) > 0) parts.push("application answers");
+  if (inputs?.coverLetter) parts.push("cover letter");
+  if (inputs?.quiz) parts.push("quiz");
+  if (inputs?.typingTest) parts.push("typing test");
+  if (inputs?.chatSimulation) parts.push("chat simulation");
+  if (inputs?.salesSimulation) parts.push("sales simulation");
+  if (inputs?.chatInterview) parts.push("chat interview");
+  if (inputs?.portfolio) parts.push("portfolio");
+  if (inputs?.videoIntro) parts.push("video intro");
+  if (inputs?.voiceInterview) parts.push("voice interview");
+
+  if (parts.length === 0) return null;
+  return `Based on ${parts.join(" + ")}`;
+}
+
 function getEvidenceBadges(notes?: ApplicationNotes) {
   const badges: string[] = [];
   const meta = notes?.avaAnalysisMeta;
@@ -1543,6 +1592,7 @@ export function CondensedAIAnalysis({
   const scorecard = applicationNotes?.avaScorecard;
   const analysisMeta = applicationNotes?.avaAnalysisMeta;
   const evidenceBadges = useMemo(() => getEvidenceBadges(applicationNotes), [applicationNotes]);
+  const evidenceBasis = useMemo(() => getEvidenceBasis(applicationNotes), [applicationNotes]);
   const confidenceTone = getConfidenceTone(scorecard?.confidence);
   
   // Use authoritative score from database if provided, otherwise use parsed score
@@ -1552,12 +1602,23 @@ export function CondensedAIAnalysis({
   // CRITICAL: If application is rejected, override the verdict regardless of AI analysis
   const isRejected = applicationStatus === 'rejected';
   const wasManualRejection = isRejected && !!rejectedByType && rejectedByType !== "ava";
+  const needsMoreEvidence = scorecard?.decisionState === "needs_more_evidence" && !isRejected;
+  const pendingSignals = useMemo(
+    () => (scorecard?.pendingHighSignalPhases || []).map(formatSignalLabel),
+    [scorecard?.pendingHighSignalPhases],
+  );
+  const visibleRiskFlags = useMemo(() => {
+    const flags = scorecard?.riskFlags || [];
+    if (!needsMoreEvidence) return flags;
+    return flags.filter((flag) => !/below the passing threshold/i.test(flag));
+  }, [scorecard?.riskFlags, needsMoreEvidence]);
   const verdictText = deriveRecommendationLabel({
     isRejected,
     recommendation: parsed.recommendation,
     score: displayScore,
     passingScore,
     scorecardAction: scorecard?.recommendedAction,
+    decisionState: scorecard?.decisionState,
   });
   const isPositiveRec = verdictText === "Move forward";
   const isNegativeRec = verdictText === "Do not move forward";
@@ -1620,6 +1681,18 @@ export function CondensedAIAnalysis({
     }
     const scorecardRationale = sanitizeAnalysisCopy(scorecard?.rationale || "");
 
+    if (needsMoreEvidence) {
+      const baseSummary = scorecardRationale || parsedSummary;
+      const evidenceLead = /needs more evidence/i.test(baseSummary)
+        ? baseSummary
+        : `Ava needs more evidence before a final reject or advance recommendation.${baseSummary ? ` ${baseSummary}` : ""}`.trim();
+      const pendingLine = pendingSignals.length > 0
+        ? ` Pending signals: ${pendingSignals.join(", ")}.`
+        : "";
+
+      return `${evidenceLead}${pendingLine}`.trim();
+    }
+
     if (scorecardRationale) {
       const hasSpecificEvidence = /\bresume|application|quiz|typing|simulation|interview|portfolio|video|skills|experience\b/i.test(parsedSummary);
       return hasSpecificEvidence && !parsedSummary.toLowerCase().startsWith(scorecardRationale.toLowerCase())
@@ -1628,7 +1701,7 @@ export function CondensedAIAnalysis({
     }
 
     return parsedSummary;
-  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale]);
+  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale, needsMoreEvidence, pendingSignals]);
   const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
   
   
@@ -1637,7 +1710,7 @@ export function CondensedAIAnalysis({
       {/* Ava Recommendation Header */}
       <div className="space-y-0.5">
         <h3 className="text-lg font-semibold text-foreground">Ava Recommendation</h3>
-        <p className="text-xs text-muted-foreground">Based on the evidence collected so far</p>
+        <p className="text-xs text-muted-foreground">{evidenceBasis || "Based on the evidence collected so far"}</p>
       </div>
       
       {/* Recommendation Summary Card */}
@@ -1655,6 +1728,9 @@ export function CondensedAIAnalysis({
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {evidenceBasis && (
+                  <span>{evidenceBasis}</span>
+                )}
                 {displayScore !== null && (
                   <span>Score {displayScore} • Pass threshold {effectivePassingScore}</span>
                 )}
@@ -1672,6 +1748,11 @@ export function CondensedAIAnalysis({
                 <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                   {cleanedDisplaySummary}
                 </p>
+                {needsMoreEvidence && pendingSignals.length > 0 && (
+                  <p className="text-xs text-amber-300">
+                    Pending signals: {pendingSignals.join(", ")}
+                  </p>
+                )}
               </div>
             </div>
             {displayScore !== null && (
@@ -1681,7 +1762,7 @@ export function CondensedAIAnalysis({
         </CardContent>
       </Card>
 
-      {(evidenceBadges.length > 0 || (scorecard?.riskFlags?.length || 0) > 0) && (
+      {(evidenceBadges.length > 0 || visibleRiskFlags.length > 0) && (
         <div className="grid gap-3 md:grid-cols-2">
           {evidenceBadges.length > 0 && (
             <Card className="border-border/50 bg-card">
@@ -1698,12 +1779,12 @@ export function CondensedAIAnalysis({
             </Card>
           )}
 
-          {(scorecard?.riskFlags?.length || 0) > 0 && (
+          {visibleRiskFlags.length > 0 && (
             <Card className="border-border/50 bg-card">
               <CardContent className="p-4 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Needs a closer look</p>
                 <div className="space-y-1.5">
-                  {scorecard!.riskFlags!.slice(0, 3).map((flag) => (
+                  {visibleRiskFlags.slice(0, 3).map((flag) => (
                     <div key={flag} className="flex items-start gap-2 text-sm text-muted-foreground">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                       <span className="break-words [overflow-wrap:anywhere]">{flag}</span>

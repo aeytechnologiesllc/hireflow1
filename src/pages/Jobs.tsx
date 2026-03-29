@@ -52,6 +52,10 @@ import { useState, useMemo, useCallback } from "react";
 import JobDetailsDialog from "@/components/JobDetailsDialog";
 import JobWorkflowDialog from "@/components/JobWorkflowDialog";
 import { ProcessingModeToggle } from "@/components/ProcessingModeToggle";
+import {
+  ProcessingModeStatusOverlay,
+  type ProcessingModeOverlayState,
+} from "@/components/ProcessingModeStatusOverlay";
 import FirstJobTooltip from "@/components/FirstJobTooltip";
 import { LimitReachedDialog } from "@/components/subscription/LimitReachedDialog";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
@@ -69,9 +73,10 @@ interface JobCardProps {
   canEdit: boolean;
   showFirstJobTooltip?: boolean;
   onTooltipDismiss?: () => void;
+  onModeActivated?: (mode: "auto" | "manual") => void;
 }
 
-function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting, canDelete, canEdit, showFirstJobTooltip, onTooltipDismiss }: JobCardProps) {
+function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDuplicate, onCardClick, isDeleting, canDelete, canEdit, showFirstJobTooltip, onTooltipDismiss, onModeActivated }: JobCardProps) {
   const statusStyles = {
     draft: "bg-muted text-muted-foreground",
     published: "bg-primary/20 text-primary",
@@ -148,6 +153,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                   jobTitle={job.title}
                   currentMode={job.processing_mode as "auto" | "manual"}
                   disabled={!canEdit}
+                  onModeActivated={onModeActivated}
                 />
               )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
@@ -250,6 +256,7 @@ export default function Jobs() {
   const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<JobWithApplicationCount | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [processingOverlay, setProcessingOverlay] = useState<ProcessingModeOverlayState>(null);
   const [tooltipDismissed, setTooltipDismissed] = useState(() => {
     return localStorage.getItem("firstJobTooltipDismissed") === "true";
   });
@@ -454,6 +461,7 @@ export default function Jobs() {
                 canEdit={!!canEditJobs}
                 showFirstJobTooltip={index === 0 && filteredJobs.length === 1 && !tooltipDismissed}
                 onTooltipDismiss={() => setTooltipDismissed(true)}
+                onModeActivated={setProcessingOverlay}
               />
             </motion.div>
           ))
@@ -573,6 +581,11 @@ export default function Jobs() {
         limitType="jobs"
         currentCount={usage?.jobs_created}
         limit={limits?.jobs}
+      />
+
+      <ProcessingModeStatusOverlay
+        mode={processingOverlay}
+        onComplete={() => setProcessingOverlay(null)}
       />
     </motion.div>
   );
