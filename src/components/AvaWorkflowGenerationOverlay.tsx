@@ -33,15 +33,21 @@ const OVERLAY_CONFIG = {
   },
 } as const;
 
-const PROGRESS_TARGETS = {
+const INITIAL_PROGRESS = {
+  workflow: 12,
+  full_draft: 8,
+} as const;
+
+const STAGE_PROGRESS_MODEL = {
   workflow: {
-    screening: 84,
-    finalizing: 97,
+    drafting: { entry: 12, settle: 32, drift: 42, easeMs: 2200, driftMs: 2600 },
+    screening: { entry: 18, settle: 84, drift: 90, easeMs: 3600, driftMs: 3600 },
+    finalizing: { entry: 84, settle: 97, drift: 99.2, easeMs: 2200, driftMs: 2200 },
   },
   full_draft: {
-    drafting: 54,
-    screening: 88,
-    finalizing: 97,
+    drafting: { entry: 8, settle: 54, drift: 62, easeMs: 3400, driftMs: 3200 },
+    screening: { entry: 54, settle: 88, drift: 93.5, easeMs: 3600, driftMs: 3000 },
+    finalizing: { entry: 88, settle: 97, drift: 99.2, easeMs: 2200, driftMs: 2200 },
   },
 } as const;
 
@@ -86,6 +92,37 @@ interface OverlayActivityItem {
 function formatItemCount(count: number | undefined, singular: string, plural = `${singular}s`) {
   if (!count || count <= 0) return null;
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function easeOutCubic(value: number) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function getStageDesiredProgress(
+  mode: "workflow" | "full_draft",
+  stage: OverlayGenerationStage,
+  stageElapsedMs: number,
+  isApiComplete: boolean,
+) {
+  if (isApiComplete) {
+    return 100;
+  }
+
+  const model = STAGE_PROGRESS_MODEL[mode][stage];
+  const settleProgress = clamp(stageElapsedMs / model.easeMs, 0, 1);
+  const settledValue = model.entry + (model.settle - model.entry) * easeOutCubic(settleProgress);
+
+  if (stageElapsedMs <= model.easeMs) {
+    return settledValue;
+  }
+
+  const driftElapsed = stageElapsedMs - model.easeMs;
+  const driftProgress = 1 - Math.exp(-driftElapsed / model.driftMs);
+  return model.settle + (model.drift - model.settle) * driftProgress;
 }
 
 function buildActivityItems(
@@ -175,6 +212,8 @@ export default function AvaWorkflowGenerationOverlay({
   const [progressRing, setProgressRing] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
   const progressFrameRef = useRef<number | null>(null);
+  const stageStartedAtRef = useRef<number>(Date.now());
+  const stageKeyRef = useRef<string>("");
 
   // Particles - reduced to 20
   const particles = useMemo(() => 
@@ -192,7 +231,9 @@ export default function AvaWorkflowGenerationOverlay({
   // Reset on show
   useEffect(() => {
     if (isVisible) {
-      setProgressRing(mode === "full_draft" ? 8 : 12);
+      stageStartedAtRef.current = Date.now();
+      stageKeyRef.current = `${mode}:${stage}`;
+      setProgressRing(INITIAL_PROGRESS[mode]);
       setMessageIndex(0);
     }
 
@@ -203,6 +244,17 @@ export default function AvaWorkflowGenerationOverlay({
       }
     };
   }, [isVisible, mode]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const nextStageKey = `${mode}:${stage}`;
+    if (stageKeyRef.current !== nextStageKey) {
+      stageKeyRef.current = nextStageKey;
+      stageStartedAtRef.current = Date.now();
+      setMessageIndex(0);
+    }
+  }, [isVisible, mode, stage]);
 
   const messages = STAGE_MESSAGES[mode][stage];
   const activityItems = useMemo(
@@ -216,27 +268,29 @@ export default function AvaWorkflowGenerationOverlay({
       : stage === "screening"
         ? "Building the candidate journey"
         : "Wrapping up the review handoff";
-  const targetProgress = useMemo(() => {
-    if (isApiComplete) {
-      return 100;
-    }
 
-    return PROGRESS_TARGETS[mode][stage];
-  }, [isApiComplete, mode, stage]);
-
-  // Smooth progress toward the current real stage target.
+  // Continuously glide forward within each stage instead of parking at fixed stage milestones.
   useEffect(() => {
     if (!isVisible) return;
+
     const animateProgress = () => {
+      const stageElapsedMs = Date.now() - stageStartedAtRef.current;
+      const desiredProgress = getStageDesiredProgress(mode, stage, stageElapsedMs, isApiComplete);
+
       setProgressRing((previous) => {
-        const gap = targetProgress - previous;
-        if (Math.abs(gap) < 0.2) {
-          return targetProgress;
+        const boundedDesired = isApiComplete ? 100 : Math.max(desiredProgress, previous);
+        const gap = boundedDesired - previous;
+        if (Math.abs(gap) < 0.08) {
+          return boundedDesired;
         }
 
-        const easedStep = Math.max(Math.abs(gap) * (isApiComplete ? 0.16 : 0.085), isApiComplete ? 0.8 : 0.28);
+        const easedStep = clamp(
+          Math.abs(gap) * (isApiComplete ? 0.2 : 0.11),
+          isApiComplete ? 0.9 : 0.12,
+          isApiComplete ? 3.8 : 0.9,
+        );
         const next = previous + Math.sign(gap) * easedStep;
-        return Math.max(0, Math.min(next, targetProgress));
+        return clamp(next, 0, boundedDesired);
       });
 
       progressFrameRef.current = window.requestAnimationFrame(animateProgress);
@@ -250,7 +304,7 @@ export default function AvaWorkflowGenerationOverlay({
         progressFrameRef.current = null;
       }
     };
-  }, [isApiComplete, isVisible, targetProgress]);
+  }, [isApiComplete, isVisible, mode, stage]);
 
   // Rotate the active status copy within the current stage.
   useEffect(() => {
