@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -83,7 +83,10 @@ import {
 import { toast } from "sonner";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
-import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
+import AvaWorkflowGenerationOverlay, {
+  type OverlayGenerationStage,
+  type OverlayGenerationSummary,
+} from "@/components/AvaWorkflowGenerationOverlay";
 import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
@@ -101,6 +104,32 @@ interface GuestJobData {
   passingScore: number;
   createdAt: number;
 }
+
+const countGeneratedDraftSections = (formData: AvaJobFormData) => {
+  const sections = [
+    normalizeTextBlock(formData.description),
+    normalizeTextBlock(formData.responsibilities),
+    normalizeTextBlock(formData.requirements),
+    normalizeCommaSeparatedText(formData.skills_required),
+    normalizeCommaSeparatedText(formData.benefits),
+  ];
+
+  return sections.filter((section) => section.length > 0).length;
+};
+
+const buildOverlaySummary = (
+  workflowData: {
+    application_questions: any[];
+    quiz_questions: any[];
+    workflow_steps: any[];
+  },
+  sectionsGenerated?: number,
+): OverlayGenerationSummary => ({
+  sectionsGenerated,
+  applicationQuestions: workflowData.application_questions.length,
+  quizQuestions: workflowData.quiz_questions.length,
+  workflowSteps: workflowData.workflow_steps.length,
+});
 
 const parseCommaSeparatedList = (value: unknown): string[] =>
   normalizeCommaSeparatedText(value)
@@ -187,6 +216,8 @@ export default function GuestJobCreator() {
   const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
+  const [generationOverlayStage, setGenerationOverlayStage] = useState<OverlayGenerationStage>("screening");
+  const [generationOverlaySummary, setGenerationOverlaySummary] = useState<OverlayGenerationSummary | null>(null);
   const [pendingWorkflowData, setPendingWorkflowData] = useState<{
     application_questions: any[];
     quiz_questions: any[];
@@ -243,6 +274,10 @@ export default function GuestJobCreator() {
 
     if (hasValue && jobContentGenerated) {
       return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Ava baseline</Badge>;
+    }
+
+    if (hasValue) {
+      return null;
     }
 
     return <Badge variant="outline" className="border-border text-muted-foreground">Baseline pending</Badge>;
@@ -392,6 +427,9 @@ export default function GuestJobCreator() {
     overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
+    setGenerationOverlayStage("screening");
+    setGenerationOverlaySummary(null);
+    setPendingWorkflowData(null);
     
     try {
       const data = await generateScreeningPlan(sourceFormData, workflowDifficulty);
@@ -403,12 +441,15 @@ export default function GuestJobCreator() {
         workflow_steps: data.workflow_steps || [],
       };
       setPendingWorkflowData(completedWorkflowData);
+      setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData));
+      setGenerationOverlayStage("finalizing");
       setWorkflowApiComplete(true);
       scheduleWorkflowCompletion(completedWorkflowData, "workflow");
     } catch (error) {
       console.error("Error generating workflow:", error);
       toast.error("Failed to generate workflow. Please try again.");
       setIsGeneratingWorkflow(false);
+      setGenerationOverlaySummary(null);
     }
   };
 
@@ -422,14 +463,21 @@ export default function GuestJobCreator() {
     overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
+    setGenerationOverlayStage("drafting");
+    setGenerationOverlaySummary(null);
     setPendingWorkflowData(null);
 
     const nextFormData = await generateFullJob({ suppressSuccessToast: true });
     if (!nextFormData) {
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
+      setGenerationOverlaySummary(null);
       return;
     }
+
+    const sectionsGenerated = countGeneratedDraftSections(nextFormData);
+    setGenerationOverlayStage("screening");
+    setGenerationOverlaySummary({ sectionsGenerated });
 
     try {
       const data = await generateScreeningPlan(nextFormData, workflowDifficulty);
@@ -440,6 +488,8 @@ export default function GuestJobCreator() {
         workflow_steps: data.workflow_steps || [],
       };
       setPendingWorkflowData(completedWorkflowData);
+      setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData, sectionsGenerated));
+      setGenerationOverlayStage("finalizing");
       setWorkflowApiComplete(true);
       scheduleWorkflowCompletion(completedWorkflowData, "full_draft");
     } catch (error) {
@@ -447,6 +497,7 @@ export default function GuestJobCreator() {
       toast.error("Ava couldn't finish the full draft. Please try again.");
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
+      setGenerationOverlaySummary(null);
     }
   };
 
@@ -464,6 +515,7 @@ export default function GuestJobCreator() {
     }
     setIsGeneratingWorkflow(false);
     setWorkflowApiComplete(false);
+    setGenerationOverlaySummary(null);
   }, [pendingWorkflowData]);
 
   const scheduleWorkflowCompletion = useCallback((
@@ -2041,7 +2093,10 @@ export default function GuestJobCreator() {
         isVisible={isGeneratingWorkflow}
         jobTitle={formData.title || "your new role"}
         difficulty={workflowDifficulty}
+        isApiComplete={workflowApiComplete}
         mode={generationOverlayMode}
+        stage={generationOverlayStage}
+        summary={generationOverlaySummary}
       />
 
       {/* Signup Modal */}

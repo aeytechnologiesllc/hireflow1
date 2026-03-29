@@ -106,7 +106,10 @@ import {
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import AvaWorkflowGenerationOverlay from "@/components/AvaWorkflowGenerationOverlay";
+import AvaWorkflowGenerationOverlay, {
+  type OverlayGenerationStage,
+  type OverlayGenerationSummary,
+} from "@/components/AvaWorkflowGenerationOverlay";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { RefreshCw } from "lucide-react";
@@ -187,6 +190,32 @@ interface InlineReviewFieldProps {
   minHeight?: number;
   helperText?: string;
 }
+
+const countGeneratedDraftSections = (formData: AvaJobFormData) => {
+  const sections = [
+    normalizeTextBlock(formData.description),
+    normalizeTextBlock(formData.responsibilities),
+    normalizeTextBlock(formData.requirements),
+    normalizeCommaSeparatedText(formData.skills_required),
+    normalizeCommaSeparatedText(formData.benefits),
+  ];
+
+  return sections.filter((section) => section.length > 0).length;
+};
+
+const buildOverlaySummary = (
+  workflowData: {
+    application_questions: ApplicationQuestion[];
+    quiz_questions: QuizQuestion[];
+    workflow_steps: WorkflowStep[];
+  },
+  sectionsGenerated?: number,
+): OverlayGenerationSummary => ({
+  sectionsGenerated,
+  applicationQuestions: workflowData.application_questions.length,
+  quizQuestions: workflowData.quiz_questions.length,
+  workflowSteps: workflowData.workflow_steps.length,
+});
 
 function InlineReviewField({
   id,
@@ -456,6 +485,8 @@ export default function CreateJob() {
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
+  const [generationOverlayStage, setGenerationOverlayStage] = useState<OverlayGenerationStage>("screening");
+  const [generationOverlaySummary, setGenerationOverlaySummary] = useState<OverlayGenerationSummary | null>(null);
   const [pendingWorkflowData, setPendingWorkflowData] = useState<{
     application_questions: ApplicationQuestion[];
     quiz_questions: QuizQuestion[];
@@ -831,6 +862,8 @@ export default function CreateJob() {
     overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
+    setGenerationOverlayStage("screening");
+    setGenerationOverlaySummary(null);
     setPendingWorkflowData(null);
     
     try {
@@ -843,6 +876,8 @@ export default function CreateJob() {
         workflow_steps: data.workflow_steps || [],
       };
       setPendingWorkflowData(completedWorkflowData);
+      setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData));
+      setGenerationOverlayStage("finalizing");
       setWorkflowApiComplete(true);
       scheduleWorkflowCompletion(completedWorkflowData, "workflow");
       
@@ -852,6 +887,7 @@ export default function CreateJob() {
       // On error, dismiss immediately
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
+      setGenerationOverlaySummary(null);
     }
     // NO finally block - don't dismiss until animation completes via onComplete
   };
@@ -866,14 +902,21 @@ export default function CreateJob() {
     overlayStartedAtRef.current = Date.now();
     setIsGeneratingWorkflow(true);
     setWorkflowApiComplete(false);
+    setGenerationOverlayStage("drafting");
+    setGenerationOverlaySummary(null);
     setPendingWorkflowData(null);
 
     const nextFormData = await generateFullJob({ suppressSuccessToast: true });
     if (!nextFormData) {
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
+      setGenerationOverlaySummary(null);
       return;
     }
+
+    const sectionsGenerated = countGeneratedDraftSections(nextFormData);
+    setGenerationOverlayStage("screening");
+    setGenerationOverlaySummary({ sectionsGenerated });
 
     try {
       const data = await generateScreeningPlan(nextFormData, workflowDifficulty, profile?.company_name || null);
@@ -884,6 +927,8 @@ export default function CreateJob() {
         workflow_steps: data.workflow_steps || [],
       };
       setPendingWorkflowData(completedWorkflowData);
+      setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData, sectionsGenerated));
+      setGenerationOverlayStage("finalizing");
       setWorkflowApiComplete(true);
       scheduleWorkflowCompletion(completedWorkflowData, "full_draft");
     } catch (error) {
@@ -891,6 +936,7 @@ export default function CreateJob() {
       toast.error("Ava couldn't finish the full draft. Please try again.");
       setIsGeneratingWorkflow(false);
       setWorkflowApiComplete(false);
+      setGenerationOverlaySummary(null);
     }
   };
 
@@ -940,6 +986,7 @@ export default function CreateJob() {
     setIsGeneratingWorkflow(false);
     setWorkflowApiComplete(false);
     setPendingWorkflowData(null);
+    setGenerationOverlaySummary(null);
   }, [hasVoiceInterviewAccess, pendingWorkflowData]);
 
   const scheduleWorkflowCompletion = useCallback((
@@ -3557,7 +3604,10 @@ export default function CreateJob() {
         isVisible={isGeneratingWorkflow}
         jobTitle={formData.title || "your new role"}
         difficulty={workflowDifficulty}
+        isApiComplete={workflowApiComplete}
         mode={generationOverlayMode}
+        stage={generationOverlayStage}
+        summary={generationOverlaySummary}
       />
 
       {/* Job Published Success Dialog */}

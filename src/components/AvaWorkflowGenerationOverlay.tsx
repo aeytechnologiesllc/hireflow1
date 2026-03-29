@@ -1,58 +1,180 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import avaOrb from "@/assets/ava-orb.png";
+
+export type OverlayGenerationStage = "drafting" | "screening" | "finalizing";
+
+export interface OverlayGenerationSummary {
+  sectionsGenerated?: number;
+  applicationQuestions?: number;
+  quizQuestions?: number;
+  workflowSteps?: number;
+}
 
 interface AvaWorkflowGenerationOverlayProps {
   isVisible: boolean;
   jobTitle: string;
   difficulty: string;
-  minDuration?: number;
-  onComplete?: () => void;
   isApiComplete?: boolean;
   mode?: "workflow" | "full_draft";
+  stage?: OverlayGenerationStage;
+  summary?: OverlayGenerationSummary | null;
 }
 
 const OVERLAY_CONFIG = {
   workflow: {
     title: "Creating your screening plan",
     subtitlePrefix: "Designing the candidate journey for",
-    minDuration: 10000,
-    messages: [
-      { text: "Analyzing job role...", until: 2200 },
-      { text: "Generating screening questions...", until: 4600 },
-      { text: "Designing skill assessments...", until: 7200 },
-      { text: "Building hiring workflow...", until: 9800 },
-      { text: "Finalizing screening plan...", until: Infinity },
-    ],
   },
   full_draft: {
     title: "Creating your job with Ava",
     subtitlePrefix: "Generating the full draft for",
-    minDuration: 8500,
-    messages: [
-      { text: "Reviewing your Ava setup...", until: 2200 },
-      { text: "Writing the job description baseline...", until: 4600 },
-      { text: "Drafting responsibilities and requirements...", until: 7200 },
-      { text: "Generating skills, benefits, and pay guidance...", until: 9500 },
-      { text: "Designing the screening plan...", until: Infinity },
-    ],
   },
 } as const;
+
+const PROGRESS_TARGETS = {
+  workflow: {
+    screening: 84,
+    finalizing: 97,
+  },
+  full_draft: {
+    drafting: 54,
+    screening: 88,
+    finalizing: 97,
+  },
+} as const;
+
+const STAGE_MESSAGES: Record<"workflow" | "full_draft", Record<OverlayGenerationStage, string[]>> = {
+  workflow: {
+    drafting: [],
+    screening: [
+      "Reviewing the role and candidate expectations...",
+      "Generating application prompts and fit checks...",
+      "Selecting the right assessments for this role...",
+      "Balancing phase count against candidate drop-off...",
+    ],
+    finalizing: [
+      "Counting questions, assessments, and screening phases...",
+      "Packaging the plan for review and publish...",
+    ],
+  },
+  full_draft: {
+    drafting: [
+      "Reviewing your Ava setup and hiring goals...",
+      "Writing the role summary and description...",
+      "Drafting responsibilities and requirements...",
+      "Generating skills, benefits, and pay guidance...",
+    ],
+    screening: [
+      "Turning the draft into application prompts...",
+      "Designing assessments and role-fit checks...",
+      "Shaping the screening plan around candidate effort...",
+    ],
+    finalizing: [
+      "Locking the draft and screening plan together...",
+      "Preparing your review-ready job draft...",
+    ],
+  },
+};
+
+interface OverlayActivityItem {
+  label: string;
+  state: "done" | "active" | "upcoming";
+}
+
+function formatItemCount(count: number | undefined, singular: string, plural = `${singular}s`) {
+  if (!count || count <= 0) return null;
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function buildActivityItems(
+  mode: "workflow" | "full_draft",
+  stage: OverlayGenerationStage,
+  summary: OverlayGenerationSummary | null,
+): OverlayActivityItem[] {
+  if (mode === "full_draft") {
+    const draftedSectionsLabel = summary?.sectionsGenerated
+      ? `Drafted ${summary.sectionsGenerated} core job sections`
+      : "Drafting the core job details";
+
+    const screeningCounts = [
+      formatItemCount(summary?.applicationQuestions, "application prompt"),
+      formatItemCount(summary?.quizQuestions, "assessment"),
+    ].filter(Boolean).join(" and ");
+
+    const screeningLabel = screeningCounts
+      ? `Built ${screeningCounts}`
+      : "Generating application prompts and assessments";
+
+    const phaseLabel = summary?.workflowSteps
+      ? `Finalizing ${summary.workflowSteps} screening ${summary.workflowSteps === 1 ? "phase" : "phases"}`
+      : "Finalizing the candidate journey";
+
+    if (stage === "drafting") {
+      return [
+        { label: "Reviewing your setup and writing the job draft", state: "active" },
+        { label: "Generating skills, benefits, and pay guidance", state: "upcoming" },
+        { label: "Building the screening plan", state: "upcoming" },
+      ];
+    }
+
+    if (stage === "screening") {
+      return [
+        { label: draftedSectionsLabel, state: "done" },
+        { label: "Generating application prompts and assessments", state: "active" },
+        { label: "Preparing the candidate journey preview", state: "upcoming" },
+      ];
+    }
+
+    return [
+      { label: draftedSectionsLabel, state: "done" },
+      { label: screeningLabel, state: "done" },
+      { label: phaseLabel, state: "active" },
+    ];
+  }
+
+  const screeningCounts = [
+    formatItemCount(summary?.applicationQuestions, "application prompt"),
+    formatItemCount(summary?.quizQuestions, "assessment"),
+  ].filter(Boolean).join(" and ");
+
+  const screeningLabel = screeningCounts
+    ? `Built ${screeningCounts}`
+    : "Generating application prompts and role-fit checks";
+
+  const phaseLabel = summary?.workflowSteps
+    ? `Finalizing ${summary.workflowSteps} screening ${summary.workflowSteps === 1 ? "phase" : "phases"}`
+    : "Finalizing the screening plan";
+
+  if (stage === "finalizing") {
+    return [
+      { label: screeningLabel, state: "done" },
+      { label: phaseLabel, state: "active" },
+      { label: "Preparing the review-ready candidate journey", state: "upcoming" },
+    ];
+  }
+
+  return [
+    { label: "Reviewing the role and hiring goals", state: "done" },
+    { label: "Generating application prompts and assessments", state: "active" },
+    { label: "Preparing the candidate journey preview", state: "upcoming" },
+  ];
+}
 
 export default function AvaWorkflowGenerationOverlay({ 
   isVisible, 
   jobTitle, 
   difficulty,
-  minDuration,
-  onComplete,
   isApiComplete = false,
   mode = "workflow",
+  stage = mode === "full_draft" ? "drafting" : "screening",
+  summary = null,
 }: AvaWorkflowGenerationOverlayProps) {
   const config = OVERLAY_CONFIG[mode];
   const [progressRing, setProgressRing] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
-  const startTimeRef = useRef<number>(0);
-  const completionTimerRef = useRef<number | null>(null);
+  const progressFrameRef = useRef<number | null>(null);
 
   // Particles - reduced to 20
   const particles = useMemo(() => 
@@ -70,69 +192,77 @@ export default function AvaWorkflowGenerationOverlay({
   // Reset on show
   useEffect(() => {
     if (isVisible) {
-      startTimeRef.current = Date.now();
-      setProgressRing(0);
+      setProgressRing(mode === "full_draft" ? 8 : 12);
       setMessageIndex(0);
     }
 
     return () => {
-      if (completionTimerRef.current !== null) {
-        window.clearTimeout(completionTimerRef.current);
-        completionTimerRef.current = null;
+      if (progressFrameRef.current !== null) {
+        window.cancelAnimationFrame(progressFrameRef.current);
+        progressFrameRef.current = null;
       }
     };
-  }, [isVisible]);
+  }, [isVisible, mode]);
 
-  // Progress + message index
-  useEffect(() => {
-    if (!isVisible) return;
-    const overlayDuration = minDuration ?? config.minDuration;
-
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const progress = Math.min((elapsed / overlayDuration) * 100, 96);
-      setProgressRing(progress);
-
-      // Update message index based on elapsed time
-      const newIndex = config.messages.findIndex(m => elapsed < m.until);
-      setMessageIndex(newIndex === -1 ? config.messages.length - 1 : newIndex);
-    }, 50);
-    return () => clearInterval(interval);
-  }, [config.messages, config.minDuration, isVisible, minDuration]);
-
-  // Hold below 100% until the API is done, then finish and dismiss quickly.
-  useEffect(() => {
-    if (!isVisible || !isApiComplete) return;
-
-    const overlayDuration = minDuration ?? config.minDuration;
-    const elapsed = Date.now() - startTimeRef.current;
-    const remaining = Math.max(overlayDuration - elapsed, 0);
-
-    if (completionTimerRef.current !== null) {
-      window.clearTimeout(completionTimerRef.current);
+  const messages = STAGE_MESSAGES[mode][stage];
+  const activityItems = useMemo(
+    () => buildActivityItems(mode, stage, summary),
+    [mode, stage, summary],
+  );
+  const difficultyLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  const progressContext =
+    stage === "drafting"
+      ? "Drafting the role"
+      : stage === "screening"
+        ? "Building the candidate journey"
+        : "Wrapping up the review handoff";
+  const targetProgress = useMemo(() => {
+    if (isApiComplete) {
+      return 100;
     }
 
-    completionTimerRef.current = window.setTimeout(() => {
-      setMessageIndex(config.messages.length - 1);
-      setProgressRing(100);
+    return PROGRESS_TARGETS[mode][stage];
+  }, [isApiComplete, mode, stage]);
 
-      if (onComplete) {
-        completionTimerRef.current = window.setTimeout(() => {
-          onComplete();
-          completionTimerRef.current = null;
-        }, 220);
-      } else {
-        completionTimerRef.current = null;
-      }
-    }, remaining);
+  // Smooth progress toward the current real stage target.
+  useEffect(() => {
+    if (!isVisible) return;
+    const animateProgress = () => {
+      setProgressRing((previous) => {
+        const gap = targetProgress - previous;
+        if (Math.abs(gap) < 0.2) {
+          return targetProgress;
+        }
+
+        const easedStep = Math.max(Math.abs(gap) * (isApiComplete ? 0.16 : 0.085), isApiComplete ? 0.8 : 0.28);
+        const next = previous + Math.sign(gap) * easedStep;
+        return Math.max(0, Math.min(next, targetProgress));
+      });
+
+      progressFrameRef.current = window.requestAnimationFrame(animateProgress);
+    };
+
+    progressFrameRef.current = window.requestAnimationFrame(animateProgress);
 
     return () => {
-      if (completionTimerRef.current !== null) {
-        window.clearTimeout(completionTimerRef.current);
-        completionTimerRef.current = null;
+      if (progressFrameRef.current !== null) {
+        window.cancelAnimationFrame(progressFrameRef.current);
+        progressFrameRef.current = null;
       }
     };
-  }, [config.messages.length, config.minDuration, isApiComplete, isVisible, minDuration, onComplete]);
+  }, [isApiComplete, isVisible, targetProgress]);
+
+  // Rotate the active status copy within the current stage.
+  useEffect(() => {
+    if (!isVisible || messages.length <= 1) return;
+
+    setMessageIndex(0);
+    const interval = window.setInterval(() => {
+      setMessageIndex((current) => (current + 1) % messages.length);
+    }, 1800);
+
+    return () => window.clearInterval(interval);
+  }, [isVisible, messages]);
 
   if (!isVisible) return null;
 
@@ -274,23 +404,64 @@ export default function AvaWorkflowGenerationOverlay({
               {config.subtitlePrefix}{" "}
               <span className="text-primary font-medium">{jobTitle}</span>
             </p>
+            <p className="text-xs text-muted-foreground/60 mt-2">
+              {difficultyLabel} rigor
+            </p>
           </motion.div>
 
           {/* Smart status messages */}
           <div className="h-8 flex items-center justify-center mt-3">
             <AnimatePresence mode="wait">
               <motion.p
-                key={messageIndex}
+                key={`${stage}-${messageIndex}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.4 }}
                 className="text-sm text-muted-foreground/80"
               >
-                {config.messages[messageIndex].text}
+                {messages[Math.min(messageIndex, Math.max(messages.length - 1, 0))] ?? "Finalizing your draft..."}
               </motion.p>
             </AnimatePresence>
           </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.05, duration: 0.5 }}
+            className="mt-6 w-full max-w-md rounded-2xl border border-border/30 bg-card/25 px-4 py-4 backdrop-blur-xl"
+          >
+            <div className="space-y-3">
+              {activityItems.map((item, index) => (
+                <motion.div
+                  key={`${item.label}-${item.state}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 1.15 + index * 0.08, duration: 0.35 }}
+                  className="flex items-center gap-3"
+                >
+                  {item.state === "done" ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-300 shrink-0" />
+                  ) : item.state === "active" ? (
+                    <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                  )}
+                  <span
+                    className={
+                      item.state === "done"
+                        ? "text-sm text-foreground/85"
+                        : item.state === "active"
+                          ? "text-sm text-foreground"
+                          : "text-sm text-muted-foreground/70"
+                    }
+                  >
+                    {item.label}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
 
           {/* Bottom progress pill */}
           <motion.div
@@ -306,7 +477,7 @@ export default function AvaWorkflowGenerationOverlay({
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
               <span className="text-sm text-muted-foreground">
-                {Math.round(progressRing)}% complete
+                {Math.round(progressRing)}% complete · {progressContext}
               </span>
             </div>
           </motion.div>
