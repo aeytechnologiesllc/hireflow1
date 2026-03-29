@@ -1074,7 +1074,15 @@ export default function ApplicationFormPhase() {
             })
             .map((question) => {
             const questionType = normalizeQuestionType(question.type);
-            const usePlainInput = questionType === "text" || questionType === "number";
+            const fieldId = `application-question-${question.id}`;
+            const labelTargetId =
+              questionType === "phone"
+                ? `${fieldId}-phone`
+                : questionType === "select" || questionType === "file"
+                  ? undefined
+                  : fieldId;
+            const usePlainInput = questionType === "text";
+            const useNumericInput = questionType === "number";
             const useFallbackInput = ![
               "text",
               "number",
@@ -1090,7 +1098,7 @@ export default function ApplicationFormPhase() {
 
             return (
             <div key={question.id} className="space-y-2" data-field={question.id}>
-              <Label className="text-foreground">
+              <Label htmlFor={labelTargetId} className="text-foreground">
                 {question.question}
                 {question.required && <span className="text-destructive ml-1">*</span>}
               </Label>
@@ -1135,9 +1143,31 @@ export default function ApplicationFormPhase() {
               
               {usePlainInput && (
                 <Input
-                  type={questionType === "number" ? "number" : "text"}
+                  id={fieldId}
+                  type="text"
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  placeholder="Your answer"
+                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                  onCut={handleCut}
+                />
+              )}
+
+              {useNumericInput && (
+                <Input
+                  id={fieldId}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={answers[question.id] || ""}
+                  onChange={(e) =>
+                    setAnswers((prev) => ({
+                      ...prev,
+                      [question.id]: e.target.value.replace(/[^\d.]/g, ""),
+                    }))
+                  }
                   placeholder="Your answer"
                   className={validationErrors[question.id] ? "border-destructive" : ""}
                   onCopy={handleCopy}
@@ -1148,6 +1178,7 @@ export default function ApplicationFormPhase() {
               
               {useFallbackInput && (
                 <Input
+                  id={fieldId}
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
@@ -1160,6 +1191,7 @@ export default function ApplicationFormPhase() {
 
               {questionType === "textarea" && (
                 <Textarea
+                  id={fieldId}
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
@@ -1173,6 +1205,7 @@ export default function ApplicationFormPhase() {
               
               {questionType === "email" && (
                 <Input
+                  id={fieldId}
                   type="email"
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
@@ -1191,6 +1224,7 @@ export default function ApplicationFormPhase() {
                     onValueChange={(value) => setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }))}
                   />
                   <Input
+                    id={`${fieldId}-phone`}
                     value={answers[question.id] || ""}
                     onChange={(e) => setAnswers(prev => ({ 
                       ...prev, 
@@ -1209,6 +1243,7 @@ export default function ApplicationFormPhase() {
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      id={fieldId}
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal h-10",

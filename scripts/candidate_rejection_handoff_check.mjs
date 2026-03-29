@@ -291,13 +291,24 @@ async function submitApplication(page, jobCode) {
   await page.getByText(/Uploading\.\.\./i).waitFor({ state: "hidden", timeout: 45000 }).catch(() => {});
   await page.getByRole("button", { name: /Submit Application/i }).click();
 
-  await page.waitForFunction(
-    () =>
-      document.body.innerText.includes("reviewing your submission") ||
-      /\/applications\/[a-f0-9-]+$/i.test(window.location.pathname),
-    undefined,
-    { timeout: 60000 },
-  );
+  try {
+    await page.waitForFunction(
+      () =>
+        document.body.innerText.includes("reviewing your submission") ||
+        /\/applications\/[a-f0-9-]+$/i.test(window.location.pathname) ||
+        window.location.pathname === "/applications",
+      undefined,
+      { timeout: 60000 },
+    );
+  } catch (error) {
+    await screenshot(page, "candidate-submit-timeout");
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    throw new Error(
+      `Application submit did not settle from ${page.url()}. Body preview: ${bodyText.slice(0, 800)}`,
+      { cause: error },
+    );
+  }
+
   await settle(page, 3000);
 
   const match = page.url().match(/\/applications\/([a-f0-9-]+)/i);
