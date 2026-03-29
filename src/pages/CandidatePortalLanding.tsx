@@ -48,18 +48,11 @@ export default function CandidatePortalLanding() {
             </div>
             <span className="text-xl font-bold text-foreground">HireFlow</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link to="/candidate/auth">
-              <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-                Sign In
-              </Button>
-            </Link>
-            <Link to="/candidate/auth?tab=signup">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                Create Account
-              </Button>
-            </Link>
-          </div>
+          <Link to="/candidate/auth">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              Sign In or Create Account
+            </Button>
+          </Link>
         </header>
 
         {/* Hero Section */}
@@ -83,18 +76,16 @@ export default function CandidatePortalLanding() {
             Enter your job application code to apply for positions, complete assessments, 
             and track your progress — all in one place.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/candidate/auth?tab=signup">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <Link to="/candidate/auth">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 h-12">
-                Get Started
+                Sign In or Create Account
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link to="/candidate/auth">
-              <Button size="lg" variant="outline" className="border-border hover:bg-muted/50 font-semibold px-8 h-12">
-                Sign In to Your Account
-              </Button>
-            </Link>
+            <p className="text-sm text-muted-foreground">
+              New here? Create your account from the same screen after you continue.
+            </p>
           </div>
         </motion.div>
 
@@ -135,7 +126,7 @@ export default function CandidatePortalLanding() {
           {/* Steps as cards with icons */}
           <div className="grid sm:grid-cols-2 gap-4">
             {[
-              { step: 1, icon: UserPlus, title: "Create Your Account", desc: "Sign up for free in under a minute" },
+              { step: 1, icon: UserPlus, title: "Sign In or Create an Account", desc: "Use the same candidate screen whether you're new or returning" },
               { step: 2, icon: KeyRound, title: "Get a Job Code", desc: "The employer provides you with a unique application code" },
               { step: 3, icon: ClipboardCheck, title: "Apply & Complete Tasks", desc: "Enter the code and complete any required assessments" },
               { step: 4, icon: MessageSquare, title: "Track & Communicate", desc: "Monitor your progress and message employers directly" },
