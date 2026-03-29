@@ -56,6 +56,8 @@ export default function ApplicantDetailsDialog({
         body: {
           applicationId: application.id,
           force: true, // Force re-analysis
+          autopilotDecision: application.jobs?.processing_mode === "auto",
+          currentPhaseId: application.phase,
         },
       });
 

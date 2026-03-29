@@ -1343,6 +1343,8 @@ export default function ApplicantDetails() {
         body: {
           applicationId: application.id,
           force: true, // Force re-analysis even if score exists
+          autopilotDecision: application.jobs?.processing_mode === "auto",
+          currentPhaseId: application.phase,
         },
       });
 

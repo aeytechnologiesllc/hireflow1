@@ -76,6 +76,13 @@ function inferJobFamily(title: string | null | undefined, description: string | 
   return "general";
 }
 
+function formatNaturalList(items: string[]) {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 function isEntryLevelRole(experienceLevel: string | null | undefined, title: string | null | undefined) {
   const haystack = `${experienceLevel || ""} ${title || ""}`.toLowerCase();
   return /entry|junior|intern|trainee|associate/.test(haystack);
@@ -180,6 +187,19 @@ function buildAvaScorecard(params: {
   };
 
   const primarySignalAverage = averageOf(familyPrimarySignals[family] || familyPrimarySignals.general, safeScore);
+  const workflowTypes = Array.isArray(workflowSteps)
+    ? workflowSteps.map((step: any) => String(step?.type || "").toLowerCase()).filter(Boolean)
+    : [];
+  const pendingHighSignalPhases: string[] = [];
+
+  if (workflowTypes.includes("chat_simulation") && typeof chatSimulationScore !== "number") pendingHighSignalPhases.push("chat simulation");
+  if (workflowTypes.includes("sales_simulation") && typeof salesSimulationScore !== "number") pendingHighSignalPhases.push("sales simulation");
+  if (workflowTypes.includes("chat_interview") && typeof chatInterviewScore !== "number") pendingHighSignalPhases.push("chat interview");
+  if (workflowTypes.includes("voice_interview") && typeof voiceScore !== "number") pendingHighSignalPhases.push("Ava interview");
+  if (workflowTypes.includes("typing_test") && typeof typingTest?.score !== "number") pendingHighSignalPhases.push("typing test");
+  if (workflowTypes.includes("portfolio_upload") && typeof portfolioScore !== "number") pendingHighSignalPhases.push("portfolio review");
+  if ((workflowTypes.includes("video_intro") || workflowTypes.includes("video_message")) && !videoIntroSubmitted) pendingHighSignalPhases.push("video response");
+
   const hardRequirements = clampPercent(
     weightedAverage(
       [
@@ -250,15 +270,21 @@ function buildAvaScorecard(params: {
       (resumeImageCount > 1 ? 4 : 0),
   );
 
-  const confidence = clampPercent(
-    40 +
-      evidenceRefs.length * 6 +
-      (primarySignalAverage >= passingScore ? 10 : 0) +
-      (safeScore >= passingScore ? 8 : -4) +
+  const rawConfidence = clampPercent(
+    38 +
+      evidenceRefs.length * 5 +
+      (applicationAnswerCount >= 4 ? 4 : applicationAnswerCount > 0 ? 2 : 0) +
+      (coverLetterProvided ? 3 : 0) +
+      (primarySignalAverage >= passingScore ? 6 : 0) +
+      (safeScore >= passingScore ? 8 : -Math.min(20, Math.round((passingScore - safeScore) * 0.45))) +
       (riskFlags.some((flag) => flag.includes("authenticity")) ? -10 : 0) +
-      (resumeTextUsed ? 8 : 0) +
-      (resumeImageCount > 0 ? 6 : 0),
+      (resumeTextUsed ? 7 : 0) +
+      (resumeImageCount > 0 ? 4 : 0),
   );
+  const confidenceCap = safeScore >= passingScore
+    ? Math.min(100, safeScore + 15)
+    : Math.max(35, safeScore + 20);
+  const confidence = Math.min(rawConfidence, confidenceCap);
 
   const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] =
     riskFlags.some((flag) => flag.includes("Critical role-fit") || flag.includes("authenticity"))
@@ -277,12 +303,19 @@ function buildAvaScorecard(params: {
     recommendedAction = "review";
   }
 
+  const pendingPhaseLabel = pendingHighSignalPhases.length > 0
+    ? formatNaturalList(Array.from(new Set(pendingHighSignalPhases)))
+    : null;
   const rationale =
     recommendedAction === "advance"
       ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support automatic advancement.`
       : recommendedAction === "review"
-        ? `Signals are mixed or confidence is moderate for this ${family.replace(/_/g, " ")} role, so this applicant should land in human review instead of being auto-rejected.`
-        : "Available evidence is below the role threshold, so Ava recommends rejection.";
+        ? pendingPhaseLabel
+          ? `Signals are mixed so far for this ${family.replace(/_/g, " ")} role. ${pendingPhaseLabel.charAt(0).toUpperCase()}${pendingPhaseLabel.slice(1)} ${pendingHighSignalPhases.length === 1 ? "is" : "are"} still pending, so a human should review the evidence collected so far before making a final call.`
+          : `Signals are mixed or confidence is moderate for this ${family.replace(/_/g, " ")} role, so this applicant should land in human review instead of being auto-rejected.`
+        : pendingPhaseLabel
+          ? `The evidence collected so far is below the role threshold. ${pendingPhaseLabel.charAt(0).toUpperCase()}${pendingPhaseLabel.slice(1)} ${pendingHighSignalPhases.length === 1 ? "is" : "are"} still pending, so Ava is basing this recommendation on the submitted materials available right now.`
+          : "Available evidence is below the role threshold, so Ava recommends rejection.";
 
   const scorecard: AvaScorecard = {
     overallScore: safeScore,
@@ -310,11 +343,13 @@ function resolveAutopilotAction(
   passingScore: number,
   scorecard?: AvaScorecard | null,
 ): RecommendedAction {
-  if (scorecard?.recommendedAction) {
-    return scorecard.recommendedAction;
+  // Product rule: auto mode is threshold-based. Manual review nuance lives in the scorecard/UI,
+  // but autopilot itself should advance at/above threshold and reject below threshold.
+  if (score !== null) {
+    return score >= passingScore ? "advance" : "reject";
   }
 
-  if (score !== null && score >= passingScore) {
+  if (scorecard?.recommendedAction === "advance") {
     return "advance";
   }
 

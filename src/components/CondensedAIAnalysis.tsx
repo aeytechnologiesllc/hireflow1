@@ -206,6 +206,26 @@ function sanitizeAnalysisCopy(text: string): string {
     .trim();
 }
 
+function neutralizePendingPhaseLanguage(text: string): string {
+  if (!text) return "";
+
+  return sanitizeAnalysisCopy(text)
+    .replace(
+      /with no completed [^.]+?, there is no direct evidence of [^.]+\.\s*/gi,
+      "Later interview and simulation phases are still pending, so this recommendation is based on the evidence collected so far. ",
+    )
+    .replace(
+      /without completed [^.]+?, there is no direct evidence of [^.]+\.\s*/gi,
+      "Later interview and simulation phases are still pending, so this recommendation is based on the evidence collected so far. ",
+    )
+    .replace(
+      /because [^.]+? (?:has|have) not been completed, there is no direct evidence of [^.]+\.\s*/gi,
+      "Later interview and simulation phases are still pending, so this recommendation is based on the evidence collected so far. ",
+    )
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function humanizeStatus(status: string): string {
   if (isPlaceholderValue(status)) return '';
   
@@ -1409,8 +1429,21 @@ function deriveRecommendationLabel(params: {
   recommendation: string | null;
   score: number | null;
   passingScore?: number | null;
+  scorecardAction?: "advance" | "review" | "reject";
 }) {
   if (params.isRejected) {
+    return "Do not move forward";
+  }
+
+  if (params.scorecardAction === "advance") {
+    return "Move forward";
+  }
+
+  if (params.scorecardAction === "review") {
+    return "Review manually";
+  }
+
+  if (params.scorecardAction === "reject") {
     return "Do not move forward";
   }
 
@@ -1454,7 +1487,7 @@ function deriveRecommendationLabel(params: {
 function getConfidenceTone(confidence: number | null | undefined) {
   if (typeof confidence !== "number") return null;
   if (confidence >= 80) return "High confidence";
-  if (confidence >= 60) return "Medium confidence";
+  if (confidence >= 55) return "Medium confidence";
   return "Low confidence";
 }
 
@@ -1524,6 +1557,7 @@ export function CondensedAIAnalysis({
     recommendation: parsed.recommendation,
     score: displayScore,
     passingScore,
+    scorecardAction: scorecard?.recommendedAction,
   });
   const isPositiveRec = verdictText === "Move forward";
   const isNegativeRec = verdictText === "Do not move forward";
@@ -1546,18 +1580,20 @@ export function CondensedAIAnalysis({
   
   // Generate a full summary that includes rejection context when rejected
   const displaySummary = useMemo(() => {
+    const parsedSummary = neutralizePendingPhaseLanguage(parsed.fullSummary);
+
     if (isRejected) {
       // For Ava autopilot rejections, PRESERVE the original AI analysis
       if (rejectedByType === 'ava') {
         // Keep the original narrative, just add a brief context prefix if score is below threshold
         const scoreValue = displayScore ?? 0;
         const threshold = passingScore ?? 60;
-        if (scoreValue < threshold && parsed.fullSummary) {
-          return `Automatically rejected (score ${scoreValue}% below ${threshold}% threshold). ${parsed.fullSummary}`;
+        if (scoreValue < threshold && parsedSummary) {
+          return `Automatically rejected (score ${scoreValue}% below ${threshold}% threshold). ${parsedSummary}`;
         }
         // If we have the original summary, use it as-is
-        if (parsed.fullSummary) {
-          return parsed.fullSummary;
+        if (parsedSummary) {
+          return parsedSummary;
         }
       }
       
@@ -1577,13 +1613,22 @@ export function CondensedAIAnalysis({
       const scoreValue = displayScore ?? 0;
       const threshold = passingScore ?? 60;
       if (scoreValue < threshold) {
-        return `This application was rejected because the overall score of ${scoreValue}% did not meet the passing threshold of ${threshold}%. ${parsed.fullSummary}`;
+        return `This application was rejected because the overall score of ${scoreValue}% did not meet the passing threshold of ${threshold}%. ${parsedSummary}`;
       }
       // Generic fallback if no score info
-      return `This application has been rejected. ${parsed.fullSummary}`;
+      return `This application has been rejected. ${parsedSummary}`;
     }
-    return sanitizeAnalysisCopy(parsed.fullSummary);
-  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary]);
+    const scorecardRationale = sanitizeAnalysisCopy(scorecard?.rationale || "");
+
+    if (scorecardRationale) {
+      const hasSpecificEvidence = /\bresume|application|quiz|typing|simulation|interview|portfolio|video|skills|experience\b/i.test(parsedSummary);
+      return hasSpecificEvidence && !parsedSummary.toLowerCase().startsWith(scorecardRationale.toLowerCase())
+        ? `${scorecardRationale} ${parsedSummary}`.trim()
+        : scorecardRationale;
+    }
+
+    return parsedSummary;
+  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale]);
   const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
   
   

@@ -41,6 +41,12 @@ If readable resume images/pages are attached, you MUST visually analyze them.
 
 CRITICAL: You must perform ALL of the following analyses:
 
+CRITICAL PHASE-EVALUATION RULE:
+- Never penalize a candidate because later workflow phases have not happened yet.
+- A phase that is still pending is NOT a weakness, failure, or red flag.
+- Only evaluate completed phases using the evidence actually provided.
+- If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
+
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
 - Is this a legitimate resume document or something else (random text, unrelated document, spam)?
@@ -348,6 +354,12 @@ If readable resume images/pages are attached, you MUST visually analyze them.
 - Use RESUME_UNAVAILABLE only when neither extracted text nor readable resume images are usable.
 
 CRITICAL: You must perform ALL of the following analyses:
+
+CRITICAL PHASE-EVALUATION RULE:
+- Never penalize a candidate because later workflow phases have not happened yet.
+- A phase that is still pending is NOT a weakness, failure, or red flag.
+- Only evaluate completed phases using the evidence actually provided.
+- If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
 
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
