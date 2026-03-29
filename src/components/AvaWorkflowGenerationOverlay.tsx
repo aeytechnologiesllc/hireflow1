@@ -134,6 +134,8 @@ interface OverlayActivityItem {
   state: "done" | "active" | "upcoming";
 }
 
+type OverlayProgressFocus = "intro" | "questions" | "preview" | "finalizing";
+
 function formatItemCount(count: number | undefined, singular: string, plural = `${singular}s`) {
   if (!count || count <= 0) return null;
   return `${count} ${count === 1 ? singular : plural}`;
@@ -182,10 +184,69 @@ function getSessionDesiredProgress(
   return Math.max(stageFloor, previousStop);
 }
 
+function getProgressFocus(
+  mode: "workflow" | "full_draft",
+  stage: OverlayGenerationStage,
+  progress: number,
+): OverlayProgressFocus {
+  if (stage === "finalizing") {
+    return "finalizing";
+  }
+
+  if (stage === "drafting") {
+    return progress >= 46 ? "questions" : "intro";
+  }
+
+  if (mode === "full_draft") {
+    if (progress >= 92) return "preview";
+    if (progress >= 64) return "questions";
+    return "intro";
+  }
+
+  if (progress >= 88) return "preview";
+  if (progress >= 58) return "questions";
+  return "intro";
+}
+
+function getDisplayMessage(
+  mode: "workflow" | "full_draft",
+  stage: OverlayGenerationStage,
+  focus: OverlayProgressFocus,
+  fallbackMessages: string[],
+  messageIndex: number,
+) {
+  if (stage === "screening") {
+    if (mode === "full_draft") {
+      if (focus === "preview") {
+        return "Preparing the candidate journey preview...";
+      }
+
+      if (focus === "questions") {
+        return "Designing assessments and role-fit checks...";
+      }
+
+      return "Turning the draft into application prompts...";
+    }
+
+    if (focus === "preview") {
+      return "Preparing the review-ready candidate journey...";
+    }
+
+    if (focus === "questions") {
+      return "Selecting the right assessments for this role...";
+    }
+
+    return "Generating application prompts and fit checks...";
+  }
+
+  return fallbackMessages[Math.min(messageIndex, Math.max(fallbackMessages.length - 1, 0))] ?? "Finalizing your draft...";
+}
+
 function buildActivityItems(
   mode: "workflow" | "full_draft",
   stage: OverlayGenerationStage,
   summary: OverlayGenerationSummary | null,
+  focus: OverlayProgressFocus,
 ): OverlayActivityItem[] {
   if (mode === "full_draft") {
     const draftedSectionsLabel = summary?.sectionsGenerated
@@ -214,10 +275,11 @@ function buildActivityItems(
     }
 
     if (stage === "screening") {
+      const isPreviewFocus = focus === "preview";
       return [
         { label: draftedSectionsLabel, state: "done" },
-        { label: "Generating application prompts and assessments", state: "active" },
-        { label: "Preparing the candidate journey preview", state: "upcoming" },
+        { label: "Generating application prompts and assessments", state: isPreviewFocus ? "done" : "active" },
+        { label: "Preparing the candidate journey preview", state: isPreviewFocus ? "active" : "upcoming" },
       ];
     }
 
@@ -249,10 +311,11 @@ function buildActivityItems(
     ];
   }
 
+  const isPreviewFocus = focus === "preview";
   return [
     { label: "Reviewing the role and hiring goals", state: "done" },
-    { label: "Generating application prompts and assessments", state: "active" },
-    { label: "Preparing the candidate journey preview", state: "upcoming" },
+    { label: "Generating application prompts and assessments", state: isPreviewFocus ? "done" : "active" },
+    { label: "Preparing the candidate journey preview", state: isPreviewFocus ? "active" : "upcoming" },
   ];
 }
 
@@ -313,16 +376,26 @@ export default function AvaWorkflowGenerationOverlay({
   }, [isVisible, mode, stage]);
 
   const messages = STAGE_MESSAGES[mode][stage];
+  const progressFocus = useMemo(
+    () => getProgressFocus(mode, stage, progressRing),
+    [mode, stage, progressRing],
+  );
+  const displayMessage = useMemo(
+    () => getDisplayMessage(mode, stage, progressFocus, messages, messageIndex),
+    [mode, stage, progressFocus, messages, messageIndex],
+  );
   const activityItems = useMemo(
-    () => buildActivityItems(mode, stage, summary),
-    [mode, stage, summary],
+    () => buildActivityItems(mode, stage, summary, progressFocus),
+    [mode, stage, summary, progressFocus],
   );
   const difficultyLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
   const progressContext =
     stage === "drafting"
       ? "Drafting the role"
       : stage === "screening"
-        ? "Building the candidate journey"
+        ? progressFocus === "preview"
+          ? "Preparing the candidate journey"
+          : "Building the candidate journey"
         : "Wrapping up the review handoff";
 
   // Continuously glide forward within each stage instead of parking at fixed stage milestones.
@@ -523,14 +596,14 @@ export default function AvaWorkflowGenerationOverlay({
           <div className="h-8 flex items-center justify-center mt-3">
             <AnimatePresence mode="wait">
               <motion.p
-                key={`${stage}-${messageIndex}`}
+                key={`${stage}-${displayMessage}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.4 }}
                 className="text-sm text-muted-foreground/80"
               >
-                {messages[Math.min(messageIndex, Math.max(messages.length - 1, 0))] ?? "Finalizing your draft..."}
+                {displayMessage}
               </motion.p>
             </AnimatePresence>
           </div>
