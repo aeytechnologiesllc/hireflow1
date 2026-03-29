@@ -1,6 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { callOpenAIChat, type OpenAIMessage } from "../_shared/openai.ts";
+import {
+  callOpenAIChat,
+  callOpenAIJson,
+  requireNestedJsonPaths,
+  type OpenAIMessage,
+} from "../_shared/openai.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.4";
@@ -21,6 +26,82 @@ interface AnalyzeRequest {
   applicantName?: string; // For cross-reference verification
   applicationAnswers?: Array<{ question: string; answer: string }>; // Structured answers
   coverLetter?: string; // Separate cover letter for cross-reference
+}
+
+interface StructuredScore {
+  overallScore: number;
+  directMatchScore: number;
+  transferableFitScore: number;
+  learningSignalScore: number;
+  hardRequirementConflicts: string[];
+  transferableEvidence: string[];
+  confidence: number;
+  summary: string;
+}
+
+interface StructuredAnalyzeResponse {
+  analysis: string;
+  structuredScore: StructuredScore;
+}
+
+function clampScore(value: unknown, fallback = 0) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+function sanitizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function sanitizeStructuredScore(value: StructuredScore | null | undefined): StructuredScore | null {
+  if (!value) return null;
+
+  return {
+    overallScore: clampScore(value.overallScore, 0),
+    directMatchScore: clampScore(value.directMatchScore, 0),
+    transferableFitScore: clampScore(value.transferableFitScore, 0),
+    learningSignalScore: clampScore(value.learningSignalScore, 0),
+    hardRequirementConflicts: sanitizeStringArray(value.hardRequirementConflicts),
+    transferableEvidence: sanitizeStringArray(value.transferableEvidence),
+    confidence: clampScore(value.confidence, 0),
+    summary: String(value.summary || "").trim(),
+  };
+}
+
+function getStructuredResponseInstruction(type: AnalyzeRequest["type"]) {
+  if (type !== "resume" && type !== "application") {
+    return null;
+  }
+
+  return `Return ONLY valid JSON with this exact shape:
+{
+  "analysis": "<the full narrative analysis report in the exact required format>",
+  "structuredScore": {
+    "overallScore": 0,
+    "directMatchScore": 0,
+    "transferableFitScore": 0,
+    "learningSignalScore": 0,
+    "hardRequirementConflicts": ["..."],
+    "transferableEvidence": ["..."],
+    "confidence": 0,
+    "summary": "..."
+  }
+}
+
+Rules for structuredScore:
+- overallScore must match the final score in the narrative report
+- directMatchScore measures direct background alignment to this exact role
+- transferableFitScore measures how well adjacent and transferable experience supports success in this role
+- learningSignalScore measures trainability, learning effort, and growth indicators
+- hardRequirementConflicts must only list explicit hard conflicts, non-negotiables, wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers
+- transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
+- confidence must reflect evidence coverage and stability, not closeness to the passing threshold
+- summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;
 }
 
 const systemPrompts: Record<string, string> = {
@@ -919,17 +1000,69 @@ Your skill match analysis should be based on what the candidate stated in their 
       ];
     }
 
-    const openAIResult = await callOpenAIChat({
-      apiKey: OPENAI_API_KEY!,
-      model: OPENAI_MODEL,
-      messages,
-      maxCompletionTokens: 4000,
-      ...(type === "interview" ? { temperature: 0.95 } : {}),
-      timeoutMs: 90000,
-      retries: 3,
-    });
+    const structuredResponseInstruction = getStructuredResponseInstruction(type);
+    let analysis = "";
+    let structuredScore: StructuredScore | null = null;
 
-    const analysis = openAIResult.content ?? "";
+    if (structuredResponseInstruction) {
+      try {
+        const structuredResult = await callOpenAIJson<StructuredAnalyzeResponse>({
+          apiKey: OPENAI_API_KEY!,
+          model: OPENAI_MODEL,
+          messages: messages.length > 1
+            ? [
+                messages[0],
+                {
+                  role: "developer",
+                  content: structuredResponseInstruction,
+                },
+                ...messages.slice(1),
+              ]
+            : [
+                {
+                  role: "developer",
+                  content: structuredResponseInstruction,
+                },
+                ...messages,
+              ],
+          maxCompletionTokens: 4500,
+          temperature: 0,
+          timeoutMs: 90000,
+          retries: 2,
+          validator: (value) =>
+            requireNestedJsonPaths(value, [
+              "analysis",
+              "structuredScore.overallScore",
+              "structuredScore.directMatchScore",
+              "structuredScore.transferableFitScore",
+              "structuredScore.learningSignalScore",
+              "structuredScore.hardRequirementConflicts",
+              "structuredScore.transferableEvidence",
+              "structuredScore.confidence",
+              "structuredScore.summary",
+            ]),
+        });
+
+        analysis = structuredResult.data.analysis ?? "";
+        structuredScore = sanitizeStructuredScore(structuredResult.data.structuredScore);
+      } catch (structuredError) {
+        console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);
+      }
+    }
+
+    if (!analysis) {
+      const openAIResult = await callOpenAIChat({
+        apiKey: OPENAI_API_KEY!,
+        model: OPENAI_MODEL,
+        messages,
+        maxCompletionTokens: 4000,
+        ...(type === "interview" ? { temperature: 0.95 } : { temperature: 0 }),
+        timeoutMs: 90000,
+        retries: 3,
+      });
+
+      analysis = openAIResult.content ?? "";
+    }
 
     const modelUsed = OPENAI_MODEL;
     const provider = "openai";
@@ -946,6 +1079,7 @@ Your skill match analysis should be based on what the candidate stated in their 
           text: hasResumeText,
           imagePages: normalizedResumeImages.length,
         },
+        structuredScore,
         model: modelUsed,
         provider,
       }),

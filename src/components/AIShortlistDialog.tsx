@@ -84,6 +84,13 @@ function CandidateCard({
   const RankIcon = candidate.rank <= 3 ? Trophy : null;
   const needsMoreEvidence = candidate.scorecard?.decisionState === "needs_more_evidence";
   const pendingSignals = (candidate.scorecard?.pendingHighSignalPhases || []).map(formatSignalLabel);
+  const transferableEvidence = (candidate.scorecard?.transferableEvidence || []).map((entry) => String(entry || "").trim()).filter(Boolean);
+  const showsTransferableFit = !!(
+    transferableEvidence.length > 0 &&
+    typeof candidate.scorecard?.transferableFitScore === "number" &&
+    typeof candidate.scorecard?.directMatchScore === "number" &&
+    candidate.scorecard.transferableFitScore >= Math.max(55, candidate.scorecard.directMatchScore)
+  );
   const scoreColor = needsMoreEvidence ? "text-amber-300" : "text-primary";
   const barColor = needsMoreEvidence ? "bg-amber-300" : "bg-primary";
 
@@ -155,6 +162,12 @@ function CandidateCard({
               </p>
             )}
 
+            {showsTransferableFit && (
+              <p className="mt-2 text-xs text-emerald-300/90">
+                Transferable fit recognized from {transferableEvidence.join(", ")}.
+              </p>
+            )}
+
             {/* Key Differentiator */}
             <p className="text-sm text-primary mt-2 font-medium">
               "{candidate.keyDifferentiator}"
@@ -172,6 +185,11 @@ function CandidateCard({
                   {concern}
                 </Badge>
               ))}
+              {showsTransferableFit && (
+                <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
+                  Transferable fit {candidate.scorecard?.transferableFitScore}%
+                </Badge>
+              )}
               {candidate.scorecard?.riskFlags.slice(0, 1).map((flag, i) => (
                 <Badge key={`risk-${i}`} variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
                   {flag}

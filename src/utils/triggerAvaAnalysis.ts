@@ -187,7 +187,7 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
   try {
     const { error } = await invokeTriggerAvaAnalysis({
       applicationId,
-      force: true,
+      force: false,
     });
 
     if (error) {

@@ -6,6 +6,10 @@ export interface AvaScorecard {
   overallScore: number;
   confidence: number;
   recommendedAction: RecommendedAction;
+  directMatchScore: number;
+  transferableFitScore: number;
+  learningSignalScore: number;
+  transferableEvidence: string[];
   hardRequirementStatus: "met" | "mixed" | "at_risk";
   dimensionScores: {
     hard_requirements: number;
@@ -29,6 +33,10 @@ export interface AvaScorecard {
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function sanitizeList(value: string[] | null | undefined, limit = 6) {
+  return Array.from(new Set((value || []).map((entry) => String(entry || "").trim()).filter(Boolean))).slice(0, limit);
 }
 
 function averageOf(values: Array<number | null | undefined>, fallback: number) {
@@ -127,6 +135,11 @@ export function buildAvaScorecard(params: {
   jobDescription?: string | null;
   jobSkillsRequired?: string[] | null;
   experienceLevel?: string | null;
+  directMatchScore?: number | null;
+  transferableFitScore?: number | null;
+  learningSignalScore?: number | null;
+  hardRequirementConflicts?: string[] | null;
+  transferableEvidence?: string[] | null;
   evidenceFingerprint: string;
 }) {
   const {
@@ -153,6 +166,11 @@ export function buildAvaScorecard(params: {
     jobDescription,
     jobSkillsRequired,
     experienceLevel,
+    directMatchScore,
+    transferableFitScore,
+    learningSignalScore,
+    hardRequirementConflicts,
+    transferableEvidence,
     evidenceFingerprint,
   } = params;
 
@@ -161,6 +179,8 @@ export function buildAvaScorecard(params: {
   const entryLevel = isEntryLevelRole(experienceLevel, jobTitle);
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
+  const normalizedTransferableEvidence = sanitizeList(transferableEvidence, 4);
+  const normalizedHardRequirementConflicts = sanitizeList(hardRequirementConflicts, 4);
 
   if (!resumeUnavailable) {
     evidenceRefs.push("resume");
@@ -179,6 +199,9 @@ export function buildAvaScorecard(params: {
   if (typeof videoIntroScore === "number") evidenceRefs.push(`video_intro:${videoIntroScore}`);
   else if (videoIntroSubmitted) evidenceRefs.push("video_intro_submitted");
   if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
+  if (normalizedTransferableEvidence.length > 0) {
+    evidenceRefs.push(`transferable_fit:${normalizedTransferableEvidence.length}`);
+  }
 
   if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
   if (safeScore < passingScore) riskFlags.push("Overall score is below the passing threshold");
@@ -193,6 +216,9 @@ export function buildAvaScorecard(params: {
   }
   if (/deal[- ]?breaker|non[- ]?negotiable|cannot work|required schedule/i.test(analysisText)) {
     riskFlags.push("A stated non-negotiable or deal-breaker appears to conflict with the application");
+  }
+  if (normalizedHardRequirementConflicts.length > 0) {
+    riskFlags.push(...normalizedHardRequirementConflicts);
   }
 
   const familyPrimarySignals: Record<string, Array<number | null | undefined>> = {
@@ -209,6 +235,23 @@ export function buildAvaScorecard(params: {
   };
 
   const primarySignalAverage = averageOf(familyPrimarySignals[family] || familyPrimarySignals.general, safeScore);
+  const directRoleMatch = clampPercent(
+    typeof directMatchScore === "number" && Number.isFinite(directMatchScore)
+      ? directMatchScore
+      : Math.max(safeScore - (entryLevel ? 3 : 8), 0),
+  );
+  const transferableFit = clampPercent(
+    typeof transferableFitScore === "number" && Number.isFinite(transferableFitScore)
+      ? transferableFitScore
+      : averageOf([safeScore - 4, primarySignalAverage], safeScore),
+  );
+  const learningSignal = clampPercent(
+    typeof learningSignalScore === "number" && Number.isFinite(learningSignalScore)
+      ? learningSignalScore
+      : entryLevel
+        ? 65
+        : 48,
+  );
   const workflowTypes = Array.isArray(workflowSteps)
     ? workflowSteps.map((step: any) => String(step?.type || "").toLowerCase()).filter(Boolean)
     : [];
@@ -241,23 +284,31 @@ export function buildAvaScorecard(params: {
   const hardRequirements = clampPercent(
     weightedAverage(
       [
-        { value: safeScore, weight: 0.45 },
-        { value: quizScore, weight: 0.25 },
-        { value: primarySignalAverage, weight: 0.2 },
-        { value: portfolioScore, weight: family === "creative" ? 0.1 : 0.05 },
+        { value: safeScore, weight: 0.28 },
+        { value: directRoleMatch, weight: 0.32 },
+        { value: transferableFit, weight: 0.14 },
+        { value: learningSignal, weight: entryLevel ? 0.12 : 0.06 },
+        { value: quizScore, weight: 0.08 },
+        { value: primarySignalAverage, weight: 0.06 },
+        { value: portfolioScore, weight: family === "creative" ? 0.08 : 0.04 },
       ],
       safeScore,
-    ) - (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 10 : 0),
+    ) -
+      (riskFlags.some((flag) => flag.includes("Critical role-fit")) ? 10 : 0) -
+      normalizedHardRequirementConflicts.length * 4,
   );
   const roleCompetency = clampPercent(
     weightedAverage(
       [
-        { value: safeScore, weight: 0.35 },
-        { value: primarySignalAverage, weight: 0.35 },
-        { value: quizScore, weight: family === "technical" ? 0.2 : 0.1 },
-        { value: salesSimulationScore, weight: family === "sales" ? 0.2 : 0.05 },
-        { value: chatSimulationScore, weight: family === "support" ? 0.2 : 0.05 },
-        { value: portfolioScore, weight: family === "creative" ? 0.2 : 0.05 },
+        { value: primarySignalAverage, weight: 0.28 },
+        { value: safeScore, weight: 0.2 },
+        { value: directRoleMatch, weight: entryLevel ? 0.16 : 0.22 },
+        { value: transferableFit, weight: 0.18 },
+        { value: learningSignal, weight: entryLevel ? 0.12 : 0.05 },
+        { value: quizScore, weight: family === "technical" ? 0.1 : 0.05 },
+        { value: salesSimulationScore, weight: family === "sales" ? 0.1 : 0.03 },
+        { value: chatSimulationScore, weight: family === "support" ? 0.1 : 0.03 },
+        { value: portfolioScore, weight: family === "creative" ? 0.1 : 0.04 },
       ],
       safeScore,
     ),
@@ -308,6 +359,7 @@ export function buildAvaScorecard(params: {
       (applicationAnswerCount >= 4 ? 6 : applicationAnswerCount > 0 ? 3 : 0) +
       (resumeTextUsed ? 8 : 0) +
       (resumeImageCount > 0 ? 5 : 0) -
+      (normalizedHardRequirementConflicts.length > 0 ? 6 : 0) +
       (resumeUnavailable ? 10 : 0),
   );
 
@@ -318,11 +370,17 @@ export function buildAvaScorecard(params: {
       (resumeTextUsed ? 8 : 0) +
       (resumeImageCount > 0 ? 4 : 0) +
       (coverLetterProvided ? 2 : 0) -
+      (normalizedHardRequirementConflicts.length > 0 ? 8 : 0) -
       (riskFlags.some((flag) => flag.toLowerCase().includes("authenticity")) ? 12 : 0) -
       (resumeUnavailable ? 10 : 0),
   );
 
+  const structuredHardRejectReason =
+    normalizedHardRequirementConflicts.find((conflict) =>
+      /deal[- ]?breaker|non[- ]?negotiable|cannot|can't|not available|schedule|required|license|certification|wrong resume|different person|mismatch|fabricated|fraud|authenticity/i.test(conflict),
+    ) || null;
   const hardRejectReason =
+    structuredHardRejectReason ||
     riskFlags.find((flag) => flag.includes("A stated non-negotiable")) ||
     riskFlags.find((flag) => flag.includes("Resume may not belong")) ||
     riskFlags.find((flag) => flag.includes("Profile authenticity")) ||
@@ -366,23 +424,30 @@ export function buildAvaScorecard(params: {
   const pendingPhaseLabel = pendingHighSignalPhases.length > 0
     ? formatNaturalList(Array.from(new Set(pendingHighSignalPhases)))
     : null;
+  const transferableLine = normalizedTransferableEvidence.length > 0
+    ? ` Transferable fit recognized from ${formatNaturalList(normalizedTransferableEvidence)}.`
+    : "";
   const rationale =
     hardRejectReason
       ? `${hardRejectReason}. Ava recommends stopping here based on the evidence already collected.`
       : !evidenceFloorMet
         ? pendingPhaseLabel
-          ? `Ava needs more evidence before a final reject or advance recommendation. Pending signals: ${pendingPhaseLabel}.`
-          : "Ava needs more evidence before making a final reject or advance recommendation."
+          ? `Ava needs more evidence before a final reject or advance recommendation. Pending signals: ${pendingPhaseLabel}.${transferableLine}`
+          : `Ava needs more evidence before making a final reject or advance recommendation.${transferableLine}`
         : recommendedAction === "advance"
-          ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support moving this candidate forward.`
+          ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support moving this candidate forward.${transferableLine}`
           : recommendedAction === "review"
-            ? `Signals are mixed for this ${family.replace(/_/g, " ")} role, so a human should review the evidence collected so far.`
-            : "Available evidence is below the role threshold, so Ava recommends rejection.";
+            ? `Signals are mixed for this ${family.replace(/_/g, " ")} role, so a human should review the evidence collected so far.${transferableLine}`
+            : `Available evidence is below the role threshold, so Ava recommends rejection.${transferableLine}`;
 
   return {
     overallScore: safeScore,
     confidence,
     recommendedAction,
+    directMatchScore: directRoleMatch,
+    transferableFitScore: transferableFit,
+    learningSignalScore: learningSignal,
+    transferableEvidence: normalizedTransferableEvidence,
     hardRequirementStatus,
     dimensionScores: {
       hard_requirements: hardRequirements,

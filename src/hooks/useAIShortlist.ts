@@ -15,6 +15,10 @@ export interface RankedCandidate {
     overallScore: number;
     confidence: number;
     recommendedAction: "advance" | "review" | "reject";
+    directMatchScore?: number;
+    transferableFitScore?: number;
+    learningSignalScore?: number;
+    transferableEvidence?: string[];
     decisionState?: "ready_for_decision" | "needs_more_evidence";
     pendingHighSignalPhases?: string[];
     autopilotAction?: "advance" | "reject" | "defer";

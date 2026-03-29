@@ -27,7 +27,7 @@ export function useAutoTriggerAvaAnalysis({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<boolean>(false);
   
-  const triggerAnalysis = useCallback(async (force: boolean = true) => {
+  const triggerAnalysis = useCallback(async (force: boolean = false) => {
     if (!applicationId || inFlightRef.current) {
       return;
     }
@@ -115,7 +115,7 @@ export function useAutoTriggerAvaAnalysis({
     }
     
     debounceTimerRef.current = setTimeout(() => {
-      triggerAnalysis(true);
+      triggerAnalysis(false);
     }, debounceMs);
   }, [triggerAnalysis, debounceMs]);
   

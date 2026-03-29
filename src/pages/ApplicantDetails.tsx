@@ -482,126 +482,6 @@ export default function ApplicantDetails() {
     return () => window.removeEventListener('ava-open-section', handleAvaSection as EventListener);
   }, []);
 
-  // Auto-advance in Autopilot mode: when application meets criteria, advance automatically
-  const autoAdvanceTriggeredRef = useRef(false);
-  useEffect(() => {
-    // Guard: only run once per page load
-    if (autoAdvanceTriggeredRef.current) return;
-    if (!application || !application.jobs) return;
-    
-    const job = application.jobs;
-    const isAutopilot = job.processing_mode === "auto";
-    const currentPhase = application.phase || "application";
-    const aiScore = application.ai_score;
-    const passingScore = job.passing_score || 60;
-    const isRejected = application.status === "rejected";
-    
-    // Only proceed if:
-    // 1. Job is in autopilot mode
-    // 2. Application is in "application" or "quiz" phase (phases that can auto-advance)
-    // 3. Has a passing score
-    // 4. Not rejected
-    if (!isAutopilot || isRejected) return;
-    if (currentPhase !== "application" && currentPhase !== "quiz") return;
-    if (aiScore === null || aiScore === undefined) return;
-    if (aiScore < passingScore) return;
-    
-    // Check if the phase is actually complete
-    const parsedAppNotes = (() => {
-      try {
-        if (!application.notes) return {};
-        if (typeof application.notes === "object") return application.notes as Record<string, any>;
-        return JSON.parse(application.notes as string);
-      } catch {
-        return {};
-      }
-    })();
-    
-    // For "application" phase: check if form was submitted
-    if (currentPhase === "application") {
-      const hasApplicationAnswers = !!parsedAppNotes.applicationAnswers?.length;
-      const hasAnyData = Object.keys(parsedAppNotes).length > 0;
-      if (!hasApplicationAnswers && !hasAnyData) return;
-    }
-    
-    // For "quiz" phase: check if quiz was completed
-    if (currentPhase === "quiz") {
-      if (!parsedAppNotes.quizResult && !parsedAppNotes.quiz) return;
-    }
-    
-    // All conditions met - auto-advance
-    autoAdvanceTriggeredRef.current = true;
-
-    // Determine next phase
-    const workflowSteps = (job.workflow_steps as WorkflowStep[]) || [];
-    const quizQuestions = job.quiz_questions as Json[] | undefined;
-    const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    
-    let nextPhaseId: string | null = null;
-    let nextPhaseTitle: string = "";
-    
-    if (currentPhase === "application") {
-      if (hasQuizQuestions) {
-        nextPhaseId = "quiz";
-        nextPhaseTitle = "Quiz";
-      } else if (workflowSteps.length > 0) {
-        // SAFETY GATE: Never auto-advance to voice_interview - employer must configure it
-        const firstNonVoiceStep = workflowSteps.find((s: WorkflowStep) => s.type !== "voice_interview");
-        if (firstNonVoiceStep) {
-          nextPhaseId = firstNonVoiceStep.id;
-          nextPhaseTitle = firstNonVoiceStep.title;
-        } else {
-          // All steps are voice_interview - cannot auto-advance, employer must configure
-          return;
-        }
-      }
-    } else if (currentPhase === "quiz") {
-      if (workflowSteps.length > 0) {
-        // SAFETY GATE: Never auto-advance to voice_interview - employer must configure it
-        const firstNonVoiceStep = workflowSteps.find((s: WorkflowStep) => s.type !== "voice_interview");
-        if (firstNonVoiceStep) {
-          nextPhaseId = firstNonVoiceStep.id;
-          nextPhaseTitle = firstNonVoiceStep.title;
-        } else {
-          // All steps are voice_interview - cannot auto-advance, employer must configure
-          return;
-        }
-      }
-    }
-    
-    if (!nextPhaseId) {
-      return;
-    }
-    
-    // Perform the advancement
-    (async () => {
-      try {
-        await supabase
-          .from("applications")
-          .update({
-            phase: nextPhaseId,
-            status: "reviewing",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", application.id);
-        
-        // Notify candidate
-        await supabase.from("notifications").insert({
-          user_id: application.candidate_id,
-          type: "status_update",
-          title: "You've Advanced!",
-          message: `Great news! You've been advanced to the ${nextPhaseTitle} phase for ${job.title || "this position"}.`,
-          link: `/applications/${application.id}`,
-        });
-        
-        queryClient.invalidateQueries({ queryKey: ["application", id] });
-        toast.success(`Autopilot: Advanced to ${nextPhaseTitle}`);
-      } catch (error) {
-        console.error("[Autopilot Auto-Advance] Failed:", error);
-      }
-    })();
-  }, [application, id, queryClient]);
-
   // Build phases from workflow_steps or use defaults
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
@@ -1307,6 +1187,13 @@ export default function ApplicantDetails() {
 
   const handleReanalyze = async () => {
     if (!application) return;
+
+    if (application.jobs?.processing_mode === "auto") {
+      toast.info("Autopilot refresh is automatic", {
+        description: "Ava updates recommendations as soon as new evidence arrives.",
+      });
+      return;
+    }
     
     // Guard: Don't run analysis if application data was reset
     const hasApplicationAnswers = parsedNotes.applicationAnswers?.length > 0;
@@ -1325,8 +1212,8 @@ export default function ApplicantDetails() {
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
           applicationId: application.id,
-          force: true, // Force re-analysis even if score exists
-          autopilotDecision: application.jobs?.processing_mode === "auto",
+          force: true,
+          autopilotDecision: false,
           currentPhaseId: application.phase,
         },
       });
@@ -1963,62 +1850,11 @@ export default function ApplicantDetails() {
               <span className="font-semibold text-foreground">Candidate Journey</span>
             </div>
             
-            <div className="flex items-center gap-2">
-              {!canManagePipeline && (
-                <Badge variant="secondary" className="text-xs">
-                  View Only
-                </Badge>
-              )}
-              {/* Desktop: Visible Hire and Reject buttons */}
-              {canManagePipeline && !isRejected && !isHired && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowHireConfirmation(true)}
-                  className="hidden md:flex gap-1.5 h-8 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/50"
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Hire
-                </Button>
-              )}
-              {canManagePipeline && !isRejected && !isHired && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowRejectConfirmation(true)}
-                  className="hidden md:flex gap-1.5 h-8 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-800/50"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Reject
-                </Button>
-              )}
-              {/* Mobile: Dropdown with Hire and Reject options */}
-              {canManagePipeline && !isRejected && !isHired && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      onClick={() => setShowHireConfirmation(true)}
-                      className="gap-2 text-emerald-600 focus:text-emerald-600"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Hire Candidate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => setShowRejectConfirmation(true)}
-                      className="gap-2 text-destructive focus:text-destructive"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Reject Candidate
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+            {!canManagePipeline && (
+              <Badge variant="secondary" className="text-xs">
+                View Only
+              </Badge>
+            )}
           </div>
 
           {/* Journey Slider */}
@@ -2285,33 +2121,35 @@ export default function ApplicantDetails() {
                   Updated: {format(new Date(application.updated_at), "MMM d, hh:mm a")}
                 </div>
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleReanalyze}
-                      disabled={isAnalyzing || !hasValidApplicationData || isRejected}
-                      className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
-                    >
-                      {isAnalyzing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      {!isMobile && "Refresh Recommendation"}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {(isRejected || !hasValidApplicationData) && (
-                  <TooltipContent>
-                    <p>{isRejected 
-                      ? "Analysis is locked. This applicant has already been rejected." 
-                      : "No application data available. The candidate must resubmit the application first."}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
+              {!isAutoPilot && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleReanalyze}
+                        disabled={isAnalyzing || !hasValidApplicationData || isRejected}
+                        className={isMobile ? "h-8 w-8 p-0" : "gap-2"}
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        {!isMobile && "Refresh Recommendation"}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {(isRejected || !hasValidApplicationData) && (
+                    <TooltipContent>
+                      <p>{isRejected 
+                        ? "Analysis is locked. This applicant has already been rejected." 
+                        : "No application data available. The candidate must resubmit the application first."}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              )}
             </div>
           </div>
 

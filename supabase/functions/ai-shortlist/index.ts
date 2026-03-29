@@ -23,6 +23,10 @@ interface RankedCandidateScorecard {
   overallScore: number;
   confidence: number;
   recommendedAction: RecommendedAction;
+  directMatchScore?: number;
+  transferableFitScore?: number;
+  learningSignalScore?: number;
+  transferableEvidence?: string[];
   decisionState?: DecisionState;
   pendingHighSignalPhases?: string[];
   autopilotAction?: AutopilotAction;
@@ -199,6 +203,12 @@ export function buildScorecard(app: any, score: number): RankedCandidateScorecar
       recommendedAction: ["advance", "review", "reject"].includes(storedScorecard.recommendedAction)
         ? storedScorecard.recommendedAction
         : inferAction(score),
+      directMatchScore: storedScorecard.directMatchScore === undefined ? undefined : clampScore(toNumber(storedScorecard.directMatchScore, score)),
+      transferableFitScore: storedScorecard.transferableFitScore === undefined ? undefined : clampScore(toNumber(storedScorecard.transferableFitScore, score)),
+      learningSignalScore: storedScorecard.learningSignalScore === undefined ? undefined : clampScore(toNumber(storedScorecard.learningSignalScore, 50)),
+      transferableEvidence: Array.isArray(storedScorecard.transferableEvidence)
+        ? storedScorecard.transferableEvidence.map(String).filter(Boolean)
+        : [],
       dimensionScores: {
         hardRequirements: clampScore(toNumber(dimensions.hardRequirements ?? dimensions.hard_requirements, score)),
         roleCompetency: clampScore(toNumber(dimensions.roleCompetency ?? dimensions.role_competency, score)),
@@ -239,6 +249,10 @@ export function buildScorecard(app: any, score: number): RankedCandidateScorecar
       ? clampScore(Math.min(68, Math.max(28, dimensionScores.evidenceQuality - 8)))
       : clampScore(Math.min(95, Math.max(35, score + (riskFlags.length === 0 ? 10 : -5)))),
     recommendedAction: decisionState === "needs_more_evidence" ? "review" : inferAction(score),
+    directMatchScore: dimensionScores.hardRequirements,
+    transferableFitScore: undefined,
+    learningSignalScore: decisionState === "needs_more_evidence" ? Math.max(45, dimensionScores.evidenceQuality - 10) : undefined,
+    transferableEvidence: [],
     decisionState,
     pendingHighSignalPhases,
     autopilotAction: decisionState === "needs_more_evidence" ? "defer" : inferAction(score) === "advance" ? "advance" : "reject",

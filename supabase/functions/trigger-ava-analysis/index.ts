@@ -17,10 +17,23 @@ import {
   type AutopilotAction,
 } from "../_shared/autopilot.ts";
 
+const ANALYSIS_VERSION = 3;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+interface StructuredScore {
+  overallScore: number;
+  directMatchScore: number;
+  transferableFitScore: number;
+  learningSignalScore: number;
+  hardRequirementConflicts: string[];
+  transferableEvidence: string[];
+  confidence: number;
+  summary: string;
+}
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(
@@ -749,7 +762,8 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
       !!application.ai_analysis &&
       application.ai_score !== null &&
       !!existingScorecard?.decisionState &&
-      existingAnalysisMeta?.evidenceFingerprint === evidenceFingerprint;
+      existingAnalysisMeta?.evidenceFingerprint === evidenceFingerprint &&
+      existingAnalysisMeta?.analysisVersion === ANALYSIS_VERSION;
 
     if (canReuseExistingAnalysis) {
       console.log("[trigger-ava-analysis] Reusing frozen analysis for unchanged evidence snapshot");
@@ -1026,10 +1040,17 @@ ${interviewType} Interview with AVA Results:
 
     // Improved score extraction with multiple patterns - supports decimal scores
     const analysisText = analysisData?.analysis || "";
+    const structuredScore = analysisData?.structuredScore as StructuredScore | null | undefined;
     let newScore: number | null = null;
-    
+    if (structuredScore && typeof structuredScore.overallScore === "number") {
+      newScore = structuredScore.overallScore;
+      console.log("[trigger-ava-analysis] Score extracted via structuredScore.overallScore:", newScore);
+    }
+
     // Pattern 1: FINAL CALCULATED SCORE (preferred) - supports decimals
-    const finalScoreMatch = analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+(?:\.\d+)?)/i);
+    const finalScoreMatch = newScore === null
+      ? analysisText.match(/FINAL CALCULATED SCORE[:\s]+(\d+(?:\.\d+)?)/i)
+      : null;
     if (finalScoreMatch) {
       newScore = parseFloat(finalScoreMatch[1]);
       console.log("[trigger-ava-analysis] Score extracted via FINAL CALCULATED SCORE:", newScore);
@@ -1242,13 +1263,27 @@ ${interviewType} Interview with AVA Results:
       jobDescription: job?.description || null,
       jobSkillsRequired: Array.isArray(job?.skills_required) ? (job.skills_required as string[]) : null,
       experienceLevel: job?.experience_level || null,
+      directMatchScore: structuredScore?.directMatchScore ?? null,
+      transferableFitScore: structuredScore?.transferableFitScore ?? null,
+      learningSignalScore: structuredScore?.learningSignalScore ?? null,
+      hardRequirementConflicts: structuredScore?.hardRequirementConflicts ?? [],
+      transferableEvidence: structuredScore?.transferableEvidence ?? [],
       evidenceFingerprint,
     });
     const analysisMeta = {
       provider: analysisData?.provider || "openai",
       model: analysisData?.model || null,
       analyzedAt: new Date().toISOString(),
+      analysisVersion: ANALYSIS_VERSION,
       evidenceFingerprint,
+      structuredScoring: {
+        enabled: !!structuredScore,
+        directMatchScore: structuredScore?.directMatchScore ?? null,
+        transferableFitScore: structuredScore?.transferableFitScore ?? null,
+        learningSignalScore: structuredScore?.learningSignalScore ?? null,
+        confidence: structuredScore?.confidence ?? null,
+        summary: structuredScore?.summary ?? null,
+      },
       resume: {
         provided: !!detectedResumeUrl,
         analyzed: !resumeUnavailable,

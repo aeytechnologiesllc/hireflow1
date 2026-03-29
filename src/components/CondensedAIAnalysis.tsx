@@ -53,6 +53,10 @@ interface ApplicationNotes {
     confidence?: number;
     recommendedAction?: "advance" | "review" | "reject";
     autopilotAction?: "advance" | "reject" | "defer";
+    directMatchScore?: number;
+    transferableFitScore?: number;
+    learningSignalScore?: number;
+    transferableEvidence?: string[];
     decisionState?: "ready_for_decision" | "needs_more_evidence";
     evidenceFingerprint?: string;
     evidenceFloorMet?: boolean;
@@ -1607,6 +1611,16 @@ export function CondensedAIAnalysis({
     () => (scorecard?.pendingHighSignalPhases || []).map(formatSignalLabel),
     [scorecard?.pendingHighSignalPhases],
   );
+  const transferableEvidence = useMemo(
+    () => (scorecard?.transferableEvidence || []).map((entry) => String(entry || "").trim()).filter(Boolean),
+    [scorecard?.transferableEvidence],
+  );
+  const showsTransferableFit = !!(
+    transferableEvidence.length > 0 &&
+    typeof scorecard?.transferableFitScore === "number" &&
+    typeof scorecard?.directMatchScore === "number" &&
+    scorecard.transferableFitScore >= Math.max(55, scorecard.directMatchScore)
+  );
   const visibleRiskFlags = useMemo(() => {
     const flags = scorecard?.riskFlags || [];
     if (!needsMoreEvidence) return flags;
@@ -1762,6 +1776,11 @@ export function CondensedAIAnalysis({
                     Awaiting more evidence
                   </Badge>
                 )}
+                {showsTransferableFit && (
+                  <Badge variant="outline" className="text-[11px] border-emerald-500/40 text-emerald-300">
+                    Transferable fit {scorecard?.transferableFitScore}%
+                  </Badge>
+                )}
                 {analysisMeta?.analyzedAt && (
                   <span>Updated {new Date(analysisMeta.analyzedAt).toLocaleString()}</span>
                 )}
@@ -1771,6 +1790,11 @@ export function CondensedAIAnalysis({
                 <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                   {cleanedDisplaySummary}
                 </p>
+                {showsTransferableFit && transferableEvidence.length > 0 && (
+                  <p className="text-xs text-emerald-300">
+                    Transferable fit recognized from {transferableEvidence.join(", ")}.
+                  </p>
+                )}
                 {needsMoreEvidence && pendingSignals.length > 0 && (
                   <p className="text-xs text-amber-300">
                     Pending signals: {pendingSignals.join(", ")}

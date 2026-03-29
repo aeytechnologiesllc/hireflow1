@@ -52,7 +52,7 @@ export default function JobApplicationDialog({
       // The backend will process the resume (PDF→image), run AI analysis, and set ai_score
       invokeTriggerAvaAnalysis({
         applicationId: result.id,
-        force: true,
+        force: false,
       }).catch(err => {
         console.error("[JobApplicationDialog] Failed to trigger AVA analysis:", err);
       });
