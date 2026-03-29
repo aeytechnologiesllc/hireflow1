@@ -47,6 +47,7 @@ import { FeatureDiscoveryTooltip } from "@/components/FeatureDiscoveryTooltip";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { applicationStatusColors, applicationStatusLabels } from "@/lib/terminology";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
 
 interface ApplicantCardProps {
   application: ApplicationWithCandidate;
@@ -62,6 +63,11 @@ interface ApplicantCardProps {
 function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNavigateToDetails, onDeleteApplication, isSelectionMode, isSelected, onToggleSelect }: ApplicantCardProps) {
   const profile = application.profiles;
   const job = application.jobs;
+  const applicationNotes = useMemo(() => parseApplicationNotes(application.notes), [application.notes]);
+  const avaScorecard = (applicationNotes?.avaScorecard || null) as {
+    decisionState?: "ready_for_decision" | "needs_more_evidence";
+    pendingHighSignalPhases?: string[];
+  } | null;
   
   // Extract applicant name from application notes (Full Name answer) or fall back to profile/email
   const applicantName = (() => {
@@ -128,6 +134,22 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
   };
 
   const phaseName = getPhaseName(application.phase);
+  const needsMoreEvidence = avaScorecard?.decisionState === "needs_more_evidence";
+  const pendingSignals = (avaScorecard?.pendingHighSignalPhases || [])
+    .map((signal) =>
+      signal
+        .replace(/_/g, " ")
+        .replace(/\bava\b/gi, "Ava")
+        .replace(/\bquiz\b/gi, "Quiz")
+        .replace(/\bchat\b/gi, "Chat")
+        .replace(/\bvoice\b/gi, "Voice")
+        .replace(/\bvideo\b/gi, "Video")
+        .split(" ")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    );
+  const pendingSignalSummary = pendingSignals.slice(0, 2).join(", ");
 
   const handleCardClick = (e: React.MouseEvent) => {
     if (isSelectionMode) {
@@ -242,14 +264,17 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
 
             {(application.ai_score !== null && application.ai_score !== undefined) && (() => {
               const passingScore = application.jobs?.passing_score || 60;
-              const isFailing = application.ai_score < passingScore;
-              const scoreColor = isFailing ? "text-rose-400" : "text-primary";
-              const barColor = isFailing ? "bg-rose-400" : "bg-primary";
+              const isFailing = application.ai_score < passingScore && !needsMoreEvidence;
+              const scoreColor = needsMoreEvidence ? "text-amber-300" : isFailing ? "text-rose-400" : "text-primary";
+              const barColor = needsMoreEvidence ? "bg-amber-300" : isFailing ? "bg-rose-400" : "bg-primary";
               
               return (
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
                   <Sparkles className={`h-4 w-4 ${scoreColor}`} />
-                  <div className="text-xs font-medium text-muted-foreground">AI Score:</div>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {needsMoreEvidence ? "Provisional score:" : "AI Score:"}
+                  </div>
                   <div className="flex items-center gap-1">
                     <div className="h-2 w-24 bg-secondary rounded-full overflow-hidden">
                       <div 
@@ -259,6 +284,12 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
                     </div>
                     <span className={`text-sm font-medium ${scoreColor}`}>{application.ai_score}%</span>
                   </div>
+                </div>
+                  {needsMoreEvidence && (
+                    <div className="text-xs text-amber-300/90">
+                      Awaiting more evidence{pendingSignalSummary ? `: ${pendingSignalSummary}` : ""}
+                    </div>
+                  )}
                 </div>
               );
               })()}

@@ -312,14 +312,14 @@ export function buildAvaScorecard(params: {
   );
 
   const confidence = clampPercent(
-    35 +
-      completedSignalCount * 12 +
-      (applicationAnswerCount >= 4 ? 8 : applicationAnswerCount > 0 ? 4 : 0) +
-      (resumeTextUsed ? 10 : 0) +
-      (resumeImageCount > 0 ? 5 : 0) +
-      (coverLetterProvided ? 3 : 0) -
-      (riskFlags.some((flag) => flag.toLowerCase().includes("authenticity")) ? 10 : 0) -
-      (resumeUnavailable ? 8 : 0),
+    22 +
+      completedSignalCount * 15 +
+      (applicationAnswerCount >= 4 ? 6 : applicationAnswerCount > 0 ? 3 : 0) +
+      (resumeTextUsed ? 8 : 0) +
+      (resumeImageCount > 0 ? 4 : 0) +
+      (coverLetterProvided ? 2 : 0) -
+      (riskFlags.some((flag) => flag.toLowerCase().includes("authenticity")) ? 12 : 0) -
+      (resumeUnavailable ? 10 : 0),
   );
 
   const hardRejectReason =

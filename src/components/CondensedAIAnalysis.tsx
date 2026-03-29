@@ -1499,9 +1499,9 @@ function deriveRecommendationLabel(params: {
 
 function getConfidenceTone(confidence: number | null | undefined) {
   if (typeof confidence !== "number") return null;
-  if (confidence >= 80) return "High confidence";
-  if (confidence >= 55) return "Medium confidence";
-  return "Low confidence";
+  if (confidence >= 80) return "High";
+  if (confidence >= 55) return "Medium";
+  return "Low";
 }
 
 function getResumeEvidenceLabel(meta?: ApplicationNotes["avaAnalysisMeta"]) {
@@ -1703,6 +1703,11 @@ export function CondensedAIAnalysis({
     return parsedSummary;
   }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale, needsMoreEvidence, pendingSignals]);
   const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
+  const scoreSummaryLabel = displayScore !== null
+    ? needsMoreEvidence
+      ? `Provisional score ${displayScore}/100 • Pass threshold ${effectivePassingScore}/100`
+      : `Score ${displayScore}/100 • Pass threshold ${effectivePassingScore}/100`
+    : null;
   
   
   return (
@@ -1731,12 +1736,17 @@ export function CondensedAIAnalysis({
                 {evidenceBasis && (
                   <span>{evidenceBasis}</span>
                 )}
-                {displayScore !== null && (
-                  <span>Score {displayScore} • Pass threshold {effectivePassingScore}</span>
+                {scoreSummaryLabel && (
+                  <span>{scoreSummaryLabel}</span>
                 )}
                 {confidenceTone && typeof scorecard?.confidence === "number" && (
                   <Badge variant="outline" className="text-[11px]">
-                    {confidenceTone} • {scorecard.confidence}%
+                    {needsMoreEvidence ? "Evidence confidence" : `${confidenceTone} evidence confidence`} • {scorecard.confidence}%
+                  </Badge>
+                )}
+                {needsMoreEvidence && (
+                  <Badge variant="outline" className="text-[11px] border-amber-500/40 text-amber-300">
+                    Awaiting more evidence
                   </Badge>
                 )}
                 {analysisMeta?.analyzedAt && (
