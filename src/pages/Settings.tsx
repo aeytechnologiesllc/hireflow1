@@ -175,12 +175,13 @@ export default function Settings() {
       toast.success("Account deleted successfully");
 
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       } catch (signOutError) {
         console.warn("Local sign out after delete failed:", signOutError);
       }
 
-      navigate(signedOutRoute, { replace: true });
+      window.location.replace(signedOutRoute);
+      return;
     } catch (error) {
       console.error("Delete account error:", error);
       toast.error("Failed to delete account. Please try again or contact support.");

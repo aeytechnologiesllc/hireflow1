@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If the client has a session cached but the server says it doesn't exist anymore,
       // we must clear local auth state to avoid infinite "User not authenticated" loops.
       if (error || !user) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         setUser(null);
         setSession(null);
         setRole(null);
