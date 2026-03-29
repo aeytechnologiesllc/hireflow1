@@ -151,7 +151,22 @@ export default function Settings() {
     const signedOutRoute = getSignedOutRoute(role);
 
     try {
-      const { error } = await supabase.functions.invoke('delete-account');
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Your session expired. Please sign in again before deleting your account.");
+      }
+
+      const { error } = await supabase.functions.invoke('delete-account', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
       if (error) {
         throw error;

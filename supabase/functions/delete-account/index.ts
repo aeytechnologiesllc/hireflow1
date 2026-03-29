@@ -18,6 +18,7 @@ const deleteOperations = [
   { table: 'document_templates', columns: ['employer_id'] },
   { table: 'team_invitations', columns: ['inviter_id'] },
   { table: 'team_members', columns: ['user_id', 'employer_id'] },
+  { table: 'document_packages', columns: ['employer_id', 'candidate_id'] },
   { table: 'document_requests', columns: ['candidate_id', 'employer_id', 'reviewed_by'] },
   { table: 'documents', columns: ['sender_id', 'recipient_id'] },
   { table: 'applications', columns: ['candidate_id'] },
@@ -37,6 +38,74 @@ const storageBuckets = [
 ] as const;
 
 const STORAGE_REMOVE_BATCH_SIZE = 100;
+
+async function fetchIds(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  table: string,
+  column: string,
+  value: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select('id')
+    .eq(column, value);
+
+  if (error) {
+    console.log(`Note: Could not load ids from ${table}.${column}:`, error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((row: { id?: string | null }) => row.id)
+    .filter((id: string | null | undefined): id is string => Boolean(id));
+}
+
+async function fetchIdsIn(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  table: string,
+  column: string,
+  values: string[],
+) {
+  if (!values.length) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select('id')
+    .in(column, values);
+
+  if (error) {
+    console.log(`Note: Could not load ids from ${table}.${column}[]:`, error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((row: { id?: string | null }) => row.id)
+    .filter((id: string | null | undefined): id is string => Boolean(id));
+}
+
+async function deleteRowsByIds(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  table: string,
+  column: string,
+  ids: string[],
+) {
+  if (!ids.length) return;
+
+  const uniqueIds = [...new Set(ids)];
+
+  for (let index = 0; index < uniqueIds.length; index += STORAGE_REMOVE_BATCH_SIZE) {
+    const batch = uniqueIds.slice(index, index + STORAGE_REMOVE_BATCH_SIZE);
+    const { error } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .in(column, batch);
+
+    if (error) {
+      console.log(`Note: Could not delete from ${table}.${column}[]:`, error.message);
+      break;
+    }
+  }
+}
 
 async function cleanupUserStorage(
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -137,6 +206,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
+
+    const ownedJobIds = await fetchIds(supabaseAdmin, 'jobs', 'employer_id', user.id);
+    const candidateApplicationIds = await fetchIds(supabaseAdmin, 'applications', 'candidate_id', user.id);
+    const employerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', ownedJobIds);
+    const relatedApplicationIds = [...new Set([...candidateApplicationIds, ...employerApplicationIds])];
+
+    await deleteRowsByIds(supabaseAdmin, 'blueprint_purchases', 'application_id', relatedApplicationIds);
+    await deleteRowsByIds(supabaseAdmin, 'interviews', 'application_id', relatedApplicationIds);
+    await deleteRowsByIds(supabaseAdmin, 'document_packages', 'application_id', relatedApplicationIds);
 
     for (const operation of deleteOperations) {
       for (const column of operation.columns) {
