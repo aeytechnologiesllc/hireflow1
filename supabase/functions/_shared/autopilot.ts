@@ -208,7 +208,14 @@ export function buildAvaScorecard(params: {
   if (/WRONG_RESUME/i.test(analysisText)) riskFlags.push("Resume may not belong to this candidate or role");
   if (/INVALID_DOCUMENT/i.test(analysisText)) riskFlags.push("Uploaded file did not behave like a valid resume");
   if (/SUSPICIOUS/i.test(analysisText)) riskFlags.push("Resume details need manual verification");
-  if (/MISMATCH|LIKELY_FABRICATED/i.test(analysisText)) riskFlags.push("Profile authenticity needs review");
+  if (/Name Match:\s*MISMATCH/i.test(analysisText)) {
+    riskFlags.push("Resume may not belong to this candidate or role");
+  }
+  if (/AUTHENTICITY ASSESSMENT[\s\S]{0,160}Status:\s*LIKELY_FABRICATED/i.test(analysisText)) {
+    riskFlags.push("Profile authenticity needs review");
+  } else if (/AUTHENTICITY ASSESSMENT[\s\S]{0,160}Status:\s*QUESTIONABLE/i.test(analysisText)) {
+    riskFlags.push("Profile details need closer verification");
+  }
   if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
   if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
   if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && /Missing Critical Skills/i.test(analysisText)) {
@@ -475,12 +482,12 @@ export function resolveAutopilotAction(
   passingScore: number,
   scorecard?: Pick<AvaScorecard, "autopilotAction" | "decisionState" | "recommendedAction"> | null,
 ): AutopilotAction {
-  if (scorecard?.autopilotAction) {
-    return scorecard.autopilotAction;
-  }
-
   if (scorecard?.decisionState === "needs_more_evidence") {
     return "defer";
+  }
+
+  if (scorecard?.autopilotAction) {
+    return scorecard.autopilotAction;
   }
 
   if (score !== null) {

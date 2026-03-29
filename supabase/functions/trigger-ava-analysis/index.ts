@@ -17,7 +17,7 @@ import {
   type AutopilotAction,
 } from "../_shared/autopilot.ts";
 
-const ANALYSIS_VERSION = 3;
+const ANALYSIS_VERSION = 4;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

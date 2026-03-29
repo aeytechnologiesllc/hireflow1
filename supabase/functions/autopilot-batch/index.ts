@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { resolveAutopilotAction } from "../_shared/autopilot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -309,20 +310,30 @@ serve(async (req) => {
       }
 
       const scorecard = (decisionData?.scorecard || null) as Record<string, any> | null;
-      const autopilotAction = scorecard?.autopilotAction || (decisionData?.decision === "rejected" ? "reject" : "advance");
       const decisionState = scorecard?.decisionState || "ready_for_decision";
+      const autopilotAction = resolveAutopilotAction(
+        typeof decisionData?.score === "number" ? decisionData.score : application.ai_score,
+        passingScore,
+        scorecard as any,
+      );
       const needsEmployerReview = decisionData?.decision === "needs_employer_approval"
         || (!decisionData?.nextPhaseId && autopilotAction !== "reject");
 
       if (autopilotAction === "reject") {
         response.totals.reject++;
-      } else if (needsEmployerReview) {
-        response.totals.review++;
       } else if (autopilotAction === "defer" || decisionState === "needs_more_evidence") {
         response.totals.defer++;
+      } else if (needsEmployerReview) {
+        response.totals.review++;
       } else {
         response.totals.advance++;
       }
+
+      const action = autopilotAction === "defer" || decisionState === "needs_more_evidence"
+        ? "defer"
+        : needsEmployerReview
+          ? "review"
+          : autopilotAction;
 
       response.applicants.push({
         applicationId: application.id,
@@ -331,7 +342,7 @@ serve(async (req) => {
         candidateEmail: profile?.email || "",
         currentPhaseId: phaseId,
         score: decisionData?.score ?? application.ai_score ?? null,
-        action: needsEmployerReview ? "review" : autopilotAction,
+        action,
         decision: decisionData?.decision || null,
         decisionState,
         nextPhaseId: decisionData?.nextPhaseId || null,
