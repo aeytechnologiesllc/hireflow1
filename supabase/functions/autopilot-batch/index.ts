@@ -13,6 +13,65 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   );
 }
 
+async function invokeTriggerAvaAnalysis(params: {
+  supabaseUrl: string;
+  anonKey: string;
+  authHeader: string;
+  applicationId: string;
+  currentPhaseId: string;
+  force: boolean;
+  autopilotDecision: boolean;
+  previewOnly: boolean;
+}) {
+  const response = await fetch(`${params.supabaseUrl}/functions/v1/trigger-ava-analysis`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: params.anonKey,
+      Authorization: params.authHeader,
+    },
+    body: JSON.stringify({
+      applicationId: params.applicationId,
+      currentPhaseId: params.currentPhaseId,
+      force: params.force,
+      autopilotDecision: params.autopilotDecision,
+      previewOnly: params.previewOnly,
+    }),
+  });
+
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText);
+    } catch {
+      parsedBody = responseText;
+    }
+  }
+
+  if (!response.ok) {
+    return {
+      data: null,
+      error: {
+        message:
+          (parsedBody &&
+          typeof parsedBody === "object" &&
+          "error" in parsedBody &&
+          typeof parsedBody.error === "string"
+            ? parsedBody.error
+            : responseText) || `trigger-ava-analysis returned ${response.status}`,
+        status: response.status,
+        body: parsedBody ?? responseText,
+      },
+    };
+  }
+
+  return {
+    data: parsedBody,
+    error: null,
+  };
+}
+
 function parseNotes(notes: string | Record<string, any> | null): Record<string, any> {
   if (!notes) return {};
   if (typeof notes === "object") return notes as Record<string, any>;
@@ -154,15 +213,19 @@ serve(async (req) => {
       return jsonResponse({ error: "You do not have permission to manage this job" }, 403);
     }
 
-    const { data: applications, error: applicationsError } = await supabaseAdmin
+    const { data: allApplications, error: applicationsError } = await supabaseAdmin
       .from("applications")
       .select("id, candidate_id, ai_score, ai_analysis, phase, notes, voice_interview_result, status, resume_url, cover_letter")
-      .eq("job_id", jobId)
-      .not("status", "in", "(rejected,hired,offered)");
+      .eq("job_id", jobId);
 
     if (applicationsError) {
       return jsonResponse({ error: "Failed to load applications", details: applicationsError.message }, 500);
     }
+
+    const applications = (allApplications || []).filter((application) => {
+      const normalizedStatus = (application.status || "").toLowerCase();
+      return !["rejected", "hired", "offered"].includes(normalizedStatus);
+    });
 
     const candidateIds = [...new Set((applications || []).map((application) => application.candidate_id))];
     const { data: profiles } = candidateIds.length > 0
@@ -201,28 +264,34 @@ serve(async (req) => {
 
     for (const application of applications || []) {
       const phaseId = application.phase || "application";
+      const normalizedStatus = (application.status || "").toLowerCase();
       const phaseType =
         phaseId === "application"
           ? "application"
           : phaseId === "quiz"
             ? "quiz"
             : (workflowSteps.find((step: any) => step?.id === phaseId)?.type || "unknown");
+      const isWaitingStatus =
+        normalizedStatus === "pending"
+        || normalizedStatus === "reviewing"
+        || normalizedStatus === "submitted";
 
-      if (!hasCompletedPhase(phaseId, phaseType, application.notes as any, application.voice_interview_result, application)) {
+      if (!isWaitingStatus && !hasCompletedPhase(phaseId, phaseType, application.notes as any, application.voice_interview_result, application)) {
         continue;
       }
 
       response.totals.processed++;
 
       const profile = profileMap.get(application.candidate_id);
-      const { data: decisionData, error: decisionError } = await supabaseAdmin.functions.invoke("trigger-ava-analysis", {
-        body: {
-          applicationId: application.id,
-          currentPhaseId: phaseId,
-          force: application.ai_score === null || application.ai_score === undefined,
-          autopilotDecision: !previewOnly,
-          previewOnly,
-        },
+      const { data: decisionData, error: decisionError } = await invokeTriggerAvaAnalysis({
+        supabaseUrl,
+        anonKey,
+        authHeader,
+        applicationId: application.id,
+        currentPhaseId: phaseId,
+        force: application.ai_score === null || application.ai_score === undefined,
+        autopilotDecision: !previewOnly,
+        previewOnly,
       });
 
       if (decisionError) {

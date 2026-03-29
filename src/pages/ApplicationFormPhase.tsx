@@ -75,8 +75,6 @@ interface ApplicationDetails {
     workflow_steps: any[] | null;
     require_resume: boolean | null;
     quiz_questions: any[] | null;
-    must_haves: string | null;
-    deal_breakers: string | null;
   } | null;
 }
 
@@ -152,8 +150,6 @@ const getQuestionCriteriaContext = (
 
   const questionText = question.question.toLowerCase();
   const placeholderItems = parseCriteriaItems(question.placeholder);
-  const mustHaveItems = parseCriteriaItems(job.must_haves);
-  const dealBreakerItems = parseCriteriaItems(job.deal_breakers);
 
   const asksAboutNonNegotiables =
     questionText.includes("non-negotiable") ||
@@ -162,11 +158,10 @@ const getQuestionCriteriaContext = (
     questionText.includes("conflicts with");
 
   if (asksAboutNonNegotiables) {
-    const items = placeholderItems.length > 0 ? placeholderItems : dealBreakerItems;
-    if (items.length > 0) {
+    if (placeholderItems.length > 0) {
       return {
         title: "Non-negotiables for this role",
-        items,
+        items: placeholderItems,
       };
     }
   }
@@ -178,11 +173,10 @@ const getQuestionCriteriaContext = (
     questionText.includes("requirements");
 
   if (asksAboutMustHaves) {
-    const items = placeholderItems.length > 0 ? placeholderItems : mustHaveItems;
-    if (items.length > 0) {
+    if (placeholderItems.length > 0) {
       return {
         title: "Must-have requirements for this role",
-        items,
+        items: placeholderItems,
       };
     }
   }
@@ -193,7 +187,7 @@ const getQuestionCriteriaContext = (
 export default function ApplicationFormPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const updateApplication = useUpdateApplication();
@@ -284,14 +278,14 @@ export default function ApplicationFormPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume, quiz_questions, must_haves, deal_breakers)")
+        .select("*, jobs(title, processing_mode, passing_score, application_questions, workflow_steps, require_resume, quiz_questions)")
         .eq("id", id!)
         .single();
 
       if (error) throw error;
       return data as unknown as ApplicationDetails;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -981,7 +975,7 @@ export default function ApplicationFormPhase() {
     navigate(`/applications/${id}`);
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-48" />

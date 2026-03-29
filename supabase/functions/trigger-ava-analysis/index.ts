@@ -182,17 +182,23 @@ async function handleAutopilotDecision(params: {
       ? `${scorecard.hardRejectReason}.`
       : `Overall Ava score of ${score || 0}% is below the passing threshold of ${passingScore}%.`;
 
-    const { error: rejectError } = await supabaseAdmin
+    const { data: rejectedApplication, error: rejectError } = await supabaseAdmin
       .from("applications")
       .update({
         status: "rejected",
         rejected_by_type: "ava",
         phase_ai_analysis: rejectReason,
       })
-      .eq("id", applicationId);
+      .eq("id", applicationId)
+      .select("id, status, phase, rejected_by_type")
+      .single();
 
     if (rejectError) {
       console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
+      return jsonResponse({
+        error: "Failed to reject application",
+        details: rejectError.message,
+      }, 500);
     }
 
     try {
@@ -224,6 +230,7 @@ async function handleAutopilotDecision(params: {
       decision: "rejected",
       reason: rejectReason,
       autopilotAction,
+      updatedApplication: rejectedApplication,
       scorecard,
     });
   }
@@ -253,17 +260,23 @@ async function handleAutopilotDecision(params: {
     ? scorecard?.rationale || "Ava needs more evidence and has moved the candidate to the next phase."
     : scorecard?.rationale || application.phase_ai_analysis;
 
-  const { error: advanceError } = await supabaseAdmin
+  const { data: advancedApplication, error: advanceError } = await supabaseAdmin
     .from("applications")
     .update({
       phase: nextPhase.nextPhaseId,
       status: "reviewing",
       phase_ai_analysis: phaseAnalysis,
     })
-    .eq("id", applicationId);
+    .eq("id", applicationId)
+    .select("id, status, phase")
+    .single();
 
   if (advanceError) {
     console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
+    return jsonResponse({
+      error: "Failed to advance application",
+      details: advanceError.message,
+    }, 500);
   }
 
   return jsonResponse({
@@ -272,12 +285,13 @@ async function handleAutopilotDecision(params: {
       ? "Analysis completed, candidate advanced for more evidence"
       : "Analysis completed, candidate advanced",
     score,
-    decision: "advanced",
-    autopilotAction,
-    nextPhaseId: nextPhase.nextPhaseId,
-    nextPhaseTitle: nextPhase.nextPhaseTitle,
-    scorecard,
-  });
+      decision: "advanced",
+      autopilotAction,
+      nextPhaseId: nextPhase.nextPhaseId,
+      nextPhaseTitle: nextPhase.nextPhaseTitle,
+      updatedApplication: advancedApplication,
+      scorecard,
+    });
 }
 
 

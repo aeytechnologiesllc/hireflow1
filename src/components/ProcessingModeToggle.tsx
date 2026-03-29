@@ -130,6 +130,7 @@ export function ProcessingModeToggle({
   const [pendingMode, setPendingMode] = useState<"auto" | "manual" | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [preview, setPreview] = useState<AutopilotImpactPreview | null>(null);
+  const [modeTransitioning, setModeTransitioning] = useState(false);
 
   const groupedPreview = useMemo(() => {
     const applicants = preview?.applicants || [];
@@ -143,7 +144,7 @@ export function ProcessingModeToggle({
 
   const handleButtonClick = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    if (disabled) return;
+    if (disabled || loadingPreview || updateJob.isPending || modeTransitioning) return;
 
     const nextMode = currentMode === "auto" ? "manual" : "auto";
     setPendingMode(nextMode);
@@ -176,6 +177,7 @@ export function ProcessingModeToggle({
     if (!pendingMode) return;
 
     try {
+      setModeTransitioning(true);
       await updateJob.mutateAsync({
         id: jobId,
         processing_mode: pendingMode,
@@ -239,6 +241,7 @@ export function ProcessingModeToggle({
       setPendingMode(null);
       setPreview(null);
       setLoadingPreview(false);
+      setModeTransitioning(false);
     }
   };
 
@@ -246,13 +249,14 @@ export function ProcessingModeToggle({
     <>
       <motion.button
         onClick={handleButtonClick}
-        disabled={disabled}
+        disabled={disabled || loadingPreview || updateJob.isPending || modeTransitioning}
         className={cn(
           "relative flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 disabled:opacity-50",
           currentMode === "auto"
             ? "border-purple-500/30 bg-purple-500/10 text-purple-100 hover:bg-purple-500/15"
             : "border-orange-500/30 bg-orange-500/10 text-orange-100 hover:bg-orange-500/15",
         )}
+        aria-busy={loadingPreview || updateJob.isPending || modeTransitioning}
         whileHover={disabled ? {} : { scale: 1.02 }}
         whileTap={disabled ? {} : { scale: 0.98 }}
       >
@@ -358,12 +362,21 @@ export function ProcessingModeToggle({
                 )}
 
                 <DialogFooter className="mt-6 flex gap-2 sm:justify-center">
-                  <Button variant="outline" onClick={handleCancel}>
+                  <Button
+                    variant="outline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleCancel();
+                    }}
+                  >
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleConfirm}
-                    disabled={updateJob.isPending || loadingPreview}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleConfirm();
+                    }}
+                    disabled={updateJob.isPending || loadingPreview || modeTransitioning}
                     className="bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:from-purple-400 hover:to-fuchsia-500"
                   >
                     {updateJob.isPending ? (
@@ -407,12 +420,21 @@ export function ProcessingModeToggle({
                 </div>
 
                 <DialogFooter className="mt-6 flex gap-2 sm:justify-center">
-                  <Button variant="outline" onClick={handleCancel}>
+                  <Button
+                    variant="outline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleCancel();
+                    }}
+                  >
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleConfirm}
-                    disabled={updateJob.isPending}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleConfirm();
+                    }}
+                    disabled={updateJob.isPending || modeTransitioning}
                     className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-400 hover:to-amber-500"
                   >
                     {updateJob.isPending ? (

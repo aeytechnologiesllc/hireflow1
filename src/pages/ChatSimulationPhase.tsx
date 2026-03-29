@@ -112,7 +112,7 @@ const CHAT_URL = `${SUPABASE_URL}/functions/v1/ai-chat-simulation`;
 export default function ChatSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed" | "rejected">("intro");
@@ -144,7 +144,7 @@ export default function ChatSimulationPhase() {
       if (error) throw error;
       return data as ApplicationDetails;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -730,7 +730,7 @@ export default function ChatSimulationPhase() {
     }
   })();
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
         <Skeleton className="h-12 w-48" />

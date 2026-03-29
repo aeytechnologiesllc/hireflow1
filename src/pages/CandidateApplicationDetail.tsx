@@ -97,7 +97,7 @@ const phaseActionMessages = terminologyPhaseActionMessages;
 export default function CandidateApplicationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export default function CandidateApplicationDetail() {
       if (error) throw error;
       return data as ApplicationDetails;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
   });
 
   // Fetch interview for this application (for candidate confirmation card)
@@ -145,7 +145,7 @@ export default function CandidateApplicationDetail() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
   });
 
   // Fetch interview details when needed (for status screen)
@@ -614,7 +614,7 @@ export default function CandidateApplicationDetail() {
     );
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-48" />

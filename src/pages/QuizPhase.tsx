@@ -99,7 +99,7 @@ const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_sel
 export default function QuizPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   // Storage key for quiz persistence
@@ -148,7 +148,7 @@ export default function QuizPhase() {
       if (error) throw error;
       return data as unknown as ApplicationDetails;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -844,7 +844,7 @@ export default function QuizPhase() {
     }
   })();
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
         <Skeleton className="h-12 w-48" />

@@ -73,7 +73,7 @@ interface AntiCheatViolation {
 export default function TypingTestPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   const [testState, setTestState] = useState<"intro" | "testing" | "completed">("intro");
@@ -179,7 +179,7 @@ export default function TypingTestPhase() {
       
       return parsed as ApplicationDetails;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -574,7 +574,7 @@ export default function TypingTestPhase() {
     }
   })();
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6 max-w-4xl mx-auto p-6">
         <Skeleton className="h-12 w-48" />

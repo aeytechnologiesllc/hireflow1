@@ -134,7 +134,7 @@ const SALES_URL = `${SUPABASE_URL}/functions/v1/ai-sales-simulation`;
 export default function SalesSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed" | "rejected">("intro");
@@ -176,7 +176,7 @@ export default function SalesSimulationPhase() {
       
       return { ...data, candidateName } as ApplicationDetails & { candidateName: string | null };
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -698,7 +698,7 @@ export default function SalesSimulationPhase() {
     }
   })();
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
         <Skeleton className="h-12 w-48" />

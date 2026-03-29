@@ -326,7 +326,6 @@ export function buildAvaScorecard(params: {
     riskFlags.find((flag) => flag.includes("A stated non-negotiable")) ||
     riskFlags.find((flag) => flag.includes("Resume may not belong")) ||
     riskFlags.find((flag) => flag.includes("Profile authenticity")) ||
-    riskFlags.find((flag) => flag.includes("Critical role-fit")) ||
     null;
 
   const evidenceFloorMet =
