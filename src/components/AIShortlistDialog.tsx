@@ -212,6 +212,10 @@ function formatCategoryLabel(category: string) {
   return category.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim();
 }
 
+function renderQuickDecisionEmptyState(label: string) {
+  return <p className="text-sm text-muted-foreground">{label}</p>;
+}
+
 export default function AIShortlistDialog({
   open,
   onOpenChange,
@@ -245,6 +249,14 @@ export default function AIShortlistDialog({
   }
 
   if (!shortlist) return null;
+
+  const provisionalCount = shortlist.scorecardSummary?.provisionalCount ?? 0;
+  const decisionReadyCount = shortlist.scorecardSummary?.decisionReadyCount ?? 0;
+  const considerLabel = provisionalCount > 0 ? "Gather More Evidence" : "Consider";
+  const considerHint = provisionalCount > 0
+    ? `${provisionalCount} provisional candidate${provisionalCount === 1 ? "" : "s"}`
+    : "Manual review candidates";
+  const passEmptyLabel = decisionReadyCount === 0 ? "No decision-ready pass calls yet" : "None";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -344,15 +356,16 @@ export default function AIShortlistDialog({
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <AlertCircle className="h-4 w-4 text-amber-400" />
-                    <span className="text-xs font-medium text-amber-400">Consider</span>
+                    <span className="text-xs font-medium text-amber-400">{considerLabel}</span>
                   </div>
+                  <p className="mb-2 text-[11px] text-amber-300/80">{considerHint}</p>
                   <div className="space-y-1">
                     {shortlist.quickDecision.considerWithReservations.length > 0 ? (
                       shortlist.quickDecision.considerWithReservations.map((name, i) => (
                         <p key={i} className="text-sm text-foreground truncate">{name}</p>
                       ))
                     ) : (
-                      <p className="text-sm text-muted-foreground">None</p>
+                      renderQuickDecisionEmptyState("None")
                     )}
                   </div>
                 </CardContent>
@@ -370,7 +383,7 @@ export default function AIShortlistDialog({
                         <p key={i} className="text-sm text-foreground truncate">{name}</p>
                       ))
                     ) : (
-                      <p className="text-sm text-muted-foreground">None</p>
+                      renderQuickDecisionEmptyState(passEmptyLabel)
                     )}
                   </div>
                 </CardContent>
