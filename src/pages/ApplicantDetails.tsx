@@ -1130,18 +1130,10 @@ export default function ApplicantDetails() {
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
       queryClient.invalidateQueries({ queryKey: ["interviews", "all-scheduled", id] });
       queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
-      
-      // Create notification for candidate so they get a real-time pop-up
-      await supabase.from("notifications").insert({
-        user_id: application.candidate_id,
-        type: "status_update" as const,
-        title: "Application Update",
-        message: `Your application for ${application.jobs?.title || "this position"} has been reviewed.`,
-        link: `/applications/${application.id}`,
-      });
-      
+
       // No navigation - animation handles feedback
     } catch (error) {
+      console.error("Failed to reject candidate:", error);
       setShowRejectAnimation(false);
       toast.error("Failed to reject candidate");
     }
@@ -1193,16 +1185,7 @@ export default function ApplicantDetails() {
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
       queryClient.invalidateQueries({ queryKey: ["interviews", "all-scheduled", id] });
       queryClient.invalidateQueries({ queryKey: ["interview", "application", id] });
-      
-      // Create notification for candidate
-      await supabase.from("notifications").insert({
-        user_id: application.candidate_id,
-        type: "status_update" as const,
-        title: "Congratulations! You're Hired!",
-        message: `Great news! You've been hired for ${application.jobs?.title || "this position"}!`,
-        link: `/applications/${application.id}`,
-      });
-      
+
       toast.success("Candidate hired successfully!");
       
       // Show document prompt for sending offer letter

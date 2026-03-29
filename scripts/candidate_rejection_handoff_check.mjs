@@ -28,6 +28,56 @@ function log(step, details = "") {
   console.log(`[candidate-rejection-check] ${step}${suffix}`);
 }
 
+function attachDiagnostics(page, store, label) {
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      store.push({
+        source: label,
+        type: "console",
+        level: message.type(),
+        text: message.text(),
+      });
+    }
+  });
+
+  page.on("pageerror", (error) => {
+    store.push({
+      source: label,
+      type: "pageerror",
+      text: error.message,
+    });
+  });
+
+  page.on("response", async (response) => {
+    const url = response.url();
+    const method = response.request().method();
+    const status = response.status();
+
+    if (
+      status >= 400 &&
+      (url.includes("/rest/v1/applications") ||
+        url.includes("/rest/v1/notifications") ||
+        url.includes("/functions/v1/"))
+    ) {
+      let body = "";
+      try {
+        body = (await response.text()).slice(0, 1200);
+      } catch {
+        body = "";
+      }
+
+      store.push({
+        source: label,
+        type: "response",
+        method,
+        status,
+        url,
+        body,
+      });
+    }
+  });
+}
+
 async function ensureOutputDir() {
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
 }
@@ -36,6 +86,11 @@ async function screenshot(page, name) {
   const file = path.join(OUTPUT_DIR, `${name}.png`);
   await page.screenshot({ path: file, fullPage: true });
   return file;
+}
+
+async function bodyPreview(page, maxLength = 1400) {
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  return bodyText.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
 async function settle(page, ms = 1200) {
@@ -277,13 +332,25 @@ async function submitApplication(page, jobCode) {
     await clickIfVisible(page.getByRole("button", { name: /Apply Now/i }), 8000);
   }
 
-  await page.waitForFunction(
-    () =>
-      document.body.innerText.includes("Complete Your Application") ||
-      document.body.innerText.includes("Submit Application"),
-    undefined,
-    { timeout: 30000 },
-  );
+  try {
+    await page.waitForFunction(
+      () =>
+        document.body.innerText.includes("Complete Your Application") ||
+        document.body.innerText.includes("Submit Application") ||
+        /\/applications\/[a-f0-9-]+\/application\//i.test(window.location.pathname),
+      undefined,
+      { timeout: 30000 },
+    );
+  } catch (error) {
+    await screenshot(page, "candidate-application-form-timeout");
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    throw new Error(
+      `Application form did not open from ${page.url()}. Body preview: ${bodyText.slice(0, 800)}`,
+      { cause: error },
+    );
+  }
+
+  await settle(page, 1500);
 
   await fillVisibleApplicationFields(page);
   const resumePath = await createResumeFile();
@@ -321,11 +388,38 @@ async function submitApplication(page, jobCode) {
 
 async function rejectCandidate(page, applicationId) {
   await page.goto(`${BASE_URL}/applicants/${applicationId}`, { waitUntil: "domcontentloaded" });
-  await settle(page, 3000);
-  await page.getByRole("button", { name: /^Reject$/i }).first().click();
-  await settle(page, 800);
+  await page.waitForFunction(
+    () =>
+      document.body.innerText.includes("Candidate Journey") ||
+      document.body.innerText.includes("Application Not Found"),
+    undefined,
+    { timeout: 30000 },
+  );
+  await settle(page, 2000);
+
+  const desktopRejectButton = page.getByRole("button", { name: /^Reject$/i }).first();
+
+  if (await desktopRejectButton.isVisible().catch(() => false)) {
+    await desktopRejectButton.click();
+  } else if (await page.getByRole("button", { name: /more/i }).isVisible().catch(() => false)) {
+    await page.getByRole("button", { name: /more/i }).click();
+    await page.getByRole("menuitem", { name: /Reject Candidate/i }).click();
+  } else {
+    await screenshot(page, "employer-reject-button-missing");
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    throw new Error(
+      `Reject button was not visible on ${page.url()}. Body preview: ${bodyText.slice(0, 1200)}`,
+    );
+  }
+
+  await settle(page, 1000);
   await page.getByRole("button", { name: /^Reject Candidate$/i }).click();
   await settle(page, 4500);
+
+  return {
+    url: page.url(),
+    bodyPreview: await bodyPreview(page),
+  };
 }
 
 async function waitForRejectedUi(page, contextLabel) {
@@ -343,7 +437,11 @@ async function waitForRejectedUi(page, contextLabel) {
   ).then(() => true).catch(() => false);
 
   await screenshot(page, contextLabel);
-  return matched;
+  return {
+    matched,
+    url: page.url(),
+    bodyPreview: await bodyPreview(page),
+  };
 }
 
 async function run() {
@@ -352,8 +450,10 @@ async function run() {
 
   try {
     browser = await chromium.launch({ headless: !HEADED, slowMo: Number.isFinite(SLOW_MO) ? SLOW_MO : 0 });
-    const employerContext = await browser.newContext();
+    const employerContext = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
     const employerPage = await employerContext.newPage();
+    const diagnostics = [];
+    attachDiagnostics(employerPage, diagnostics, "employer");
 
     log("sign-up-employer", employer.email);
     await signUpEmployer(employerPage);
@@ -363,8 +463,9 @@ async function run() {
     const jobCode = await createJob(employerPage);
     log("job-created", jobCode);
 
-    const candidateContext = await browser.newContext();
+    const candidateContext = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
     const candidatePage = await candidateContext.newPage();
+    attachDiagnostics(candidatePage, diagnostics, "candidate");
 
     log("sign-up-candidate", candidate.email);
     await signUpCandidate(candidatePage);
@@ -378,24 +479,28 @@ async function run() {
     await screenshot(candidatePage, "candidate-before-reject");
 
     log("reject-candidate");
-    await rejectCandidate(employerPage, applicationId);
+    const employerAfterReject = await rejectCandidate(employerPage, applicationId);
 
     log("verify-candidate-list");
-    const listRejectedUi = await waitForRejectedUi(candidatePage, "candidate-after-reject-list");
+    const listResult = await waitForRejectedUi(candidatePage, "candidate-after-reject-list");
 
     log("verify-candidate-detail");
     await candidatePage.goto(`${BASE_URL}/applications/${applicationId}`, { waitUntil: "domcontentloaded" });
     await settle(candidatePage, 2500);
-    const detailRejectedUi = await waitForRejectedUi(candidatePage, "candidate-after-reject-detail");
+    const detailResult = await waitForRejectedUi(candidatePage, "candidate-after-reject-detail");
 
     const result = {
       employerEmail: employer.email,
       candidateEmail: candidate.email,
       jobCode,
       applicationId,
-      listRejectedUi,
-      detailRejectedUi,
+      listRejectedUi: listResult.matched,
+      detailRejectedUi: detailResult.matched,
       candidateUrl: candidatePage.url(),
+      employerAfterReject,
+      candidateList: listResult,
+      candidateDetail: detailResult,
+      diagnostics,
     };
 
     await fs.writeFile(path.join(OUTPUT_DIR, "result.json"), JSON.stringify(result, null, 2), "utf8");

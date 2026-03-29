@@ -89,6 +89,28 @@ function getAutopilotNextPhase(params: {
   return { nextPhaseId: "review", nextPhaseTitle: "Review" };
 }
 
+function applyExpectedApplicationStateFilter(
+  query: any,
+  expectedStatus: string | null | undefined,
+  expectedPhase: string | null | undefined,
+) {
+  let nextQuery = query;
+
+  if (expectedStatus == null) {
+    nextQuery = nextQuery.is("status", null);
+  } else {
+    nextQuery = nextQuery.eq("status", expectedStatus);
+  }
+
+  if (expectedPhase == null) {
+    nextQuery = nextQuery.is("phase", null);
+  } else {
+    nextQuery = nextQuery.eq("phase", expectedPhase);
+  }
+
+  return nextQuery;
+}
+
 async function notifyEmployerInterviewReady(params: {
   supabaseAdmin: ReturnType<typeof createClient>;
   employerId: string | null | undefined;
@@ -164,6 +186,28 @@ async function handleAutopilotDecision(params: {
     hasQuizQuestions,
   });
 
+  const { data: latestApplication, error: latestApplicationError } = await supabaseAdmin
+    .from("applications")
+    .select("id, status, phase, rejected_by_type")
+    .eq("id", applicationId)
+    .single();
+
+  if (latestApplicationError) {
+    console.error("[trigger-ava-analysis] Failed to load latest application state:", latestApplicationError);
+    return jsonResponse({
+      error: "Failed to load the latest application state",
+      details: latestApplicationError.message,
+    }, 500);
+  }
+
+  const latestStatus = latestApplication?.status ?? null;
+  const latestPhase = latestApplication?.phase ?? null;
+  const staleApplicationState =
+    latestStatus !== application.status ||
+    latestPhase !== application.phase ||
+    latestStatus === "rejected" ||
+    latestStatus === "hired";
+
   if (previewOnly) {
     return jsonResponse({
       success: true,
@@ -177,21 +221,49 @@ async function handleAutopilotDecision(params: {
     });
   }
 
+  if (staleApplicationState) {
+    console.log("[trigger-ava-analysis] Skipping stale autopilot write", {
+      applicationId,
+      expectedStatus: application.status,
+      expectedPhase: application.phase,
+      latestStatus,
+      latestPhase,
+    });
+
+    return jsonResponse({
+      success: true,
+      skipped: true,
+      message: "Application state changed before the autopilot decision could be applied",
+      score,
+      decision: latestStatus === "rejected" ? "rejected" : "stale",
+      autopilotAction,
+      currentStatus: latestStatus,
+      currentPhase: latestPhase,
+      scorecard,
+    });
+  }
+
   if (autopilotAction === "reject") {
     const rejectReason = scorecard?.hardRejectReason
       ? `${scorecard.hardRejectReason}.`
       : `Overall Ava score of ${score || 0}% is below the passing threshold of ${passingScore}%.`;
 
-    const { data: rejectedApplication, error: rejectError } = await supabaseAdmin
-      .from("applications")
-      .update({
-        status: "rejected",
-        rejected_by_type: "ava",
-        phase_ai_analysis: rejectReason,
-      })
+    const rejectQuery = applyExpectedApplicationStateFilter(
+      supabaseAdmin
+        .from("applications")
+        .update({
+          status: "rejected",
+          rejected_by_type: "ava",
+          phase_ai_analysis: rejectReason,
+        }),
+      latestStatus,
+      latestPhase,
+    );
+
+    const { data: rejectedApplication, error: rejectError } = await rejectQuery
       .eq("id", applicationId)
       .select("id, status, phase, rejected_by_type")
-      .single();
+      .maybeSingle();
 
     if (rejectError) {
       console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
@@ -199,6 +271,26 @@ async function handleAutopilotDecision(params: {
         error: "Failed to reject application",
         details: rejectError.message,
       }, 500);
+    }
+
+    if (!rejectedApplication) {
+      console.log("[trigger-ava-analysis] Reject write skipped because application state changed mid-flight", {
+        applicationId,
+        expectedStatus: latestStatus,
+        expectedPhase: latestPhase,
+      });
+
+      return jsonResponse({
+        success: true,
+        skipped: true,
+        message: "Application state changed before the reject decision could be applied",
+        score,
+        decision: "stale",
+        autopilotAction,
+        currentStatus: latestStatus,
+        currentPhase: latestPhase,
+        scorecard,
+      });
     }
 
     try {
@@ -260,16 +352,22 @@ async function handleAutopilotDecision(params: {
     ? scorecard?.rationale || "Ava needs more evidence and has moved the candidate to the next phase."
     : scorecard?.rationale || application.phase_ai_analysis;
 
-  const { data: advancedApplication, error: advanceError } = await supabaseAdmin
-    .from("applications")
-    .update({
-      phase: nextPhase.nextPhaseId,
-      status: "reviewing",
-      phase_ai_analysis: phaseAnalysis,
-    })
+  const advanceQuery = applyExpectedApplicationStateFilter(
+    supabaseAdmin
+      .from("applications")
+      .update({
+        phase: nextPhase.nextPhaseId,
+        status: "reviewing",
+        phase_ai_analysis: phaseAnalysis,
+      }),
+    latestStatus,
+    latestPhase,
+  );
+
+  const { data: advancedApplication, error: advanceError } = await advanceQuery
     .eq("id", applicationId)
     .select("id, status, phase")
-    .single();
+    .maybeSingle();
 
   if (advanceError) {
     console.error("[trigger-ava-analysis] Failed to advance phase:", advanceError);
@@ -277,6 +375,26 @@ async function handleAutopilotDecision(params: {
       error: "Failed to advance application",
       details: advanceError.message,
     }, 500);
+  }
+
+  if (!advancedApplication) {
+    console.log("[trigger-ava-analysis] Advance write skipped because application state changed mid-flight", {
+      applicationId,
+      expectedStatus: latestStatus,
+      expectedPhase: latestPhase,
+    });
+
+    return jsonResponse({
+      success: true,
+      skipped: true,
+      message: "Application state changed before the advance decision could be applied",
+      score,
+      decision: "stale",
+      autopilotAction,
+      currentStatus: latestStatus,
+      currentPhase: latestPhase,
+      scorecard,
+    });
   }
 
   return jsonResponse({
