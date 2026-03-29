@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { notifyPhaseAdvanced, notifyInterviewReady } from "./emailNotifications";
 
 interface WorkflowStep {
   id: string;
@@ -142,9 +141,8 @@ function getNextPhase(
  * 
  * For each application:
  * 1. Check if current phase is complete (candidate has done their part)
- * 2. Run AI analysis if no score exists
- * 3. If score >= passing_score, advance to next phase
- * 4. Send notification to candidate
+ * 2. Hand the decision to trigger-ava-analysis with autopilotDecision=true
+ * 3. Count the backend's authoritative result
  */
 export async function processAutopilotCatchUp(
   jobId: string
@@ -157,10 +155,10 @@ export async function processAutopilotCatchUp(
   };
 
   try {
-    // Fetch job details to get workflow steps, passing score, required WPM, and quiz questions
+    // Fetch job details to get workflow steps and current mode
     const { data: job, error: jobError } = await supabase
       .from("jobs")
-      .select("processing_mode, workflow_steps, passing_score, required_wpm, title, employer_id, quiz_questions")
+      .select("processing_mode, workflow_steps")
       .eq("id", jobId)
       .single();
 
@@ -175,20 +173,6 @@ export async function processAutopilotCatchUp(
     }
 
     const workflowSteps = (job.workflow_steps as unknown as WorkflowStep[]) || [];
-    const passingScore = job.passing_score || 60;
-    const requiredWpm = job.required_wpm || 35;
-    const quizQuestions = job.quiz_questions as unknown as Array<Record<string, unknown>> | null;
-    const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const hasTypingTest = workflowSteps.some(step => step.type === 'typing_test');
-
-    // Fetch employer profile for company name
-    const { data: employerProfile } = await supabase
-      .from("profiles")
-      .select("company_name")
-      .eq("user_id", job.employer_id)
-      .single();
-
-    const companyName = employerProfile?.company_name || undefined;
 
     // Fetch all pending/reviewing applications for this job
     const { data: applications, error: appError } = await supabase
@@ -226,98 +210,7 @@ export async function processAutopilotCatchUp(
           currentPhaseType = currentPhase?.type || "unknown";
         }
         
-        // FIRST: Check AI score - reject immediately if below threshold (regardless of phase completion)
-        let aiScore = application.ai_score;
-        
-        // Run AI analysis via backend function if no score exists
-        // The backend function computes the weighted overall score (resume + quiz + voice + portfolio)
-        if (aiScore === null || aiScore === undefined) {
-          const { error: analysisError } = await supabase.functions.invoke("trigger-ava-analysis", {
-            body: {
-              applicationId: application.id,
-              force: true,
-            },
-          });
-          
-          if (analysisError) {
-            console.error(`[processAutopilotCatchUp] Backend analysis error for ${application.id}:`, analysisError);
-          }
-          
-          // Fetch updated score
-          const { data: updated } = await supabase
-            .from("applications")
-            .select("ai_score")
-            .eq("id", application.id)
-            .single();
-          
-          aiScore = updated?.ai_score ?? null;
-        }
-
-        // Check if score is below threshold - REJECT regardless of phase completion
-        if (aiScore !== null && aiScore < passingScore) {
-          const rejectionReason = `Overall Ava score of ${aiScore}% is below the passing threshold of ${passingScore}%. This application was automatically rejected by Ava when autopilot mode was engaged. The candidate did not meet the minimum score requirements for this position.`;
-          
-          const { error: rejectError } = await supabase
-            .from("applications")
-            .update({
-              status: "rejected",
-              rejected_by: null, // Use null since this is a UUID column - Ava doesn't have a user ID
-              rejected_by_type: "ava", // This field identifies Ava as the rejector
-              phase_ai_analysis: rejectionReason,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", application.id);
-
-          if (rejectError) {
-            console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
-            result.failed++;
-          } else {
-            result.rejected++;
-          }
-          continue; // Move to next application after rejection
-        }
-
-        // SECOND: Check typing test failure - reject if WPM is below required threshold
-        if (hasTypingTest && application.notes) {
-          try {
-            const parsedNotes = typeof application.notes === 'string' 
-              ? JSON.parse(application.notes) 
-              : application.notes;
-            
-            const typingTestResult = parsedNotes?.typingTestResult;
-            if (typingTestResult && typingTestResult.wpm !== undefined) {
-              const candidateWpm = typingTestResult.wpm;
-              
-              // Check if candidate's WPM is below the required threshold
-              if (candidateWpm < requiredWpm) {
-                const rejectionReason = `Typing test failed. Speed: ${candidateWpm} WPM (required: ${requiredWpm} WPM). This application was automatically rejected by Ava because the candidate did not meet the minimum typing speed requirement.`;
-                
-                const { error: rejectError } = await supabase
-                  .from("applications")
-                  .update({
-                    status: "rejected",
-                    rejected_by: null,
-                    rejected_by_type: "ava",
-                    phase_ai_analysis: rejectionReason,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", application.id);
-
-                if (rejectError) {
-                  console.error(`[processAutopilotCatchUp] Failed to reject application ${application.id}:`, rejectError);
-                  result.failed++;
-                } else {
-                  result.rejected++;
-                }
-                continue; // Move to next application after rejection
-              }
-            }
-          } catch (parseError) {
-            // Could not parse notes for typing test check
-          }
-        }
-
-        // THEN: Check if candidate has completed their part of the current phase
+        // Only catch up candidates who have finished their current phase and are waiting on employer action.
         const isPhaseComplete = hasCompletedPhase(
           currentPhaseId,
           currentPhaseType,
@@ -329,92 +222,45 @@ export async function processAutopilotCatchUp(
           continue;
         }
 
-        // Check if candidate passed - advance to next phase
-        if (aiScore !== null && aiScore >= passingScore) {
-          // Find next phase
-          const nextPhase = getNextPhase(currentPhaseId, workflowSteps, hasQuizQuestions);
-          
-          if (nextPhase) {
-            // STOP before voice_interview - requires employer to configure
-            if (nextPhase.type === "voice_interview") {
-              // Don't advance - employer must manually configure and approve for Ava interview
-              // Just update the status to show they're ready
-              await supabase
-                .from("applications")
-                .update({
-                  status: "reviewing",
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", application.id);
-              
-              // Notify employer that candidate is ready for AIVA interview
-              try {
-                // Fetch candidate profile for name
-                const { data: candidateProfile } = await supabase
-                  .from("profiles")
-                  .select("full_name, email")
-                  .eq("user_id", application.candidate_id)
-                  .single();
-                
-                const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
-                
-                // Create in-app notification for employer
-                await supabase.from("notifications").insert({
-                  user_id: job.employer_id,
-                  type: "interview",
-                  title: "Candidate Ready for AIVA Interview",
-                  message: `${candidateName} scored ${aiScore}% and is ready for the AIVA voice interview for ${job.title}`,
-                  link: `/applicants/${application.id}`,
-                  is_read: false,
-                });
-                
-                // Send email notification
-                await notifyInterviewReady(
-                  job.employer_id,
-                  candidateName,
-                  job.title,
-                  aiScore
-                );
-                
-              } catch (notifyError) {
-                console.error(`[processAutopilotCatchUp] Failed to notify employer:`, notifyError);
-              }
-              
-              continue;
-            }
-            
-            // Advance to next phase
-            const { error: updateError } = await supabase
-              .from("applications")
-              .update({
-                phase: nextPhase.id,
-                status: "reviewing", // Keep in reviewing status
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", application.id);
+        const { data: autopilotResult, error: autopilotError } = await supabase.functions.invoke("trigger-ava-analysis", {
+          body: {
+            applicationId: application.id,
+            force: application.ai_score === null || application.ai_score === undefined,
+            autopilotDecision: true,
+            currentPhaseId,
+          },
+        });
 
-            if (updateError) {
-              console.error(`[processAutopilotCatchUp] Failed to advance application ${application.id}:`, updateError);
-              result.failed++;
-              continue;
-            }
+        if (autopilotError) {
+          console.error(`[processAutopilotCatchUp] Backend autopilot error for ${application.id}:`, autopilotError);
+          result.failed++;
+          continue;
+        }
 
-            result.advanced++;
+        if (autopilotResult?.decision === "rejected") {
+          result.rejected++;
+          continue;
+        }
 
-            // Send notification to candidate
-            try {
-              await notifyPhaseAdvanced(
-                application.candidate_id,
-                nextPhase.title,
-                job.title,
-                companyName
-              );
-            } catch (notifyError) {
-              console.error(`[processAutopilotCatchUp] Failed to send notification:`, notifyError);
-              // Don't mark as failed, advancement was successful
-            }
-          } else {
-          }
+        if (autopilotResult?.decision === "advanced") {
+          result.advanced++;
+          continue;
+        }
+
+        if (autopilotResult?.decision === "needs_employer_approval") {
+          continue;
+        }
+
+        const { data: refreshedApplication } = await supabase
+          .from("applications")
+          .select("status")
+          .eq("id", application.id)
+          .single();
+
+        if (refreshedApplication?.status === "rejected") {
+          result.rejected++;
+        } else {
+          result.failed++;
         }
       } catch (appProcessError) {
         console.error(`[processAutopilotCatchUp] Error processing application ${application.id}:`, appProcessError);
