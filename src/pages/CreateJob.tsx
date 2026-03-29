@@ -2929,9 +2929,11 @@ export default function CreateJob() {
                       <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
                         <CardHeader className="pb-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
+                            <div className="min-w-0 space-y-1">
                               <CardTitle className="text-base">Candidate experience preview</CardTitle>
-                              <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                              <CardDescription className="break-words [overflow-wrap:anywhere]">
+                                {screeningPlanOverview.summary}
+                              </CardDescription>
                             </div>
                             <Badge variant="secondary" className="w-fit">
                               {screeningPlanRisk.badgeLabel}
@@ -2939,22 +2941,24 @@ export default function CreateJob() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="grid gap-3 md:grid-cols-4">
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
                               <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Phase count</p>
                               <p className="mt-1 text-lg font-semibold text-foreground">{screeningPlanOverview.phaseCount}</p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidate effort</p>
-                              <p className="mt-1 text-sm font-semibold text-foreground">{screeningPlanRisk.badgeLabel}</p>
+                              <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+                                {screeningPlanRisk.badgeLabel}
+                              </p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Required materials</p>
-                              <p className="mt-1 text-sm font-medium text-foreground">
+                              <p className="mt-1 break-words text-sm font-medium leading-snug text-foreground [overflow-wrap:anywhere]">
                                 {screeningPlanOverview.requiredMaterials.length > 0
                                   ? screeningPlanOverview.requiredMaterials.join(", ")
                                   : "None beyond the application"}
@@ -3147,46 +3151,51 @@ export default function CreateJob() {
                   <Card className="border-border/70 bg-secondary/10">
                     <CardHeader className="pb-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <CardTitle className="text-base flex items-center gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <CardTitle className="flex items-center gap-2 break-words text-base [overflow-wrap:anywhere]">
                             <Sparkles className="h-4 w-4 text-primary" />
                             Screening plan details
                           </CardTitle>
-                          <CardDescription>
+                          <CardDescription className="break-words [overflow-wrap:anywhere]">
                             Review exactly what candidates will complete. Expand each phase to inspect the questions and deeper evaluation steps.
                           </CardDescription>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => setCurrentStep(3)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-auto w-full shrink-0 whitespace-normal px-3 py-2 text-center leading-tight sm:w-auto sm:whitespace-nowrap"
+                          onClick={() => setCurrentStep(3)}
+                        >
                           Edit Screening Plan
                         </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 text-center">
-                        <div className="rounded-lg bg-background/70 p-3">
-                          <div className="text-2xl font-bold text-primary">{screeningPlanOverview.phaseCount}</div>
-                          <div className="text-xs text-muted-foreground">Total phases</div>
+                      <div className="grid grid-cols-2 gap-3 text-center xl:grid-cols-4">
+                        <div className="min-w-0 rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold leading-none text-primary">{screeningPlanOverview.phaseCount}</div>
+                          <div className="mt-2 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">Total phases</div>
                         </div>
-                        <div className="rounded-lg bg-background/70 p-3">
-                          <div className="text-2xl font-bold text-primary">{applicationQuestions.length}</div>
-                          <div className="text-xs text-muted-foreground">Application prompts</div>
+                        <div className="min-w-0 rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold leading-none text-primary">{applicationQuestions.length}</div>
+                          <div className="mt-2 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">Application prompts</div>
                         </div>
-                        <div className="rounded-lg bg-background/70 p-3">
-                          <div className="text-2xl font-bold text-primary">{quizQuestions.length}</div>
-                          <div className="text-xs text-muted-foreground">Assessment questions</div>
+                        <div className="min-w-0 rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold leading-none text-primary">{quizQuestions.length}</div>
+                          <div className="mt-2 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">Assessment questions</div>
                         </div>
-                        <div className="rounded-lg bg-background/70 p-3">
-                          <div className="text-2xl font-bold text-primary">{workflowSteps.length}</div>
-                          <div className="text-xs text-muted-foreground">Deeper evaluation steps</div>
+                        <div className="min-w-0 rounded-lg bg-background/70 p-3">
+                          <div className="text-2xl font-bold leading-none text-primary">{workflowSteps.length}</div>
+                          <div className="mt-2 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">Deeper evaluation steps</div>
                         </div>
                       </div>
 
                       <Accordion type="multiple" className="w-full space-y-3">
                         <AccordionItem value="application" className="rounded-lg border border-border bg-background/70 px-4">
-                          <AccordionTrigger className="text-sm">
-                            <div className="text-left">
-                              <p className="font-medium text-foreground">Phase 1: Application</p>
-                              <p className="text-xs text-muted-foreground">
+                          <AccordionTrigger className="items-start gap-3 py-4 text-sm [&>svg]:mt-1 [&>svg]:shrink-0">
+                            <div className="min-w-0 flex-1 text-left">
+                              <p className="break-words font-medium text-foreground [overflow-wrap:anywhere]">Phase 1: Application</p>
+                              <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                                 {applicationQuestions.length} questions in the first phase
                               </p>
                             </div>
@@ -3207,10 +3216,10 @@ export default function CreateJob() {
                         </AccordionItem>
 
                         <AccordionItem value="assessment" className="rounded-lg border border-border bg-background/70 px-4">
-                          <AccordionTrigger className="text-sm">
-                            <div className="text-left">
-                              <p className="font-medium text-foreground">Phase 2: Timed assessment</p>
-                              <p className="text-xs text-muted-foreground">
+                          <AccordionTrigger className="items-start gap-3 py-4 text-sm [&>svg]:mt-1 [&>svg]:shrink-0">
+                            <div className="min-w-0 flex-1 text-left">
+                              <p className="break-words font-medium text-foreground [overflow-wrap:anywhere]">Phase 2: Timed assessment</p>
+                              <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                                 {quizQuestions.length} questions, about ~{Math.ceil(quizQuestions.reduce((total, question) => total + (question.time_limit_seconds || 0), 0) / 60) || 0} minutes
                               </p>
                             </div>
@@ -3234,10 +3243,10 @@ export default function CreateJob() {
                         </AccordionItem>
 
                         <AccordionItem value="deeper-steps" className="rounded-lg border border-border bg-background/70 px-4">
-                          <AccordionTrigger className="text-sm">
-                            <div className="text-left">
-                              <p className="font-medium text-foreground">Phase 3+: Deeper evaluation</p>
-                              <p className="text-xs text-muted-foreground">
+                          <AccordionTrigger className="items-start gap-3 py-4 text-sm [&>svg]:mt-1 [&>svg]:shrink-0">
+                            <div className="min-w-0 flex-1 text-left">
+                              <p className="break-words font-medium text-foreground [overflow-wrap:anywhere]">Phase 3+: Deeper evaluation</p>
+                              <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                                 {workflowSteps.length} interview or simulation step{workflowSteps.length === 1 ? "" : "s"}
                               </p>
                             </div>

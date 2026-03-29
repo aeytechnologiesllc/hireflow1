@@ -1900,31 +1900,35 @@ export default function GuestJobCreator() {
                         <Card className="border-primary/20 bg-gradient-to-br from-primary/6 via-card to-card">
                           <CardHeader className="pb-3">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
+                              <div className="min-w-0 space-y-1">
                                 <CardTitle className="text-base">Candidate experience preview</CardTitle>
-                                <CardDescription>{screeningPlanOverview.summary}</CardDescription>
+                                <CardDescription className="break-words [overflow-wrap:anywhere]">
+                                  {screeningPlanOverview.summary}
+                                </CardDescription>
                               </div>
                               <Badge variant="secondary" className="w-fit">
                                 {screeningPlanRisk.badgeLabel}
                               </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent className="grid gap-3 md:grid-cols-4">
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Estimated time</p>
                               <p className="mt-1 text-lg font-semibold text-foreground">~{screeningPlanOverview.estimatedMinutes} min</p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Phase count</p>
                               <p className="mt-1 text-lg font-semibold text-foreground">{screeningPlanOverview.phaseCount}</p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidate effort</p>
-                              <p className="mt-1 text-sm font-semibold text-foreground">{screeningPlanRisk.badgeLabel}</p>
+                              <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
+                                {screeningPlanRisk.badgeLabel}
+                              </p>
                             </div>
-                            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+                            <div className="min-w-0 rounded-lg border border-border bg-secondary/40 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Required materials</p>
-                              <p className="mt-1 text-sm font-medium text-foreground">
+                              <p className="mt-1 break-words text-sm font-medium leading-snug text-foreground [overflow-wrap:anywhere]">
                                 {screeningPlanOverview.requiredMaterials.length > 0
                                   ? screeningPlanOverview.requiredMaterials.join(", ")
                                   : "None beyond the application"}
