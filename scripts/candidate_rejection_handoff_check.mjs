@@ -342,9 +342,7 @@ async function run() {
   try {
     browser = await chromium.launch({ headless: !HEADED, slowMo: Number.isFinite(SLOW_MO) ? SLOW_MO : 0 });
     const employerContext = await browser.newContext();
-    const candidateContext = await browser.newContext();
     const employerPage = await employerContext.newPage();
-    const candidatePage = await candidateContext.newPage();
 
     log("sign-up-employer", employer.email);
     await signUpEmployer(employerPage);
@@ -353,6 +351,9 @@ async function run() {
     log("create-job");
     const jobCode = await createJob(employerPage);
     log("job-created", jobCode);
+
+    const candidateContext = await browser.newContext();
+    const candidatePage = await candidateContext.newPage();
 
     log("sign-up-candidate", candidate.email);
     await signUpCandidate(candidatePage);
