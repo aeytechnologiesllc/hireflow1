@@ -71,7 +71,22 @@ interface QuizProgress {
   answers: Record<string, number | string | number[]>;
   startedAt: string;
   violations: AntiCheatViolation[];
+  questionDeadlines?: Record<string, string>;
 }
+
+const areDeadlineMapsEqual = (
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean => {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
+};
 
 // Helper to detect question type
 const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_select' | 'text' | 'fit' => {
@@ -116,6 +131,8 @@ export default function QuizPhase() {
     passed: boolean;
   } | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(30);
+  const [quizStartedAt, setQuizStartedAt] = useState<string>("");
+  const [questionDeadlines, setQuestionDeadlines] = useState<Record<string, string>>({});
   
   // Stable questions state - prevents crashes from query invalidation
   const [stableQuestions, setStableQuestions] = useState<QuizQuestion[]>([]);
@@ -133,6 +150,7 @@ export default function QuizPhase() {
   const isFinishingRef = useRef(false);
   const currentQuestionIndexRef = useRef(currentQuestionIndex);
   const questionsLengthRef = useRef(0);
+  const questionDeadlinesRef = useRef<Record<string, string>>({});
   const quizContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
@@ -206,13 +224,18 @@ export default function QuizPhase() {
           setCurrentQuestionIndex(progress.currentQuestionIndex);
           setAnswers(progress.answers);
           setViolations(progress.violations || []);
+          setQuizStartedAt(progress.startedAt || new Date().toISOString());
+          setQuestionDeadlines(progress.questionDeadlines || {});
           
           toast.info("Quiz progress restored", {
             description: `Continuing from question ${progress.currentQuestionIndex + 1}`,
           });
         } catch (e) {
           console.error('[QuizPhase] Failed to restore progress:', e);
+          setQuizStartedAt(new Date().toISOString());
         }
+      } else {
+        setQuizStartedAt(new Date().toISOString());
       }
       
       setStableQuestions(fetchedQuestions);
@@ -226,12 +249,13 @@ export default function QuizPhase() {
       const progress: QuizProgress = {
         currentQuestionIndex,
         answers,
-        startedAt: new Date().toISOString(),
+        startedAt: quizStartedAt || new Date().toISOString(),
         violations,
+        questionDeadlines,
       };
       localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(progress));
     }
-  }, [currentQuestionIndex, answers, violations, quizInitialized, showResults, QUIZ_STORAGE_KEY, stableQuestions.length]);
+  }, [currentQuestionIndex, answers, quizStartedAt, violations, questionDeadlines, quizInitialized, showResults, QUIZ_STORAGE_KEY, stableQuestions.length]);
 
   // Clear localStorage when quiz is submitted
   const clearSavedProgress = useCallback(() => {
@@ -313,6 +337,7 @@ export default function QuizPhase() {
   // Keep refs in sync for stable timer callbacks
   currentQuestionIndexRef.current = currentQuestionIndex;
   questionsLengthRef.current = questions.length;
+  questionDeadlinesRef.current = questionDeadlines;
 
   // Safe access to current question with null guard
   const currentQuestion = questions.length > 0 && currentQuestionIndex < questions.length 
@@ -320,6 +345,10 @@ export default function QuizPhase() {
     : null;
   const currentQuestionOptions = currentQuestion?.options?.filter((option) => option?.trim()) || [];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
+
+  const getQuestionTimeLimit = useCallback((question: QuizQuestion | null | undefined) => {
+    return question?.time_limit_seconds || 30;
+  }, []);
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (!currentQuestion) return;
@@ -443,53 +472,93 @@ export default function QuizPhase() {
     setShowResults(true);
   }, [calculateResults]);
 
-  // Timer effect - countdown for each question
-  // Uses refs to avoid stale closure issues
+  const syncTimerState = useCallback(() => {
+    if (!quizInitialized || showResults || questions.length === 0) return;
+
+    const now = Date.now();
+    const startIndex = Math.min(currentQuestionIndexRef.current, questions.length - 1);
+    let workingDeadlines = { ...questionDeadlinesRef.current };
+    let resolvedIndex = startIndex;
+    let lastBoundary: number | null = null;
+
+    while (resolvedIndex < questions.length) {
+      const question = questions[resolvedIndex];
+      const existingDeadline = workingDeadlines[question.id];
+      let deadlineMs = existingDeadline ? Date.parse(existingDeadline) : Number.NaN;
+
+      if (!Number.isFinite(deadlineMs)) {
+        const baseTime = lastBoundary ?? now;
+        deadlineMs = baseTime + getQuestionTimeLimit(question) * 1000;
+        workingDeadlines[question.id] = new Date(deadlineMs).toISOString();
+      }
+
+      if (deadlineMs > now) {
+        break;
+      }
+
+      lastBoundary = deadlineMs;
+
+      if (resolvedIndex >= questions.length - 1) {
+        if (!areDeadlineMapsEqual(questionDeadlinesRef.current, workingDeadlines)) {
+          questionDeadlinesRef.current = workingDeadlines;
+          setQuestionDeadlines(workingDeadlines);
+        }
+        setTimeRemaining(0);
+        handleFinishQuiz();
+        return;
+      }
+
+      resolvedIndex += 1;
+    }
+
+    if (!areDeadlineMapsEqual(questionDeadlinesRef.current, workingDeadlines)) {
+      questionDeadlinesRef.current = workingDeadlines;
+      setQuestionDeadlines(workingDeadlines);
+    }
+
+    if (resolvedIndex !== currentQuestionIndexRef.current) {
+      setCurrentQuestionIndex(resolvedIndex);
+    }
+
+    const activeQuestion = questions[resolvedIndex];
+    const activeDeadline = workingDeadlines[activeQuestion.id];
+    const activeDeadlineMs = activeDeadline ? Date.parse(activeDeadline) : now;
+    setTimeRemaining(Math.max(0, Math.ceil((activeDeadlineMs - now) / 1000)));
+  }, [getQuestionTimeLimit, handleFinishQuiz, questions, quizInitialized, showResults]);
+
+  // Timer effect - uses persisted absolute deadlines so refreshes/backgrounding do not reset the quiz.
   useEffect(() => {
-    if (!currentQuestion || showResults || questions.length === 0) return;
-    
-    // Reset timer when question changes
-    const timeLimit = currentQuestion.time_limit_seconds || 30;
-    setTimeRemaining(timeLimit);
+    if (!quizInitialized || showResults || questions.length === 0) return;
+
     isFinishingRef.current = false;
-    
-    // Clear existing timer
+    syncTimerState();
+
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    
+
     timerRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-          // Time's up - auto-advance
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          
-          // Use setTimeout to avoid state update during render
-          // Use refs instead of closure values to get current state
-          setTimeout(() => {
-            if (currentQuestionIndexRef.current < questionsLengthRef.current - 1) {
-              setCurrentQuestionIndex(i => i + 1);
-            } else {
-              handleFinishQuiz();
-            }
-          }, 0);
-          
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
+      syncTimerState();
+    }, 250);
+
+    const handleVisibleSync = () => {
+      if (!document.hidden) {
+        syncTimerState();
+      }
+    };
+
+    window.addEventListener("focus", syncTimerState);
+    document.addEventListener("visibilitychange", handleVisibleSync);
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      window.removeEventListener("focus", syncTimerState);
+      document.removeEventListener("visibilitychange", handleVisibleSync);
     };
-  }, [currentQuestionIndex, showResults, questions.length, handleFinishQuiz, currentQuestion]);
+  }, [currentQuestionIndex, questions.length, quizInitialized, showResults, syncTimerState]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
