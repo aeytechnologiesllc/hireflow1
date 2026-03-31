@@ -28,7 +28,7 @@ export function EvaluationScreen({
   nextPhaseName,
 }: EvaluationScreenProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.06),transparent_30%),linear-gradient(180deg,rgba(8,12,20,0.96),rgba(8,12,20,0.99))]">
       <AnimatePresence mode="wait">
         {state === "evaluating" && (
           <motion.div
@@ -93,7 +93,7 @@ export function EvaluationScreen({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="w-full h-full flex items-center justify-center bg-background/95 backdrop-blur-sm"
+            className="w-full h-full flex items-center justify-center"
           >
             <GradientOrbs count={3} />
             <FloatingParticles count={10} intensity="subtle" />

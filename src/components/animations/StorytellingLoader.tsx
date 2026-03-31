@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { memo, useEffect, useState } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
 
@@ -10,6 +10,28 @@ interface StorytellingLoaderProps {
   showProgress?: boolean;
   title?: string;
 }
+
+const StoryBackdrop = memo(function StoryBackdrop() {
+  return (
+    <>
+      <GradientOrbs count={2} className="opacity-80" />
+      <FloatingParticles count={8} intensity="subtle" />
+    </>
+  );
+});
+
+const StoryLoaderMark = memo(function StoryLoaderMark() {
+  return (
+    <motion.div
+      className="relative mb-8"
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+    >
+      <StaggeredBarsLoader size="lg" />
+    </motion.div>
+  );
+});
 
 export function StorytellingLoader({
   messages,
@@ -32,19 +54,8 @@ export function StorytellingLoader({
 
   return (
     <div className={`relative flex flex-col items-center justify-center ${className}`}>
-      {/* Background effects */}
-      <GradientOrbs count={3} />
-      <FloatingParticles count={15} intensity="subtle" />
-
-      {/* Staggered Bars Loader */}
-      <motion.div
-        className="relative mb-8"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        <StaggeredBarsLoader size="lg" />
-      </motion.div>
+      <StoryBackdrop />
+      <StoryLoaderMark />
 
       {/* Title */}
       <motion.h2

@@ -8,12 +8,20 @@ interface FloatingParticlesProps {
   intensity?: "subtle" | "medium" | "high";
 }
 
+const DEFAULT_PARTICLE_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--accent))",
+  "hsl(var(--primary) / 0.5)",
+];
+
 export function FloatingParticles({ 
   count = 15, 
-  colors = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--primary) / 0.5)"],
+  colors = DEFAULT_PARTICLE_COLORS,
   className = "",
   intensity = "medium"
 }: FloatingParticlesProps) {
+  const colorKey = colors.join("|");
+
   const particles = useMemo(() => {
     // Reduce counts for performance
     const actualCount = intensity === "subtle" ? Math.min(count, 8) : 
@@ -31,7 +39,7 @@ export function FloatingParticles({
       duration: 5 + Math.random() * 3,
       delay: Math.random() * 2,
     }));
-  }, [count, colors, intensity]);
+  }, [count, colorKey, colors, intensity]);
 
   return (
     <div className={`absolute inset-0 overflow-hidden pointer-events-none ${className}`}>
