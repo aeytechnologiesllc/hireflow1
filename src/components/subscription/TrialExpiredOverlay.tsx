@@ -29,9 +29,13 @@ export default function TrialExpiredOverlay() {
       });
       if (clientSecret) {
         setCheckoutClientSecret(clientSecret);
+      } else {
+        toast.error("We couldn't start checkout right now. Please try again in a moment.");
       }
     } catch (error) {
       console.error("Checkout error:", error);
+      const message = error instanceof Error ? error.message : "We couldn't start checkout right now. Please try again.";
+      toast.error(message);
     } finally {
       setLoading(null);
     }

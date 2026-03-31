@@ -3,6 +3,7 @@ import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
 import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePricing } from "@/hooks/usePricing";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,9 +75,21 @@ export function LimitReachedDialog({
       });
       if (clientSecret) {
         setCheckoutClientSecret(clientSecret);
+      } else {
+        toast({
+          variant: "warning",
+          title: "Upgrade unavailable",
+          description: "We couldn't start checkout right now. Please try again in a moment.",
+        });
       }
     } catch (error) {
       console.error("Checkout error:", error);
+      const message = error instanceof Error ? error.message : "We couldn't start checkout right now. Please try again.";
+      toast({
+        variant: "warning",
+        title: "Unable to open checkout",
+        description: message,
+      });
     } finally {
       setLoading(null);
     }

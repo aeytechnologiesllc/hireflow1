@@ -6,6 +6,7 @@ import { usePricing } from "@/hooks/usePricing";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
 import {
   Crown,
   Sparkles,
@@ -53,9 +54,21 @@ export default function SubscriptionSettings() {
       });
       if (clientSecret) {
         setCheckoutClientSecret(clientSecret);
+      } else {
+        toast({
+          variant: "warning",
+          title: "Upgrade unavailable",
+          description: "We couldn't start checkout right now. Please try again in a moment.",
+        });
       }
     } catch (error) {
       console.error("Checkout error:", error);
+      const message = error instanceof Error ? error.message : "We couldn't start checkout right now. Please try again.";
+      toast({
+        variant: "warning",
+        title: "Unable to open checkout",
+        description: message,
+      });
     } finally {
       setLoading(null);
     }
@@ -67,9 +80,21 @@ export default function SubscriptionSettings() {
       const { url } = await createBillingPortal.mutateAsync();
       if (url) {
         window.open(url, "_blank");
+      } else {
+        toast({
+          variant: "warning",
+          title: "Billing portal unavailable",
+          description: "We couldn't open your billing portal right now. Please try again in a moment.",
+        });
       }
     } catch (error) {
       console.error("Billing portal error:", error);
+      const message = error instanceof Error ? error.message : "We couldn't open your billing portal right now.";
+      toast({
+        variant: "warning",
+        title: "Unable to open billing portal",
+        description: message,
+      });
     } finally {
       setLoading(null);
     }
@@ -80,8 +105,18 @@ export default function SubscriptionSettings() {
     try {
       await syncSubscription.mutateAsync();
       await refetch();
+      toast({
+        title: "Subscription refreshed",
+        description: "Your billing status was updated successfully.",
+      });
     } catch (error) {
       console.error("Refresh error:", error);
+      const message = error instanceof Error ? error.message : "We couldn't refresh your subscription right now.";
+      toast({
+        variant: "warning",
+        title: "Unable to refresh subscription",
+        description: message,
+      });
     } finally {
       setLoading(null);
     }
