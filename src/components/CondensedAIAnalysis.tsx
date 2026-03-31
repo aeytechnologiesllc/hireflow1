@@ -1537,12 +1537,36 @@ function formatSignalLabel(signal: string) {
     .join(" ");
 }
 
-function getEvidenceBasis(notes?: ApplicationNotes) {
+function deriveEvidenceInputs(notes?: ApplicationNotes) {
   const meta = notes?.avaAnalysisMeta;
   const inputs = meta?.inputsUsed;
+  const quizStepData = notes?.quiz || notes?.["quiz"];
+
+  return {
+    resume: !!meta?.resume?.provided,
+    applicationAnswers: Math.max(inputs?.applicationAnswers || 0, notes?.applicationAnswers?.length || 0),
+    coverLetter: !!inputs?.coverLetter,
+    quiz: !!(
+      inputs?.quiz ||
+      notes?.quizResult ||
+      (quizStepData && quizStepData.answers) ||
+      (notes?.quizAnswers && Object.keys(notes.quizAnswers).length > 0)
+    ),
+    typingTest: !!(inputs?.typingTest || notes?.typingTestResult),
+    chatSimulation: !!(inputs?.chatSimulation || notes?.chatSimulationResult),
+    salesSimulation: !!(inputs?.salesSimulation || notes?.salesSimulationResult),
+    chatInterview: !!(inputs?.chatInterview || notes?.chatInterviewResult),
+    portfolio: !!(inputs?.portfolio || notes?.portfolioResult),
+    videoIntro: !!(inputs?.videoIntro || notes?.videoIntroResult),
+    voiceInterview: !!(inputs?.voiceInterview || notes?.voiceInterviewNotes?.length || notes?.voiceInterviewInconsistencies?.length),
+  };
+}
+
+function getEvidenceBasis(notes?: ApplicationNotes) {
+  const inputs = deriveEvidenceInputs(notes);
   const parts: string[] = [];
 
-  if (meta?.resume?.provided) parts.push("resume");
+  if (inputs.resume) parts.push("resume");
   if ((inputs?.applicationAnswers || 0) > 0) parts.push("application answers");
   if (inputs?.coverLetter) parts.push("cover letter");
   if (inputs?.quiz) parts.push("quiz");
@@ -1560,10 +1584,9 @@ function getEvidenceBasis(notes?: ApplicationNotes) {
 
 function getEvidenceBadges(notes?: ApplicationNotes) {
   const badges: string[] = [];
-  const meta = notes?.avaAnalysisMeta;
-  const inputs = meta?.inputsUsed;
+  const inputs = deriveEvidenceInputs(notes);
 
-  const resumeLabel = getResumeEvidenceLabel(meta);
+  const resumeLabel = getResumeEvidenceLabel(notes?.avaAnalysisMeta);
   if (resumeLabel) badges.push(resumeLabel);
   if ((inputs?.applicationAnswers || 0) > 0) badges.push(`${inputs?.applicationAnswers} application answers`);
   if (inputs?.coverLetter) badges.push("Cover letter");
