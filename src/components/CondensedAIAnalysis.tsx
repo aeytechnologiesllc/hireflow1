@@ -218,10 +218,106 @@ function sanitizeAnalysisCopy(text: string): string {
     .trim();
 }
 
-function neutralizePendingPhaseLanguage(text: string): string {
+function toSentenceCase(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function humanizePhaseReference(raw: string) {
+  const normalized = raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\bvoice interview\b/gi, "Ava interview")
+    .replace(/\bchat support\b/gi, "chat support")
+    .replace(/\bchat simulation\b/gi, "chat simulation")
+    .replace(/\btyping test\b/gi, "typing test")
+    .replace(/\bvideo intro\b/gi, "video intro")
+    .replace(/\bportfolio upload\b/gi, "portfolio review")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized ? toSentenceCase(normalized) : normalized;
+}
+
+function formatPhaseList(value: string) {
+  const parts = value
+    .split(/\s*(?:,|\/|\bor\b|\band\b)\s*/i)
+    .map((part) => humanizePhaseReference(part))
+    .filter(Boolean);
+
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+function buildCompletedEvidenceLead(notes?: ApplicationNotes, pendingPhases?: string) {
+  const inputs = deriveEvidenceInputs(notes);
+  const completed: string[] = [];
+
+  if (inputs.quiz && typeof notes?.quizResult?.score === "number") {
+    completed.push(`the quiz (${notes.quizResult.score}%)`);
+  } else if (inputs.typingTest && notes?.typingTestResult) {
+    completed.push(`the typing test (${notes.typingTestResult.wpm} WPM at ${notes.typingTestResult.accuracy}% accuracy)`);
+  }
+
+  if (inputs.chatSimulation && typeof notes?.chatSimulationResult?.score === "number") {
+    completed.push(`the chat simulation (${notes.chatSimulationResult.score}%)`);
+  }
+
+  if (inputs.chatInterview && typeof notes?.chatInterviewResult?.score === "number") {
+    completed.push(`the chat interview (${notes.chatInterviewResult.score}%)`);
+  }
+
+  if (inputs.salesSimulation && typeof notes?.salesSimulationResult?.score === "number") {
+    completed.push(`the sales simulation (${notes.salesSimulationResult.score}%)`);
+  }
+
+  if (inputs.voiceInterview) {
+    const voiceScore = notes?.voiceInterviewResult?.score ?? notes?.voiceInterviewResult?.overallScore;
+    if (typeof voiceScore === "number") {
+      completed.push(`the Ava interview (${voiceScore}%)`);
+    } else {
+      completed.push("the Ava interview");
+    }
+  }
+
+  if (inputs.portfolio && typeof notes?.portfolioResult?.score === "number") {
+    completed.push(`the portfolio review (${notes.portfolioResult.score}%)`);
+  }
+
+  if (completed.length === 0) {
+    const fallbackPending = pendingPhases
+      ? `${formatPhaseList(pendingPhases)} ${pendingPhases.match(/\b(?:,|or|and)\b/i) ? "are" : "is"} still pending`
+      : "Later workflow phases are still pending";
+    return `${fallbackPending}, so this recommendation is based on the evidence collected so far.`;
+  }
+
+  const evidenceBasis = getEvidenceBasis(notes)?.replace(/^Based on\s+/i, "") || "the evidence collected so far";
+  const pendingLabel = pendingPhases ? formatPhaseList(pendingPhases) : "";
+  const pendingLine = pendingLabel
+    ? `${pendingLabel} ${pendingLabel.includes(" and ") || pendingLabel.includes(",") ? "are" : "is"} still pending`
+    : "Later workflow phases are still pending";
+
+  const completedLine = completed.length === 1
+    ? `The candidate has completed ${completed[0]}.`
+    : `The candidate has completed ${completed.slice(0, -1).join(", ")}, and ${completed[completed.length - 1]}.`;
+
+  return `${completedLine} ${pendingLine}, so this recommendation is based on ${evidenceBasis}.`;
+}
+
+function neutralizePendingPhaseLanguage(text: string, notes?: ApplicationNotes): string {
   if (!text) return "";
 
   return sanitizeAnalysisCopy(text)
+    .replace(
+      /there (?:are|were) no completed workflow-phase results yet for ([^.]+?)\s*,\s*and\s*the only assessment score provided was[^.]*\./gi,
+      (_match, pendingPhases: string) => `${buildCompletedEvidenceLead(notes, pendingPhases)} `,
+    )
+    .replace(
+      /there (?:are|were) no completed workflow-phase results yet for ([^.]+?)\./gi,
+      (_match, pendingPhases: string) => `${buildCompletedEvidenceLead(notes, pendingPhases)} `,
+    )
     .replace(
       /with no completed [^.]+?, there is no direct evidence of [^.]+\.\s*/gi,
       "Later interview and simulation phases are still pending, so this recommendation is based on the evidence collected so far. ",
@@ -233,6 +329,13 @@ function neutralizePendingPhaseLanguage(text: string): string {
     .replace(
       /because [^.]+? (?:has|have) not been completed, there is no direct evidence of [^.]+\.\s*/gi,
       "Later interview and simulation phases are still pending, so this recommendation is based on the evidence collected so far. ",
+    )
+    .replace(
+      /since ([^.]+?) (?:is|are) not yet completed, there is no phase-performance evidence available to ([^.]+?)\.\s*/gi,
+      (_match, pendingPhases: string, tail: string) => {
+        const lead = buildCompletedEvidenceLead(notes, pendingPhases);
+        return `${lead} Additional completed phases may provide more evidence to ${tail.trim()}. `;
+      },
     )
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -1678,7 +1781,7 @@ export function CondensedAIAnalysis({
   
   // Generate a full summary that includes rejection context when rejected
   const displaySummary = useMemo(() => {
-    const parsedSummary = neutralizePendingPhaseLanguage(parsed.fullSummary);
+    const parsedSummary = neutralizePendingPhaseLanguage(parsed.fullSummary, applicationNotes);
 
     if (isRejected) {
       // For Ava autopilot rejections, PRESERVE the original AI analysis
@@ -1716,7 +1819,7 @@ export function CondensedAIAnalysis({
       // Generic fallback if no score info
       return `This application has been rejected. ${parsedSummary}`;
     }
-    const scorecardRationale = sanitizeAnalysisCopy(scorecard?.rationale || "");
+    const scorecardRationale = neutralizePendingPhaseLanguage(scorecard?.rationale || "", applicationNotes);
 
     if (needsMoreEvidence) {
       const baseSummary = scorecardRationale || parsedSummary;

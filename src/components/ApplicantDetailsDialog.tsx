@@ -55,7 +55,7 @@ export default function ApplicantDetailsDialog({
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
           applicationId: application.id,
-          force: false,
+          force: true,
           autopilotDecision: application.jobs?.processing_mode === "auto",
           currentPhaseId: application.phase,
         },

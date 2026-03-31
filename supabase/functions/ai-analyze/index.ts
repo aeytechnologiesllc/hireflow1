@@ -128,6 +128,9 @@ CRITICAL PHASE-EVALUATION RULE:
 - Only evaluate completed phases using the evidence actually provided.
 - If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
 - Never say a candidate lacks capability simply because a future phase is still pending. Say the phase is pending and explain what additional evidence it could provide.
+- If a quiz or any other assessment phase HAS been completed, explicitly name that completed phase and its result before discussing pending later phases.
+- Never say "no completed workflow-phase results yet" when any assessment phase has already been completed.
+- If quiz is completed but later phases are pending, say something like "The candidate completed the quiz at X%; later phases are still pending."
 
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
@@ -443,6 +446,9 @@ CRITICAL PHASE-EVALUATION RULE:
 - Only evaluate completed phases using the evidence actually provided.
 - If later phases are still pending, describe them neutrally as "not yet completed" and note that they may provide more evidence later.
 - Never say a candidate lacks capability simply because a future phase is still pending. Say the phase is pending and explain what additional evidence it could provide.
+- If a quiz or any other assessment phase HAS been completed, explicitly name that completed phase and its result before discussing pending later phases.
+- Never say "no completed workflow-phase results yet" when any assessment phase has already been completed.
+- If quiz is completed but later phases are pending, say something like "The candidate completed the quiz at X%; later phases are still pending."
 
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
@@ -703,6 +709,7 @@ REQUIRED OUTPUT FORMAT:
 **PHASE PERFORMANCE SUMMARY**
 (Summarize ONLY the phases that are listed in "JOB WORKFLOW PHASES" section above.)
 CRITICAL: Do NOT include phases that were NOT part of this job's workflow. Only mention phases that appear in the workflow list provided. If the job only has portfolio_upload and voice_interview phases, then ONLY report on those two phases. Do NOT say "Typing Test: Not Completed" or "Quiz: Not completed" if those phases are not in the workflow.
+CRITICAL: If any phase is completed, explicitly acknowledge the completed phase and its result. Never use wording that implies zero completed phases when quiz, typing, portfolio, simulation, or interview evidence already exists.
 
 For each phase that IS in the workflow, report:
 - If completed: Show the score/result
@@ -786,6 +793,7 @@ Recommendation: [Highly Recommended/Recommended/Consider/Not Recommended]
 Key Strengths: [bullet points - MUST include best phase performances]
 Areas of Concern: [bullet points - include any phase weaknesses]
 Summary: [2-3 sentences that MUST mention phase performance highlights (quiz scores, portfolio ratings, interview results) alongside resume assessment. If resume unavailable, focus on phase performance data.]
+Summary wording rule: If quiz is completed, mention the completed quiz result before mentioning which later phases are still pending. Never imply that no phases were completed when quiz or any other assessment has already finished.
 
 **SCORE EXPLANATION** (MANDATORY - 1-2 sentences)
 [Explain in plain language WHY this candidate received this score. Be specific about the primary factors that raised or lowered the score. Example: "Score is 45% because the resume contained no company names, only generic job duties without achievements, and skills did not match the job requirements." or "Score is 85% because the candidate has 5 years at named companies with quantifiable achievements that align well with the role."]

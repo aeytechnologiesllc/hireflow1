@@ -1212,7 +1212,7 @@ export default function ApplicantDetails() {
       const { data, error } = await supabase.functions.invoke("trigger-ava-analysis", {
         body: {
           applicationId: application.id,
-          force: false,
+          force: true,
           autopilotDecision: false,
           currentPhaseId: application.phase,
         },
