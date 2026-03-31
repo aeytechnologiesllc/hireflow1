@@ -21,11 +21,13 @@ const stripePromise = loadStripe(
 
 interface EmbeddedCheckoutDialogProps {
   clientSecret: string | null;
+  planType: "growth" | "business";
   onClose: () => void;
 }
 
 export default function EmbeddedCheckoutDialog({
   clientSecret,
+  planType,
   onClose,
 }: EmbeddedCheckoutDialogProps) {
   const { syncSubscription, refetch } = useSubscription();
@@ -33,6 +35,14 @@ export default function EmbeddedCheckoutDialog({
   const [isSyncing, setIsSyncing] = useState(false);
   const [manualSyncAvailable, setManualSyncAvailable] = useState(false);
   const syncAttempted = useRef(false);
+
+  useEffect(() => {
+    if (clientSecret) {
+      setPaymentComplete(false);
+      setManualSyncAvailable(false);
+      syncAttempted.current = false;
+    }
+  }, [clientSecret]);
 
   // Show manual sync button after 10 seconds as fallback
   useEffect(() => {
@@ -91,6 +101,14 @@ export default function EmbeddedCheckoutDialog({
     };
   }, [clientSecret, handleComplete]);
 
+  const resetDialog = useCallback(() => {
+    setPaymentComplete(false);
+    setManualSyncAvailable(false);
+    setIsSyncing(false);
+    syncAttempted.current = false;
+    onClose();
+  }, [onClose]);
+
   const handleOpenChange = async (open: boolean) => {
     if (!open) {
       if (!paymentComplete) {
@@ -101,50 +119,49 @@ export default function EmbeddedCheckoutDialog({
           console.error("Fallback sync error:", e);
         }
       }
-      setPaymentComplete(false);
-      setManualSyncAvailable(false);
-      syncAttempted.current = false;
-      onClose();
+      resetDialog();
     }
   };
 
-  if (!clientSecret) return null;
+  if (!clientSecret && !paymentComplete) return null;
+
+  if (paymentComplete) {
+    return (
+      <SubscriptionSuccessModal
+        planType={planType}
+        onClose={resetDialog}
+      />
+    );
+  }
 
   return (
     <Dialog open={!!clientSecret} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className="w-[min(100vw-1rem,980px)] max-w-4xl overflow-hidden p-0 gap-0 sm:max-w-4xl">
         <DialogTitle className="sr-only">Checkout</DialogTitle>
         <DialogDescription className="sr-only">
           Complete your HireFlow subscription securely with Stripe.
         </DialogDescription>
-        <div className="min-h-[400px]">
-          {paymentComplete ? (
-            <SubscriptionSuccessModal
-              planType="growth"
-              onClose={() => handleOpenChange(false)}
-            />
-          ) : (
-            <>
-              <EmbeddedCheckoutProvider
-                key={clientSecret}
-                stripe={stripePromise}
-                options={checkoutOptions}
-              >
-                <EmbeddedCheckout />
-              </EmbeddedCheckoutProvider>
-              {manualSyncAvailable && !isSyncing && (
-                <div className="px-6 py-3 text-center border-t border-border">
-                  <button
-                    onClick={handleManualSync}
-                    className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Already paid? Click to refresh your access
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+        <div className="relative min-h-[400px] max-h-[92vh] overflow-y-auto">
+          <>
+            <EmbeddedCheckoutProvider
+              key={clientSecret}
+              stripe={stripePromise}
+              options={checkoutOptions}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+            {manualSyncAvailable && !isSyncing && (
+              <div className="px-6 py-3 text-center border-t border-border">
+                <button
+                  onClick={handleManualSync}
+                  className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Already paid? Click to refresh your access
+                </button>
+              </div>
+            )}
+          </>
           {isSyncing && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

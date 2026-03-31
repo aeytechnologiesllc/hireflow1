@@ -43,9 +43,11 @@ export default function SubscriptionSettings() {
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [checkoutPlanType, setCheckoutPlanType] = useState<"growth" | "business">("growth");
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
+    setCheckoutPlanType(planType);
     try {
       const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
@@ -137,6 +139,7 @@ export default function SubscriptionSettings() {
     <div className="space-y-6">
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
+        planType={checkoutPlanType}
         onClose={() => setCheckoutClientSecret(null)}
       />
       {/* Premium Upgrade Section - FIRST */}

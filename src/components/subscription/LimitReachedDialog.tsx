@@ -62,11 +62,13 @@ export function LimitReachedDialog({
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [checkoutPlanType, setCheckoutPlanType] = useState<"growth" | "business">("growth");
 
   const limitInfo = limitLabels[limitType];
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
+    setCheckoutPlanType(planType);
     try {
       const { clientSecret } = await createCheckoutSession.mutateAsync({
         planType,
@@ -99,6 +101,7 @@ export function LimitReachedDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
+        planType={checkoutPlanType}
         onClose={() => setCheckoutClientSecret(null)}
       />
       <DialogContent className="sm:max-w-lg">

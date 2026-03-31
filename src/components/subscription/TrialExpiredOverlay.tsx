@@ -16,11 +16,13 @@ export default function TrialExpiredOverlay() {
   const [syncing, setSyncing] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [checkoutPlanType, setCheckoutPlanType] = useState<"growth" | "business">("growth");
 
   if (!isExpired) return null;
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
+    setCheckoutPlanType(planType);
     try {
       const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
@@ -83,6 +85,7 @@ export default function TrialExpiredOverlay() {
     <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center overflow-y-auto p-4 py-8 md:py-4" style={{ background: "hsl(220, 18%, 7%)" }}>
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
+        planType={checkoutPlanType}
         onClose={() => setCheckoutClientSecret(null)}
       />
       {/* Background gradient orbs */}

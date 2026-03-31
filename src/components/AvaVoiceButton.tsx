@@ -348,6 +348,7 @@ export default function AvaVoiceButton() {
     <>
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
+        planType="business"
         onClose={() => setCheckoutClientSecret(null)}
       />
       {/* Header-integrated button */}

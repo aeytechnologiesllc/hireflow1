@@ -26,6 +26,7 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [checkoutPlanType, setCheckoutPlanType] = useState<"growth" | "business">("growth");
 
   const hasAccess = isPaid && (requiredPlan === "growth" || subscription?.plan_type === "business");
 
@@ -35,6 +36,7 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
 
   const handleUpgrade = async (planType: "growth" | "business") => {
     setLoading(planType);
+    setCheckoutPlanType(planType);
     try {
       const { clientSecret } = await createCheckoutSession.mutateAsync({ 
         planType, 
@@ -67,6 +69,7 @@ export default function UpgradePrompt({ feature, requiredPlan = "growth", childr
     <>
       <EmbeddedCheckoutDialog
         clientSecret={checkoutClientSecret}
+        planType={checkoutPlanType}
         onClose={() => setCheckoutClientSecret(null)}
       />
       <motion.div
