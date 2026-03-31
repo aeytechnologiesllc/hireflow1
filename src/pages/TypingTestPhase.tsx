@@ -453,6 +453,7 @@ export default function TypingTestPhase() {
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
       // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
       // The backend will calculate weighted score and decide pass/fail

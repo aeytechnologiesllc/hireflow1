@@ -628,6 +628,7 @@ export default function SalesSimulationPhase() {
 
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
       if (isAutoMode) {
         try {

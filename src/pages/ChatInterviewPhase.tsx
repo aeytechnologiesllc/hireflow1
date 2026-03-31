@@ -631,6 +631,7 @@ export default function ChatInterviewPhase() {
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
       // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
       if (isAutoMode) {

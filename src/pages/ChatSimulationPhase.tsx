@@ -648,8 +648,34 @@ export default function ChatSimulationPhase() {
 
       if (error) throw error;
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      const serializedNotes = JSON.stringify(updatedNotes);
+      const updatedPhaseAnalysis = `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%.`;
+
+      // Update relevant caches immediately so the candidate detail page does not flash
+      // a stale "Start Chat Simulation" state after the submission returns.
+      queryClient.setQueryData(["chat-simulation-application", id], (previous: typeof application | undefined) =>
+        previous
+          ? {
+              ...previous,
+              notes: serializedNotes,
+              phase_ai_analysis: updatedPhaseAnalysis,
+            }
+          : previous,
+      );
+      queryClient.setQueryData(["candidate-application", id], (previous: typeof application | undefined) =>
+        previous
+          ? {
+              ...previous,
+              notes: serializedNotes,
+              phase_ai_analysis: updatedPhaseAnalysis,
+            }
+          : previous,
+      );
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] }),
+        queryClient.invalidateQueries({ queryKey: ["candidate-application", id] }),
+      ]);
 
       // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
       if (isAutoMode) {

@@ -427,6 +427,7 @@ export default function PortfolioUploadPhase() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
       
       if (isAutoMode) {
         // Show evaluating state while backend processes
