@@ -299,12 +299,12 @@ export default function DeveloperSubscriptions() {
                 </defs>
                 <XAxis 
                   dataKey="date" 
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={10}
                   tickFormatter={(value) => format(new Date(value), 'MMM d')}
                   interval="preserveStartEnd"
                 />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
                   type="monotone" 
@@ -328,8 +328,8 @@ export default function DeveloperSubscriptions() {
           <CardContent>
             <ChartContainer config={{ value: { label: "Subscriptions", color: "hsl(24, 100%, 50%)" } }} className="h-48 w-full">
               <BarChart data={stats?.planDistribution || []} layout="vertical">
-                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} width={80} />
+                <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+                <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={80} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="value" fill="hsl(24, 100%, 50%)" radius={[0, 4, 4, 0]} />
               </BarChart>

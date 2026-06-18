@@ -103,7 +103,7 @@ function JobCardVisual({ isMobile }: { isMobile: boolean }) {
           <motion.span
             className="text-xs text-primary font-medium"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, textShadow: ["0 0 0px transparent", "0 0 8px hsl(var(--primary) / 0.6)", "0 0 0px transparent"] }}
+            animate={{ opacity: 1, textShadow: ["0 0 0px transparent", "0 0 8px color-mix(in oklab, var(--primary) 60%, transparent)", "0 0 0px transparent"] }}
             transition={{ opacity: { delay: 1.3, duration: 0.3 }, textShadow: { delay: 1.3, duration: 1, ease: "easeOut" } }}
           >
             Workflow generated
@@ -128,14 +128,14 @@ function FunnelVisual({ isMobile }: { isMobile: boolean }) {
             <motion.div
               key={i}
               className="w-7 h-7 rounded-full flex items-center justify-center"
-              initial={{ opacity: 0, y: -12, scale: 1, backgroundColor: "hsl(var(--muted) / 0.6)", borderColor: "transparent", borderWidth: 0 }}
+              initial={{ opacity: 0, y: -12, scale: 1, backgroundColor: "color-mix(in oklab, var(--muted) 60%, transparent)", borderColor: "transparent", borderWidth: 0 }}
               animate={{
                 opacity: fadedOut.includes(i) ? [0, 1, 1, 0] : 1,
                 y: 0,
                 scale: fadedOut.includes(i) ? [1, 1, 1, 0.5] : 1,
                 borderWidth: kept.includes(i) ? [0, 0, 0, 2] : 0,
-                borderColor: kept.includes(i) ? ["transparent", "transparent", "transparent", "hsl(var(--primary))"] : "transparent",
-                boxShadow: kept.includes(i) ? ["0 0 0px transparent", "0 0 0px transparent", "0 0 0px transparent", "0 0 12px hsl(var(--primary) / 0.4)"] : "none",
+                borderColor: kept.includes(i) ? ["transparent", "transparent", "transparent", "var(--primary)"] : "transparent",
+                boxShadow: kept.includes(i) ? ["0 0 0px transparent", "0 0 0px transparent", "0 0 0px transparent", "0 0 12px color-mix(in oklab, var(--primary) 40%, transparent)"] : "none",
               }}
               transition={{
                 opacity: fadedOut.includes(i)
@@ -149,7 +149,7 @@ function FunnelVisual({ isMobile }: { isMobile: boolean }) {
                 borderColor: { delay: 1.2, duration: 0.3 },
                 boxShadow: { delay: 1.2, duration: 0.4, times: [0, 0, 0, 1] },
               }}
-              style={{ backgroundColor: "hsl(var(--muted) / 0.6)" }}
+              style={{ backgroundColor: "color-mix(in oklab, var(--muted) 60%, transparent)" }}
             >
               <User className="h-3.5 w-3.5 text-muted-foreground" />
             </motion.div>
@@ -198,7 +198,7 @@ function LeaderboardVisual({ isMobile }: { isMobile: boolean }) {
                 initial={{ width: 0 }}
                 animate={{ width: bar.w }}
                 transition={{ delay: 0.4 + i * 0.12, duration: 0.5, ease: "easeOut" }}
-                style={bar.highlight ? { boxShadow: "0 0 12px hsl(var(--primary) / 0.4)" } : {}}
+                style={bar.highlight ? { boxShadow: "0 0 12px color-mix(in oklab, var(--primary) 40%, transparent)" } : {}}
               />
             </div>
             <span className={`text-xs font-semibold w-8 ${bar.highlight ? "text-primary" : "text-muted-foreground"}`}>
@@ -279,8 +279,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
-              linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(to right, var(--primary) 1px, transparent 1px),
+              linear-gradient(to bottom, var(--primary) 1px, transparent 1px)`,
             backgroundSize: "60px 60px",
           }}
         />
@@ -300,7 +300,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         style={{
           width: isMobile ? 300 : 600,
           height: isMobile ? 300 : 600,
-          background: "radial-gradient(ellipse at center, hsl(var(--primary) / 0.08) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse at center, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 70%)",
         }}
       />
 
@@ -380,7 +380,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                         isMobile ? "-inset-1" : "-inset-2"
                       }`}
                       style={{
-                        background: "radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)",
+                        background: "radial-gradient(circle, color-mix(in oklab, var(--primary) 20%, transparent) 0%, transparent 70%)",
                       }}
                     />
                     <div
@@ -389,8 +389,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       }`}
                       style={{
                         background:
-                          "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
-                        boxShadow: "0 0 40px hsl(var(--primary) / 0.4)",
+                          "linear-gradient(135deg, var(--primary), hsl(280, 85%, 65%))",
+                        boxShadow: "0 0 40px color-mix(in oklab, var(--primary) 40%, transparent)",
                       }}
                     >
                       <Icon className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
@@ -449,15 +449,15 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 <div className="relative">
                   <div
                     className={`absolute inset-0 rounded-full ${isMobile ? "-inset-1" : "-inset-2"}`}
-                    style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)" }}
+                    style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--primary) 20%, transparent) 0%, transparent 70%)" }}
                   />
                   <div
                     className={`relative rounded-full flex items-center justify-center ${
                       isMobile ? "w-16 h-16 mb-3" : "w-24 h-24 mb-5"
                     }`}
                     style={{
-                      background: "linear-gradient(135deg, hsl(var(--primary)), hsl(280, 85%, 65%))",
-                      boxShadow: "0 0 40px hsl(var(--primary) / 0.4)",
+                      background: "linear-gradient(135deg, var(--primary), hsl(280, 85%, 65%))",
+                      boxShadow: "0 0 40px color-mix(in oklab, var(--primary) 40%, transparent)",
                     }}
                   >
                     <Sparkles className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />

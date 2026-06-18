@@ -63,7 +63,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(24, 100%, 50%)', 'hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(142, 76%, 36%)'];
+const COLORS = ['hsl(24, 100%, 50%)', 'var(--primary)', 'var(--accent)', 'hsl(142, 76%, 36%)'];
 
 interface UserWithRole {
   id: string;
@@ -323,12 +323,12 @@ export default function DeveloperUsers() {
                 </defs>
                 <XAxis 
                   dataKey="date" 
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={10}
                   tickFormatter={(value) => format(new Date(value), 'MMM d')}
                   interval="preserveStartEnd"
                 />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
                   type="monotone" 

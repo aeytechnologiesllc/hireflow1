@@ -146,23 +146,23 @@ export default function DeveloperActivity() {
           </CardHeader>
           <CardContent>
             <ChartContainer config={{ 
-              jobs: { label: "Jobs Created", color: "hsl(var(--primary))" },
+              jobs: { label: "Jobs Created", color: "var(--primary)" },
               applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
             }} className="h-72 w-full">
               <LineChart data={platformActivity?.activityTrend || []}>
                 <XAxis 
                   dataKey="date" 
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={10}
                   tickFormatter={(value) => format(new Date(value), 'MMM d')}
                   interval="preserveStartEnd"
                 />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Line 
                   type="monotone" 
                   dataKey="jobs" 
-                  stroke="hsl(var(--primary))" 
+                  stroke="var(--primary)" 
                   strokeWidth={2}
                   dot={false}
                   name="Jobs Created"
@@ -235,8 +235,8 @@ export default function DeveloperActivity() {
             {workflowStepData.length > 0 ? (
               <ChartContainer config={{ count: { label: "Usage", color: "hsl(24, 100%, 50%)" } }} className="h-48 w-full">
                 <BarChart data={workflowStepData} layout="vertical">
-                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                  <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} width={100} />
+                  <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+                  <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={100} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar dataKey="count" fill="hsl(24, 100%, 50%)" radius={[0, 4, 4, 0]} />
                 </BarChart>

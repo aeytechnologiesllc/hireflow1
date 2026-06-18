@@ -19,7 +19,7 @@ import {
   ComposedChart, Legend
 } from "recharts";
 
-const COLORS = ["hsl(var(--primary))", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
+const COLORS = ["var(--primary)", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
 export default function Analytics() {
   const { role } = useAuth();
@@ -51,7 +51,7 @@ export default function Analytics() {
     : 0;
 
   const funnelData = [
-    { name: "Applied", value: advancedStats?.totalApplications || 0, fill: "hsl(var(--primary))" },
+    { name: "Applied", value: advancedStats?.totalApplications || 0, fill: "var(--primary)" },
     { name: "Reviewing", value: appStats?.reviewing || 0, fill: "#10b981" },
     { name: "Interview", value: appStats?.interview || 0, fill: "#8b5cf6" },
     { name: "Hired", value: appStats?.hired || 0, fill: "#f59e0b" },
@@ -204,21 +204,21 @@ export default function Analytics() {
                   <AreaChart data={advancedStats?.applicationTrends || []}>
                     <defs>
                       <linearGradient id="colorApps" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "var(--muted-foreground)" }} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(var(--card))", 
-                        border: "1px solid hsl(var(--border))",
+                        backgroundColor: "var(--card)", 
+                        border: "1px solid var(--border)",
                         borderRadius: "8px"
                       }}
                     />
-                    <Area type="monotone" dataKey="applications" stroke="hsl(var(--primary))" fill="url(#colorApps)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="applications" stroke="var(--primary)" fill="url(#colorApps)" strokeWidth={2} />
                     <Line type="monotone" dataKey="hired" stroke="#10b981" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -239,13 +239,13 @@ export default function Analytics() {
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={funnelData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                      <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-                      <YAxis dataKey="name" type="category" tick={{ fill: "hsl(var(--muted-foreground))" }} width={80} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                      <XAxis type="number" tick={{ fill: "var(--muted-foreground)" }} />
+                      <YAxis dataKey="name" type="category" tick={{ fill: "var(--muted-foreground)" }} width={80} />
                       <Tooltip 
                         contentStyle={{ 
-                          backgroundColor: "hsl(var(--card))", 
-                          border: "1px solid hsl(var(--border))",
+                          backgroundColor: "var(--card)", 
+                          border: "1px solid var(--border)",
                           borderRadius: "8px"
                         }}
                       />
@@ -529,19 +529,19 @@ export default function Analytics() {
               ) : advancedStats?.jobPerformance && advancedStats.jobPerformance.length > 0 ? (
                 <ResponsiveContainer width="100%" height={320}>
                   <ComposedChart data={advancedStats.jobPerformance.slice(0, 8)}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="title" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-                    <YAxis yAxisId="left" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="title" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
+                    <YAxis yAxisId="left" tick={{ fill: "var(--muted-foreground)" }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--muted-foreground)" }} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(var(--card))", 
-                        border: "1px solid hsl(var(--border))",
+                        backgroundColor: "var(--card)", 
+                        border: "1px solid var(--border)",
                         borderRadius: "8px"
                       }}
                     />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="applications" name="Applications" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="applications" name="Applications" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                     <Bar yAxisId="left" dataKey="hired" name="Hired" fill="#10b981" radius={[4, 4, 0, 0]} />
                     <Line yAxisId="right" type="monotone" dataKey="conversionRate" name="Conversion %" stroke="#f59e0b" strokeWidth={2} />
                   </ComposedChart>
@@ -613,17 +613,17 @@ export default function Analytics() {
                 ) : advancedStats?.aiScoreDistribution ? (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={advancedStats.aiScoreDistribution}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="range" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-                      <YAxis tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="range" tick={{ fill: "var(--muted-foreground)" }} />
+                      <YAxis tick={{ fill: "var(--muted-foreground)" }} />
                       <Tooltip 
                         contentStyle={{ 
-                          backgroundColor: "hsl(var(--card))", 
-                          border: "1px solid hsl(var(--border))",
+                          backgroundColor: "var(--card)", 
+                          border: "1px solid var(--border)",
                           borderRadius: "8px"
                         }}
                       />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]}>
                         {advancedStats.aiScoreDistribution.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
@@ -662,7 +662,7 @@ export default function Analytics() {
                             cx="64"
                             cy="64"
                             r="56"
-                            stroke="hsl(var(--muted))"
+                            stroke="var(--muted)"
                             strokeWidth="8"
                             fill="none"
                           />
@@ -670,7 +670,7 @@ export default function Analytics() {
                             cx="64"
                             cy="64"
                             r="56"
-                            stroke="hsl(var(--primary))"
+                            stroke="var(--primary)"
                             strokeWidth="8"
                             fill="none"
                             strokeDasharray={`${(advancedStats?.candidateQualityScore || 0) * 3.52} 352`}

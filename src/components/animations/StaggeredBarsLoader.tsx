@@ -12,11 +12,11 @@ const sizeConfig = {
 };
 
 const barColors = [
-  "hsl(var(--primary))",
-  "hsl(var(--primary) / 0.85)",
-  "hsl(var(--accent))",
-  "hsl(var(--primary) / 0.85)",
-  "hsl(var(--primary))",
+  "var(--primary)",
+  "color-mix(in oklab, var(--primary) 85%, transparent)",
+  "var(--accent)",
+  "color-mix(in oklab, var(--primary) 85%, transparent)",
+  "var(--primary)",
 ];
 
 export function StaggeredBarsLoader({ size = "md", className = "" }: StaggeredBarsLoaderProps) {

@@ -54,7 +54,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(142, 76%, 36%)', 'hsl(24, 100%, 50%)', 'hsl(221, 83%, 53%)', 'hsl(var(--muted-foreground))'];
+const COLORS = ['hsl(142, 76%, 36%)', 'hsl(24, 100%, 50%)', 'hsl(221, 83%, 53%)', 'var(--muted-foreground)'];
 
 interface JobWithDetails {
   id: string;
@@ -289,8 +289,8 @@ export default function DeveloperJobs() {
           <CardContent>
             <ChartContainer config={{ jobCount: { label: "Jobs", color: "hsl(24, 100%, 50%)" } }} className="h-48 w-full">
               <BarChart data={stats?.topEmployers || []} layout="vertical">
-                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} width={100} />
+                <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
+                <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={100} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="jobCount" fill="hsl(24, 100%, 50%)" radius={[0, 4, 4, 0]} />
               </BarChart>

@@ -379,7 +379,7 @@ export default function JobDetails() {
                         size="lg"
                         className="w-full h-14 text-lg font-semibold relative overflow-hidden group"
                         style={{
-                          boxShadow: "0 0 20px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.2)",
+                          boxShadow: "0 0 20px color-mix(in oklab, var(--primary) 40%, transparent), 0 0 40px color-mix(in oklab, var(--primary) 20%, transparent)",
                         }}
                       >
                         <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]" />

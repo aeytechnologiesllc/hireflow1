@@ -9,9 +9,9 @@ interface FloatingParticlesProps {
 }
 
 const DEFAULT_PARTICLE_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--accent))",
-  "hsl(var(--primary) / 0.5)",
+  "var(--primary)",
+  "var(--accent)",
+  "color-mix(in oklab, var(--primary) 50%, transparent)",
 ];
 
 export function FloatingParticles({ 
@@ -101,7 +101,7 @@ export function GradientOrbs({
             top: `${orb.y}%`,
             width: orb.size,
             height: orb.size,
-            background: `radial-gradient(circle, hsl(var(--primary) / 0.25) 0%, transparent 70%)`,
+            background: `radial-gradient(circle, color-mix(in oklab, var(--primary) 25%, transparent) 0%, transparent 70%)`,
             willChange: "opacity",
             transform: "translateZ(0)",
           }}

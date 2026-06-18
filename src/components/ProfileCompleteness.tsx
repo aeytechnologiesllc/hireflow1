@@ -96,11 +96,11 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   const getColor = () => {
-    if (percentage === 100) return "hsl(var(--primary))";
-    if (percentage >= 75) return "hsl(var(--primary))";
+    if (percentage === 100) return "var(--primary)";
+    if (percentage >= 75) return "var(--primary)";
     if (percentage >= 50) return "hsl(142.1 76.2% 36.3%)"; // green-600
     if (percentage >= 25) return "hsl(45.4 93.4% 47.5%)"; // yellow-500
-    return "hsl(var(--destructive))";
+    return "var(--destructive)";
   };
 
   if (compact) {
@@ -113,7 +113,7 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
               cy={size / 2}
               r={radius}
               fill="none"
-              stroke="hsl(var(--muted))"
+              stroke="var(--muted)"
               strokeWidth={strokeWidth}
             />
             <motion.circle
@@ -151,7 +151,7 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="hsl(var(--muted))"
+            stroke="var(--muted)"
             strokeWidth={strokeWidth}
           />
           <motion.circle

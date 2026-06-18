@@ -27,7 +27,7 @@ export function EmpathyAnimation({
       <FloatingParticles 
         count={10} 
         intensity="subtle" 
-        colors={["hsl(var(--muted-foreground) / 0.3)", "hsl(var(--primary) / 0.2)"]}
+        colors={["color-mix(in oklab, var(--muted-foreground) 30%, transparent)", "color-mix(in oklab, var(--primary) 20%, transparent)"]}
       />
 
       {/* Premium Orb - empathy mode */}

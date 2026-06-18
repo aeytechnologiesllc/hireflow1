@@ -42,10 +42,10 @@ export function ProfileCompletionCard() {
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   const getColor = () => {
-    if (percentage >= 75) return "hsl(var(--primary))";
+    if (percentage >= 75) return "var(--primary)";
     if (percentage >= 50) return "hsl(142.1 76.2% 36.3%)";
     if (percentage >= 25) return "hsl(45.4 93.4% 47.5%)";
-    return "hsl(var(--destructive))";
+    return "var(--destructive)";
   };
 
   return (
@@ -74,7 +74,7 @@ export function ProfileCompletionCard() {
                   cy={size / 2}
                   r={radius}
                   fill="none"
-                  stroke="hsl(var(--muted))"
+                  stroke="var(--muted)"
                   strokeWidth={strokeWidth}
                 />
                 <motion.circle

@@ -70,8 +70,8 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: `
-              linear-gradient(to right, hsl(var(--primary)) 1px, transparent 1px),
-              linear-gradient(to bottom, hsl(var(--primary)) 1px, transparent 1px)
+              linear-gradient(to right, var(--primary) 1px, transparent 1px),
+              linear-gradient(to bottom, var(--primary) 1px, transparent 1px)
             `,
             backgroundSize: "60px 60px",
           }}
@@ -152,7 +152,7 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
             height: 200,
             left: -60,
             top: -60,
-            background: "linear-gradient(135deg, hsl(var(--primary) / 0.3), hsl(180, 100%, 50%, 0.2))",
+            background: "linear-gradient(135deg, color-mix(in oklab, var(--primary) 30%, transparent), hsl(180, 100%, 50%, 0.2))",
           }}
           animate={
             phase === "init" 
@@ -223,14 +223,14 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
           <motion.div
             className="relative w-20 h-20 rounded-full flex items-center justify-center z-10"
             style={{
-              background: "linear-gradient(135deg, hsl(var(--primary)), hsl(180, 100%, 50%))",
+              background: "linear-gradient(135deg, var(--primary), hsl(180, 100%, 50%))",
             }}
             animate={
               phase === "init"
-                ? { boxShadow: ["0 0 40px hsl(var(--primary) / 0.4)", "0 0 60px hsl(var(--primary) / 0.5)", "0 0 40px hsl(var(--primary) / 0.4)"] }
+                ? { boxShadow: ["0 0 40px color-mix(in oklab, var(--primary) 40%, transparent)", "0 0 60px color-mix(in oklab, var(--primary) 50%, transparent)", "0 0 40px color-mix(in oklab, var(--primary) 40%, transparent)"] }
                 : phase === "glow"
-                ? { boxShadow: ["0 0 60px hsl(var(--primary) / 0.5)", "0 0 120px hsl(var(--primary) / 0.9)", "0 0 60px hsl(var(--primary) / 0.5)"] }
-                : { boxShadow: "0 0 150px hsl(var(--primary) / 1)" }
+                ? { boxShadow: ["0 0 60px color-mix(in oklab, var(--primary) 50%, transparent)", "0 0 120px color-mix(in oklab, var(--primary) 90%, transparent)", "0 0 60px color-mix(in oklab, var(--primary) 50%, transparent)"] }
+                : { boxShadow: "0 0 150px color-mix(in oklab, var(--primary) 100%, transparent)" }
             }
             transition={{ 
               duration: phase === "init" ? 2 : phase === "glow" ? 0.4 : 0.3, 
@@ -252,8 +252,8 @@ export function LaunchSequence({ onComplete }: LaunchSequenceProps) {
                     width: phase === "launch" ? 10 : 6,
                     height: phase === "launch" ? 10 : 6,
                     background: i % 2 === 0 
-                      ? "linear-gradient(to bottom, hsl(var(--primary)), hsl(180, 100%, 50%))" 
-                      : "linear-gradient(to bottom, hsl(180, 100%, 60%), hsl(var(--primary)))",
+                      ? "linear-gradient(to bottom, var(--primary), hsl(180, 100%, 50%))" 
+                      : "linear-gradient(to bottom, hsl(180, 100%, 60%), var(--primary))",
                   }}
                   initial={{ 
                     y: 0, 

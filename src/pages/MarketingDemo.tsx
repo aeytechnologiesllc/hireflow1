@@ -230,7 +230,7 @@ export default function MarketingDemo() {
       <div className="absolute inset-0">
         <motion.div 
           className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-20 blur-[200px]"
-          style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.3))" }}
+          style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 30%, transparent))" }}
           animate={{ 
             scale: [1, 1.3, 1],
             x: [0, 80, 0],
@@ -241,7 +241,7 @@ export default function MarketingDemo() {
         />
         <motion.div 
           className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-15 blur-[180px]"
-          style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent)/0.3))" }}
+          style={{ background: "linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 30%, transparent))" }}
           animate={{ 
             scale: [1, 1.4, 1],
             x: [0, -60, 0],
@@ -252,7 +252,7 @@ export default function MarketingDemo() {
         />
         <motion.div 
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-10 blur-[150px]"
-          style={{ background: "linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)))" }}
+          style={{ background: "linear-gradient(180deg, var(--primary), var(--accent))" }}
           animate={{ 
             scale: [1, 1.2, 1],
             rotate: [0, 180, 360]
@@ -374,7 +374,7 @@ function StartScreen({ onStart, isLoading }: { onStart: () => void; isLoading: b
         onClick={onStart}
         disabled={isLoading}
         className="group relative flex items-center gap-4 mx-auto px-10 py-5 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full font-semibold text-xl shadow-2xl shadow-primary/30 disabled:opacity-70"
-        whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px hsl(var(--primary)/0.4)" }}
+        whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px color-mix(in oklab, var(--primary) 40%, transparent)" }}
         whileTap={{ scale: 0.98 }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -938,7 +938,7 @@ function Scene5Analysis() {
             <svg className="w-full h-full -rotate-90">
               <circle
                 cx="80" cy="80" r="70"
-                stroke="hsl(var(--muted))"
+                stroke="var(--muted)"
                 strokeWidth="12"
                 fill="none"
                 opacity="0.3"
@@ -956,8 +956,8 @@ function Scene5Analysis() {
               />
               <defs>
                 <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" />
-                  <stop offset="100%" stopColor="hsl(var(--accent))" />
+                  <stop offset="0%" stopColor="var(--primary)" />
+                  <stop offset="100%" stopColor="var(--accent)" />
                 </linearGradient>
               </defs>
             </svg>
@@ -1525,7 +1525,7 @@ function EndScreen({ onRestart }: { onRestart: () => void }) {
         </motion.button>
         <motion.button
           className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full font-semibold shadow-xl shadow-primary/30"
-          whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px hsl(var(--primary)/0.4)" }}
+          whileHover={{ scale: 1.05, boxShadow: "0 25px 50px -12px color-mix(in oklab, var(--primary) 40%, transparent)" }}
           whileTap={{ scale: 0.95 }}
         >
           Start Free Trial

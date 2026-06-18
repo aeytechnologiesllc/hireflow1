@@ -46,7 +46,7 @@ export function InterviewComparisonDialog({
     return dataPoint;
   });
 
-  const colors = ['hsl(var(--primary))', 'hsl(142.1 76.2% 36.3%)', 'hsl(221.2 83.2% 53.3%)'];
+  const colors = ['var(--primary)', 'hsl(142.1 76.2% 36.3%)', 'hsl(221.2 83.2% 53.3%)'];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,14 +172,14 @@ export function InterviewComparisonDialog({
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={radarData}>
-                      <PolarGrid stroke="hsl(var(--border))" />
+                      <PolarGrid stroke="var(--border)" />
                       <PolarAngleAxis 
                         dataKey="category" 
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                        tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} 
                       />
                       <PolarRadiusAxis 
                         domain={[0, 100]} 
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} 
+                        tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} 
                       />
                       {candidates.map((c, i) => (
                         <Radar 

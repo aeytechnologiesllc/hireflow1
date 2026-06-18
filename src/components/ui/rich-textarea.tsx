@@ -115,7 +115,7 @@ const RichTextarea = React.forwardRef<HTMLDivElement, RichTextareaProps>(
           .tiptap p.is-editor-empty:first-child::before {
             content: attr(data-placeholder);
             float: left;
-            color: hsl(var(--muted-foreground));
+            color: var(--muted-foreground);
             pointer-events: none;
             height: 0;
           }

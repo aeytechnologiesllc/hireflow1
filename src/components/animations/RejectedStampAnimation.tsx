@@ -57,7 +57,7 @@ export function RejectedStampAnimation({ isVisible, onComplete }: RejectedStampA
               style={{
                 width: 320,
                 height: 120,
-                background: "radial-gradient(ellipse, hsl(var(--destructive) / 0.6), transparent 60%)",
+                background: "radial-gradient(ellipse, color-mix(in oklab, var(--destructive) 60%, transparent), transparent 60%)",
                 filter: "blur(30px)",
               }}
               initial={{ scale: 0.3, opacity: 1 }}
@@ -84,7 +84,7 @@ export function RejectedStampAnimation({ isVisible, onComplete }: RejectedStampA
                       style={{
                         width: 80,
                         height: 50,
-                        background: "radial-gradient(ellipse, hsl(var(--muted-foreground) / 0.4), transparent 70%)",
+                        background: "radial-gradient(ellipse, color-mix(in oklab, var(--muted-foreground) 40%, transparent), transparent 70%)",
                       }}
                       initial={{ 
                         x: 0, 
@@ -144,13 +144,13 @@ export function RejectedStampAnimation({ isVisible, onComplete }: RejectedStampA
                 <div 
                   className="absolute inset-0 rounded-lg pointer-events-none"
                   style={{
-                    boxShadow: "inset 0 2px 4px hsl(var(--destructive) / 0.2)",
+                    boxShadow: "inset 0 2px 4px color-mix(in oklab, var(--destructive) 20%, transparent)",
                   }}
                 />
                 <span 
                   className="text-4xl md:text-5xl font-black text-destructive tracking-[0.2em] uppercase select-none"
                   style={{ 
-                    textShadow: "2px 2px 0 hsl(var(--destructive) / 0.3), -1px -1px 0 hsl(var(--destructive) / 0.1)",
+                    textShadow: "2px 2px 0 color-mix(in oklab, var(--destructive) 30%, transparent), -1px -1px 0 color-mix(in oklab, var(--destructive) 10%, transparent)",
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >

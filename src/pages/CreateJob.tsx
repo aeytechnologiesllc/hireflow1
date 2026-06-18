@@ -1662,7 +1662,7 @@ export default function CreateJob() {
                         </div>
                         <motion.div
                           key={passingScore}
-                          initial={{ scale: 1.3, color: "hsl(var(--primary))" }}
+                          initial={{ scale: 1.3, color: "var(--primary)" }}
                           animate={{ scale: 1 }}
                           className="text-3xl sm:text-2xl font-bold text-primary tabular-nums shrink-0"
                         >

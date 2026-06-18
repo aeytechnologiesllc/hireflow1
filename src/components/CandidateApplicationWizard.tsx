@@ -1559,7 +1559,7 @@ export default function CandidateApplicationWizard({
               disabled={isPending}
               className="relative overflow-hidden"
               style={{
-                boxShadow: "0 0 15px hsl(var(--primary) / 0.3)",
+                boxShadow: "0 0 15px color-mix(in oklab, var(--primary) 30%, transparent)",
               }}
             >
               {isPending ? (

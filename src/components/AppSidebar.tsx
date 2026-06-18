@@ -61,8 +61,8 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
       {/* Hover glow effect */}
       <div className={cn(
         "absolute inset-0 rounded-lg bg-primary/0 transition-all duration-300",
-        "group-hover:bg-primary/5 group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.15)]",
-        isActive && "bg-primary/10 shadow-[0_0_25px_hsl(var(--primary)/0.2)]"
+        "group-hover:bg-primary/5 group-hover:shadow-[0_0_20px_color-mix(in_oklab,var(--primary)_15%,transparent)]",
+        isActive && "bg-primary/10 shadow-[0_0_25px_color-mix(in_oklab,var(--primary)_20%,transparent)]"
       )} />
       
       <div className={cn("relative flex items-center z-10", collapsed ? "gap-0" : "gap-3")}>
@@ -82,12 +82,12 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
         )}
       </div>
       {badge !== undefined && badge > 0 && !collapsed && (
-        <span className="relative z-10 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.4)]">
+        <span className="relative z-10 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground shadow-[0_0_10px_color-mix(in_oklab,var(--primary)_40%,transparent)]">
           {badge}
         </span>
       )}
       {badge !== undefined && badge > 0 && collapsed && (
-        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
+        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_color-mix(in_oklab,var(--primary)_60%,transparent)]" />
       )}
     </Link>
   );

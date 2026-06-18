@@ -23,7 +23,7 @@ export function AnimatedProgressRing({
       <motion.div
         className="absolute inset-0 rounded-full"
         style={{
-          background: `radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)`,
+          background: `radial-gradient(circle, color-mix(in oklab, var(--primary) 20%, transparent) 0%, transparent 70%)`,
         }}
         animate={{
           scale: [1, 1.2, 1],
@@ -43,7 +43,7 @@ export function AnimatedProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--primary) / 0.1)"
+          stroke="color-mix(in oklab, var(--primary) 10%, transparent)"
           strokeWidth={strokeWidth}
         />
       </svg>
@@ -86,8 +86,8 @@ export function AnimatedProgressRing({
         )}
         <defs>
           <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(var(--accent))" />
+            <stop offset="0%" stopColor="var(--primary)" />
+            <stop offset="100%" stopColor="var(--accent)" />
           </linearGradient>
         </defs>
       </svg>

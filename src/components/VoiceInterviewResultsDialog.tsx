@@ -482,20 +482,20 @@ Date: ${new Date().toLocaleDateString()}
                     <div className="h-[350px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={softSkillsData}>
-                          <PolarGrid stroke="hsl(var(--border))" />
+                          <PolarGrid stroke="var(--border)" />
                           <PolarAngleAxis 
                             dataKey="skill" 
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                            tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }} 
                           />
                           <PolarRadiusAxis 
                             domain={[0, 100]} 
-                            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} 
+                            tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} 
                           />
                           <Radar 
                             dataKey="value" 
-                            fill="hsl(var(--primary))" 
+                            fill="var(--primary)" 
                             fillOpacity={0.5} 
-                            stroke="hsl(var(--primary))" 
+                            stroke="var(--primary)" 
                             strokeWidth={2}
                           />
                         </RadarChart>

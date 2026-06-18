@@ -1875,7 +1875,7 @@ export default function ApplicantDetails() {
             <div 
               className="absolute top-8 left-0 h-2 rounded-full"
               style={{ 
-                background: "linear-gradient(90deg, hsl(var(--success)) 0%, hsl(var(--warning)) 100%)",
+                background: "linear-gradient(90deg, var(--success) 0%, var(--warning) 100%)",
                 width: `${sliderPosition}%`,
                 transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}

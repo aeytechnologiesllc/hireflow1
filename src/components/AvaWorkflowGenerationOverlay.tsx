@@ -466,13 +466,13 @@ export default function AvaWorkflowGenerationOverlay({
           animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.3, 0.15] }}
           transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[200px]"
-          style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.4), transparent)" }}
+          style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--primary) 40%, transparent), transparent)" }}
         />
         <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.25, 0.1] }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
           className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-[180px]"
-          style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.4), transparent)" }}
+          style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--accent) 40%, transparent), transparent)" }}
         />
 
         {/* Subtle particles */}
@@ -486,8 +486,8 @@ export default function AvaWorkflowGenerationOverlay({
               left: `${p.x}%`,
               top: `${p.y}%`,
               background: p.color === "primary" 
-                ? "hsl(var(--primary) / 0.5)" 
-                : "hsl(var(--accent) / 0.5)",
+                ? "color-mix(in oklab, var(--primary) 50%, transparent)" 
+                : "color-mix(in oklab, var(--accent) 50%, transparent)",
             }}
             animate={{
               y: [-10, -80],
@@ -514,14 +514,14 @@ export default function AvaWorkflowGenerationOverlay({
               transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
             >
               <div
-                className="absolute w-2 h-2 rounded-full bg-primary/80 shadow-[0_0_8px_hsl(var(--primary)/0.6)]"
+                className="absolute w-2 h-2 rounded-full bg-primary/80 shadow-[0_0_8px_color-mix(in_oklab,var(--primary)_60%,transparent)]"
                 style={{ top: -4, left: "50%", marginLeft: -4 }}
               />
             </motion.div>
 
             {/* Progress ring */}
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="85" fill="none" stroke="hsl(var(--border) / 0.2)" strokeWidth="2" />
+              <circle cx="100" cy="100" r="85" fill="none" stroke="color-mix(in oklab, var(--border) 20%, transparent)" strokeWidth="2" />
               <motion.circle
                 cx="100" cy="100" r="85"
                 fill="none"
@@ -534,8 +534,8 @@ export default function AvaWorkflowGenerationOverlay({
               />
               <defs>
                 <linearGradient id="overlayProgressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" />
-                  <stop offset="100%" stopColor="hsl(var(--accent))" />
+                  <stop offset="0%" stopColor="var(--primary)" />
+                  <stop offset="100%" stopColor="var(--accent)" />
                 </linearGradient>
               </defs>
             </svg>
@@ -546,7 +546,7 @@ export default function AvaWorkflowGenerationOverlay({
               style={{
                 width: 120, height: 120,
                 left: 40, top: 40,
-                background: "radial-gradient(circle, hsl(var(--primary) / 0.35), transparent 70%)",
+                background: "radial-gradient(circle, color-mix(in oklab, var(--primary) 35%, transparent), transparent 70%)",
               }}
               animate={{ scale: [1, 1.25, 1], opacity: [0.4, 0.7, 0.4] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -566,7 +566,7 @@ export default function AvaWorkflowGenerationOverlay({
                   <img
                     src={avaOrb}
                     alt="AVA"
-                    className="w-full h-full object-contain drop-shadow-[0_0_25px_hsl(var(--primary)/0.5)]"
+                    className="w-full h-full object-contain drop-shadow-[0_0_25px_color-mix(in_oklab,var(--primary)_50%,transparent)]"
                   />
                 </div>
               </motion.div>
@@ -677,7 +677,7 @@ export default function AvaWorkflowGenerationOverlay({
             >
               <motion.div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.3), transparent 70%)" }}
+                style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--primary) 30%, transparent), transparent 70%)" }}
                 initial={{ width: 100, height: 100, opacity: 0 }}
                 animate={{ width: 800, height: 800, opacity: [0, 0.4, 0] }}
                 transition={{ duration: 2, ease: "easeOut" }}

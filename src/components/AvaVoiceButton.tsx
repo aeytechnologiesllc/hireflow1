@@ -368,7 +368,7 @@ export default function AvaVoiceButton() {
               ease: "easeInOut"
             }}
             style={{
-              border: "2px solid hsl(var(--primary))",
+              border: "2px solid var(--primary)",
             }}
           />
         )}

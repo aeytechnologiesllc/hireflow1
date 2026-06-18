@@ -27,9 +27,9 @@ function getScoreColor(score: number): string {
 
 // Get score ring gradient
 function getScoreRingGradient(score: number): string {
-  if (score >= 80) return "conic-gradient(hsl(var(--primary)) 0deg, hsl(var(--primary)) calc(var(--score) * 3.6deg), hsl(var(--muted)) calc(var(--score) * 3.6deg))";
-  if (score >= 60) return "conic-gradient(hsl(45 93% 47%) 0deg, hsl(45 93% 47%) calc(var(--score) * 3.6deg), hsl(var(--muted)) calc(var(--score) * 3.6deg))";
-  return "conic-gradient(hsl(var(--destructive)) 0deg, hsl(var(--destructive)) calc(var(--score) * 3.6deg), hsl(var(--muted)) calc(var(--score) * 3.6deg))";
+  if (score >= 80) return "conic-gradient(var(--primary) 0deg, var(--primary) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
+  if (score >= 60) return "conic-gradient(hsl(45 93% 47%) 0deg, hsl(45 93% 47%) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
+  return "conic-gradient(var(--destructive) 0deg, var(--destructive) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
 }
 
 export function ApplicantHeader({

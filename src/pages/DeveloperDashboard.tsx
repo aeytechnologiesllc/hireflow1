@@ -50,7 +50,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(24, 100%, 50%)', 'hsl(0, 84%, 60%)'];
+const COLORS = ['var(--primary)', 'var(--accent)', 'hsl(24, 100%, 50%)', 'hsl(0, 84%, 60%)'];
 
 export default function DeveloperDashboard() {
   const { userStats, subscriptionStats, platformActivity, featureUsage, isLoading } = useDeveloperAnalytics();
@@ -213,12 +213,12 @@ export default function DeveloperDashboard() {
                       </defs>
                       <XAxis 
                         dataKey="date" 
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={10}
                         tickFormatter={(value) => format(new Date(value), 'MMM d')}
                         interval="preserveStartEnd"
                       />
-                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Area 
                         type="monotone" 
@@ -285,23 +285,23 @@ export default function DeveloperDashboard() {
               </CardHeader>
               <CardContent>
                 <ChartContainer config={{ 
-                  jobs: { label: "Jobs Created", color: "hsl(var(--primary))" },
+                  jobs: { label: "Jobs Created", color: "var(--primary)" },
                   applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
                 }} className="h-72 w-full">
                   <LineChart data={platformActivity?.activityTrend || []}>
                     <XAxis 
                       dataKey="date" 
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={10}
                       tickFormatter={(value) => format(new Date(value), 'MMM d')}
                       interval="preserveStartEnd"
                     />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line 
                       type="monotone" 
                       dataKey="jobs" 
-                      stroke="hsl(var(--primary))" 
+                      stroke="var(--primary)" 
                       strokeWidth={2}
                       dot={false}
                       name="Jobs Created"
@@ -442,19 +442,19 @@ export default function DeveloperDashboard() {
               </CardHeader>
               <CardContent>
                 <ChartContainer config={{ 
-                  jobs: { label: "Jobs", color: "hsl(var(--primary))" },
+                  jobs: { label: "Jobs", color: "var(--primary)" },
                   applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
                 }} className="h-72 w-full">
                   <BarChart data={platformActivity?.activityTrend?.slice(-14) || []}>
                     <XAxis 
                       dataKey="date" 
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={10}
                       tickFormatter={(value) => format(new Date(value), 'MMM d')}
                     />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="jobs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Jobs" />
+                    <Bar dataKey="jobs" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Jobs" />
                     <Bar dataKey="applications" fill="hsl(24, 100%, 50%)" radius={[4, 4, 0, 0]} name="Applications" />
                   </BarChart>
                 </ChartContainer>
@@ -524,11 +524,11 @@ export default function DeveloperDashboard() {
                     data={featureUsage?.workflowStepUsage || []} 
                     layout="vertical"
                   >
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
                     <YAxis 
                       type="category" 
                       dataKey="step" 
-                      stroke="hsl(var(--muted-foreground))" 
+                      stroke="var(--muted-foreground)" 
                       fontSize={10}
                       width={120}
                       tickFormatter={(value) => value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
