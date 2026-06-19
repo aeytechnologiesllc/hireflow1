@@ -265,9 +265,10 @@ async function handleAutopilotDecision(params: {
       supabaseAdmin
         .from("applications")
         .update({
-          status: "rejected",
-          rejected_by_type: "ava",
-          phase_ai_analysis: rejectReason,
+          // LEGAL: AI must never auto-reject. Keep the candidate in review and
+          // surface Ava's recommendation; a human makes the final decline.
+          status: "reviewing",
+          phase_ai_analysis: `Ava recommends declining — needs your review. ${rejectReason}`,
         }),
       latestStatus,
       latestPhase,
@@ -306,33 +307,14 @@ async function handleAutopilotDecision(params: {
       });
     }
 
-    try {
-      const jobTitle = job?.title || "this position";
-      const { data: employerProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("company_name")
-        .eq("user_id", job?.employer_id)
-        .single();
-
-      await supabaseAdmin.functions.invoke("send-notification-email", {
-        body: {
-          type: "status_rejected",
-          recipientUserId: application.candidate_id,
-          data: {
-            job_title: jobTitle,
-            company_name: employerProfile?.company_name || undefined,
-          },
-        },
-      });
-    } catch (emailError) {
-      console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
-    }
+    // No candidate rejection email here — Ava only recommends. The human decline
+    // path (BulkRejectDialog, rejected_by_type:'user') owns notifying the candidate.
 
     return jsonResponse({
       success: true,
-      message: "Analysis completed, candidate rejected",
+      message: "Analysis completed — Ava recommends declining; awaiting human review",
       score,
-      decision: "rejected",
+      decision: "recommend_decline",
       reason: rejectReason,
       autopilotAction,
       updatedApplication: rejectedApplication,
