@@ -106,7 +106,7 @@ export default function JoinTeam() {
                   company_name: inviteData.inviter_company_name ?? "",
                 }
               : undefined,
-        } as InvitationData);
+        } as unknown as InvitationData);
 
         // Pre-fill email/name. invitee_email is only returned by the RPC when
         // it matches the caller's verified email, so this never leaks.
