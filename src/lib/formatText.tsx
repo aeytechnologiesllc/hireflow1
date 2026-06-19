@@ -1,4 +1,5 @@
 import React from "react";
+import DOMPurify from "dompurify";
 
 /**
  * Detects if a string contains HTML tags (from TipTap WYSIWYG editor).
@@ -50,7 +51,7 @@ export function renderFormattedText(text: string | null | undefined): React.Reac
     return (
       <div
         className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere] prose-strong:text-inherit prose-em:text-inherit prose-p:text-inherit prose-li:text-inherit prose-p:my-0.5 prose-ul:my-1 prose-ol:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:break-words [&_li]:break-words [&_*]:[overflow-wrap:anywhere]"
-        dangerouslySetInnerHTML={{ __html: text }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(text) }}
       />
     );
   }
