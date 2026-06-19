@@ -216,7 +216,7 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(118% 62% at 50% -12%, rgba(31, 160, 108, 0.10), transparent 56%);
+  background: radial-gradient(85% 42% at 50% -8%, rgba(40, 110, 86, 0.05), transparent 62%);
 }
 .dark body::before {
   content: "";
@@ -224,8 +224,8 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @layer utilities {
