@@ -38,10 +38,10 @@ npx vercel deploy --prod --yes --archive=tgz   # CLI authed as aeytechnologiesll
 
 | Item | Value |
 |------|-------|
-| **Project ID** | kcotpxlggfvgclwksmhl |
-| **Project URL** | https://kcotpxlggfvgclwksmhl.supabase.co |
-| **Dashboard** | https://supabase.com/dashboard/project/kcotpxlggfvgclwksmhl |
-| **Edge Functions** | https://supabase.com/dashboard/project/kcotpxlggfvgclwksmhl/functions |
+| **Project ID** | yqklrkpptnhubsnijqze |
+| **Project URL** | https://yqklrkpptnhubsnijqze.supabase.co |
+| **Dashboard** | https://supabase.com/dashboard/project/yqklrkpptnhubsnijqze |
+| **Edge Functions** | https://supabase.com/dashboard/project/yqklrkpptnhubsnijqze/functions |
 | **Database Migrations** | 71 migrations (all applied) |
 | **Edge Functions Deployed** | 37 functions |
 
@@ -90,7 +90,7 @@ git push origin main
 
 ```bash
 # Link (already done)
-npx supabase link --project-ref kcotpxlggfvgclwksmhl
+npx supabase link --project-ref yqklrkpptnhubsnijqze
 
 # Push database migrations
 npx supabase db push
