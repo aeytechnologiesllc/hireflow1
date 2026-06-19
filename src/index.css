@@ -66,30 +66,30 @@
 
   .dark {
     /* ── Deep Jade ── jade surface · brass accent · ink text (the locked brand system) */
-    --background: #070f0b;
+    --background: #0a0c0c;
     --foreground: #eef6f1;
 
-    --card: #0e1813;
+    --card: #14171a;
     --card-foreground: #eef6f1;
 
-    --popover: #101b15;
+    --popover: #181b1f;
     --popover-foreground: #eef6f1;
 
     /* Brass — CTAs / active / highlights only, never dominant, never on the orb */
     --primary: #1aa06a;
     --primary-foreground: #042619;
 
-    --secondary: #13241c;
+    --secondary: #1a1e22;
     --secondary-foreground: #eef6f1;
 
-    --muted: #12211a;
-    --muted-foreground: #86a094;
+    --muted: #16191d;
+    --muted-foreground: #99a0a6;
 
-    --accent: #185640;
+    --accent: #22392f;
     --accent-foreground: #eef6f1;
 
     --success: #3fbf8f;
-    --success-foreground: #050b07;
+    --success-foreground: #07080a;
 
     --warning: #e0b341;
     --warning-foreground: #042619;
@@ -104,12 +104,12 @@
     /* Brand helper tokens */
     --brass: #1aa06a;
     --ink: #eef6f1;
-    --jade: #070f0b;
+    --jade: #0a0c0c;
 
     --gradient-primary: linear-gradient(135deg, #1aa06a 0%, #2ec88a 100%);
-    --gradient-hero: radial-gradient(ellipse 95% 65% at 50% 0%, #0c1c14 0%, #070f0b 48%, #050b07 100%);
+    --gradient-hero: radial-gradient(ellipse 95% 65% at 50% 0%, #11151a 0%, #0a0c0c 48%, #07080a 100%);
     --gradient-card: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-    --gradient-bg: radial-gradient(ellipse 90% 60% at 50% 0%, #0c1c14 0%, #070f0b 52%, #050b07 100%);
+    --gradient-bg: radial-gradient(ellipse 90% 60% at 50% 0%, #11151a 0%, #0a0c0c 52%, #07080a 100%);
 
     --shadow-sm: 0 1px 2px 0 rgba(5, 18, 13, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(5, 18, 13, 0.55), 0 2px 4px -2px rgba(5, 18, 13, 0.55);
@@ -117,11 +117,11 @@
     --shadow-xl: 0 20px 25px -5px rgba(5, 18, 13, 0.6), 0 8px 10px -6px rgba(5, 18, 13, 0.6);
     --shadow-glow: 0 0 32px rgba(26, 160, 106, 0.18);
 
-    --sidebar-background: #0a160f;
+    --sidebar-background: #0c0e10;
     --sidebar-foreground: #eef6f1;
     --sidebar-primary: #1aa06a;
     --sidebar-primary-foreground: #042619;
-    --sidebar-accent: #12211a;
+    --sidebar-accent: #16191d;
     --sidebar-accent-foreground: #eef6f1;
     --sidebar-border: rgba(238, 246, 241, 0.08);
     --sidebar-ring: #1aa06a;

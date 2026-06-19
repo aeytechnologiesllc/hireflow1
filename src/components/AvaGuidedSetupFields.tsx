@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,14 +22,29 @@ export function AvaGuidedSetupFields({
   value = DEFAULT_GUIDED_JOB_SETUP,
   onChange,
 }: AvaGuidedSetupFieldsProps) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="space-y-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-foreground">Ava setup</h3>
-        <p className="text-xs text-muted-foreground">
-          These answers help Ava write the role and build the right screening plan automatically.
-        </p>
-      </div>
+    <div className="rounded-xl border border-border bg-card/50">
+      <button
+        type="button"
+        onClick={() => setOpen((previous) => !previous)}
+        className="flex w-full items-center justify-between gap-4 rounded-xl p-4 text-left transition-colors hover:bg-foreground/[0.03]"
+        aria-expanded={open}
+      >
+        <div className="space-y-0.5">
+          <h3 className="text-sm font-medium text-foreground">
+            Add details to help Ava <span className="font-normal text-muted-foreground">(optional)</span>
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Must-haves, deal-breakers, schedule, pace and more — or skip it and let Ava draft everything.
+          </p>
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="space-y-5 border-t border-border p-4 pt-5">
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -196,6 +213,8 @@ export function AvaGuidedSetupFields({
           onCheckedChange={(nextChecked) => onChange("customer_facing", nextChecked)}
         />
       </div>
+        </div>
+      )}
     </div>
   );
 }
