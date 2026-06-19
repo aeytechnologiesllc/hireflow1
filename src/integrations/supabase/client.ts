@@ -2,12 +2,21 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL ?? "").trim();
-export const SUPABASE_PUBLISHABLE_KEY = (
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-  import.meta.env.VITE_SUPABASE_ANON_KEY ??
-  ""
-).trim();
+// Public fallback so the app never boots with an empty config (an empty URL makes
+// createClient throw → white screen). These are PUBLIC client values (publishable/
+// anon key, safe to ship); real/canonical project should be set via VITE_SUPABASE_*
+// env vars in the host, which take precedence over these.
+const FALLBACK_SUPABASE_URL = "https://yqklrkpptnhubsnijqze.supabase.co";
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
+
+export const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL ?? "").trim() || FALLBACK_SUPABASE_URL;
+export const SUPABASE_PUBLISHABLE_KEY =
+  (
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+    import.meta.env.VITE_SUPABASE_ANON_KEY ??
+    ""
+  ).trim() || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 export const SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
