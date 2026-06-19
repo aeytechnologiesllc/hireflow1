@@ -437,8 +437,8 @@ export default function Auth() {
   return (
     <div className="dark min-h-[100dvh] bg-background text-foreground relative overflow-y-auto">
       {/* Background grid pattern */}
-      <div 
-        className="absolute inset-0 opacity-[0.03]"
+      <div
+        className="absolute inset-0 opacity-[0.008]"
         style={{
           backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
           backgroundSize: '60px 60px'
@@ -446,8 +446,8 @@ export default function Auth() {
       />
 
       {/* Gradient orbs */}
-      <div className="absolute top-0 left-1/4 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-primary/[0.06] rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-accent/[0.04] rounded-full blur-[140px] pointer-events-none" />
 
       <div className="container mx-auto px-4 py-4 sm:py-8 relative z-10">
         <Link

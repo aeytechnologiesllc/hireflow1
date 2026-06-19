@@ -339,7 +339,7 @@ export default function CandidateAuth() {
       <div className="dark min-h-[100dvh] bg-background text-foreground relative overflow-y-auto">
       {/* Background grid pattern */}
       <div 
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.008]"
         style={{
           backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
           backgroundSize: '60px 60px'

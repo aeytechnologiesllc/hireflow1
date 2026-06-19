@@ -216,7 +216,7 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(85% 42% at 50% -8%, rgba(40, 110, 86, 0.05), transparent 62%);
+  background: radial-gradient(70% 32% at 50% -10%, rgba(42, 104, 84, 0.028), transparent 60%);
 }
 .dark body::before {
   content: "";
