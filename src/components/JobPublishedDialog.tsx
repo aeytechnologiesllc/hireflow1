@@ -121,15 +121,15 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-lg border-border/50 bg-card p-0 overflow-hidden">
         {/* Success Header */}
-        <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-6 pt-6 pb-4">
+        <div className="bg-gradient-to-br from-success/10 via-success/5 to-transparent px-6 pt-6 pb-4">
           <DialogHeader className="text-center space-y-3">
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", bounce: 0.5, duration: 0.6 }}
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 ring-4 ring-emerald-500/10"
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/20 ring-4 ring-success/10"
             >
-              <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+              <CheckCircle2 className="h-7 w-7 text-success" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -182,7 +182,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               <div className="mt-1 flex items-center gap-2">
                 <span className="font-mono font-bold text-foreground">{job.job_code}</span>
                 {copiedCode ? (
-                  <Check className="h-4 w-4 text-emerald-500" />
+                  <Check className="h-4 w-4 text-success" />
                 ) : (
                   <Copy className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
                 )}
@@ -247,7 +247,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => copyToClipboard(applyLink, "link")} className="gap-3 cursor-pointer">
                     {copiedLink ? (
-                      <Check className="h-5 w-5 text-emerald-500" />
+                      <Check className="h-5 w-5 text-success" />
                     ) : (
                       <Copy className="h-5 w-5 text-muted-foreground" />
                     )}

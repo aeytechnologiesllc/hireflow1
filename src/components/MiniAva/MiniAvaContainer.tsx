@@ -44,7 +44,7 @@ export default function MiniAvaContainer() {
     mode: 'assistant',
     currentRoute: location.pathname,
     onTranscript: () => {},
-    onToolCall: (_toolName, result) => {
+    onToolCall: (toolName, result) => {
       // Handle navigation actions
       if (result?.action === 'navigate' && result.route) {
         navigate(result.route);

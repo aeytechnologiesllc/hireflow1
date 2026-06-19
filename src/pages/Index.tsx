@@ -3,36 +3,34 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { motion, type Easing } from "framer-motion";
+import { motion, MotionConfig, type Easing } from "framer-motion";
 import FeatureDetailDialog from "@/components/landing/FeatureDetailDialog";
-import hireflowLogo from "@/assets/hireflow-logo.png";
-import avaOrbLogo from "@/assets/ava-orb.png";
+import BrandMark from "@/components/landing/BrandMark";
+import AvaDemo from "@/components/landing/AvaDemo";
+import AvaGlyph from "@/components/AvaGlyph";
+import AvaUniverse from "@/components/landing/AvaUniverse";
+import AvaOrb from "@/components/AvaOrb";
+import Reveal from "@/components/landing/Reveal";
+import Tilt3D from "@/components/landing/Tilt3D";
+import MountWhenNear from "@/components/landing/MountWhenNear";
+import { IconScreening, IconInstant, IconWorkflows, IconTracking, IconInsights, IconTime } from "@/components/landing/FeatureIcons";
 import { 
   ArrowRight,
   CheckCircle,
-  Sparkles,
-  TrendingUp,
-  Clock,
-  Award,
-  Zap,
-  Target,
-  Users,
-  ChartBar,
-  Rocket,
   Briefcase,
   User
 } from "lucide-react";
 
 const stats = [
-  { icon: TrendingUp, value: "70%", label: "Faster Hiring", color: "text-fuchsia-400" },
-  { icon: Clock, value: "95%", label: "Time Saved", color: "text-pink-400" },
-  { icon: Award, value: "10x", label: "More Qualified", color: "text-purple-400" },
-  { icon: Sparkles, value: "24/7", label: "Ava Screening", color: "text-violet-400" },
+  { value: "70%", label: "Faster time-to-hire" },
+  { value: "95%", label: "Less screening time" },
+  { value: "10×", label: "More qualified shortlists" },
+  { value: "24/7", label: "Ava is screening" },
 ];
 
 const features = [
   {
-    icon: Sparkles,
+    icon: IconScreening,
     title: "Ava-Powered Screening",
     description: "Ava evaluates every candidate with custom workflows and intelligent scoring in seconds",
     titleColor: "text-foreground",
@@ -46,7 +44,7 @@ const features = [
     ],
   },
   {
-    icon: Zap,
+    icon: IconInstant,
     title: "Instant Job Setup",
     description: "Generate perfect application questions and screening steps in under 30 seconds",
     titleColor: "text-emerald-400",
@@ -60,7 +58,7 @@ const features = [
     ],
   },
   {
-    icon: Target,
+    icon: IconWorkflows,
     title: "Custom Workflows",
     description: "Typing tests, video responses, skill assessments — fully automated",
     titleColor: "text-foreground",
@@ -74,7 +72,7 @@ const features = [
     ],
   },
   {
-    icon: Users,
+    icon: IconTracking,
     title: "Smart Tracking",
     description: "Pipeline view, bulk actions, and real-time candidate updates",
     titleColor: "text-foreground",
@@ -88,7 +86,7 @@ const features = [
     ],
   },
   {
-    icon: ChartBar,
+    icon: IconInsights,
     title: "Deep Insights",
     description: "Ava recommendations with detailed analysis for every single candidate",
     titleColor: "text-emerald-400",
@@ -102,7 +100,7 @@ const features = [
     ],
   },
   {
-    icon: Clock,
+    icon: IconTime,
     title: "Save 70% Time",
     description: "Stop manually reviewing hundreds of applications. Let AVA do it.",
     titleColor: "text-foreground",
@@ -172,7 +170,10 @@ export default function Index() {
   }, [user, role, navigate, isNatively, showLanding]);
 
   return (
-    <div className="min-h-[100dvh] bg-[hsl(220,18%,7%)] overflow-x-hidden">
+    <MotionConfig reducedMotion="user">
+    <div className="min-h-[100dvh] bg-[hsl(220,18%,7%)] overflow-x-hidden relative isolate">
+      {/* Subtle dotted-grid depth texture */}
+      <div className="hf-grid pointer-events-none absolute inset-0 -z-10" aria-hidden="true" />
       {/* Navigation */}
       <motion.nav 
         initial={{ y: -100, opacity: 0 }}
@@ -181,14 +182,9 @@ export default function Index() {
         className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,18%,7%)]/85 backdrop-blur-md border-b border-[hsl(220,15%,14%)]"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <motion.img 
-              src={hireflowLogo}
-              alt="HireFlow"
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              className="w-10 h-10 rounded-lg object-cover"
-            />
-            <span className="text-xl font-bold text-white">HireFlow</span>
+          <Link to="/" className="flex items-center gap-2.5">
+            <BrandMark size={38} className="transition-transform duration-300 hover:scale-105" />
+            <span className="text-xl font-bold text-white tracking-tight">HireFlow</span>
           </Link>
           <div className="flex items-center gap-4">
             {!isNatively && (
@@ -214,6 +210,8 @@ export default function Index() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-24 overflow-hidden">
+        {/* Soft aurora behind the orb */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[540px] h-[540px] bg-emerald-500/10 blur-[130px] rounded-full pointer-events-none animate-pulse-slow" />
         {/* Animated green glow effect */}
         <motion.div 
           animate={{ 
@@ -231,103 +229,92 @@ export default function Index() {
             variants={staggerContainer}
             className="max-w-4xl mx-auto text-center"
           >
-            {/* AVA AI Badge */}
-            <motion.div 
+            {/* AVA — the real premium orb */}
+            <motion.div variants={scaleIn} className="flex justify-center w-full -mt-6 sm:-mt-10">
+              <div className="w-full max-w-[620px] h-[380px] sm:h-[480px]">
+                <AvaUniverse />
+              </div>
+            </motion.div>
+            <motion.div
               variants={fadeInUp}
-              className="flex items-center justify-center gap-3 mb-8"
+              className="flex items-center justify-center mt-2 mb-8"
             >
-              <motion.div 
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="relative"
-              >
-                <img
-                  src={avaOrbLogo} 
-                  alt="AVA AI" 
-                  className="relative w-14 h-14 object-contain ava-orb-glow"
-                />
-              </motion.div>
-              <motion.div 
-                whileHover={{ scale: 1.05 }}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[hsl(220,15%,11%)] border border-[hsl(220,15%,17%)] text-gray-300 text-sm"
-              >
+              <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[hsl(220,15%,11%)] border border-[hsl(220,15%,17%)] text-gray-300 text-sm">
+                <AvaGlyph className="h-3.5 w-3.5 text-emerald-400" />
                 Powered by Ava
-                <motion.div 
-                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <img src={avaOrbLogo} alt="AVA" className="h-5 w-5 object-contain" />
-                </motion.div>
-              </motion.div>
+              </div>
             </motion.div>
             
             {/* Main Headline */}
             <motion.h1 
               variants={fadeInUp}
-              className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-white"
+              className="text-5xl md:text-6xl lg:text-7xl font-serif font-medium tracking-[-0.02em] mb-6 leading-[1.04] text-white"
             >
-              Hire <motion.span 
+              Screen every applicant.
+              <br className="hidden sm:block" />{" "}
+              Interview only{" "}
+              <motion.span
                 className="text-emerald-400 inline-block"
-                animate={{ 
+                animate={{
                   textShadow: [
-                    "0 0 20px hsla(160, 60%, 50%, 0.3)",
-                    "0 0 40px hsla(160, 60%, 50%, 0.5)",
-                    "0 0 20px hsla(160, 60%, 50%, 0.3)"
+                    "0 0 24px hsla(160, 70%, 50%, 0.35)",
+                    "0 0 48px hsla(160, 70%, 55%, 0.6)",
+                    "0 0 24px hsla(160, 70%, 50%, 0.35)"
                   ]
                 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >10x Faster</motion.span> with Ava
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              >the best.</motion.span>
             </motion.h1>
             
-            {/* Subheadlines */}
-            <motion.p variants={fadeInUp} className="text-xl md:text-2xl text-gray-300 mb-3">
-              Stop wasting time on unqualified candidates.
-            </motion.p>
-            <motion.p variants={fadeInUp} className="text-lg text-gray-400 mb-10 max-w-2xl mx-auto">
-              AVA screens, evaluates, and ranks candidates automatically — so you only interview the best.
+            {/* Subheadline */}
+            <motion.p variants={fadeInUp} className="text-lg md:text-xl text-gray-300/90 mb-10 max-w-2xl mx-auto leading-relaxed">
+              Ava reads, interviews, and ranks everyone who applies — so your shortlist is ready in{" "}
+              <span className="text-white font-medium">minutes, not weeks</span>.
             </motion.p>
             
-            {/* CTA Button */}
-            <motion.div variants={fadeInUp}>
-              <Link to="/try-job-creator">
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  animate={{ 
+            {/* CTAs */}
+            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link to="/try-job-creator" className="w-full sm:w-auto">
+                <motion.span
+                  animate={{
                     boxShadow: [
-                      "0 0 40px -15px hsla(160, 60%, 40%, 1)",
-                      "0 0 80px -15px hsla(160, 60%, 50%, 1)",
-                      "0 0 40px -15px hsla(160, 60%, 40%, 1)"
+                      "0 10px 40px -12px hsla(160, 65%, 45%, 0.7)",
+                      "0 16px 60px -10px hsla(160, 70%, 50%, 0.95)",
+                      "0 10px 40px -12px hsla(160, 65%, 45%, 0.7)"
                     ]
                   }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  className="inline-block rounded-xl"
+                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-semibold text-base px-8 py-4"
                 >
-                  <Button 
-                    size="lg" 
-                    className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,14%)] text-white border border-[hsl(220,15%,17%)] rounded-xl px-8 py-6 text-lg h-auto"
-                  >
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    Create a Job with AVA
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </motion.div>
+                  <AvaGlyph className="h-[18px] w-[18px]" />
+                  Create a job with Ava
+                  <ArrowRight className="h-5 w-5" />
+                </motion.span>
               </Link>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="mt-3 text-sm text-emerald-400 flex items-center justify-center gap-2"
+              <a
+                href="#how"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById("how")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="w-full sm:w-auto"
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                No signup required — see AVA in action first
-              </motion.p>
+                <span className="flex items-center justify-center gap-2 w-full sm:w-auto rounded-full border border-[hsl(220,15%,20%)] bg-white/[0.02] text-gray-200 font-medium text-base px-7 py-4 transition-colors hover:bg-white/[0.06] hover:border-emerald-500/40">
+                  See how it works
+                </span>
+              </a>
             </motion.div>
+            <motion.p variants={fadeInUp} className="mt-4 text-sm text-emerald-400/90 flex items-center justify-center gap-2">
+              <AvaGlyph className="h-3.5 w-3.5" />
+              No signup required — watch Ava work first
+            </motion.p>
             
             {/* Trust badges */}
             <motion.div 
               variants={fadeInUp}
-              className="flex items-center justify-center gap-8 mt-8 text-sm text-gray-400"
+              className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 sm:gap-8 mt-8 text-sm text-gray-400"
             >
               {["Free to start", "No credit card", "2 min setup"].map((text, i) => (
                 <motion.div 
@@ -351,21 +338,21 @@ export default function Index() {
               >
                 <div className="text-sm text-gray-400 mr-2">I want to:</div>
                 <Link to="/auth">
-                  <Button 
-                    variant="outline" 
-                    className="bg-[hsl(220,18%,7%)] border-fuchsia-500/30 hover:border-fuchsia-500 hover:bg-fuchsia-500/10 text-white min-w-[160px]"
+                  <Button
+                    variant="outline"
+                    className="bg-transparent border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-white min-w-[150px]"
                   >
                     <Briefcase className="mr-2 h-4 w-4" />
-                    Hire Talent
+                    Hire talent
                   </Button>
                 </Link>
                 <Link to="/candidate">
-                  <Button 
-                    variant="outline" 
-                    className="bg-[hsl(220,18%,7%)] border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-white min-w-[160px]"
+                  <Button
+                    variant="outline"
+                    className="bg-transparent border-[hsl(220,15%,22%)] hover:border-gray-400 hover:bg-white/5 text-white min-w-[150px]"
                   >
                     <User className="mr-2 h-4 w-4" />
-                    Find a Job
+                    Find a job
                   </Button>
                 </Link>
               </motion.div>
@@ -374,47 +361,33 @@ export default function Index() {
         </div>
       </section>
 
+      {/* Live product demo — see Ava work */}
+      <section className="px-4 pb-20">
+        <Reveal className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <p className="text-emerald-400 text-sm font-semibold tracking-[0.2em] uppercase mb-3">See it in action</p>
+            <h2 className="text-3xl md:text-4xl font-serif font-medium tracking-[-0.02em] text-white">
+              From interview to shortlist — automatically
+            </h2>
+          </div>
+          <AvaDemo />
+        </Reveal>
+      </section>
+
       {/* Stats Section */}
-      <section className="py-16 border-t border-b border-[hsl(220,15%,12%)]">
+      <section className="py-20 border-t border-b border-[hsl(220,15%,12%)]" aria-labelledby="results-heading">
         <div className="container mx-auto px-4">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8"
-          >
+          <h2 id="results-heading" className="sr-only">Results</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
             {stats.map((stat, index) => (
-              <motion.div 
-                key={stat.label} 
-                variants={scaleIn}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="text-center"
-              >
-                <motion.div
-                  animate={{ 
-                    y: [0, -3, 0],
-                    rotate: index % 2 === 0 ? [0, 5, 0] : [0, -5, 0]
-                  }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: index * 0.2 }}
-                >
-                  <stat.icon className={`h-8 w-8 mx-auto mb-3 ${stat.color}`} />
-                </motion.div>
-                <motion.div 
-                  className={`text-4xl md:text-5xl font-bold mb-2 ${stat.color}`}
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
-                >
+              <Reveal key={stat.label} delay={index * 90} className="text-center">
+                <div className="text-4xl md:text-5xl font-serif font-medium tracking-tight text-white mb-1.5 [font-variant-numeric:tabular-nums]">
                   {stat.value}
-                </motion.div>
-                <div className="text-gray-400 text-sm">
-                  {stat.label}
                 </div>
-              </motion.div>
+                <div className="text-gray-400 text-sm">{stat.label}</div>
+              </Reveal>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -422,190 +395,134 @@ export default function Index() {
       <section className="py-24">
         <div className="container mx-auto px-4">
           {/* Section Header */}
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-            className="text-center mb-16"
-          >
-            <motion.div 
-              variants={scaleIn}
-              className="relative w-20 h-20 mx-auto mb-6"
-            >
-              <motion.img
-                src={avaOrbLogo}
-                alt="AVA AI"
-                className="relative w-full h-full object-contain ava-orb-glow"
-                animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </motion.div>
-            <motion.h2 
-              variants={fadeInUp}
-              className="text-4xl md:text-5xl font-bold text-white mb-4"
-            >
+          <Reveal className="text-center mb-16">
+            <div className="w-24 h-24 mx-auto mb-6">
+              <AvaOrb mode="rich" bright={1.1} />
+            </div>
+            <h2 className="text-4xl md:text-5xl font-serif font-medium tracking-[-0.02em] text-white mb-4">
               Meet Ava — Your Hiring Assistant
-            </motion.h2>
-            <motion.p variants={fadeInUp} className="text-gray-400 text-lg">
-              Click any feature to learn more
-            </motion.p>
-          </motion.div>
-          
+            </h2>
+            <p className="text-gray-400 text-lg">Click any feature to learn more</p>
+          </Reveal>
+
           {/* Feature Cards */}
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-            variants={staggerContainer}
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto"
-          >
-            {features.map((feature) => (
-              <motion.div 
-                key={feature.title}
-                variants={fadeInUp}
-                whileHover={{ 
-                  scale: 1.02, 
-                  y: -5,
-                  borderColor: "hsl(220, 15%, 30%)"
-                }}
-                onClick={() => setSelectedFeature(feature)}
-                className="group p-6 rounded-2xl bg-[hsl(220,15%,10%)] border border-[hsl(220,15%,15%)] transition-colors cursor-pointer"
-              >
-                <motion.div 
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  className="relative w-14 h-14 mb-5"
-                >
-                  {/* Glow effect */}
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-500/50 via-fuchsia-500/40 to-emerald-500/30 blur-lg scale-110 opacity-60 group-hover:opacity-90 transition-opacity" />
-                  {/* Glass background */}
-                  <div className="relative w-full h-full rounded-xl bg-gradient-to-br from-purple-500/20 via-fuchsia-500/15 to-transparent backdrop-blur-sm border border-purple-500/30 flex items-center justify-center">
-                    <feature.icon className="h-7 w-7 text-purple-300" />
-                  </div>
-                </motion.div>
-                <h3 className={`text-xl font-bold mb-3 ${feature.titleColor}`}>
-                  {feature.title}
-                </h3>
-                <p className="text-gray-400 mb-4 leading-relaxed">
-                  {feature.description}
-                </p>
-                <motion.button 
-                  className="flex items-center gap-2 text-emerald-400 text-sm font-medium"
-                  whileHover={{ x: 5 }}
-                >
-                  Learn more
-                  <ArrowRight className="h-4 w-4" />
-                </motion.button>
-              </motion.div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {features.map((feature, index) => (
+              <Reveal key={feature.title} delay={(index % 3) * 90} className="h-full">
+                <Tilt3D max={8} className="h-full">
+                  <button
+                    onClick={() => setSelectedFeature(feature)}
+                    className="group relative h-full w-full text-left p-6 rounded-2xl bg-[hsl(220,15%,10%)] border border-[hsl(220,15%,15%)] cursor-pointer transition-colors duration-300 hover:border-emerald-500/40 hover:shadow-[0_24px_60px_-22px_rgba(16,185,129,0.4)] [transform-style:preserve-3d]"
+                  >
+                    <div className="relative w-14 h-14 mb-5" style={{ transform: "translateZ(40px)" }}>
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-emerald-500/40 to-teal-500/20 blur-lg scale-110 opacity-50 group-hover:opacity-90 transition-opacity duration-300" />
+                      <div className="relative w-full h-full rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/[0.03] border border-emerald-500/30 flex items-center justify-center transition-transform duration-300 group-hover:scale-105 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                        <feature.icon className="h-7 w-7 text-emerald-300" />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-bold mb-3 text-white" style={{ transform: "translateZ(26px)" }}>
+                      {feature.title}
+                    </h3>
+                    <p className="text-gray-400 mb-4 leading-relaxed" style={{ transform: "translateZ(16px)" }}>
+                      {feature.description}
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-emerald-400 text-sm font-medium transition-transform duration-300 group-hover:translate-x-1" style={{ transform: "translateZ(20px)" }}>
+                      Learn more
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
+                </Tilt3D>
+              </Reveal>
             ))}
-          </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how" className="py-24 border-t border-[hsl(220,15%,12%)] scroll-mt-20">
+        <div className="container mx-auto px-4">
+          <Reveal className="text-center mb-14">
+            <p className="text-emerald-400 text-sm font-semibold tracking-[0.2em] uppercase mb-3">How it works</p>
+            <h2 className="text-4xl md:text-5xl font-serif font-medium tracking-[-0.02em] text-white">
+              From open role to shortlist
+            </h2>
+          </Reveal>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {[
+              { n: "01", t: "Post your role", d: "Tell Ava what you're hiring for. She drafts the posting and the screening flow in seconds." },
+              { n: "02", t: "Ava screens & ranks", d: "Every applicant is interviewed, scored and ranked automatically — around the clock." },
+              { n: "03", t: "Review your shortlist", d: "You get the strongest candidates with the reasoning. You make the call — no auto-rejections." },
+            ].map((step, i) => (
+              <Reveal key={step.n} delay={i * 100} className="h-full">
+                <Tilt3D max={7} className="h-full">
+                  <div className="group relative h-full p-7 rounded-2xl bg-[hsl(220,15%,10%)] border border-[hsl(220,15%,15%)] transition-colors duration-300 hover:border-emerald-500/30 hover:shadow-[0_24px_60px_-26px_rgba(16,185,129,0.35)] [transform-style:preserve-3d]">
+                    <div className="font-serif text-4xl text-emerald-400/90 mb-4 [font-variant-numeric:tabular-nums]" style={{ transform: "translateZ(34px)" }}>{step.n}</div>
+                    <h3 className="text-lg font-semibold text-white mb-2" style={{ transform: "translateZ(22px)" }}>{step.t}</h3>
+                    <p className="text-gray-400 leading-relaxed text-[15px]" style={{ transform: "translateZ(12px)" }}>{step.d}</p>
+                  </div>
+                </Tilt3D>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-24 relative overflow-hidden">
+      <section className="py-28 relative overflow-hidden">
         {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,18%,7%)] via-[hsl(260,28%,10%)] to-[hsl(160,28%,10%)]" />
-        <motion.div 
-          animate={{ 
-            opacity: [0.1, 0.2, 0.1],
-            scale: [1, 1.2, 1]
-          }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/10 blur-[120px] rounded-full" 
-        />
-        
+        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,18%,7%)] via-[hsl(200,22%,8%)] to-[hsl(160,30%,9%)]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[420px] bg-emerald-500/10 blur-[120px] rounded-full animate-pulse-slow" />
+
         <div className="container mx-auto px-4 relative">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-            className="max-w-2xl mx-auto text-center"
-          >
-            {/* Rocket Icon */}
-            <motion.div 
-              variants={scaleIn}
-              animate={{ 
-                y: [0, -10, 0],
-                rotate: [0, 5, -5, 0]
-              }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="mb-8"
-            >
-              <Rocket className="h-16 w-16 mx-auto text-emerald-400" />
-            </motion.div>
-            
-            <motion.h2 
-              variants={fadeInUp}
-              className="text-4xl md:text-5xl font-bold text-white mb-6"
-            >
+          <Reveal className="max-w-2xl mx-auto text-center">
+            {/* The premium 3D universe — defer-mounted so its WebGL context isn't
+                created until the CTA scrolls near (keeps mobile context pressure down) */}
+            <MountWhenNear className="w-full max-w-[460px] h-[240px] sm:h-[280px] mx-auto -mb-2">
+              <AvaUniverse />
+            </MountWhenNear>
+
+            <h2 className="text-4xl md:text-5xl font-serif font-medium tracking-[-0.02em] text-white mb-6">
               Ready to Hire Smarter?
-            </motion.h2>
-            
-            <motion.p variants={fadeInUp} className="text-xl text-gray-300 mb-2">
-              Stop drowning in applications.
-            </motion.p>
-            <motion.p variants={fadeInUp} className="text-lg text-gray-400 mb-10">
+            </h2>
+
+            <p className="text-xl text-gray-300 mb-2">Stop drowning in applications.</p>
+            <p className="text-lg text-gray-400 mb-10">
               Let AVA handle the screening so you can focus on hiring the best.
-            </motion.p>
-            
-            {/* CTA Button */}
-            <motion.div variants={fadeInUp}>
-              <Link to="/auth">
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="inline-block"
-                >
-                  <Button 
-                    size="lg"
-                    className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-white rounded-xl px-10 py-6 text-lg h-auto font-semibold shadow-[0_0_60px_-15px_hsla(160,60%,50%,1)]"
-                  >
-                    <Rocket className="mr-2 h-5 w-5" />
-                    Get Started Free — No Credit Card
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </motion.div>
-              </Link>
-            </motion.div>
-            
-            {/* Trust line */}
-            <motion.p 
-              variants={fadeInUp}
-              className="mt-6 text-gray-400 text-sm"
-            >
-              <motion.span 
-                animate={{ rotate: [0, 20, 0], scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="inline-block text-purple-400"
+            </p>
+
+            <Link to="/auth" className="inline-block">
+              <motion.span
+                animate={{
+                  boxShadow: [
+                    "0 10px 40px -12px hsla(160, 65%, 45%, 0.7)",
+                    "0 16px 60px -10px hsla(160, 70%, 50%, 0.95)",
+                    "0 10px 40px -12px hsla(160, 65%, 45%, 0.7)"
+                  ]
+                }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-semibold text-lg px-10 py-4"
               >
-                ✨
-              </motion.span>{" "}
+                Get started free
+                <ArrowRight className="h-5 w-5" />
+              </motion.span>
+            </Link>
+
+            <p className="mt-6 text-gray-400 text-sm">
               Setup in 2 minutes • No contracts • Cancel anytime
-            </motion.p>
-          </motion.div>
+            </p>
+          </Reveal>
         </div>
       </section>
 
       {/* Footer */}
-      <motion.footer 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        className="py-6 border-t border-[hsl(220,15%,12%)] bg-[hsl(220,18%,5%)]"
-      >
+      <footer className="py-8 border-t border-[hsl(220,15%,12%)] bg-[hsl(220,18%,5%)]">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-center gap-2 text-sm text-gray-400">
-            <div className="flex items-center gap-2">
-              <motion.div 
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-                className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-500 flex items-center justify-center"
-              >
-                <Sparkles className="h-3 w-3 text-white" />
-              </motion.div>
-              <span>© 2025 HireFlow. Powered by Ava.</span>
+            <div className="flex items-center gap-2.5">
+              <BrandMark size={22} />
+              <span>© 2026 HireFlow. Powered by Ava.</span>
             </div>
             <span className="hidden md:inline">•</span>
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
@@ -615,12 +532,13 @@ export default function Index() {
             <Link to="/candidate" className="hidden sm:inline hover:text-emerald-400 transition-colors">Candidate Portal</Link>
           </div>
         </div>
-      </motion.footer>
+      </footer>
       {/* Feature Detail Dialog */}
-      <FeatureDetailDialog 
-        feature={selectedFeature} 
-        onClose={() => setSelectedFeature(null)} 
+      <FeatureDetailDialog
+        feature={selectedFeature}
+        onClose={() => setSelectedFeature(null)}
       />
     </div>
+    </MotionConfig>
   );
 }

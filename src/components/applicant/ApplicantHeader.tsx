@@ -21,14 +21,14 @@ interface ApplicantHeaderProps {
 // Get score color based on AI score
 function getScoreColor(score: number): string {
   if (score >= 80) return "text-primary border-primary/50 bg-primary/10";
-  if (score >= 60) return "text-amber-500 border-amber-500/50 bg-amber-500/10";
+  if (score >= 60) return "text-warning border-warning/50 bg-warning/10";
   return "text-destructive border-destructive/50 bg-destructive/10";
 }
 
 // Get score ring gradient
 function getScoreRingGradient(score: number): string {
   if (score >= 80) return "conic-gradient(var(--primary) 0deg, var(--primary) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
-  if (score >= 60) return "conic-gradient(hsl(45 93% 47%) 0deg, hsl(45 93% 47%) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
+  if (score >= 60) return "conic-gradient(var(--warning) 0deg, var(--warning) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
   return "conic-gradient(var(--destructive) 0deg, var(--destructive) calc(var(--score) * 3.6deg), var(--muted) calc(var(--score) * 3.6deg))";
 }
 

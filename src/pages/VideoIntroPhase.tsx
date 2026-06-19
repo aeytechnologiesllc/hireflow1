@@ -647,15 +647,15 @@ export default function VideoIntroPhase() {
 
                   {recordingState === "camera_preview" && (
                     <div className="absolute top-4 left-4 flex items-center gap-2">
-                      <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                      <Badge className="bg-emerald-500/90 text-white border-0">Camera Ready</Badge>
+                      <span className="w-3 h-3 bg-success rounded-full animate-pulse" />
+                      <Badge className="bg-success/90 text-success-foreground border-0">Camera Ready</Badge>
                     </div>
                   )}
 
                   {recordingState === "recording" && (
                     <div className="absolute top-4 left-4 flex items-center gap-2">
-                      <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                      <Badge className="bg-red-500/90 text-white border-0">
+                      <span className="w-3 h-3 bg-destructive rounded-full animate-pulse" />
+                      <Badge className="bg-destructive/90 text-destructive-foreground border-0">
                         {formatTime(recordingTime)} / {formatTime(videoConfig.maxDuration)}
                       </Badge>
                     </div>
@@ -672,7 +672,7 @@ export default function VideoIntroPhase() {
                   )}
                   
                   {recordingState === "camera_preview" && (
-                    <Button onClick={startRecording} size="lg" className="gap-2 px-8 bg-red-600 hover:bg-red-700">
+                    <Button onClick={startRecording} size="lg" className="gap-2 px-8 bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                       <Play className="h-5 w-5" />
                       Start Recording
                     </Button>
@@ -700,7 +700,7 @@ export default function VideoIntroPhase() {
                 <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
                   <video ref={previewRef} src={recordedUrl} controls className="w-full h-full object-cover" />
                   <div className="absolute top-4 left-4">
-                    <Badge className="bg-primary/90 text-white border-0 gap-1">
+                    <Badge className="bg-primary/90 text-primary-foreground border-0 gap-1">
                       <CheckCircle className="h-3 w-3" />
                       {formatTime(recordingTime)} recorded
                     </Badge>
@@ -712,7 +712,7 @@ export default function VideoIntroPhase() {
                     <RotateCcw className="h-5 w-5" />
                     Re-record
                   </Button>
-                  <Button onClick={handleSubmit} size="lg" className="gap-2 px-8 bg-emerald-600 hover:bg-emerald-700">
+                  <Button onClick={handleSubmit} size="lg" className="gap-2 px-8 bg-success hover:bg-success/90 text-success-foreground">
                     <CheckCircle className="h-5 w-5" />
                     Submit Video
                   </Button>

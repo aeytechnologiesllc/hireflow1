@@ -48,11 +48,10 @@ import {
   normalizeTextBlock,
 } from "@/lib/avaDraftFormatting";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, 
-  Loader2, 
-  CheckCircle2, 
-  Wand2,
+import {
+  ArrowLeft,
+  Loader2,
+  CheckCircle2,
   FileText,
   DollarSign,
   Users,
@@ -60,7 +59,6 @@ import {
   ChevronLeft,
   Eye,
   CalendarIcon,
-  Sparkles,
   Zap,
   Target,
   Flame,
@@ -70,7 +68,6 @@ import {
   Check,
   ChevronsUpDown,
   Hand,
-  Bot,
   Keyboard,
   Video,
   MessageSquare,
@@ -80,6 +77,7 @@ import {
   Trash2,
   Edit2
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { toast } from "sonner";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import PublishSignupModal from "@/components/PublishSignupModal";
@@ -142,7 +140,7 @@ const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; d
   typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
   video_message: { icon: Video, label: "Video Message", description: "Record a video introduction" },
   chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
-  sales_simulation: { icon: Bot, label: "Sales Conversation", description: "Sales pitch roleplay" },
+  sales_simulation: { icon: AvaGlyph, label: "Sales Conversation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
   chat_interview: { icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview" },
   voice_interview: { icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true },
@@ -152,15 +150,15 @@ const WIZARD_STEPS = [
   { id: "basic", title: "Ava Setup", icon: FileText },
   { id: "details", title: "Job Draft", icon: Users },
   { id: "compensation", title: "Pay & Timeline", icon: DollarSign },
-  { id: "workflow", title: "Screening Plan", icon: Sparkles },
+  { id: "workflow", title: "Screening Plan", icon: AvaGlyph },
   { id: "review", title: "Review & Publish", icon: Eye },
 ];
 
 const DIFFICULTY_OPTIONS = [
-  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Zap, color: "text-green-500", borderColor: "border-green-500", bgColor: "bg-green-500/10", shadowColor: "shadow-green-500/20" },
-  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-emerald-400", borderColor: "border-emerald-400", bgColor: "bg-emerald-400/10", shadowColor: "shadow-emerald-400/20" },
-  { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-orange-500", borderColor: "border-orange-500", bgColor: "bg-orange-500/10", shadowColor: "shadow-orange-500/20" },
-  { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-red-500", borderColor: "border-red-500", bgColor: "bg-red-500/10", shadowColor: "shadow-red-500/20" },
+  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Zap, color: "text-success", borderColor: "border-success", bgColor: "bg-success/10", shadowColor: "shadow-success/20" },
+  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-primary", borderColor: "border-primary", bgColor: "bg-primary/10", shadowColor: "shadow-primary/20" },
+  { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-warning", borderColor: "border-warning", bgColor: "bg-warning/10", shadowColor: "shadow-warning/20" },
+  { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-destructive", borderColor: "border-destructive", bgColor: "bg-destructive/10", shadowColor: "shadow-destructive/20" },
 ];
 
 const CURRENCIES = [
@@ -273,7 +271,7 @@ export default function GuestJobCreator() {
     }
 
     if (hasValue && jobContentGenerated) {
-      return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Ava baseline</Badge>;
+      return <Badge variant="outline" className="border-success/30 text-success">Ava baseline</Badge>;
     }
 
     if (hasValue) {
@@ -588,44 +586,44 @@ export default function GuestJobCreator() {
   });
   const screeningRiskAlertStyles = {
     good: {
-      alert: "border-emerald-500/30 bg-emerald-500/10",
-      title: "text-emerald-200",
-      text: "text-emerald-200/80",
-      button: "text-emerald-100 hover:text-white hover:bg-emerald-500/20",
+      alert: "border-success/30 bg-success/10",
+      title: "text-success",
+      text: "text-success/80",
+      button: "text-success hover:text-foreground hover:bg-success/20",
     },
     caution: {
-      alert: "border-amber-500/30 bg-amber-500/10",
-      title: "text-amber-200",
-      text: "text-amber-200/80",
-      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+      alert: "border-warning/30 bg-warning/10",
+      title: "text-warning",
+      text: "text-warning/80",
+      button: "text-warning hover:text-foreground hover:bg-warning/20",
     },
     long: {
-      alert: "border-amber-500/30 bg-amber-500/10",
-      title: "text-amber-200",
-      text: "text-amber-200/80",
-      button: "text-amber-100 hover:text-white hover:bg-amber-500/20",
+      alert: "border-warning/30 bg-warning/10",
+      title: "text-warning",
+      text: "text-warning/80",
+      button: "text-warning hover:text-foreground hover:bg-warning/20",
     },
     very_long: {
-      alert: "border-rose-500/30 bg-rose-500/10",
-      title: "text-rose-200",
-      text: "text-rose-200/80",
-      button: "text-rose-100 hover:text-white hover:bg-rose-500/20",
+      alert: "border-destructive/30 bg-destructive/10",
+      title: "text-destructive",
+      text: "text-destructive/80",
+      button: "text-destructive hover:text-foreground hover:bg-destructive/20",
     },
   } as const;
   const currentRiskStyles = screeningRiskAlertStyles[screeningPlanRisk.level];
 
   if (authLoading) {
     return (
-      <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white flex items-center justify-center">
+      <div className="dark min-h-[100dvh] bg-background text-foreground flex items-center justify-center">
         <StaggeredBarsLoader size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white">
+    <div className="dark min-h-[100dvh] bg-background text-foreground">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,18%,10%)]/90 backdrop-blur-md border-b border-border">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <img src={hireflowLogo} alt="HireFlow" className="w-10 h-10 rounded-lg object-cover" />
@@ -670,7 +668,7 @@ export default function GuestJobCreator() {
                   </>
                 ) : (
                   <>
-                    <Wand2 className="h-4 w-4" />
+                    <AvaGlyph className="h-4 w-4" />
                     Generate Full Draft
                   </>
                 )}
@@ -845,7 +843,7 @@ export default function GuestJobCreator() {
                 <CardContent className="space-y-4">
                   {!jobContentGenerated && (
                     <Alert className="border-primary/20 bg-primary/5">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                      <AvaGlyph className="h-4 w-4 text-primary" />
                       <AlertTitle>Ava will generate the baseline</AlertTitle>
                       <AlertDescription>
                         Description, responsibilities, requirements, skills, and benefits are meant to start from Ava. Generate the full draft, then edit the baseline instead of writing from scratch.
@@ -853,8 +851,8 @@ export default function GuestJobCreator() {
                     </Alert>
                   )}
                   {jobContentGenerated && (
-                    <Alert className="border-emerald-500/20 bg-emerald-500/5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    <Alert className="border-success/20 bg-success/5">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
                       <AlertTitle>Ava baseline ready</AlertTitle>
                       <AlertDescription>
                         Ava generated the first draft from your setup answers. Use this page to tighten wording, clarify expectations, and make any final changes.
@@ -877,7 +875,7 @@ export default function GuestJobCreator() {
                           {isGenerating === "description" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3 w-3" />
+                            <AvaGlyph className="h-3 w-3" />
                           )}
                           Generate
                         </Button>
@@ -907,7 +905,7 @@ export default function GuestJobCreator() {
                           {isGenerating === "responsibilities" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3 w-3" />
+                            <AvaGlyph className="h-3 w-3" />
                           )}
                           Generate
                         </Button>
@@ -937,7 +935,7 @@ export default function GuestJobCreator() {
                           {isGenerating === "requirements" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3 w-3" />
+                            <AvaGlyph className="h-3 w-3" />
                           )}
                           Generate
                         </Button>
@@ -967,7 +965,7 @@ export default function GuestJobCreator() {
                           {isGenerating === "skills_required" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3 w-3" />
+                            <AvaGlyph className="h-3 w-3" />
                           )}
                           Generate
                         </Button>
@@ -1167,7 +1165,7 @@ export default function GuestJobCreator() {
                           {isGenerating === "benefits" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Wand2 className="h-3 w-3" />
+                            <AvaGlyph className="h-3 w-3" />
                           )}
                           Generate
                         </Button>
@@ -1235,7 +1233,7 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
+                      <AvaGlyph className="h-5 w-5 text-primary" />
                       Ava Screening Plan
                     </CardTitle>
                     <CardDescription>
@@ -1287,22 +1285,22 @@ export default function GuestJobCreator() {
                     <div className="space-y-3">
                       <Label>Processing Mode</Label>
                       <div className="grid grid-cols-2 gap-3">
-                        {/* Auto-Pilot Button - Featured with purple gradient */}
+                        {/* Auto-Pilot Button - Featured with brass accent */}
                         <motion.button
                           onClick={() => setProcessingMode("auto")}
                           className={cn(
                             "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                             processingMode === "auto"
-                              ? "bg-gradient-to-br from-fuchsia-950/80 via-purple-900/60 to-fuchsia-950/80"
-                              : "bg-card border border-border hover:border-purple-500/30"
+                              ? "bg-primary/10"
+                              : "bg-card border border-border hover:border-primary/30"
                           )}
                           whileHover={{ scale: 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           animate={processingMode === "auto" ? {
                             boxShadow: [
-                              "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                              "0 0 35px -5px rgba(168, 85, 247, 0.5), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                              "0 0 20px -5px rgba(168, 85, 247, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                              "0 0 20px -5px rgba(26, 160, 106, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 35px -5px rgba(26, 160, 106, 0.5), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 20px -5px rgba(26, 160, 106, 0.3), inset 0 1px 0 0 rgba(255,255,255,0.1)"
                             ]
                           } : {}}
                           transition={processingMode === "auto" ? {
@@ -1314,7 +1312,7 @@ export default function GuestJobCreator() {
                           {/* Pulsing border glow */}
                           {processingMode === "auto" && (
                             <motion.div
-                              className="absolute inset-0 rounded-xl border-2 border-purple-500/70 pointer-events-none"
+                              className="absolute inset-0 rounded-xl border-2 border-primary/70 pointer-events-none"
                               animate={{ 
                                 opacity: [0.6, 1, 0.6],
                               }}
@@ -1328,19 +1326,19 @@ export default function GuestJobCreator() {
                           <div className="relative flex items-center gap-3">
                             <div className={cn(
                               "p-2.5 rounded-lg",
-                              processingMode === "auto" 
-                                ? "bg-gradient-to-br from-fuchsia-500 to-purple-600" 
+                              processingMode === "auto"
+                                ? "bg-primary"
                                 : "bg-muted"
                             )}>
                               <Zap className={cn(
                                 "h-5 w-5",
-                                processingMode === "auto" ? "text-white" : "text-muted-foreground"
+                                processingMode === "auto" ? "text-primary-foreground" : "text-muted-foreground"
                               )} />
                             </div>
                             <div>
                               <div className={cn(
                                 "font-semibold flex items-center gap-2",
-                                processingMode === "auto" && "text-white"
+                                processingMode === "auto" && "text-foreground"
                               )}>
                                 Auto-Pilot
                                 {processingMode === "auto" && (
@@ -1351,7 +1349,7 @@ export default function GuestJobCreator() {
                               </div>
                               <div className={cn(
                                 "text-xs",
-                                processingMode === "auto" ? "text-purple-200/80" : "text-muted-foreground"
+                                processingMode === "auto" ? "text-muted-foreground" : "text-muted-foreground"
                               )}>
                                 AVA auto-screens candidates
                               </div>
@@ -1359,22 +1357,22 @@ export default function GuestJobCreator() {
                           </div>
                         </motion.button>
 
-                        {/* Manual Review Button - Green highlight */}
+                        {/* Manual Review Button - Jade highlight */}
                         <motion.button
                           onClick={() => setProcessingMode("manual")}
                           className={cn(
                             "relative p-4 rounded-xl transition-all text-left overflow-hidden",
                             processingMode === "manual"
-                              ? "bg-gradient-to-br from-emerald-950/80 via-green-900/60 to-emerald-950/80"
-                              : "bg-card/50 border border-border hover:border-emerald-500/30"
+                              ? "bg-success/10"
+                              : "bg-card/50 border border-border hover:border-success/30"
                           )}
                           whileHover={{ scale: 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           animate={processingMode === "manual" ? {
                             boxShadow: [
-                              "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                              "0 0 25px -5px rgba(16, 185, 129, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
-                              "0 0 15px -5px rgba(16, 185, 129, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                              "0 0 15px -5px rgba(159, 231, 201, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 25px -5px rgba(159, 231, 201, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
+                              "0 0 15px -5px rgba(159, 231, 201, 0.2), inset 0 1px 0 0 rgba(255,255,255,0.1)"
                             ]
                           } : {}}
                           transition={processingMode === "manual" ? {
@@ -1386,7 +1384,7 @@ export default function GuestJobCreator() {
                           {/* Pulsing border glow for manual */}
                           {processingMode === "manual" && (
                             <motion.div
-                              className="absolute inset-0 rounded-xl border-2 border-emerald-500/60 pointer-events-none"
+                              className="absolute inset-0 rounded-xl border-2 border-success/60 pointer-events-none"
                               animate={{ 
                                 opacity: [0.5, 0.8, 0.5],
                               }}
@@ -1400,30 +1398,30 @@ export default function GuestJobCreator() {
                           <div className="relative flex items-center gap-3">
                             <div className={cn(
                               "p-2.5 rounded-lg",
-                              processingMode === "manual" 
-                                ? "bg-emerald-600" 
+                              processingMode === "manual"
+                                ? "bg-success"
                                 : "bg-muted/50"
                             )}>
                               <Hand className={cn(
                                 "h-5 w-5",
-                                processingMode === "manual" ? "text-white" : "text-muted-foreground"
+                                processingMode === "manual" ? "text-success-foreground" : "text-muted-foreground"
                               )} />
                             </div>
                             <div>
                               <div className={cn(
                                 "font-semibold flex items-center gap-2",
-                                processingMode === "manual" && "text-white"
+                                processingMode === "manual" && "text-foreground"
                               )}>
                                 Manual Review
                                 {processingMode === "manual" && (
-                                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-success/30 text-success border border-success/50">
                                     ✓
                                   </Badge>
                                 )}
                               </div>
                               <div className={cn(
                                 "text-xs",
-                                processingMode === "manual" ? "text-emerald-200/80" : "text-muted-foreground"
+                                processingMode === "manual" ? "text-muted-foreground" : "text-muted-foreground"
                               )}>
                                 You review each phase progression
                               </div>
@@ -1483,9 +1481,9 @@ export default function GuestJobCreator() {
                         className="relative"
                         animate={{
                           boxShadow: [
-                            "0 0 20px -5px rgba(217, 70, 239, 0.4)",
-                            "0 0 35px -5px rgba(217, 70, 239, 0.6)",
-                            "0 0 20px -5px rgba(217, 70, 239, 0.4)"
+                            "0 0 20px -5px rgba(26, 160, 106, 0.4)",
+                            "0 0 35px -5px rgba(26, 160, 106, 0.6)",
+                            "0 0 20px -5px rgba(26, 160, 106, 0.4)"
                           ]
                         }}
                         transition={{
@@ -1500,9 +1498,8 @@ export default function GuestJobCreator() {
                           disabled={isGeneratingWorkflow}
                           className={cn(
                             "gap-2 px-6 relative overflow-hidden",
-                            "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
-                            "hover:from-purple-400 hover:via-fuchsia-400 hover:to-pink-400",
-                            "text-white font-semibold",
+                            "bg-primary hover:bg-primary/90",
+                            "text-primary-foreground font-semibold",
                             "border-0"
                           )}
                           size="lg"
@@ -1514,7 +1511,7 @@ export default function GuestJobCreator() {
                             </>
                           ) : (
                             <>
-                              <Sparkles className="h-5 w-5" />
+                              <AvaGlyph className="h-5 w-5" />
                               <span>Generate Screening Plan</span>
                             </>
                           )}
@@ -1578,7 +1575,7 @@ export default function GuestJobCreator() {
                                       {q.type}
                                     </Badge>
                                     {q.required && (
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-warning/20 text-warning border-warning/30">
                                         Required
                                       </Badge>
                                     )}
@@ -1612,8 +1609,8 @@ export default function GuestJobCreator() {
                     <Card className="bg-card border-border">
                       <CardHeader>
                         <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                            <Clock className="h-4 w-4 text-amber-500" />
+                          <div className="h-8 w-8 rounded-lg bg-warning/10 flex items-center justify-center">
+                            <Clock className="h-4 w-4 text-warning" />
                           </div>
                           <div>
                             <CardTitle className="text-lg">Timed Quiz Questions</CardTitle>
@@ -1629,8 +1626,8 @@ export default function GuestJobCreator() {
                             <AccordionItem key={q.id} value={q.id} className="border border-border/50 rounded-lg px-4 bg-secondary/30">
                               <AccordionTrigger className="hover:no-underline py-4">
                                 <div className="flex items-center gap-4 text-left">
-                                  <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
-                                    <span className="text-xs font-bold text-amber-400">{q.time_limit_seconds}s</span>
+                                  <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center shrink-0">
+                                    <span className="text-xs font-bold text-warning">{q.time_limit_seconds}s</span>
                                   </div>
                                   <div>
                                     <span className="text-sm font-medium">
@@ -1655,7 +1652,7 @@ export default function GuestJobCreator() {
                                           className={cn(
                                             "p-3 rounded-lg text-sm flex items-center gap-2",
                                             opt === q.correct_answer
-                                              ? "bg-green-500/20 border border-green-500/50 text-green-400"
+                                              ? "bg-success/20 border border-success/50 text-success"
                                               : "bg-secondary/50 border border-border/50"
                                           )}
                                         >
@@ -1702,9 +1699,8 @@ export default function GuestJobCreator() {
                                 size="sm" 
                                 className={cn(
                                   "gap-2 px-4",
-                                  "bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500",
-                                  "hover:from-violet-400 hover:via-purple-400 hover:to-fuchsia-400",
-                                  "text-white font-semibold shadow-lg shadow-purple-500/25",
+                                  "bg-primary hover:bg-primary/90",
+                                  "text-primary-foreground font-semibold shadow-lg shadow-primary/25",
                                   "border-0"
                                 )}
                               >
@@ -1725,27 +1721,27 @@ export default function GuestJobCreator() {
                                       disabled={alreadyAdded}
                                       className={cn(
                                         "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all",
-                                        alreadyAdded 
-                                          ? "opacity-50" 
+                                        alreadyAdded
+                                          ? "opacity-50"
                                           : isVoiceInterview
-                                            ? "hover:bg-violet-500/10"
+                                            ? "hover:bg-primary/10"
                                             : "hover:bg-primary/10"
                                       )}
                                     >
                                       <div className={cn(
                                         "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-                                        alreadyAdded 
-                                          ? "bg-secondary" 
+                                        alreadyAdded
+                                          ? "bg-secondary"
                                           : isVoiceInterview
-                                            ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
+                                            ? "bg-primary shadow-lg shadow-primary/30"
                                             : "bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
                                       )}>
                                         <Icon className={cn(
-                                          "h-5 w-5", 
-                                          alreadyAdded 
-                                            ? "text-muted-foreground" 
-                                            : isVoiceInterview 
-                                              ? "text-white" 
+                                          "h-5 w-5",
+                                          alreadyAdded
+                                            ? "text-muted-foreground"
+                                            : isVoiceInterview
+                                              ? "text-primary-foreground"
                                               : "text-primary"
                                         )} />
                                       </div>
@@ -1753,8 +1749,8 @@ export default function GuestJobCreator() {
                                         <div className="font-medium text-sm flex items-center gap-2">
                                           {info.label}
                                           {isVoiceInterview && !alreadyAdded && (
-                                            <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-1.5 py-0 border-0 shadow-sm">
-                                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                                            <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 border-0 shadow-sm">
+                                              <AvaGlyph className="h-2.5 w-2.5 mr-0.5" />
                                               Premium
                                             </Badge>
                                           )}
@@ -1762,7 +1758,7 @@ export default function GuestJobCreator() {
                                         <div className="text-xs text-muted-foreground truncate">{info.description}</div>
                                       </div>
                                       {alreadyAdded && (
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] px-2">
+                                        <Badge className="bg-success/20 text-success border-success/30 text-[10px] px-2">
                                           Added
                                         </Badge>
                                       )}
@@ -1818,8 +1814,8 @@ export default function GuestJobCreator() {
                                   key={step.id}
                                   className={cn(
                                     "p-4 rounded-lg border",
-                                    isVoiceInterview 
-                                      ? "border-violet-500/50 bg-gradient-to-r from-violet-500/10 via-fuchsia-500/5 to-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" 
+                                    isVoiceInterview
+                                      ? "border-primary/50 bg-primary/10 shadow-[0_0_20px_rgba(26,160,106,0.15)]"
                                       : "border-border bg-secondary/30"
                                   )}
                                 >
@@ -1827,18 +1823,18 @@ export default function GuestJobCreator() {
                                     <div className="flex items-center gap-4">
                                       <div className={cn(
                                         "h-10 w-10 rounded-lg flex items-center justify-center",
-                                        isVoiceInterview 
-                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30" 
+                                        isVoiceInterview
+                                          ? "bg-primary shadow-lg shadow-primary/30"
                                           : "bg-primary/10"
                                       )}>
-                                        <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-white" : "text-primary")} />
+                                        <Icon className={cn("h-5 w-5", isVoiceInterview ? "text-primary-foreground" : "text-primary")} />
                                       </div>
                                       <div>
                                         <div className="font-medium flex items-center gap-2">
                                           {step.title}
                                           {isVoiceInterview && (
-                                            <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] px-2 py-0.5 border-0 shadow-sm">
-                                              <Sparkles className="h-3 w-3 mr-1" />
+                                            <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 border-0 shadow-sm">
+                                              <AvaGlyph className="h-3 w-3 mr-1" />
                                               Premium
                                             </Badge>
                                           )}
@@ -1888,12 +1884,12 @@ export default function GuestJobCreator() {
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.45 }}
-                        className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+                        className="flex items-center gap-3 rounded-xl border border-success/30 bg-success/10 p-4"
                       >
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
                         <div>
-                            <p className="text-sm font-medium text-emerald-300">Ava generated the full draft successfully</p>
-                            <p className="text-xs text-emerald-300/70">Review the Ava baseline for the role, compensation details, and screening plan, then create your employer account to publish it.</p>
+                            <p className="text-sm font-medium text-success">Ava generated the full draft successfully</p>
+                            <p className="text-xs text-success/70">Review the Ava baseline for the role, compensation details, and screening plan, then create your employer account to publish it.</p>
                         </div>
                       </motion.div>
 
@@ -2024,7 +2020,7 @@ export default function GuestJobCreator() {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
+                      <AvaGlyph className="h-5 w-5 text-primary" />
                       Screening Plan
                     </CardTitle>
                   </CardHeader>
@@ -2079,12 +2075,11 @@ export default function GuestJobCreator() {
                 disabled={!canProceed()}
                 className={cn(
                   "gap-2",
-                  "bg-gradient-to-r from-emerald-500 to-teal-500",
-                  "hover:from-emerald-400 hover:to-teal-400",
-                  "text-white font-semibold shadow-lg shadow-emerald-500/25"
+                  "bg-primary hover:bg-primary/90",
+                  "text-primary-foreground font-semibold shadow-lg shadow-primary/25"
                 )}
               >
-                <Sparkles className="h-4 w-4" />
+                <AvaGlyph className="h-4 w-4" />
                 Sign Up to Publish
               </Button>
             )}

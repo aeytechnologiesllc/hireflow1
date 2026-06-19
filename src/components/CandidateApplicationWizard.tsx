@@ -19,7 +19,6 @@ import {
   Upload, 
   CheckCircle2, 
   Loader2,
-  Sparkles,
   ClipboardList,
   Send,
   X,
@@ -1278,7 +1277,7 @@ export default function CandidateApplicationWizard({
                               {uploadingQuestions[question.id] ? (
                                 <Loader2 className="h-4 w-4 text-primary animate-spin" />
                               ) : questionFileUrls[question.id] ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                <CheckCircle2 className="h-4 w-4 text-success" />
                               ) : null}
                               <Button
                                 type="button"
@@ -1362,9 +1361,9 @@ export default function CandidateApplicationWizard({
                                   Preparing for analysis...
                                 </span>
                               ) : resumeConversionStatus === "ready" ? (
-                                <span className="text-green-500">Ready for analysis</span>
+                                <span className="text-success">Ready for analysis</span>
                               ) : resumeConversionStatus === "failed" ? (
-                                <span className="text-amber-500">Analysis prep failed - will still be submitted</span>
+                                <span className="text-warning">Analysis prep failed - will still be submitted</span>
                               ) : (
                                 "Using your saved resume"
                               )}
@@ -1373,7 +1372,7 @@ export default function CandidateApplicationWizard({
                           {resumeConversionStatus === "converting" ? (
                             <Loader2 className="h-5 w-5 text-primary animate-spin" />
                           ) : resumeConversionStatus === "ready" ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            <CheckCircle2 className="h-5 w-5 text-success" />
                           ) : null}
                           <Button
                             type="button"
@@ -1447,7 +1446,7 @@ export default function CandidateApplicationWizard({
                           {isUploading ? (
                             <Loader2 className="h-5 w-5 text-primary animate-spin" />
                           ) : resumeUrl ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            <CheckCircle2 className="h-5 w-5 text-success" />
                           ) : null}
                           <Button
                             type="button"

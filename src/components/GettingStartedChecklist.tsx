@@ -13,8 +13,8 @@ import {
   Users,
   Calendar,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 interface GettingStartedChecklistProps {
   hasJobs: boolean;
@@ -217,7 +217,7 @@ export function GettingStartedChecklist({
 
           {/* Quick tip */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+            <AvaGlyph className="h-3.5 w-3.5 text-primary shrink-0" />
             <span>
               Ava will automatically screen candidates so you can focus on the best ones
             </span>

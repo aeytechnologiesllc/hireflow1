@@ -25,15 +25,16 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, isFuture } from "date-fns";
-import { 
-  ArrowLeft, FileText, MessageSquare, Sparkles, 
-  XCircle, GripHorizontal, Clock, RefreshCw, 
+import {
+  ArrowLeft, FileText, MessageSquare,
+  XCircle, GripHorizontal, Clock, RefreshCw,
   FileCheck, ClipboardList, Video, Keyboard, Mic,
   Eye, Users, CheckCircle, Loader2, Mail, ExternalLink,
   Calendar, AlertTriangle, ShieldAlert, ShieldCheck, Shield,
   HelpCircle, Move, Zap, AlertCircle, Download, FastForward,
   MoreHorizontal, CalendarX, Flag, User
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { 
   ApplicantHeader, 
   ApplicantQuickActions, 
@@ -1660,15 +1661,15 @@ export default function ApplicantDetails() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="bg-card border-border border-l-4 border-l-purple-500">
+            <Card className="bg-card border-border border-l-4 border-l-primary">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                      <Mic className="h-5 w-5 text-purple-500" />
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <Mic className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-purple-500">Ready for AIVA Interview</h3>
+                      <h3 className="font-semibold text-primary">Ready for AIVA Interview</h3>
                       <p className="text-sm text-muted-foreground">
                         Candidate has passed all automated assessments. Configure the voice interview to continue.
                       </p>
@@ -1681,7 +1682,7 @@ export default function ApplicantDetails() {
                       setPendingAvaInterview({ newIndex: nextIndex, newPhase: nextPhaseData });
                       setShowAvaInterviewConfig(true);
                     }} 
-                    className="gap-2 bg-purple-600 hover:bg-purple-700"
+                    className="gap-2 bg-primary hover:bg-primary/90"
                   >
                     <Mic className="h-4 w-4" />
                     Configure Interview
@@ -1727,8 +1728,8 @@ export default function ApplicantDetails() {
                         className={
                           scheduledInterview.candidate_response === "confirmed" 
                             ? "bg-success/10 text-success border-success/30" :
-                          scheduledInterview.candidate_response === "reschedule_requested" 
-                            ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :
+                          scheduledInterview.candidate_response === "reschedule_requested"
+                            ? "bg-warning/10 text-warning border-warning/30" :
                           "bg-muted/50 text-muted-foreground border-muted"
                         }
                       >
@@ -1764,7 +1765,7 @@ export default function ApplicantDetails() {
                     variant="outline" 
                     size="sm"
                     onClick={() => setShowRescheduleReviewDialog(true)}
-                    className="gap-2 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                    className="gap-2 border-warning/50 text-warning hover:bg-warning/10"
                   >
                     <Clock className="h-4 w-4" />
                     <span className="hidden sm:inline">Review Request</span>
@@ -1772,18 +1773,18 @@ export default function ApplicantDetails() {
                   </Button>
                 )}
                 
-                {/* AI Questions Button - Green styling */}
+                {/* AI Questions Button - Brand styling */}
                 {scheduledInterview.status === "scheduled" && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setShowInterviewQuestionsDialog(true)}
-                    className="gap-2 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
+                    className="gap-2 border-primary/50 text-primary hover:bg-primary/10"
                   >
-                    <Sparkles className="h-4 w-4" />
+                    <AvaGlyph className="h-4 w-4" />
                     <span className="hidden sm:inline">
-                      {scheduledInterview.ai_questions?.length 
-                        ? `${scheduledInterview.ai_questions.length} Ava Questions` 
+                      {scheduledInterview.ai_questions?.length
+                        ? `${scheduledInterview.ai_questions.length} Ava Questions`
                         : "Ava Questions"}
                     </span>
                     <span className="sm:hidden">Ava</span>
@@ -1852,7 +1853,7 @@ export default function ApplicantDetails() {
         <CardContent className={`p-6 ${isRejected && !showRejectAnimation ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <AvaGlyph className="h-5 w-5 text-primary" />
               <span className="font-semibold text-foreground">Candidate Journey</span>
             </div>
             
@@ -1916,7 +1917,7 @@ export default function ApplicantDetails() {
                     className={`rounded-full border-2 border-background mt-6 z-10 ${
                       isStartPhase ? "w-3 h-3" : "w-4 h-4"
                     } ${
-                      isSkipped ? "bg-amber-500" :
+                      isSkipped ? "bg-warning" :
                       isStartPhase ? (isStartCompleted ? "bg-success" : "bg-muted-foreground/50") :
                       isCompleted ? phaseColors.completed : 
                       isCurrent ? phaseColors.current : 
@@ -1929,7 +1930,7 @@ export default function ApplicantDetails() {
                     <TooltipTrigger asChild>
                       <div className="mt-3 flex flex-col items-center cursor-help">
                         {isSkipped ? (
-                          <FastForward className={`${isMobile ? "h-3 w-3" : "h-5 w-5"} text-amber-500`} />
+                          <FastForward className={`${isMobile ? "h-3 w-3" : "h-5 w-5"} text-warning`} />
                         ) : (
                           <Icon className={`${isMobile ? "h-3 w-3" : isStartPhase ? "h-4 w-4" : "h-5 w-5"} ${
                             isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
@@ -1939,7 +1940,7 @@ export default function ApplicantDetails() {
                           }`} />
                         )}
                         <span className={`text-xs mt-1 ${isMobile ? "hidden" : ""} ${
-                          isSkipped ? "text-amber-500" :
+                          isSkipped ? "text-warning" :
                           isStartPhase ? (isStartCompleted ? "text-success" : "text-muted-foreground/60") :
                           isCompleted ? "text-success" : 
                           isCurrent ? "text-warning" : 
@@ -1999,7 +2000,7 @@ export default function ApplicantDetails() {
         <Card className="bg-card border-border border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-primary mt-0.5" />
+              <AvaGlyph className="h-5 w-5 text-primary mt-0.5" />
               <div>
                 <h3 className="font-semibold text-primary">Auto-Pilot Mode Active</h3>
                 <p className="text-sm text-muted-foreground hidden md:block">
@@ -2010,12 +2011,12 @@ export default function ApplicantDetails() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="bg-card border-border border-l-4 border-l-orange-500">
+        <Card className="bg-card border-border border-l-4 border-l-warning">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <Eye className="h-5 w-5 text-orange-500 mt-0.5" />
+              <Eye className="h-5 w-5 text-warning mt-0.5" />
               <div>
-                <h3 className="font-semibold text-orange-500">Manual Review Mode</h3>
+                <h3 className="font-semibold text-warning">Manual Review Mode</h3>
                 <p className="text-sm text-muted-foreground">
                   Review each phase submission and approve candidates to progress manually.
                 </p>
@@ -2074,8 +2075,8 @@ export default function ApplicantDetails() {
                   variant={badge.hasData || badge.isSkipped ? undefined : "outline"}
                   className={`gap-1 cursor-pointer transition-colors ${
                     badge.isSkipped
-                      ? "bg-amber-500/20 text-amber-500 border-amber-500/30 hover:bg-amber-500/30"
-                      : badge.hasData 
+                      ? "bg-warning/20 text-warning border-warning/30 hover:bg-warning/30"
+                      : badge.hasData
                       ? "bg-success/20 text-success border-success/30 hover:bg-success/30" 
                       : "hover:bg-accent"
                   }`}
@@ -2116,7 +2117,7 @@ export default function ApplicantDetails() {
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <AvaGlyph className="h-5 w-5 text-primary" />
               <span className="font-semibold text-foreground">Ava's Recommendation</span>
             </div>
             
@@ -2215,16 +2216,16 @@ export default function ApplicantDetails() {
 
           {!application.ai_analysis && (
             <div className="text-center py-8">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <AvaGlyph className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold text-foreground mb-2">No Recommendation Yet</h3>
               
               {!hasValidApplicationData ? (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mx-auto max-w-md">
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 mx-auto max-w-md">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                     <div className="text-left">
-                      <p className="text-amber-200 text-sm font-medium">Application data was reset</p>
-                      <p className="text-amber-200/70 text-xs mt-1">
+                      <p className="text-warning text-sm font-medium">Application data was reset</p>
+                      <p className="text-warning/70 text-xs mt-1">
                         The candidate must resubmit the application phase before Ava can run a new analysis.
                       </p>
                     </div>
@@ -2237,7 +2238,7 @@ export default function ApplicantDetails() {
                   </p>
                   <Button onClick={handleReanalyze} disabled={isAnalyzing}>
                     {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <Sparkles className="mr-2 h-4 w-4" />
+                    <AvaGlyph className="mr-2 h-4 w-4" />
                     Generate Recommendation
                   </Button>
                 </>
@@ -2586,11 +2587,11 @@ export default function ApplicantDetails() {
                               
                               {dialogData.content.evaluation.improvements?.length > 0 && (
                                 <div>
-                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Areas for Improvement</h4>
+                                  <h4 className="text-sm font-semibold text-warning mb-2">Areas for Improvement</h4>
                                   <ul className="space-y-1">
                                     {dialogData.content.evaluation.improvements.map((s: string, i: number) => (
                                       <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                        <span className="text-orange-500 mt-0.5">•</span> {s}
+                                        <span className="text-warning mt-0.5">•</span> {s}
                                       </li>
                                     ))}
                                   </ul>
@@ -2720,11 +2721,11 @@ export default function ApplicantDetails() {
                               
                               {dialogData.content.evaluation.concerns?.length > 0 && (
                                 <div>
-                                  <h4 className="text-sm font-semibold text-orange-500 mb-2">Concerns</h4>
+                                  <h4 className="text-sm font-semibold text-warning mb-2">Concerns</h4>
                                   <ul className="space-y-1">
                                     {dialogData.content.evaluation.concerns.map((s: string, i: number) => (
                                       <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                        <span className="text-orange-500 mt-0.5">•</span> {s}
+                                        <span className="text-warning mt-0.5">•</span> {s}
                                       </li>
                                     ))}
                                   </ul>
@@ -2791,9 +2792,9 @@ export default function ApplicantDetails() {
                           <div className="flex items-center gap-6 p-4 bg-muted/30 rounded-lg border border-border">
                             <div className="text-center">
                               <p className={`text-3xl font-bold ${
-                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 70 ? "text-emerald-500" :
-                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 50 ? "text-amber-500" : 
-                                (dialogData.content.evaluation?.score ?? dialogData.content.score) !== undefined ? "text-red-400" : "text-muted-foreground"
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 70 ? "text-success" :
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) >= 50 ? "text-warning" :
+                                (dialogData.content.evaluation?.score ?? dialogData.content.score) !== undefined ? "text-destructive" : "text-muted-foreground"
                               }`}>
                                 {dialogData.content.evaluation?.score ?? dialogData.content.score ?? "N/A"}
                               </p>
@@ -2803,8 +2804,8 @@ export default function ApplicantDetails() {
                             <div className="flex-1">
                               <p className="text-sm text-muted-foreground mb-1">Would Buy</p>
                               <p className={`font-semibold ${
-                                dialogData.content.evaluation?.wouldBuy === "yes" ? "text-emerald-500" :
-                                dialogData.content.evaluation?.wouldBuy === "maybe" ? "text-amber-500" : "text-red-400"
+                                dialogData.content.evaluation?.wouldBuy === "yes" ? "text-success" :
+                                dialogData.content.evaluation?.wouldBuy === "maybe" ? "text-warning" : "text-destructive"
                               }`}>
                                 {dialogData.content.evaluation?.wouldBuy === "yes" ? "Yes" :
                                  dialogData.content.evaluation?.wouldBuy === "maybe" ? "Maybe" : "No"}
@@ -2823,8 +2824,8 @@ export default function ApplicantDetails() {
                             <div className="p-2 bg-muted/50 rounded-lg text-center">
                               <p className={`text-lg font-bold ${
                                 (dialogData.content.evaluation?.discovery ?? null) !== null 
-                                  ? (dialogData.content.evaluation.discovery >= 70 ? "text-emerald-500" : 
-                                     dialogData.content.evaluation.discovery >= 50 ? "text-amber-500" : "text-red-400")
+                                  ? (dialogData.content.evaluation.discovery >= 70 ? "text-success" :
+                                     dialogData.content.evaluation.discovery >= 50 ? "text-warning" : "text-destructive")
                                   : "text-muted-foreground"
                               }`}>
                                 {dialogData.content.evaluation?.discovery ?? "N/A"}{dialogData.content.evaluation?.discovery !== undefined && "%"}
@@ -2834,8 +2835,8 @@ export default function ApplicantDetails() {
                             <div className="p-2 bg-muted/50 rounded-lg text-center">
                               <p className={`text-lg font-bold ${
                                 (dialogData.content.evaluation?.objectionHandling ?? null) !== null 
-                                  ? (dialogData.content.evaluation.objectionHandling >= 70 ? "text-emerald-500" : 
-                                     dialogData.content.evaluation.objectionHandling >= 50 ? "text-amber-500" : "text-red-400")
+                                  ? (dialogData.content.evaluation.objectionHandling >= 70 ? "text-success" :
+                                     dialogData.content.evaluation.objectionHandling >= 50 ? "text-warning" : "text-destructive")
                                   : "text-muted-foreground"
                               }`}>
                                 {dialogData.content.evaluation?.objectionHandling ?? "N/A"}{dialogData.content.evaluation?.objectionHandling !== undefined && "%"}
@@ -2845,8 +2846,8 @@ export default function ApplicantDetails() {
                             <div className="p-2 bg-muted/50 rounded-lg text-center">
                               <p className={`text-lg font-bold ${
                                 (dialogData.content.evaluation?.valueProposition ?? null) !== null 
-                                  ? (dialogData.content.evaluation.valueProposition >= 70 ? "text-emerald-500" : 
-                                     dialogData.content.evaluation.valueProposition >= 50 ? "text-amber-500" : "text-red-400")
+                                  ? (dialogData.content.evaluation.valueProposition >= 70 ? "text-success" :
+                                     dialogData.content.evaluation.valueProposition >= 50 ? "text-warning" : "text-destructive")
                                   : "text-muted-foreground"
                               }`}>
                                 {dialogData.content.evaluation?.valueProposition ?? "N/A"}{dialogData.content.evaluation?.valueProposition !== undefined && "%"}
@@ -2856,8 +2857,8 @@ export default function ApplicantDetails() {
                             <div className="p-2 bg-muted/50 rounded-lg text-center">
                               <p className={`text-lg font-bold ${
                                 (dialogData.content.evaluation?.closingSkills ?? null) !== null 
-                                  ? (dialogData.content.evaluation.closingSkills >= 70 ? "text-emerald-500" : 
-                                     dialogData.content.evaluation.closingSkills >= 50 ? "text-amber-500" : "text-red-400")
+                                  ? (dialogData.content.evaluation.closingSkills >= 70 ? "text-success" :
+                                     dialogData.content.evaluation.closingSkills >= 50 ? "text-warning" : "text-destructive")
                                   : "text-muted-foreground"
                               }`}>
                                 {dialogData.content.evaluation?.closingSkills ?? "N/A"}{dialogData.content.evaluation?.closingSkills !== undefined && "%"}
@@ -2949,11 +2950,11 @@ export default function ApplicantDetails() {
                               {/* Strengths */}
                               {dialogData.content.aiAnalysis.strengths && dialogData.content.aiAnalysis.strengths.length > 0 && (
                                 <div>
-                                  <h4 className="text-sm font-medium text-emerald-400 mb-1">Strengths</h4>
+                                  <h4 className="text-sm font-medium text-success mb-1">Strengths</h4>
                                   <ul className="text-sm text-muted-foreground space-y-1">
                                     {dialogData.content.aiAnalysis.strengths.map((s: string, i: number) => (
                                       <li key={i} className="flex items-start gap-2">
-                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                                        <CheckCircle className="h-3.5 w-3.5 text-success mt-0.5 shrink-0" />
                                         <span>{s}</span>
                                       </li>
                                     ))}
@@ -2964,11 +2965,11 @@ export default function ApplicantDetails() {
                               {/* Areas for Improvement */}
                               {dialogData.content.aiAnalysis.areasForImprovement && dialogData.content.aiAnalysis.areasForImprovement.length > 0 && (
                                 <div>
-                                  <h4 className="text-sm font-medium text-amber-400 mb-1">Areas for Improvement</h4>
+                                  <h4 className="text-sm font-medium text-warning mb-1">Areas for Improvement</h4>
                                   <ul className="text-sm text-muted-foreground space-y-1">
                                     {dialogData.content.aiAnalysis.areasForImprovement.map((s: string, i: number) => (
                                       <li key={i} className="flex items-start gap-2">
-                                        <AlertCircle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                                        <AlertCircle className="h-3.5 w-3.5 text-warning mt-0.5 shrink-0" />
                                         <span>{s}</span>
                                       </li>
                                     ))}
@@ -3027,7 +3028,7 @@ export default function ApplicantDetails() {
                             variant="outline"
                             className="w-full gap-2"
                           >
-                            <Sparkles className="h-4 w-4" />
+                            <AvaGlyph className="h-4 w-4" />
                             View Full Analysis
                           </Button>
                         </div>
@@ -3149,7 +3150,7 @@ export default function ApplicantDetails() {
       <AlertDialog open={showHireConfirmation} onOpenChange={setShowHireConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-emerald-600">
+            <AlertDialogTitle className="flex items-center gap-2 text-success">
               <CheckCircle className="h-5 w-5" />
               Hire {applicantDisplayName}?
             </AlertDialogTitle>
@@ -3158,8 +3159,8 @@ export default function ApplicantDetails() {
                 Are you sure you want to hire <strong>{applicantDisplayName}</strong> for the position of <strong>{job?.title}</strong>?
               </p>
               {effectivePhaseIndex < phases.length - 1 && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2">
-                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 space-y-2">
+                  <p className="text-sm font-medium text-warning flex items-center gap-2">
                     <FastForward className="h-4 w-4" />
                     Remaining workflow phases will be skipped
                   </p>
@@ -3175,9 +3176,9 @@ export default function ApplicantDetails() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleHire}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className="bg-success text-success-foreground hover:bg-success/90"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Hire Candidate
@@ -3294,10 +3295,10 @@ export default function ApplicantDetails() {
                   </p>
                 </div>
                 
-                <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-lg">
+                <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
-                    <Eye className="h-4 w-4 text-orange-500" />
-                    <span className="font-medium text-orange-500">Manual Mode</span>
+                    <Eye className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-warning">Manual Mode</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Candidates wait at each phase for your review. Drag them forward to advance, 

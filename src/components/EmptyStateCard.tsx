@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Lightbulb } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
 
 interface EmptyStateCardProps {
   /** The icon to display (animated) */
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string }>;
   /** Primary message/title */
   title: string;
   /** Secondary explanation text */
@@ -16,7 +16,7 @@ interface EmptyStateCardProps {
   action?: {
     label: string;
     onClick: () => void;
-    icon?: LucideIcon;
+    icon?: ComponentType<{ className?: string }>;
   };
   /** Optional contextual tip */
   tip?: string;

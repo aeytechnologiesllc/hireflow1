@@ -703,8 +703,8 @@ export default function TypingTestPhase() {
                     <span>Your score combines speed and accuracy</span>
                   </li>
                 </ul>
-                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-md">
+                  <p className="text-sm text-warning">
                     <strong>Note:</strong> Copy/paste and right-click are disabled. Tab switching will be recorded.
                   </p>
                 </div>

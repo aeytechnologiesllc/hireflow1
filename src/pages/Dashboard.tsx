@@ -25,7 +25,6 @@ import {
   Share2,
   Eye,
   MoreVertical,
-  Sparkles,
   Calendar,
   MapPin,
   Edit,
@@ -37,6 +36,7 @@ import {
   ClipboardList,
   ChevronRight,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { FeatureDiscoveryTooltip } from "@/components/FeatureDiscoveryTooltip";
 import {
   Dialog,
@@ -78,25 +78,25 @@ interface StatCardProps {
 
 const colorConfig = {
   green: {
-    border: "border-l-primary",
-    iconBg: "bg-primary/15",
-    iconColor: "text-primary",
-    glowColor: "hsla(160, 60%, 40%, 0.4)",
-    gradientFrom: "from-primary/5",
+    border: "border-l-success",
+    iconBg: "bg-success/15",
+    iconColor: "text-success",
+    glowColor: "hsla(155, 45%, 45%, 0.4)",
+    gradientFrom: "from-success/5",
   },
   blue: {
-    border: "border-l-blue-500",
-    iconBg: "bg-blue-500/15",
-    iconColor: "text-blue-500",
-    glowColor: "hsla(217, 91%, 60%, 0.4)",
-    gradientFrom: "from-blue-500/5",
-  },
-  purple: {
     border: "border-l-accent",
     iconBg: "bg-accent/15",
     iconColor: "text-accent",
-    glowColor: "hsla(280, 65%, 60%, 0.4)",
+    glowColor: "hsla(160, 30%, 22%, 0.4)",
     gradientFrom: "from-accent/5",
+  },
+  purple: {
+    border: "border-l-primary",
+    iconBg: "bg-primary/15",
+    iconColor: "text-primary",
+    glowColor: "hsla(37, 47%, 60%, 0.4)",
+    gradientFrom: "from-primary/5",
   },
 };
 
@@ -247,7 +247,7 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
                     View Details
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onViewWorkflow(job)}>
-                    <Sparkles className="h-4 w-4 mr-2" />
+                    <AvaGlyph className="h-4 w-4 mr-2" />
                     View Workflow
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -282,7 +282,7 @@ function JobPostingCard({ job, onViewDetails, onViewWorkflow, onEdit, onDuplicat
               </span>
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" />
+                  <AvaGlyph className="h-3 w-3" />
                   <span className="hidden sm:inline">AI Optimized</span>
                 </span>
               )}
@@ -403,7 +403,7 @@ function ApplicationCard({ application, onOpenBlueprint }: { application: Applic
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5 text-xs border-amber-500/50 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 h-7"
+                className="gap-1.5 text-xs border-primary/50 text-primary hover:bg-primary/10 hover:text-primary h-7"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenBlueprint(application.id);
@@ -817,7 +817,7 @@ export default function Dashboard() {
                     <Briefcase className="h-14 w-14 md:h-16 md:w-16 text-primary/60" />
                   </motion.div>
                   <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                    <Sparkles className="h-3 w-3 text-white" />
+                    <AvaGlyph className="h-3 w-3 text-primary-foreground" />
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Ready to Start Hiring?</h3>
@@ -829,7 +829,7 @@ export default function Dashboard() {
                 </p>
                 <Button className="gap-2" asChild>
                   <Link to="/jobs/create">
-                    <Sparkles className="h-4 w-4" />
+                    <AvaGlyph className="h-4 w-4" />
                     Create with Ava
                   </Link>
                 </Button>

@@ -8,7 +8,8 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { Users, Sparkles } from "lucide-react";
+import { Users } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 interface TeamMemberLimitDialogProps {
   open: boolean;
@@ -50,7 +51,7 @@ export function TeamMemberLimitDialog({
 
         <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-col">
           <Button onClick={handleUpgrade} className="w-full gap-2">
-            <Sparkles className="h-4 w-4" />
+            <AvaGlyph className="h-4 w-4" />
             Upgrade Plan
           </Button>
           <Button

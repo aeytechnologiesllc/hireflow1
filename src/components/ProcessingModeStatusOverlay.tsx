@@ -15,17 +15,17 @@ const overlayCopy = {
     title: "AUTOPILOT ENGAGED",
     subtitle: "Ava is now in control",
     icon: Rocket,
-    shell: "from-purple-500 to-fuchsia-600",
-    glow: "from-purple-500/20 via-fuchsia-500/10 to-transparent",
-    ring: "border-fuchsia-400/30",
+    shell: "from-primary to-primary",
+    glow: "from-primary/20 via-primary/10 to-transparent",
+    ring: "border-primary/30",
   },
   manual: {
     title: "YOU HAVE FULL CONTROL",
     subtitle: "Every decision is yours",
     icon: Hand,
-    shell: "from-orange-500 to-amber-600",
-    glow: "from-orange-500/20 via-amber-500/10 to-transparent",
-    ring: "border-orange-400/30",
+    shell: "from-warning to-warning",
+    glow: "from-warning/20 via-warning/10 to-transparent",
+    ring: "border-warning/30",
   },
 } as const;
 
@@ -77,7 +77,7 @@ export function ProcessingModeStatusOverlay({ mode, onComplete }: ProcessingMode
                     />
                   ))}
                   <motion.div
-                    className={`relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br ${copy.shell} text-white shadow-xl`}
+                    className={`relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br ${copy.shell} text-primary-foreground shadow-xl`}
                     animate={{ y: [0, -3, 0], scale: [1, 1.03, 1] }}
                     transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
                   >

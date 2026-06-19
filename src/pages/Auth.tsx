@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, Check, Circle, Briefcase, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Loader2, Check, Circle, Briefcase, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import appIcon from "@/assets/app-icon-new.png";
@@ -49,11 +49,11 @@ const PasswordRequirements = ({ password }: { password: string }) => {
       {requirements.map((req, i) => (
         <div key={i} className="flex items-center gap-2 text-xs transition-all duration-200">
           {req.met ? (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
+            <Check className="h-3.5 w-3.5 text-success" />
           ) : (
             <Circle className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          <span className={req.met ? "text-emerald-500" : "text-muted-foreground"}>
+          <span className={req.met ? "text-success" : "text-muted-foreground"}>
             {req.label}
           </span>
         </div>
@@ -435,7 +435,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white relative overflow-y-auto">
+    <div className="dark min-h-[100dvh] bg-background text-foreground relative overflow-y-auto">
       {/* Background grid pattern */}
       <div 
         className="absolute inset-0 opacity-[0.03]"

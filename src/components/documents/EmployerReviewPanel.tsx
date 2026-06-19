@@ -104,13 +104,13 @@ export function EmployerReviewPanel({
   return (
     <div className="space-y-6">
       {/* Review Header */}
-      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+      <div className="p-4 bg-warning/10 border border-warning/20 rounded-xl">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="h-5 w-5 text-amber-500" />
+          <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="h-5 w-5 text-warning" />
           </div>
           <div>
-            <h3 className="font-semibold text-amber-500">Review Required Before Countersigning</h3>
+            <h3 className="font-semibold text-warning">Review Required Before Countersigning</h3>
             <p className="text-sm text-muted-foreground mt-1">
               Please review the document and candidate's signature below before applying your countersignature.
             </p>
@@ -136,7 +136,7 @@ export function EmployerReviewPanel({
         </div>
         
         {parsedSignature?.signatureImage && (
-          <div className="p-6 bg-white dark:bg-zinc-900">
+          <div className="p-6 bg-card">
             <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Candidate Signature</p>
             <div className="border-b-2 border-dashed border-muted pb-2">
               <img 

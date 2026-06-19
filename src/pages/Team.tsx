@@ -46,16 +46,16 @@ import { EditTeamMemberDialog } from "@/components/team/EditTeamMemberDialog";
 import { TeamMember } from "@/hooks/useTeamMembers";
 
 const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
-  accepted: "bg-green-500/20 text-green-500",
+  pending: "bg-warning/20 text-warning",
+  accepted: "bg-success/20 text-success",
   declined: "bg-destructive/20 text-destructive",
   expired: "bg-muted text-muted-foreground",
 };
 
 const permissionColors: Record<string, string> = {
-  full_admin: "bg-red-500/10 text-red-500 border-red-500/20",
-  limited: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  view_only: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  full_admin: "bg-destructive/10 text-destructive border-destructive/20",
+  limited: "bg-warning/10 text-warning border-warning/20",
+  view_only: "bg-secondary text-muted-foreground border-border",
 };
 
 const permissionLabels: Record<string, string> = {
@@ -153,8 +153,8 @@ export default function Team() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-green-500/10">
-              <Users className="h-6 w-6 text-green-500" />
+            <div className="p-3 rounded-xl bg-success/10">
+              <Users className="h-6 w-6 text-success" />
             </div>
             <div>
               <p className="text-2xl font-bold">{activeMembers.length}</p>
@@ -164,8 +164,8 @@ export default function Team() {
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-yellow-500/10">
-              <Mail className="h-6 w-6 text-yellow-500" />
+            <div className="p-3 rounded-xl bg-warning/10">
+              <Mail className="h-6 w-6 text-warning" />
             </div>
             <div>
               <p className="text-2xl font-bold">{pendingInvitations.length}</p>

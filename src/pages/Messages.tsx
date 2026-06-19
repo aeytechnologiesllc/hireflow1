@@ -506,7 +506,7 @@ export default function Messages() {
                             className={cn(
                               "max-w-[70%] rounded-2xl px-3 py-1.5",
                               isMine
-                                ? "bg-emerald-500 text-white"
+                                ? "bg-primary text-primary-foreground"
                                 : "bg-secondary text-secondary-foreground"
                             )}
                           >

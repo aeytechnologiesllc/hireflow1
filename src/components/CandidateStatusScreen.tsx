@@ -4,16 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Lightbulb, 
-  Calendar, 
+import {
+  Lightbulb,
+  Calendar,
   ArrowRight,
-  Sparkles,
   ExternalLink,
   X,
   Mic,
   Trophy,
-  Star,
   Crown,
   XCircle,
   RefreshCw,
@@ -26,6 +24,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { format } from "date-fns";
+import AvaGlyph from "@/components/AvaGlyph";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -97,17 +96,17 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
   return (
     <Card className="bg-card border-border overflow-hidden">
       {/* Decorative top gradient */}
-      <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-      
+      <div className="h-2 bg-primary/50" />
+
       <CardContent className="p-8 text-center space-y-6">
         {/* Icon */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", delay: 0.2 }}
-          className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
+          className="mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center"
         >
-          <Lightbulb className="h-10 w-10 text-amber-500" />
+          <Lightbulb className="h-10 w-10 text-primary" />
         </motion.div>
 
         {/* Headline */}
@@ -144,10 +143,10 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
             transition={{ delay: 0.5 }}
             className="pt-4 border-t border-border space-y-4"
           >
-            <div className="flex items-center justify-center gap-2 text-amber-500">
-              <Star className="h-4 w-4 fill-amber-500/30" />
+            <div className="flex items-center justify-center gap-2 text-primary">
+              <AvaGlyph className="h-4 w-4 fill-primary/30" />
               <span className="text-sm font-medium">Get Your Improvement Blueprint</span>
-              <Star className="h-4 w-4 fill-amber-500/30" />
+              <AvaGlyph className="h-4 w-4 fill-primary/30" />
             </div>
             
             <p className="text-sm text-muted-foreground">
@@ -156,19 +155,19 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
 
             {isCheckingPurchase ? (
               <div className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">Loading...</span>
               </div>
             ) : hasPurchased ? (
-              <Button 
-                onClick={handleDownload} 
+              <Button
+                onClick={handleDownload}
                 disabled={isGenerating}
                 className={cn(
                   "gap-2",
-                  "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 bg-[length:200%_100%]",
-                  "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25"
+                  "bg-primary",
+                  "hover:bg-primary/90 transition-all duration-500",
+                  "text-primary-foreground font-semibold border-0",
+                  "shadow-lg shadow-primary/25"
                 )}
               >
                 {isGenerating ? (
@@ -184,15 +183,15 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                 )}
               </Button>
             ) : (
-              <Button 
-                onClick={handlePurchase} 
+              <Button
+                onClick={handlePurchase}
                 disabled={isPurchasing}
                 className={cn(
                   "gap-2",
-                  "bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 bg-[length:200%_100%]",
-                  "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25"
+                  "bg-primary",
+                  "hover:bg-primary/90 transition-all duration-500",
+                  "text-primary-foreground font-semibold border-0",
+                  "shadow-lg shadow-primary/25"
                 )}
               >
                 {isPurchasing ? (
@@ -203,7 +202,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                 ) : (
                   <>
                     <Lock className="h-4 w-4" />
-                    <Sparkles className="h-4 w-4" />
+                    <AvaGlyph className="h-4 w-4" />
                     Unlock for {BLUEPRINT_PRICE_FORMATTED}
                   </>
                 )}
@@ -241,24 +240,24 @@ function NextStepCallout({
 }) {
   const toneStyles = {
     blue: {
-      wrap: "bg-blue-500/10 border-blue-500/20",
-      icon: "text-blue-400",
+      wrap: "bg-secondary border-border",
+      icon: "text-muted-foreground",
     },
     emerald: {
-      wrap: "bg-emerald-500/10 border-emerald-500/20",
-      icon: "text-emerald-400",
+      wrap: "bg-success/10 border-success/20",
+      icon: "text-success",
     },
     amber: {
-      wrap: "bg-amber-500/10 border-amber-500/20",
-      icon: "text-amber-400",
+      wrap: "bg-warning/10 border-warning/20",
+      icon: "text-warning",
     },
     purple: {
-      wrap: "bg-purple-500/10 border-purple-500/20",
-      icon: "text-purple-400",
+      wrap: "bg-primary/10 border-primary/20",
+      icon: "text-primary",
     },
     gold: {
-      wrap: "bg-yellow-500/10 border-yellow-500/20",
-      icon: "text-yellow-400",
+      wrap: "bg-primary/10 border-primary/20",
+      icon: "text-primary",
     },
   }[tone];
 
@@ -273,7 +272,7 @@ function NextStepCallout({
         <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
           {steps.map((step) => (
             <li key={step} className="flex items-start gap-2">
-              <span className={cn("mt-1 h-1.5 w-1.5 rounded-full shrink-0", tone === "gold" ? "bg-yellow-400" : "bg-current opacity-70")} />
+              <span className={cn("mt-1 h-1.5 w-1.5 rounded-full shrink-0", tone === "gold" ? "bg-primary" : "bg-current opacity-70")} />
               <span>{step}</span>
             </li>
           ))}
@@ -391,23 +390,23 @@ export function CandidateStatusScreen({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#60A5FA', '#93C5FD'],
+        colors: ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14', '#070f0b'],
       });
     } else if (state === "ava_interview_unlocked" && showContent) {
-      // Premium celebration with emerald/teal colors for Ava Interview
+      // Premium celebration with jade/brass colors for Ava Interview
       confetti({
         particleCount: 150,
         spread: 80,
         origin: { y: 0.6 },
-        colors: ['#10B981', '#14B8A6', '#06B6D4', '#8B5CF6', '#A78BFA'],
+        colors: ['#9fe7c9', '#0c1c14', '#070f0b', '#1aa06a', '#eef6f1'],
       });
     } else if (state === "reconsidered" && showContent) {
-      // Celebration for reconsideration - blue/cyan colors for fresh start
+      // Celebration for reconsideration - jade/brass colors for fresh start
       confetti({
         particleCount: 120,
         spread: 75,
         origin: { y: 0.6 },
-        colors: ['#3B82F6', '#60A5FA', '#93C5FD', '#06B6D4', '#22D3EE'],
+        colors: ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14', '#070f0b'],
       });
     } else if (state === "hired" && showContent) {
       // Epic 5-second multi-burst celebration with golden colors
@@ -416,24 +415,24 @@ export function CandidateStatusScreen({
       let lastCenterBurst = 0;
 
       const frame = () => {
-        // Golden confetti from left
+        // Brass confetti from left
         confetti({
           particleCount: 5,
           angle: 60,
           spread: 55,
           origin: { x: 0, y: 0.6 },
-          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
+          colors: ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14', '#070f0b'],
           shapes: ['circle', 'square'],
           gravity: 0.8,
         });
-        
-        // Golden confetti from right
+
+        // Brass confetti from right
         confetti({
           particleCount: 5,
           angle: 120,
           spread: 55,
           origin: { x: 1, y: 0.6 },
-          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
+          colors: ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14', '#070f0b'],
           shapes: ['circle', 'square'],
           gravity: 0.8,
         });
@@ -445,7 +444,7 @@ export function CandidateStatusScreen({
             particleCount: 30,
             spread: 100,
             origin: { x: 0.5, y: 0.4 },
-            colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FFFFFF', '#FFD700'],
+            colors: ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14', '#070f0b'],
           });
           lastCenterBurst = now;
         }
@@ -507,17 +506,17 @@ export function CandidateStatusScreen({
           {state === "interview_scheduled" && (
             <Card className="bg-card border-border overflow-hidden">
               {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-purple-500/50 via-blue-500/50 to-purple-500/50" />
-              
+              <div className="h-2 bg-primary/50" />
+
               <CardContent className="p-8 text-center space-y-6">
                 {/* Icon */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-purple-500/20 flex items-center justify-center"
+                  className="mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center"
                 >
-                  <Calendar className="h-10 w-10 text-purple-500" />
+                  <Calendar className="h-10 w-10 text-primary" />
                 </motion.div>
 
                 {/* Headline */}
@@ -530,7 +529,7 @@ export function CandidateStatusScreen({
                   <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
                     <span>🎉</span> You're Invited to Interview!
                   </h2>
-                  <p className="text-purple-400">
+                  <p className="text-primary">
                     {companyName ? `${companyName} wants to meet you` : "Great news!"}
                   </p>
                 </motion.div>
@@ -542,7 +541,7 @@ export function CandidateStatusScreen({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
                   >
-                    <Card className="bg-purple-500/10 border-purple-500/30">
+                    <Card className="bg-primary/10 border-primary/30">
                       <CardContent className="p-4 space-y-3">
                         {interviewDetails.scheduledAt && (
                           <div className="flex items-center justify-between">
@@ -563,7 +562,7 @@ export function CandidateStatusScreen({
                         {interviewDetails.meetingLink && (
                           <Button
                             variant="outline"
-                            className="w-full mt-2 gap-2 border-purple-500/30 hover:bg-purple-500/10"
+                            className="w-full mt-2 gap-2 border-primary/30 hover:bg-primary/10"
                             onClick={() => window.open(interviewDetails.meetingLink, "_blank")}
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -585,8 +584,8 @@ export function CandidateStatusScreen({
                   {/* Show different UI based on candidate response */}
                   {localCandidateResponse === "confirmed" ? (
                     // Already confirmed
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                    <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-success mb-2">
                         <CheckCircle className="h-5 w-5" />
                         <span className="font-medium">Interview Confirmed!</span>
                       </div>
@@ -596,7 +595,7 @@ export function CandidateStatusScreen({
                       {interviewDetails?.meetingLink && (
                         <Button
                           variant="outline"
-                          className="w-full mt-3 gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+                          className="w-full mt-3 gap-2 border-success/30 hover:bg-success/10"
                           onClick={() => window.open(interviewDetails.meetingLink, "_blank")}
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -606,8 +605,8 @@ export function CandidateStatusScreen({
                     </div>
                   ) : localCandidateResponse === "reschedule_requested" ? (
                     // Reschedule requested - waiting for employer
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-amber-400 mb-2">
+                    <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-warning mb-2">
                         <Clock className="h-5 w-5" />
                         <span className="font-medium">Reschedule Requested</span>
                       </div>
@@ -633,7 +632,7 @@ export function CandidateStatusScreen({
                         <Button
                           onClick={handleConfirmInterview}
                           disabled={isConfirming}
-                          className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                          className="flex-1 gap-2 bg-success hover:bg-success/90 text-success-foreground"
                         >
                           {isConfirming ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -721,21 +720,21 @@ export function CandidateStatusScreen({
                       ease: "easeInOut"
                     }}
                   >
-                    <Sparkles className="h-4 w-4 text-emerald-400/50" />
+                    <AvaGlyph className="h-4 w-4 text-success/50" />
                   </motion.div>
                 ))}
               </div>
 
               {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-emerald-500/50 via-teal-500/50 to-cyan-500/50" />
-              
+              <div className="h-2 bg-success/50" />
+
               <CardContent className="p-8 text-center space-y-6 relative z-10">
                 {/* Icon */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center"
+                  className="mx-auto w-20 h-20 rounded-full bg-success/20 flex items-center justify-center"
                 >
                   <motion.div
                     animate={{ 
@@ -743,7 +742,7 @@ export function CandidateStatusScreen({
                     }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   >
-                    <Mic className="h-10 w-10 text-emerald-400" />
+                    <Mic className="h-10 w-10 text-success" />
                   </motion.div>
                 </motion.div>
 
@@ -757,7 +756,7 @@ export function CandidateStatusScreen({
                   <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
                     🎉 Congratulations!
                   </h2>
-                  <p className="text-emerald-400 font-semibold text-lg">
+                  <p className="text-success font-semibold text-lg">
                     You've Been Selected for an Ava Interview!
                   </p>
                 </motion.div>
@@ -802,10 +801,10 @@ export function CandidateStatusScreen({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
                 >
-                  <Button 
+                  <Button
                     size="lg"
-                    onClick={onClose} 
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                    onClick={onClose}
+                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     Start Ava Interview
                     <ArrowRight className="h-4 w-4" />
@@ -822,8 +821,8 @@ export function CandidateStatusScreen({
               animate={{ opacity: 1 }}
               className="fixed inset-0 z-50 overflow-hidden"
             >
-              {/* Premium dark-to-gold gradient background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-900" />
+              {/* Premium dark jade-to-brass gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/10 to-background" />
               
               {/* Animated floating particles - GPU accelerated */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -851,11 +850,11 @@ export function CandidateStatusScreen({
                     }}
                   >
                     {i % 3 === 0 ? (
-                      <Star className="h-4 w-4 text-amber-400/60" />
+                      <AvaGlyph className="h-4 w-4 text-primary/60" />
                     ) : i % 3 === 1 ? (
-                      <Sparkles className="h-3 w-3 text-yellow-300/50" />
+                      <AvaGlyph className="h-3 w-3 text-primary/50" />
                     ) : (
-                      <div className="w-2 h-2 rounded-full bg-amber-400/40" />
+                      <div className="w-2 h-2 rounded-full bg-primary/40" />
                     )}
                   </motion.div>
                 ))}
@@ -869,9 +868,9 @@ export function CandidateStatusScreen({
                   transition={{ type: "spring", duration: 0.8 }}
                   className="w-full max-w-lg"
                 >
-                  <Card className="backdrop-blur-xl bg-slate-900/80 border-amber-500/30 shadow-2xl shadow-amber-500/20 overflow-hidden">
-                    {/* Golden top border */}
-                    <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
+                  <Card className="backdrop-blur-xl bg-card/80 border-primary/30 shadow-2xl shadow-primary/20 overflow-hidden">
+                    {/* Brass top border */}
+                    <div className="h-1.5 bg-primary" />
                     
                     <CardContent className="p-8 text-center space-y-6">
                       {/* Animated trophy icon */}
@@ -881,7 +880,7 @@ export function CandidateStatusScreen({
                         transition={{ type: "spring", duration: 1, delay: 0.3 }}
                         className="relative"
                       >
-                        <div className="mx-auto w-28 h-28 rounded-full bg-gradient-to-br from-amber-400/30 to-yellow-600/30 flex items-center justify-center border-2 border-amber-500/50 shadow-lg shadow-amber-500/30">
+                        <div className="mx-auto w-28 h-28 rounded-full bg-primary/30 flex items-center justify-center border-2 border-primary/50 shadow-lg shadow-primary/30">
                           <motion.div 
                             animate={{ 
                               scale: [1, 1.15, 1],
@@ -889,7 +888,7 @@ export function CandidateStatusScreen({
                             }} 
                             transition={{ duration: 2, repeat: Infinity }}
                           >
-                            <Trophy className="h-14 w-14 text-amber-400" />
+                            <Trophy className="h-14 w-14 text-primary" />
                           </motion.div>
                         </div>
                         
@@ -900,7 +899,7 @@ export function CandidateStatusScreen({
                           transition={{ y: { duration: 2, repeat: Infinity }, opacity: { delay: 0.5 } }}
                           className="absolute -top-4 left-1/2 -translate-x-1/2"
                         >
-                          <Crown className="h-8 w-8 text-yellow-400 drop-shadow-lg" />
+                          <Crown className="h-8 w-8 text-primary drop-shadow-lg" />
                         </motion.div>
                       </motion.div>
 
@@ -910,7 +909,7 @@ export function CandidateStatusScreen({
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.5 }}
                       >
-                        <Badge className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-900 font-bold px-4 py-1.5 text-sm border-0 shadow-lg">
+                        <Badge className="bg-primary text-primary-foreground font-bold px-4 py-1.5 text-sm border-0 shadow-lg">
                           ✨ OFFICIAL TEAM MEMBER ✨
                         </Badge>
                       </motion.div>
@@ -920,7 +919,7 @@ export function CandidateStatusScreen({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.6 }}
-                        className="text-4xl font-extrabold bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent"
+                        className="text-4xl font-extrabold text-primary"
                       >
                         🏆 CONGRATULATIONS! 🏆
                       </motion.h1>
@@ -929,7 +928,7 @@ export function CandidateStatusScreen({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.7 }}
-                        className="text-2xl font-bold text-white"
+                        className="text-2xl font-bold text-foreground"
                       >
                         You're Officially Hired!
                       </motion.h2>
@@ -941,10 +940,10 @@ export function CandidateStatusScreen({
                         transition={{ delay: 0.8 }}
                         className="space-y-1"
                       >
-                        <p className="text-lg text-amber-200/80">as</p>
-                        <p className="text-2xl font-bold text-amber-100">{jobTitle || "the position"}</p>
+                        <p className="text-lg text-muted-foreground">as</p>
+                        <p className="text-2xl font-bold text-primary">{jobTitle || "the position"}</p>
                         {companyName && (
-                          <p className="text-amber-300/70">at {companyName}</p>
+                          <p className="text-muted-foreground">at {companyName}</p>
                         )}
                       </motion.div>
 
@@ -955,10 +954,10 @@ export function CandidateStatusScreen({
                         transition={{ delay: 1 }}
                         className="pt-4 space-y-3"
                       >
-                        <p className="text-amber-100/90 leading-relaxed">
+                        <p className="text-foreground/90 leading-relaxed">
                           You have been hired. The employer should send onboarding details, start-date information, and any next forms soon.
                         </p>
-                        <p className="text-amber-200/70 text-sm italic">
+                        <p className="text-muted-foreground text-sm italic">
                           "The beginning is always today." — Mary Shelley
                         </p>
                       </motion.div>
@@ -981,12 +980,12 @@ export function CandidateStatusScreen({
                         transition={{ delay: 1.2 }}
                         className="pt-2"
                       >
-                        <Button 
+                        <Button
                           size="lg"
                           onClick={onClose}
-                          className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-900 font-bold shadow-lg shadow-amber-500/30 px-8"
+                          className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/30 px-8"
                         >
-                          <Sparkles className="h-5 w-5" />
+                          <AvaGlyph className="h-5 w-5" />
                           Start Your Journey
                           <ArrowRight className="h-5 w-5" />
                         </Button>
@@ -1025,21 +1024,21 @@ export function CandidateStatusScreen({
                       ease: "easeInOut"
                     }}
                   >
-                    <Sparkles className="h-4 w-4 text-blue-400/50" />
+                    <AvaGlyph className="h-4 w-4 text-primary/50" />
                   </motion.div>
                 ))}
               </div>
 
               {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-cyan-500/50 to-blue-500/50" />
-              
+              <div className="h-2 bg-primary/50" />
+
               <CardContent className="p-8 text-center space-y-6 relative z-10">
                 {/* Icon */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
+                  className="mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center"
                 >
                   <motion.div
                     animate={{ 
@@ -1047,7 +1046,7 @@ export function CandidateStatusScreen({
                     }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   >
-                    <Sparkles className="h-10 w-10 text-blue-400" />
+                    <AvaGlyph className="h-10 w-10 text-primary" />
                   </motion.div>
                 </motion.div>
 
@@ -1061,7 +1060,7 @@ export function CandidateStatusScreen({
                   <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
                     🎉 Great News!
                   </h2>
-                  <p className="text-blue-400 font-semibold text-lg">
+                  <p className="text-primary font-semibold text-lg">
                     You're Being Reconsidered!
                   </p>
                 </motion.div>
@@ -1083,7 +1082,7 @@ export function CandidateStatusScreen({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
-                  className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
+                  className="bg-secondary border border-border rounded-lg p-4"
                 >
                   <p className="text-sm text-muted-foreground">
                     Your application has been reopened, and you can start over from the beginning.
@@ -1107,10 +1106,10 @@ export function CandidateStatusScreen({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
                 >
-                  <Button 
+                  <Button
                     size="lg"
-                    onClick={onClose} 
-                    className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                    onClick={onClose}
+                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     Restart Application
                     <ArrowRight className="h-4 w-4" />
@@ -1136,17 +1135,17 @@ export function CandidateStatusScreen({
           {state === "interview_cancelled" && (
             <Card className="bg-card border-border overflow-hidden">
               {/* Decorative top gradient - amber/warning */}
-              <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-              
+              <div className="h-2 bg-warning/50" />
+
               <CardContent className="p-8 text-center space-y-6">
                 {/* Icon */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
+                  className="mx-auto w-20 h-20 rounded-full bg-warning/20 flex items-center justify-center"
                 >
-                  <XCircle className="h-10 w-10 text-amber-500" />
+                  <XCircle className="h-10 w-10 text-warning" />
                 </motion.div>
 
                 {/* Headline */}
@@ -1159,7 +1158,7 @@ export function CandidateStatusScreen({
                   <h2 className="text-2xl font-bold text-foreground">
                     Interview Cancelled
                   </h2>
-                  <p className="text-amber-400">
+                  <p className="text-warning">
                     The employer has cancelled your scheduled interview
                   </p>
                 </motion.div>
@@ -1201,18 +1200,18 @@ export function CandidateStatusScreen({
           {/* Interview Rescheduled State */}
           {state === "interview_rescheduled" && (
             <Card className="bg-card border-border overflow-hidden">
-              {/* Decorative top gradient - blue/info */}
-              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-blue-500/50" />
-              
+              {/* Decorative top gradient - brass/info */}
+              <div className="h-2 bg-primary/50" />
+
               <CardContent className="p-8 text-center space-y-6">
                 {/* Icon */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
+                  className="mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center"
                 >
-                  <RefreshCw className="h-10 w-10 text-blue-500" />
+                  <RefreshCw className="h-10 w-10 text-primary" />
                 </motion.div>
 
                 {/* Headline */}
@@ -1225,7 +1224,7 @@ export function CandidateStatusScreen({
                   <h2 className="text-2xl font-bold text-foreground">
                     Interview Rescheduled
                   </h2>
-                  <p className="text-blue-400">
+                  <p className="text-primary">
                     The employer has changed your interview time
                   </p>
                 </motion.div>
@@ -1237,9 +1236,9 @@ export function CandidateStatusScreen({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
                   >
-                    <Card className="bg-blue-500/10 border-blue-500/30">
+                    <Card className="bg-primary/10 border-primary/30">
                       <CardContent className="p-4 space-y-3">
-                        <p className="text-sm font-medium text-blue-400">📅 New Time:</p>
+                        <p className="text-sm font-medium text-primary">📅 New Time:</p>
                         {interviewDetails.scheduledAt && (
                           <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">Date & Time</span>

@@ -12,9 +12,9 @@ import {
   Scale,
   PenTool,
   FileText,
-  AlertTriangle,
-  Sparkles
+  AlertTriangle
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -79,14 +79,14 @@ function ValidationItem({
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "flex items-start gap-3 py-2 px-3 rounded-lg transition-colors",
-        result.passed 
-          ? "bg-emerald-500/5" 
+        result.passed
+          ? "bg-success/5"
           : "bg-destructive/5 cursor-pointer hover:bg-destructive/10"
       )}
       onClick={() => !result.passed && result.field && onFieldClick?.(result.field)}
     >
       {result.passed ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+        <CheckCircle2 className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
       ) : (
         <XCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
       )}
@@ -132,17 +132,17 @@ function ValidationCategory({
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
           "w-full flex items-center justify-between p-3 transition-colors",
-          allPassed ? "bg-emerald-500/5" : "bg-destructive/5"
+          allPassed ? "bg-success/5" : "bg-destructive/5"
         )}
       >
         <div className="flex items-center gap-3">
           <div className={cn(
             "w-8 h-8 rounded-lg flex items-center justify-center",
-            allPassed ? "bg-emerald-500/10" : "bg-destructive/10"
+            allPassed ? "bg-success/10" : "bg-destructive/10"
           )}>
             <Icon className={cn(
               "h-4 w-4",
-              allPassed ? "text-emerald-500" : "text-destructive"
+              allPassed ? "text-success" : "text-destructive"
             )} />
           </div>
           <div className="text-left">
@@ -155,7 +155,7 @@ function ValidationCategory({
             variant={allPassed ? "default" : "destructive"} 
             className={cn(
               "text-xs",
-              allPassed && "bg-emerald-500 hover:bg-emerald-600"
+              allPassed && "bg-success hover:bg-success/90"
             )}
           >
             {passedCount}/{totalCount}
@@ -222,7 +222,7 @@ export function DocumentValidationChecklist({
         </div>
         <Badge 
           variant={ready ? "default" : "secondary"}
-          className={cn(ready && "bg-emerald-500 hover:bg-emerald-600")}
+          className={cn(ready && "bg-success hover:bg-success/90")}
         >
           {counts.passed}/{counts.total} checks passed
         </Badge>
@@ -234,7 +234,7 @@ export function DocumentValidationChecklist({
           value={progressPercent} 
           className={cn(
             "h-2",
-            ready && "[&>div]:bg-emerald-500"
+            ready && "[&>div]:bg-success"
           )}
         />
         <p className="text-xs text-muted-foreground text-center">
@@ -247,25 +247,25 @@ export function DocumentValidationChecklist({
 
       {/* Status Banner */}
       {ready ? (
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-          <Sparkles className="h-5 w-5 text-emerald-500" />
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-success/10 border border-success/20">
+          <AvaGlyph className="h-5 w-5 text-success" />
           <div>
-            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+            <p className="text-sm font-medium text-success">
               Ready to Send
             </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-500">
+            <p className="text-xs text-success/80">
               This document meets professional and legal standards
             </p>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <AlertTriangle className="h-5 w-5 text-amber-500" />
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
+          <AlertTriangle className="h-5 w-5 text-warning" />
           <div>
-            <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+            <p className="text-sm font-medium text-warning">
               Review Required
             </p>
-            <p className="text-xs text-amber-600 dark:text-amber-500">
+            <p className="text-xs text-warning/80">
               Please address the issues below before sending
             </p>
           </div>
@@ -301,17 +301,17 @@ export function DocumentValidationSummary({
   return (
     <div className={cn(
       "flex items-center gap-2 p-2 rounded-lg",
-      ready ? "bg-emerald-500/10" : "bg-amber-500/10",
+      ready ? "bg-success/10" : "bg-warning/10",
       className
     )}>
       {ready ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        <CheckCircle2 className="h-4 w-4 text-success" />
       ) : (
-        <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <AlertTriangle className="h-4 w-4 text-warning" />
       )}
       <span className={cn(
         "text-sm",
-        ready ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+        ready ? "text-success" : "text-warning"
       )}>
         {ready 
           ? "All checks passed"

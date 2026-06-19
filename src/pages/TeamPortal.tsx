@@ -270,10 +270,10 @@ export default function TeamPortal() {
           variant="outline"
           className={`w-fit ${
             membership.permission_level === "full_admin"
-              ? "bg-red-500/10 text-red-500 border-red-500/20"
+              ? "bg-destructive/10 text-destructive border-destructive/20"
               : membership.permission_level === "limited"
-              ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-              : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+              ? "bg-warning/10 text-warning border-warning/20"
+              : "bg-secondary text-muted-foreground border-border"
           }`}
         >
           <Shield className="h-3 w-3 mr-1" />
@@ -387,11 +387,11 @@ export default function TeamPortal() {
                 <div
                   key={perm.label}
                   className={`flex items-center gap-2 p-3 rounded-lg ${
-                    perm.allowed ? "bg-green-500/10" : "bg-muted"
+                    perm.allowed ? "bg-success/10" : "bg-muted"
                   }`}
                 >
                   {perm.allowed ? (
-                    <div className="h-2 w-2 rounded-full bg-green-500" />
+                    <div className="h-2 w-2 rounded-full bg-success" />
                   ) : (
                     <div className="h-2 w-2 rounded-full bg-muted-foreground" />
                   )}

@@ -35,7 +35,7 @@ interface DocumentRequestCardProps {
 const getStatusConfig = (status: string, isEmployer: boolean): { color: string; icon: typeof Clock; label: string } => {
   const configs: Record<string, { color: string; icon: typeof Clock; label: string; candidateLabel?: string }> = {
     pending: {
-      color: "bg-yellow-500/20 text-yellow-500",
+      color: "bg-warning/20 text-warning",
       icon: Clock,
       label: "Pending Upload",
     },

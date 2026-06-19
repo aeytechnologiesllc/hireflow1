@@ -18,9 +18,9 @@ import {
   Loader2,
   Image as ImageIcon,
   FileText,
-  AlertCircle,
-  Sparkles
+  AlertCircle
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
@@ -728,7 +728,7 @@ export default function PortfolioUploadPhase() {
               <Progress value={isAnalyzing ? 100 : uploadProgress} className="h-2" />
               {isAnalyzing && (
                 <div className="flex items-center gap-2 text-sm text-primary">
-                  <Sparkles className="h-4 w-4 animate-pulse" />
+                  <AvaGlyph className="h-4 w-4 animate-pulse" />
                   <span>Analyzing your portfolio for relevance and quality...</span>
                 </div>
               )}

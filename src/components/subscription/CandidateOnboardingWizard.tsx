@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { FileText, Bell, MessageSquare, CheckCircle2, ArrowRight, Sparkles, Briefcase, Shield, Clock } from "lucide-react";
+import { FileText, Bell, MessageSquare, CheckCircle2, ArrowRight, Briefcase, Shield, Clock } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import confetti from "canvas-confetti";
 
 interface CandidateOnboardingWizardProps {
@@ -74,7 +75,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
   }, [step]);
 
   const handleComplete = async () => {
-    const colors = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
+    const colors = ['#1aa06a', '#9fe7c9', '#eef6f1', '#0c1c14'];
     confetti({ particleCount: 80, spread: 60, origin: { y: 0.6, x: 0.3 }, colors });
     setTimeout(() => { confetti({ particleCount: 80, spread: 60, origin: { y: 0.6, x: 0.7 }, colors }); }, 150);
     setTimeout(() => { confetti({ particleCount: 100, spread: 100, origin: { y: 0.5 }, colors }); }, 300);
@@ -141,7 +142,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                   className={`relative mx-auto ${isMobile ? 'w-16 h-16 mb-3' : 'w-28 h-28 mb-0'}`}
                 >
                   {!isMobile && <div className="absolute inset-0 bg-primary/30 rounded-full blur-xl animate-pulse" />}
-                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : 'backdrop-blur-sm'}`}>
+                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : 'backdrop-blur-sm'}`}>
                     {isMobile ? (
                       <Briefcase className="text-primary w-8 h-8" />
                     ) : (
@@ -192,7 +193,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                       Get Started
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Button>
                 </motion.div>
               </motion.div>
@@ -333,7 +334,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{ delay: index * 0.15 + 0.2, type: "spring" }}
-                          className={`relative z-10 rounded-full bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center shadow-lg shadow-primary/20 ${isMobile ? 'w-9 h-9' : 'w-12 h-12'}`}
+                          className={`relative z-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 ${isMobile ? 'w-9 h-9' : 'w-12 h-12'}`}
                         >
                           <span className={`font-bold text-primary-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>{item.number}</span>
                         </motion.div>
@@ -382,7 +383,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                       className="absolute inset-0 bg-primary/20 rounded-full blur-xl" 
                     />
                   )}
-                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-emerald-500/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : ''}`}>
+                  <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center border border-primary/30 ${isMobile ? '' : ''}`}>
                     <motion.div
                       initial={{ scale: 0, rotate: -180 }}
                       animate={{ scale: 1, rotate: 0 }}
@@ -415,7 +416,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                 >
                   <div className="flex items-center gap-3 text-left">
                     <div className={`rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}>
-                      <Sparkles className={`text-primary ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      <AvaGlyph className={`text-primary ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                     </div>
                     <p className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
                       <span className="font-medium text-foreground">Pro tip:</span> Keep your application code handy — you received it from the employer.
@@ -433,7 +434,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
                   <Button
                     onClick={handleComplete}
                     size="lg"
-                    className="flex-1 py-6 relative group bg-gradient-to-r from-primary to-emerald-500 hover:from-primary/90 hover:to-emerald-500/90 text-primary-foreground overflow-hidden"
+                    className="flex-1 py-6 relative group bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground overflow-hidden"
                   >
                     <span className="relative z-10 flex items-center justify-center gap-2">
                       Start Applying

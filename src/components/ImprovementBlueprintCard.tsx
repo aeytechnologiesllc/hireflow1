@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, Loader2, TrendingUp, Calendar, Target, Lightbulb, Lock, Sparkles, Star } from "lucide-react";
+import { Download, Loader2, TrendingUp, Calendar, Target, Lightbulb, Lock } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -76,10 +77,10 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
   // Loading state while checking purchase
   if (isCheckingPurchase) {
     return (
-      <Card className="relative overflow-hidden border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-background to-yellow-500/10">
+      <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/10">
         <CardContent className="p-6">
           <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
             <span className="text-muted-foreground">Loading...</span>
           </div>
         </CardContent>
@@ -88,22 +89,22 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
   }
 
   return (
-    <Card className="group relative overflow-hidden border-amber-500/40 bg-gradient-to-br from-amber-500/5 via-background to-yellow-500/10 hover:border-amber-500/60 transition-all duration-500 hover:shadow-lg hover:shadow-amber-500/10">
+    <Card className="group relative overflow-hidden border-primary/40 bg-gradient-to-br from-primary/5 via-background to-primary/10 hover:border-primary/60 transition-all duration-500 hover:shadow-lg hover:shadow-primary/10">
       {/* Animated gradient border effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-      
+      <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/10 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
       {/* Decorative sparkle elements */}
-      <div className="absolute top-3 right-3 text-amber-500/30 animate-pulse">
-        <Sparkles className="h-5 w-5" />
+      <div className="absolute top-3 right-3 text-primary/30 animate-pulse">
+        <AvaGlyph className="h-5 w-5" />
       </div>
-      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 via-yellow-500/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2" />
+      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/10 via-primary/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-primary/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2" />
       
       <CardContent className="p-6 relative">
         <div className="flex items-start gap-4">
           {/* Premium Icon with glow */}
-          <div className="flex-shrink-0 p-3 bg-gradient-to-br from-amber-500/20 to-yellow-500/20 rounded-xl border border-amber-500/20 shadow-lg shadow-amber-500/10">
-            <Star className="h-6 w-6 text-amber-500 fill-amber-500/20" />
+          <div className="flex-shrink-0 p-3 bg-gradient-to-br from-primary/20 to-primary/20 rounded-xl border border-primary/20 shadow-lg shadow-primary/10">
+            <AvaGlyph className="h-6 w-6 text-primary fill-primary/20" />
           </div>
 
           {/* Content */}
@@ -114,14 +115,14 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                   Your Personal Improvement Blueprint
                 </h3>
                 {!hasPurchased && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold border border-amber-500/30">
-                    <Sparkles className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-primary/20 to-primary/20 text-primary text-xs font-semibold border border-primary/30">
+                    <AvaGlyph className="h-3 w-3" />
                     {BLUEPRINT_PRICE_FORMATTED}
                   </span>
                 )}
                 {hasPurchased && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/30">
-                    <Sparkles className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold border border-success/30">
+                    <AvaGlyph className="h-3 w-3" />
                     Unlocked
                   </span>
                 )}
@@ -134,26 +135,26 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
             {/* Feature highlights with hover effects */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
-                <div className="p-1 rounded-md bg-amber-500/10 group-hover/item:bg-amber-500/20 transition-colors">
-                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                <div className="p-1 rounded-md bg-primary/10 group-hover/item:bg-primary/20 transition-colors">
+                  <Lightbulb className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span>Honest feedback</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
-                <div className="p-1 rounded-md bg-emerald-500/10 group-hover/item:bg-emerald-500/20 transition-colors">
-                  <Target className="h-3.5 w-3.5 text-emerald-500" />
+                <div className="p-1 rounded-md bg-success/10 group-hover/item:bg-success/20 transition-colors">
+                  <Target className="h-3.5 w-3.5 text-success" />
                 </div>
                 <span>Strengths to leverage</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
-                <div className="p-1 rounded-md bg-blue-500/10 group-hover/item:bg-blue-500/20 transition-colors">
-                  <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+                <div className="p-1 rounded-md bg-primary/10 group-hover/item:bg-primary/20 transition-colors">
+                  <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span>Improvement strategies</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
-                <div className="p-1 rounded-md bg-violet-500/10 group-hover/item:bg-violet-500/20 transition-colors">
-                  <Calendar className="h-3.5 w-3.5 text-violet-500" />
+                <div className="p-1 rounded-md bg-primary/10 group-hover/item:bg-primary/20 transition-colors">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span>30-day action plan</span>
               </div>
@@ -167,10 +168,10 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                 size="lg"
                 className={cn(
                   "relative w-full sm:w-auto gap-2 overflow-hidden",
-                  "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 bg-[length:200%_100%]",
+                  "bg-gradient-to-r from-primary via-primary to-primary bg-[length:200%_100%]",
                   "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30",
+                  "text-primary-foreground font-semibold border-0",
+                  "shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30",
                   "hover:scale-[1.02] active:scale-[0.98]"
                 )}
               >
@@ -184,7 +185,7 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-5 w-5" />
+                    <AvaGlyph className="h-5 w-5" />
                     <Download className="h-5 w-5" />
                     Download Your Blueprint
                   </>
@@ -197,10 +198,10 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                 size="lg"
                 className={cn(
                   "relative w-full sm:w-auto gap-2 overflow-hidden",
-                  "bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 bg-[length:200%_100%]",
+                  "bg-gradient-to-r from-primary via-primary to-primary bg-[length:200%_100%]",
                   "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/40",
+                  "text-primary-foreground font-semibold border-0",
+                  "shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40",
                   "hover:scale-[1.02] active:scale-[0.98]"
                 )}
               >
@@ -215,7 +216,7 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                 ) : (
                   <>
                     <Lock className="h-4 w-4" />
-                    <Sparkles className="h-4 w-4" />
+                    <AvaGlyph className="h-4 w-4" />
                     Unlock Your Blueprint for {BLUEPRINT_PRICE_FORMATTED}
                   </>
                 )}

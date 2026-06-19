@@ -619,7 +619,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     src={candidateSignature} 
                     alt="Candidate signature" 
                     className="h-12 object-contain"
-                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
+                    style={{ filter: 'brightness(0) saturate(100%) invert(70%) sepia(40%) saturate(500%) hue-rotate(2deg)' }}
                   />
                 </div>
               </div>
@@ -652,7 +652,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     src={employerSignature} 
                     alt="Employer signature" 
                     className="h-12 object-contain"
-                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
+                    style={{ filter: 'brightness(0) saturate(100%) invert(70%) sepia(40%) saturate(500%) hue-rotate(2deg)' }}
                   />
                 </div>
               </div>
@@ -757,7 +757,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
               {/* Document Content */}
               <ScrollArea className="flex-1 min-h-0 p-6">
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border shadow-lg overflow-hidden">
+                <div className="bg-white dark:bg-card rounded-xl border border-border shadow-lg overflow-hidden">
                   {/* Document Header */}
                   <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-6 border-b border-border">
                     <div className="flex items-center justify-between">
@@ -805,7 +805,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           </div>
                         </div>
                         {candidateSignature ? (
-                          <div className="h-16 bg-white dark:bg-zinc-800 rounded border border-border flex items-center justify-center overflow-hidden">
+                          <div className="h-16 bg-white dark:bg-muted rounded border border-border flex items-center justify-center overflow-hidden">
                             <img src={candidateSignature} alt="Candidate signature" className="max-h-full max-w-full object-contain" />
                           </div>
                         ) : (
@@ -835,7 +835,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           </div>
                         </div>
                         {employerSignature ? (
-                          <div className="h-16 bg-white dark:bg-zinc-800 rounded border border-border flex items-center justify-center overflow-hidden">
+                          <div className="h-16 bg-white dark:bg-muted rounded border border-border flex items-center justify-center overflow-hidden">
                             <img src={employerSignature} alt="Employer signature" className="max-h-full max-w-full object-contain" />
                           </div>
                         ) : (
@@ -937,7 +937,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     Finalized Audit Trail
                   </Badge>
                 ) : (
-                  <Badge className="bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium">
+                  <Badge className="bg-secondary text-muted-foreground font-medium">
                     <Clock className="h-3 w-3 mr-1.5" />
                     Signing in Progress
                   </Badge>
@@ -1035,7 +1035,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                               )}
                               {/* VPN/Proxy Warning - Informational Only */}
                               {(log.details as Record<string, unknown>)?.connectionWarning && (
-                                <div className="flex items-center gap-2 text-amber-500 col-span-2">
+                                <div className="flex items-center gap-2 text-warning col-span-2">
                                   <AlertTriangle className="h-3 w-3" />
                                   <span>{String((log.details as Record<string, unknown>).connectionWarning)}</span>
                                 </div>

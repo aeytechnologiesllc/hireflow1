@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
   Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye, AlertCircle, Check, Lock
+  Users, Mic, Trash2, Download, PartyPopper, Eye, AlertCircle, Check, Lock
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
@@ -128,7 +129,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
               )}
               {application.status === "offered" && (
                 <Badge className={statusColors[application.status]}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  <AvaGlyph className="h-3.5 w-3.5 mr-1" />
                   {statusLabels[application.status]}
                 </Badge>
               )}
@@ -189,13 +190,13 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                   </Button>
                 )}
                 {displayState.isVoiceInterviewComplete && (
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1.5 px-3 py-1">
+                  <Badge className="bg-success/20 text-success border-success/30 gap-1.5 px-3 py-1">
                     <Mic className="h-3.5 w-3.5" />
                     Interview Complete - Under Review
                   </Badge>
                 )}
                 {displayState.isPendingReview && !displayState.isVoiceInterviewComplete && (
-                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
+                  <Badge className="bg-warning/20 text-warning border-warning/30 gap-1.5 px-3 py-1">
                     <Clock className="h-3.5 w-3.5" />
                     Awaiting Review
                   </Badge>
@@ -203,13 +204,13 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 
                 {/* Interview status badges - show when in interview phase */}
                 {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewNeedsConfirmation && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1 animate-pulse">
+                  <Badge className="bg-warning/20 text-warning border-warning/30 gap-1.5 px-3 py-1 animate-pulse">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Interview Action Required
                   </Badge>
                 )}
                 {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewRescheduleRequested && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
+                  <Badge className="bg-warning/20 text-warning border-warning/30 gap-1.5 px-3 py-1">
                     <Clock className="h-3.5 w-3.5" />
                     Reschedule Pending
                   </Badge>
@@ -223,7 +224,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                 
                 {/* Employer reviewing - only show when not in interview status or no interview scheduled */}
                 {displayState.isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && application.status !== "interview" && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
+                  <Badge className="bg-warning/20 text-warning border-warning/30 gap-1.5 px-3 py-1">
                     <Eye className="h-3.5 w-3.5" />
                     Employer Reviewing
                   </Badge>
@@ -234,7 +235,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 text-xs border-amber-500/50 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400"
+                    className="gap-1.5 text-xs border-warning/50 text-warning hover:bg-warning/10 hover:text-warning"
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenBlueprint(application.id);
@@ -416,13 +417,13 @@ export default function Applications() {
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Pending</p>
-            <p className="text-2xl font-bold text-yellow-500">{stats.pending}</p>
+            <p className="text-2xl font-bold text-warning">{stats.pending}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">In Progress</p>
-            <p className="text-2xl font-bold text-blue-500">{stats.active}</p>
+            <p className="text-2xl font-bold text-primary">{stats.active}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
@@ -468,7 +469,7 @@ export default function Applications() {
           ))
         ) : (
           <EmptyStateCard
-            icon={Sparkles}
+            icon={AvaGlyph}
             title="Ready to Start Your Job Search?"
             description="To apply for a position on HireFlow, you'll need a job application code from an employer. Once you have one, click below to get started."
             action={{

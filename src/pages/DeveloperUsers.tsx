@@ -63,7 +63,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(24, 100%, 50%)', 'var(--primary)', 'var(--accent)', 'hsl(142, 76%, 36%)'];
+const COLORS = ['#1aa06a', '#9fe7c9', 'var(--accent)', '#0c1c14'];
 
 interface UserWithRole {
   id: string;
@@ -203,18 +203,18 @@ export default function DeveloperUsers() {
 
   const getRoleBadgeColor = (role: string | null) => {
     switch (role) {
-      case 'developer': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-      case 'employer': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-      case 'team_member': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      default: return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'developer': return 'bg-primary/10 text-primary border-primary/20';
+      case 'employer': return 'bg-secondary text-muted-foreground border-border';
+      case 'team_member': return 'bg-accent/10 text-accent-foreground border-accent/20';
+      default: return 'bg-success/10 text-success border-success/30';
     }
   };
 
   const getStatusBadgeColor = (status: string | null) => {
     switch (status) {
-      case 'active': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'trialing': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      case 'canceled': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'active': return 'bg-success/10 text-success border-success/30';
+      case 'trialing': return 'bg-secondary text-muted-foreground border-border';
+      case 'canceled': return 'bg-destructive/10 text-destructive border-destructive/20';
       default: return 'bg-muted text-muted-foreground border-border';
     }
   };
@@ -246,9 +246,9 @@ export default function DeveloperUsers() {
     >
       {/* Stats Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-orange-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <Users className="h-4 w-4" />
               Total Users
             </CardDescription>
@@ -260,9 +260,9 @@ export default function DeveloperUsers() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-blue-400">
+            <CardDescription className="flex items-center gap-2 text-accent-foreground">
               <Crown className="h-4 w-4" />
               Employers
             </CardDescription>
@@ -274,9 +274,9 @@ export default function DeveloperUsers() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/30">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-green-400">
+            <CardDescription className="flex items-center gap-2 text-success">
               <UserCheck className="h-4 w-4" />
               Candidates
             </CardDescription>
@@ -288,9 +288,9 @@ export default function DeveloperUsers() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-purple-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <Shield className="h-4 w-4" />
               Developers
             </CardDescription>
@@ -308,17 +308,17 @@ export default function DeveloperUsers() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-orange-400" />
+              <UserPlus className="h-5 w-5 text-primary" />
               User Signups (30 days)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{ count: { label: "Signups", color: "hsl(24, 100%, 50%)" } }} className="h-48 w-full">
+            <ChartContainer config={{ count: { label: "Signups", color: "#1aa06a" } }} className="h-48 w-full">
               <AreaChart data={stats?.signupTrend || []}>
                 <defs>
                   <linearGradient id="usersSignupGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#1aa06a" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#1aa06a" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <XAxis 
@@ -331,9 +331,9 @@ export default function DeveloperUsers() {
                 <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
-                  type="monotone" 
-                  dataKey="count" 
-                  stroke="hsl(24, 100%, 50%)" 
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#1aa06a"
                   fill="url(#usersSignupGradient)"
                   strokeWidth={2}
                 />
@@ -345,7 +345,7 @@ export default function DeveloperUsers() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5 text-orange-400" />
+              <Users className="h-5 w-5 text-primary" />
               Role Distribution
             </CardTitle>
           </CardHeader>
@@ -388,7 +388,7 @@ export default function DeveloperUsers() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5 text-orange-400" />
+                <Users className="h-5 w-5 text-primary" />
                 All Users
               </CardTitle>
               <div className="flex gap-2">
@@ -433,7 +433,7 @@ export default function DeveloperUsers() {
                     <tr key={user.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-medium">
                             {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                           </div>
                           <div>

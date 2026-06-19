@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 function PhaseIndicator({ phase, isLast }: { phase: PhaseMetrics; isLast: boolean }) {
   const getHealthColor = (avgDays: number) => {
     if (avgDays <= 3) return "bg-primary";
-    if (avgDays <= 7) return "bg-amber-500";
+    if (avgDays <= 7) return "bg-warning";
     return "bg-destructive";
   };
 
@@ -35,7 +35,7 @@ function PhaseIndicator({ phase, isLast }: { phase: PhaseMetrics; isLast: boolea
           <span className={cn(
             "text-[10px] px-1.5 py-0.5 rounded-full mt-1",
             phase.avgDays <= 3 ? "bg-primary/10 text-primary" :
-            phase.avgDays <= 7 ? "bg-amber-500/10 text-amber-500" :
+            phase.avgDays <= 7 ? "bg-warning/10 text-warning" :
             "bg-destructive/10 text-destructive"
           )}>
             ~{phase.avgDays}d avg
@@ -114,7 +114,7 @@ export default function PipelineHealthCard({ className }: PipelineHealthCardProp
           </CardTitle>
           <div className="flex items-center gap-2">
             {healthData.bottleneck && (
-              <Badge variant="outline" className="text-amber-500 border-amber-500/30 gap-1">
+              <Badge variant="outline" className="text-warning border-warning/30 gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Bottleneck: {healthData.bottleneck}
               </Badge>

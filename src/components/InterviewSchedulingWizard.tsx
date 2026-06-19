@@ -27,7 +27,6 @@ import {
   Clock,
   Video,
   Users,
-  Sparkles,
   CheckCircle,
   Loader2,
   ChevronRight,
@@ -38,6 +37,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -780,8 +780,8 @@ export default function InterviewSchedulingWizard({
                         {/* Google Calendar Connection */}
                         <div className="p-4 rounded-lg border border-border bg-card">
                           <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center">
-                              <CalendarIcon className="h-6 w-6 text-white" />
+                            <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center">
+                              <CalendarIcon className="h-6 w-6 text-primary-foreground" />
                             </div>
                             <div className="flex-1">
                               <h3 className="font-semibold text-foreground">Google Calendar Integration</h3>
@@ -905,7 +905,7 @@ export default function InterviewSchedulingWizard({
                     <div className="rounded-xl border border-border overflow-hidden">
                       <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 border-b border-border">
                         <h3 className="font-semibold text-foreground flex items-center gap-2">
-                          <Sparkles className="h-5 w-5 text-primary" />
+                          <AvaGlyph className="h-5 w-5 text-primary" />
                           Interview Summary
                         </h3>
                       </div>
@@ -961,7 +961,7 @@ export default function InterviewSchedulingWizard({
 
                         {notes && (
                           <div className="flex items-start gap-3 pt-2 border-t border-border">
-                            <Sparkles className="h-5 w-5 text-muted-foreground mt-0.5" />
+                            <AvaGlyph className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div>
                               <p className="text-sm text-muted-foreground">Notes</p>
                               <p className="text-sm">{notes}</p>

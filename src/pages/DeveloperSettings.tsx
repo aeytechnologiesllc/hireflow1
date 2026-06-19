@@ -44,31 +44,31 @@ export default function DeveloperSettings() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Server className="h-5 w-5 text-orange-400" />
+              <Server className="h-5 w-5 text-primary" />
               System Status
             </CardTitle>
             <CardDescription>Current platform health and status</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+              <div className="p-4 rounded-xl bg-success/10 border border-success/20">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">API Status</span>
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Operational</Badge>
+                  <Badge className="bg-success/20 text-success border-success/30">Operational</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">All systems running normally</p>
               </div>
-              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+              <div className="p-4 rounded-xl bg-success/10 border border-success/20">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">Database</span>
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Healthy</Badge>
+                  <Badge className="bg-success/20 text-success border-success/30">Healthy</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">Supabase connected</p>
               </div>
-              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+              <div className="p-4 rounded-xl bg-success/10 border border-success/20">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">Edge Functions</span>
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                  <Badge className="bg-success/20 text-success border-success/30">Active</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">All functions deployed</p>
               </div>
@@ -82,7 +82,7 @@ export default function DeveloperSettings() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Shield className="h-5 w-5 text-orange-400" />
+              <Shield className="h-5 w-5 text-primary" />
               Developer Account
             </CardTitle>
             <CardDescription>Your developer access information</CardDescription>
@@ -93,7 +93,7 @@ export default function DeveloperSettings() {
                 <p className="font-medium text-foreground">User ID</p>
                 <p className="text-xs text-muted-foreground font-mono">{user?.id || 'N/A'}</p>
               </div>
-              <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                 Developer
               </Badge>
             </div>
@@ -102,7 +102,7 @@ export default function DeveloperSettings() {
                 <p className="font-medium text-foreground">Email</p>
                 <p className="text-xs text-muted-foreground">{user?.email || 'N/A'}</p>
               </div>
-              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                 Verified
               </Badge>
             </div>
@@ -115,7 +115,7 @@ export default function DeveloperSettings() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Settings className="h-5 w-5 text-orange-400" />
+              <Settings className="h-5 w-5 text-primary" />
               Platform Configuration
             </CardTitle>
             <CardDescription>Configure platform-wide settings (read-only display)</CardDescription>
@@ -161,7 +161,7 @@ export default function DeveloperSettings() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Globe className="h-5 w-5 text-orange-400" />
+              <Globe className="h-5 w-5 text-primary" />
               Quick Links
             </CardTitle>
             <CardDescription>Useful resources and documentation</CardDescription>
@@ -174,7 +174,7 @@ export default function DeveloperSettings() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 hover:bg-muted/50 transition-colors"
               >
-                <Database className="h-5 w-5 text-green-400" />
+                <Database className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium text-foreground">Supabase Dashboard</p>
                   <p className="text-xs text-muted-foreground">Manage database & auth</p>
@@ -186,7 +186,7 @@ export default function DeveloperSettings() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 hover:bg-muted/50 transition-colors"
               >
-                <Key className="h-5 w-5 text-purple-400" />
+                <Key className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium text-foreground">Stripe Dashboard</p>
                   <p className="text-xs text-muted-foreground">Manage payments & subscriptions</p>

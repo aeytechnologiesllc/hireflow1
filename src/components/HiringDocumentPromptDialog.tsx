@@ -43,7 +43,7 @@ export function HiringDocumentPromptDialog({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/20 to-primary/20 flex items-center justify-center"
+            className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-success/20 to-primary/20 flex items-center justify-center"
           >
             <PartyPopper className="h-8 w-8 text-primary" />
           </motion.div>
@@ -66,7 +66,7 @@ export function HiringDocumentPromptDialog({
         <div className="space-y-3">
           <Button
             onClick={handleSendDocuments}
-            className="w-full bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-primary-foreground"
+            className="w-full bg-gradient-to-r from-primary to-success hover:from-primary/90 hover:to-success/90 text-primary-foreground"
           >
             <FileText className="mr-2 h-4 w-4" />
             Send Hiring Documents

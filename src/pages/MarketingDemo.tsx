@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Mic, Users, FileText, BarChart3, Play, RotateCcw, Sparkles, CheckCircle, 
-  Star, TrendingUp, MessageSquare, Clock, Shield, Zap, Video, Keyboard,
+import {
+  Mic, Users, FileText, BarChart3, Play, RotateCcw, CheckCircle,
+  TrendingUp, MessageSquare, Clock, Shield, Zap, Video, Keyboard,
   ClipboardList, Eye, FileCheck, Volume2, VolumeX, ChevronRight, Award,
-  Target, Brain, Bot, PenTool, Send, ArrowRight, Rocket
+  Target, PenTool, Send, ArrowRight, Rocket
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import hireflowLogo from "@/assets/hireflow-logo.png";
 import { usePricing } from "@/hooks/usePricing";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
@@ -225,7 +226,7 @@ export default function MarketingDemo() {
   }, [isPlaying, totalDuration]);
 
   return (
-    <div className="dark fixed inset-0 bg-[hsl(220,18%,10%)] overflow-hidden">
+    <div className="dark fixed inset-0 bg-background overflow-hidden">
       {/* Animated background */}
       <div className="absolute inset-0">
         <motion.div 
@@ -456,10 +457,10 @@ function Scene1Hero() {
         transition={{ delay: 0.8 }}
       >
         {[
-          { icon: Mic, label: "Ava Voice", color: "from-emerald-500 to-teal-500" },
-          { icon: Brain, label: "Smart Analysis", color: "from-purple-500 to-pink-500" },
-          { icon: FileText, label: "E-Signatures", color: "from-blue-500 to-cyan-500" },
-          { icon: Zap, label: "Autopilot", color: "from-orange-500 to-amber-500" },
+          { icon: Mic, label: "Ava Voice", color: "from-primary to-accent" },
+          { icon: AvaGlyph, label: "Smart Analysis", color: "from-primary to-accent" },
+          { icon: FileText, label: "E-Signatures", color: "from-accent to-primary" },
+          { icon: Zap, label: "Autopilot", color: "from-warning to-primary" },
         ].map((item, i) => (
           <motion.div 
             key={item.label}
@@ -469,7 +470,7 @@ function Scene1Hero() {
             transition={{ delay: 1 + i * 0.1 }}
           >
             <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg`}>
-              <item.icon className="w-8 h-8 text-white" />
+              <item.icon className="w-8 h-8 text-primary-foreground" />
             </div>
             <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
           </motion.div>
@@ -515,11 +516,11 @@ function Scene2Workflow() {
   }, []);
 
   const phases = [
-    { icon: FileCheck, label: "Application", color: "from-blue-500 to-cyan-500" },
-    { icon: ClipboardList, label: "Quiz", color: "from-purple-500 to-pink-500" },
-    { icon: Video, label: "Video Intro", color: "from-rose-500 to-orange-500" },
-    { icon: Keyboard, label: "Typing Test", color: "from-amber-500 to-yellow-500" },
-    { icon: MessageSquare, label: "Chat Sim", color: "from-green-500 to-emerald-500" },
+    { icon: FileCheck, label: "Application", color: "from-accent to-primary" },
+    { icon: ClipboardList, label: "Quiz", color: "from-primary to-accent" },
+    { icon: Video, label: "Video Intro", color: "from-accent to-primary" },
+    { icon: Keyboard, label: "Typing Test", color: "from-primary to-accent" },
+    { icon: MessageSquare, label: "Chat Sim", color: "from-accent to-primary" },
     { icon: Mic, label: "Interview", color: "from-primary to-accent" },
   ];
 
@@ -536,7 +537,7 @@ function Scene2Workflow() {
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-          <Sparkles className="w-6 h-6 text-white" />
+          <AvaGlyph className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">Ava Workflow Generation</span>
       </motion.div>
@@ -578,7 +579,7 @@ function Scene2Workflow() {
             </>
           ) : (
             <>
-              <Sparkles className="w-5 h-5" />
+              <AvaGlyph className="w-5 h-5" />
               Generate Workflow
             </>
           )}
@@ -600,7 +601,7 @@ function Scene2Workflow() {
                 className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border/30"
               >
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${phase.color} flex items-center justify-center`}>
-                  <phase.icon className="w-6 h-6 text-white" />
+                  <phase.icon className="w-6 h-6 text-primary-foreground" />
                 </div>
                 <span className="text-xs font-medium text-muted-foreground text-center">{phase.label}</span>
               </motion.div>
@@ -626,8 +627,8 @@ function Scene3CandidateJourney() {
   const phases = [
     { 
       icon: ClipboardList, 
-      label: "Quiz Assessment", 
-      color: "from-purple-500 to-pink-500",
+      label: "Quiz Assessment",
+      color: "from-primary to-accent",
       preview: (
         <div className="space-y-3">
           <div className="text-sm font-medium text-foreground">What is your approach to...</div>
@@ -646,8 +647,8 @@ function Scene3CandidateJourney() {
     },
     { 
       icon: Keyboard, 
-      label: "Typing Test", 
-      color: "from-amber-500 to-orange-500",
+      label: "Typing Test",
+      color: "from-primary to-accent",
       preview: (
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground">Type the following text...</div>
@@ -656,15 +657,15 @@ function Scene3CandidateJourney() {
           </div>
           <div className="flex items-center justify-between">
             <div className="text-3xl font-bold text-primary">72 WPM</div>
-            <div className="text-sm text-emerald-500">98% Accuracy</div>
+            <div className="text-sm text-success">98% Accuracy</div>
           </div>
         </div>
       )
     },
     { 
       icon: Video, 
-      label: "Video Intro", 
-      color: "from-rose-500 to-red-500",
+      label: "Video Intro",
+      color: "from-accent to-primary",
       preview: (
         <div className="relative aspect-video bg-gradient-to-br from-muted/40 to-muted/20 rounded-xl border border-border/30 flex items-center justify-center">
           <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
@@ -676,8 +677,8 @@ function Scene3CandidateJourney() {
     },
     { 
       icon: MessageSquare, 
-      label: "Chat Simulation", 
-      color: "from-green-500 to-emerald-500",
+      label: "Chat Simulation",
+      color: "from-accent to-primary",
       preview: (
         <div className="space-y-3">
           <div className="flex justify-start">
@@ -695,8 +696,8 @@ function Scene3CandidateJourney() {
     },
     { 
       icon: Target, 
-      label: "Sales Simulation", 
-      color: "from-blue-500 to-indigo-500",
+      label: "Sales Simulation",
+      color: "from-accent to-primary",
       preview: (
         <div className="space-y-3">
           <div className="flex justify-start">
@@ -726,8 +727,8 @@ function Scene3CandidateJourney() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-          <Users className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <Users className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">Automated Candidate Journey</span>
       </motion.div>
@@ -744,7 +745,7 @@ function Scene3CandidateJourney() {
               animate={{ x: i === activePhase ? 8 : 0 }}
             >
               <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${phase.color} flex items-center justify-center`}>
-                <phase.icon className="w-5 h-5 text-white" />
+                <phase.icon className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className={`text-sm font-medium ${i === activePhase ? "text-foreground" : "text-muted-foreground"}`}>
                 {phase.label}
@@ -804,8 +805,8 @@ function Scene4Pipeline() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-          <TrendingUp className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <TrendingUp className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">Smart Pipeline Slider</span>
       </motion.div>
@@ -825,8 +826,8 @@ function Scene4Pipeline() {
             <p className="text-muted-foreground">Senior Product Manager</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="w-14 h-14 rounded-full border-4 border-emerald-500 flex items-center justify-center">
-              <span className="text-xl font-bold text-emerald-500">94</span>
+            <div className="w-14 h-14 rounded-full border-4 border-success flex items-center justify-center">
+              <span className="text-xl font-bold text-success">94</span>
             </div>
             <span className="text-sm text-muted-foreground">Ava Score</span>
           </div>
@@ -849,8 +850,8 @@ function Scene4Pipeline() {
               <div key={phase.label} className="flex flex-col items-center">
                 <motion.div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                    i <= sliderPosition 
-                      ? "bg-gradient-to-br from-primary to-accent text-white" 
+                    i <= sliderPosition
+                      ? "bg-gradient-to-br from-primary to-accent text-primary-foreground"
                       : "bg-muted/30 text-muted-foreground"
                   }`}
                   animate={i === sliderPosition ? { scale: [1, 1.15, 1] } : { scale: 1 }}
@@ -873,7 +874,7 @@ function Scene4Pipeline() {
             style={{ transform: "translateX(-50%)" }}
           >
             <motion.div 
-              className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-xl shadow-primary/30 border-4 border-background cursor-grab"
+              className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-bold text-lg shadow-xl shadow-primary/30 border-4 border-background cursor-grab"
               animate={{ y: [0, -4, 0] }}
               transition={{ duration: 1.5, repeat: Infinity }}
             >
@@ -916,8 +917,8 @@ function Scene5Analysis() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-          <Brain className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <AvaGlyph className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">AVA Analysis</span>
       </motion.div>
@@ -979,9 +980,9 @@ function Scene5Analysis() {
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30"
+                className="p-4 rounded-xl bg-success/10 border border-success/30"
               >
-                <div className="flex items-center gap-2 text-emerald-500 font-medium mb-2">
+                <div className="flex items-center gap-2 text-success font-medium mb-2">
                   <CheckCircle className="w-4 h-4" />
                   Key Strengths
                 </div>
@@ -992,9 +993,9 @@ function Scene5Analysis() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/30"
+                className="p-4 rounded-xl bg-warning/10 border border-warning/30"
               >
-                <div className="flex items-center gap-2 text-orange-500 font-medium mb-2">
+                <div className="flex items-center gap-2 text-warning font-medium mb-2">
                   <Eye className="w-4 h-4" />
                   Areas of Concern
                 </div>
@@ -1005,9 +1006,9 @@ function Scene5Analysis() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="p-4 rounded-xl bg-red-500/10 border border-red-500/30"
+                className="p-4 rounded-xl bg-destructive/10 border border-destructive/30"
               >
-                <div className="flex items-center gap-2 text-red-500 font-medium mb-2">
+                <div className="flex items-center gap-2 text-destructive font-medium mb-2">
                   <Shield className="w-4 h-4" />
                   Red Flags Detected
                 </div>
@@ -1053,8 +1054,8 @@ function Scene6Autopilot() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
-          <Zap className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <Zap className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">Autopilot Mode</span>
       </motion.div>
@@ -1141,8 +1142,8 @@ function Scene7Voice() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-          <Mic className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <Mic className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">AVA Voice Assistant</span>
       </motion.div>
@@ -1166,23 +1167,23 @@ function Scene7Voice() {
             animate={{ scale: 1 }}
             className="absolute bottom-6 right-6"
           >
-            <motion.div 
-              className={`px-6 py-3 rounded-full font-bold text-white shadow-2xl flex items-center gap-3 ${
-                step >= 5 ? "bg-emerald-500" : "bg-gradient-to-r from-emerald-500 to-teal-500"
+            <motion.div
+              className={`px-6 py-3 rounded-full font-bold text-primary-foreground shadow-2xl flex items-center gap-3 ${
+                step >= 5 ? "bg-success" : "bg-gradient-to-r from-primary to-accent"
               }`}
               animate={step >= 2 && step < 5 ? {
                 boxShadow: [
-                  "0 0 0 0 rgba(16, 185, 129, 0)",
-                  "0 0 0 20px rgba(16, 185, 129, 0.2)",
-                  "0 0 0 0 rgba(16, 185, 129, 0)"
+                  "0 0 0 0 rgba(26, 160, 106, 0)",
+                  "0 0 0 20px rgba(26, 160, 106, 0.2)",
+                  "0 0 0 0 rgba(26, 160, 106, 0)"
                 ]
               } : {}}
               transition={{ duration: 1.5, repeat: step >= 2 && step < 5 ? Infinity : 0 }}
             >
               {step >= 5 ? <CheckCircle className="w-5 h-5" /> : <span className="text-lg">AVA</span>}
               {step >= 2 && step < 5 && (
-                <motion.div 
-                  className="w-3 h-3 rounded-full bg-white"
+                <motion.div
+                  className="w-3 h-3 rounded-full bg-primary-foreground"
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 0.5, repeat: Infinity }}
                 />
@@ -1198,9 +1199,9 @@ function Scene7Voice() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             className="absolute bottom-24 right-6 w-80 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
           >
-            <div className="p-4 border-b border-border bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+            <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-accent/10">
               <div className="flex items-center gap-2">
-                <Bot className="w-5 h-5 text-emerald-500" />
+                <AvaGlyph className="w-5 h-5 text-primary" />
                 <span className="font-semibold text-foreground">AVA Assistant</span>
               </div>
             </div>
@@ -1233,7 +1234,7 @@ function Scene7Voice() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-2xl rounded-bl-md flex items-center gap-2 text-sm">
+                  <div className="bg-success/20 text-success px-4 py-2 rounded-2xl rounded-bl-md flex items-center gap-2 text-sm">
                     <CheckCircle className="w-4 h-4" />
                     Done! Sarah is now in Interview.
                   </div>
@@ -1253,7 +1254,7 @@ function Scene7Voice() {
             {[1,2,3,4,5,6,7].map(i => (
               <motion.div
                 key={i}
-                className="w-1 bg-emerald-500 rounded-full"
+                className="w-1 bg-primary rounded-full"
                 animate={{ height: [8, 24 + Math.random() * 16, 8] }}
                 transition={{ duration: 0.4, repeat: Infinity, delay: i * 0.08 }}
               />
@@ -1291,8 +1292,8 @@ function Scene8Documents() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-          <FileText className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-primary flex items-center justify-center">
+          <FileText className="w-6 h-6 text-primary-foreground" />
         </div>
         <span className="text-3xl font-bold text-foreground">E-Signatures & Documents</span>
       </motion.div>
@@ -1322,21 +1323,21 @@ function Scene8Documents() {
             >
               <p className="text-xs text-gray-500 mb-2">Candidate Signature</p>
               <div className={`h-16 border-2 border-dashed rounded-lg flex items-center justify-center ${
-                step >= 4 ? "border-emerald-500 bg-emerald-50" : "border-blue-500 bg-blue-50"
+                step >= 4 ? "border-success bg-success/10" : "border-primary bg-primary/10"
               }`}>
                 {step >= 3 && step < 4 && (
                   <motion.div
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                   >
-                    <PenTool className="w-5 h-5 text-blue-500" />
+                    <PenTool className="w-5 h-5 text-primary" />
                   </motion.div>
                 )}
                 {step >= 4 && (
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="flex items-center gap-2 text-emerald-600"
+                    className="flex items-center gap-2 text-success"
                   >
                     <CheckCircle className="w-5 h-5" />
                     <span className="font-script text-lg italic">Sarah Chen</span>
@@ -1354,7 +1355,7 @@ function Scene8Documents() {
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/20 text-emerald-500"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-success/20 text-success"
               >
                 <CheckCircle className="w-4 h-4" />
                 Signed
@@ -1364,7 +1365,7 @@ function Scene8Documents() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 text-blue-500"
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary text-muted-foreground"
             >
               <Shield className="w-4 h-4" />
               Audit Trail
@@ -1394,13 +1395,13 @@ function Scene9CTA() {
       name: "Growth",
       price: pricing.growth.monthly,
       features: ["3 Job Slots", "50 Applicants", "Ava Analysis"],
-      color: "from-blue-500 to-cyan-500"
+      color: "from-accent to-primary"
     },
     {
       name: "Business",
       price: pricing.business.monthly,
       features: ["Unlimited Jobs", "AVA Voice", "30 Voice Mins/mo", "Team Portal"],
-      color: "from-purple-500 to-pink-500",
+      color: "from-primary to-accent",
       popular: true
     },
   ];
@@ -1447,7 +1448,7 @@ function Scene9CTA() {
               </div>
             )}
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${plan.color} mx-auto mb-4 flex items-center justify-center`}>
-              <Award className="w-6 h-6 text-white" />
+              <Award className="w-6 h-6 text-primary-foreground" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-2">{plan.name}</h3>
             <div className="text-3xl font-bold text-foreground mb-4">
@@ -1457,7 +1458,7 @@ function Scene9CTA() {
             <ul className="space-y-2 text-sm text-muted-foreground mb-6">
               {plan.features.map((feature) => (
                 <li key={feature} className="flex items-center gap-2 justify-center">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                  <CheckCircle className="w-4 h-4 text-success" />
                   {feature}
                 </li>
               ))}

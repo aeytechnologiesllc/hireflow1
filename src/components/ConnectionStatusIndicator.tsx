@@ -38,9 +38,9 @@ export function ConnectionStatusIndicator() {
                   exit={{ scale: 0.8, opacity: 0 }}
                   className="relative flex items-center"
                 >
-                  <Wifi className="h-3.5 w-3.5 text-green-500" />
+                  <Wifi className="h-3.5 w-3.5 text-success" />
                   <motion.div
-                    className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500"
+                    className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-success"
                     animate={{
                       scale: [1, 1.2, 1],
                       opacity: [1, 0.7, 1],
@@ -67,7 +67,7 @@ export function ConnectionStatusIndicator() {
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
           {isOnline ? (
-            <span className="text-green-500">Connection stable</span>
+            <span className="text-success">Connection stable</span>
           ) : (
             <span className="text-destructive">No internet connection</span>
           )}

@@ -10,15 +10,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  ArrowLeft, 
-  MessageSquare, 
+import {
+  ArrowLeft,
+  MessageSquare,
   Send,
   CheckCircle,
   Loader2,
-  Bot,
   User
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
@@ -872,7 +872,7 @@ export default function ChatSimulationPhase() {
                     <span>Respond professionally as if you were a support agent</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Bot className="h-4 w-4 mt-0.5 text-primary" />
+                    <AvaGlyph className="h-4 w-4 mt-0.5 text-primary" />
                     <span>The customer will respond realistically based on your replies</span>
                   </li>
                   <li className="flex items-start gap-2">

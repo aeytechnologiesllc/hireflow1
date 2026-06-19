@@ -207,7 +207,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       )}>
         <div className="relative shrink-0">
           {/* Glow effect behind logo */}
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-500/40 via-fuchsia-500/30 to-emerald-500/20 blur-lg scale-125 animate-glow-pulse" />
+          <div className="absolute inset-0 rounded-xl bg-primary/30 blur-lg scale-125 animate-glow-pulse" />
           <img 
             src={hireflowLogo} 
             alt="HireFlow" 
@@ -215,7 +215,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
           />
         </div>
         {(!collapsed || isMobile) && (
-          <span className="text-xl font-bold bg-gradient-to-r from-white via-white to-gray-300 bg-clip-text text-transparent tracking-tight">
+          <span className="text-xl font-bold bg-gradient-to-r from-foreground via-foreground to-muted-foreground bg-clip-text text-transparent tracking-tight">
             HireFlow
           </span>
         )}
@@ -239,11 +239,11 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
             variant="outline" 
             className={cn(
               "text-[10px] font-medium px-2 py-0.5",
-              isTeamMember 
-                ? "border-blue-500/30 text-blue-400 bg-blue-500/10"
-                : isEmployer 
+              isTeamMember
+                ? "border-border text-muted-foreground bg-secondary"
+                : isEmployer
                   ? "border-primary/30 text-primary bg-primary/10"
-                  : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
+                  : "border-success/30 text-success bg-success/10"
             )}
           >
             {isTeamMember ? "Team Member" : isEmployer ? "Employer" : "Candidate"}
@@ -258,11 +258,11 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
               <div 
                 className={cn(
                   "w-2 h-2 rounded-full",
-                  isTeamMember 
-                    ? "bg-blue-500"
-                    : isEmployer 
+                  isTeamMember
+                    ? "bg-muted-foreground"
+                    : isEmployer
                       ? "bg-primary"
-                      : "bg-emerald-500"
+                      : "bg-success"
                 )}
               />
             </div>

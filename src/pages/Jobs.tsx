@@ -20,13 +20,13 @@ import {
   Trash2,
   Copy,
   Link2,
-  Sparkles,
   Loader2,
   AlertTriangle,
   Calendar,
   Clock,
   ChevronRight,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { staggerContainer, staggerItem, pulsingGlowWithScale } from "@/lib/animations";
 import {
   DropdownMenu,
@@ -106,7 +106,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                     View Details
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewWorkflow(job); }}>
-                    <Sparkles className="h-4 w-4 mr-2" />
+                    <AvaGlyph className="h-4 w-4 mr-2" />
                     View Workflow
                   </DropdownMenuItem>
                   {canEdit && (
@@ -158,7 +158,7 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
               )}
               {job.ai_bias_score && job.ai_bias_score >= 80 && (
                 <span className="px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" />
+                  <AvaGlyph className="h-3 w-3" />
                   AI Optimized
                 </span>
               )}
@@ -201,9 +201,9 @@ function JobCard({ job, onDelete, onViewDetails, onViewWorkflow, onEdit, onDupli
                   </>
                 ) : (
                   <>
-                    <Calendar className="h-4 w-4 text-amber-500" />
+                    <Calendar className="h-4 w-4 text-warning" />
                     <span className="text-muted-foreground">Deadline:</span>
-                    <span className="font-medium text-amber-500">
+                    <span className="font-medium text-warning">
                       {format(new Date(job.application_deadline), "MMM d, yyyy")}
                     </span>
                   </>
@@ -379,7 +379,7 @@ export default function Jobs() {
             className="rounded-lg"
           >
             <Button 
-              className="w-full sm:w-auto bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground border border-primary transition-all duration-300" 
               onClick={handleCreateJobClick}
             >
               Create with Ava
@@ -480,7 +480,7 @@ export default function Jobs() {
                   className="rounded-lg inline-block"
                 >
                   <Button 
-                    className="bg-[hsl(220,15%,11%)] hover:bg-[hsl(220,15%,15%)] text-white border border-[hsl(220,15%,20%)] transition-all duration-300" 
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground border border-primary transition-all duration-300" 
                     onClick={handleCreateJobClick}
                   >
                     Create with Ava

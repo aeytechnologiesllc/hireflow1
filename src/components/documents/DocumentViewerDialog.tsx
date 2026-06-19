@@ -37,7 +37,7 @@ interface DocumentViewerDialogProps {
 }
 
 const statusConfig = {
-  pending: { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending Signature" },
+  pending: { color: "bg-warning/20 text-warning", icon: Clock, label: "Pending Signature" },
   signed: { color: "bg-success/20 text-success", icon: CheckCircle, label: "Signed" },
   declined: { color: "bg-destructive/20 text-destructive", icon: XCircle, label: "Declined" },
 };

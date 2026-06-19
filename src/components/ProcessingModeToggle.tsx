@@ -35,34 +35,34 @@ const actionMeta = {
   reject: {
     title: "Will reject now",
     description: "These applicants already hit a hard fail or are below threshold with enough evidence collected.",
-    accent: "text-red-400",
-    border: "border-red-500/20",
-    bg: "bg-red-500/5",
-    score: "text-red-300",
+    accent: "text-destructive",
+    border: "border-destructive/20",
+    bg: "bg-destructive/5",
+    score: "text-destructive",
   },
   advance: {
     title: "Will advance now",
     description: "These applicants already meet the current evidence threshold and are ready for the next step.",
-    accent: "text-emerald-400",
-    border: "border-emerald-500/20",
-    bg: "bg-emerald-500/5",
-    score: "text-emerald-300",
+    accent: "text-success",
+    border: "border-success/20",
+    bg: "bg-success/5",
+    score: "text-success",
   },
   defer: {
     title: "Will continue gathering evidence",
     description: "Ava will move these applicants forward because later high-signal phases are still needed before a final decision.",
-    accent: "text-amber-300",
-    border: "border-amber-500/20",
-    bg: "bg-amber-500/5",
-    score: "text-amber-200",
+    accent: "text-warning",
+    border: "border-warning/20",
+    bg: "bg-warning/5",
+    score: "text-warning",
   },
   review: {
     title: "Needs employer setup",
     description: "These applicants cannot be fully auto-processed yet, usually because the next phase requires employer configuration.",
-    accent: "text-sky-300",
-    border: "border-sky-500/20",
-    bg: "bg-sky-500/5",
-    score: "text-sky-200",
+    accent: "text-muted-foreground",
+    border: "border-secondary/40",
+    bg: "bg-secondary/30",
+    score: "text-muted-foreground",
   },
 } as const;
 
@@ -253,8 +253,8 @@ export function ProcessingModeToggle({
         className={cn(
           "relative flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 disabled:opacity-50",
           currentMode === "auto"
-            ? "border-purple-500/30 bg-purple-500/10 text-purple-100 hover:bg-purple-500/15"
-            : "border-orange-500/30 bg-orange-500/10 text-orange-100 hover:bg-orange-500/15",
+            ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+            : "border-warning/30 bg-warning/10 text-warning hover:bg-warning/15",
         )}
         aria-busy={loadingPreview || updateJob.isPending || modeTransitioning}
         whileHover={disabled ? {} : { scale: 1.02 }}
@@ -263,7 +263,7 @@ export function ProcessingModeToggle({
         {currentMode === "auto" ? (
           <>
             <motion.div
-              className="rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-600 p-1.5 text-white"
+              className="rounded-full bg-primary p-1.5 text-primary-foreground"
               animate={{ y: [0, -2, 0] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
@@ -274,7 +274,7 @@ export function ProcessingModeToggle({
         ) : (
           <>
             <motion.div
-              className="rounded-full bg-gradient-to-r from-orange-500 to-amber-600 p-1.5 text-white"
+              className="rounded-full bg-warning p-1.5 text-warning-foreground"
               animate={{ rotate: [0, -8, 8, 0] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
@@ -297,7 +297,7 @@ export function ProcessingModeToggle({
               >
                 <DialogHeader className="pb-4 text-center">
                   <motion.div
-                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-xl"
+                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl"
                     animate={{ y: [0, -6, 0], scale: [1, 1.03, 1] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                   >
@@ -319,15 +319,15 @@ export function ProcessingModeToggle({
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
-                        <div className="text-2xl font-semibold text-red-400">{preview?.totals.reject || 0}</div>
+                        <div className="text-2xl font-semibold text-destructive">{preview?.totals.reject || 0}</div>
                         <div className="text-sm text-muted-foreground">Will reject now</div>
                       </div>
                       <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
-                        <div className="text-2xl font-semibold text-emerald-400">{preview?.totals.advance || 0}</div>
+                        <div className="text-2xl font-semibold text-success">{preview?.totals.advance || 0}</div>
                         <div className="text-sm text-muted-foreground">Will advance now</div>
                       </div>
                       <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
-                        <div className="text-2xl font-semibold text-amber-300">{preview?.totals.defer || 0}</div>
+                        <div className="text-2xl font-semibold text-warning">{preview?.totals.defer || 0}</div>
                         <div className="text-sm text-muted-foreground">Will gather more evidence</div>
                       </div>
                     </div>
@@ -377,7 +377,7 @@ export function ProcessingModeToggle({
                       void handleConfirm();
                     }}
                     disabled={updateJob.isPending || loadingPreview || modeTransitioning}
-                    className="bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white hover:from-purple-400 hover:to-fuchsia-500"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     {updateJob.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -397,7 +397,7 @@ export function ProcessingModeToggle({
               >
                 <DialogHeader className="pb-4 text-center">
                   <motion.div
-                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-xl"
+                    className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-warning text-warning-foreground shadow-xl"
                     animate={{ rotate: [0, -10, 10, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                   >
@@ -410,9 +410,9 @@ export function ProcessingModeToggle({
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
+                <div className="rounded-lg border border-warning/20 bg-warning/5 p-4">
                   <div className="flex items-start gap-3">
-                    <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-orange-300" />
+                    <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
                     <p className="text-sm text-muted-foreground">
                       Existing applicants will stay where they are. Nothing will be auto-rejected or auto-advanced after you take control.
                     </p>
@@ -435,7 +435,7 @@ export function ProcessingModeToggle({
                       void handleConfirm();
                     }}
                     disabled={updateJob.isPending || modeTransitioning}
-                    className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-400 hover:to-amber-500"
+                    className="bg-warning text-warning-foreground hover:bg-warning/90"
                   >
                     {updateJob.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -50,7 +50,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['var(--primary)', 'var(--accent)', 'hsl(24, 100%, 50%)', 'hsl(0, 84%, 60%)'];
+const COLORS = ['#1aa06a', '#9fe7c9', '#0c1c14', '#eef6f1'];
 
 export default function DeveloperDashboard() {
   const { userStats, subscriptionStats, platformActivity, featureUsage, isLoading } = useDeveloperAnalytics();
@@ -91,9 +91,9 @@ export default function DeveloperDashboard() {
     >
       {/* Key Metrics */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20 shadow-lg shadow-orange-500/5">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-lg shadow-primary/5">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-orange-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <Users className="h-4 w-4" />
               Total Users
             </CardDescription>
@@ -113,9 +113,9 @@ export default function DeveloperDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 shadow-lg shadow-green-500/5">
+        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20 shadow-lg shadow-success/5">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-green-400">
+            <CardDescription className="flex items-center gap-2 text-success">
               <CreditCard className="h-4 w-4" />
               Active Subscriptions
             </CardDescription>
@@ -125,19 +125,19 @@ export default function DeveloperDashboard() {
               <AnimatedCounter value={(subscriptionStats?.active || 0) + (subscriptionStats?.trialing || 0)} />
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-400">
+              <Badge variant="secondary" className="text-xs bg-success/10 text-success">
                 {subscriptionStats?.trialing || 0} trialing
               </Badge>
-              <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-400">
+              <Badge variant="secondary" className="text-xs bg-success/10 text-success">
                 {subscriptionStats?.active || 0} active
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 shadow-lg shadow-blue-500/5">
+        <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 shadow-lg shadow-accent/5">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-blue-400">
+            <CardDescription className="flex items-center gap-2 text-accent">
               <Briefcase className="h-4 w-4" />
               Total Jobs
             </CardDescription>
@@ -147,16 +147,16 @@ export default function DeveloperDashboard() {
               <AnimatedCounter value={platformActivity?.totalJobs || 0} />
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-400">
+              <Badge variant="secondary" className="text-xs bg-accent/10 text-accent">
                 {platformActivity?.activeJobs || 0} active
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 shadow-lg shadow-purple-500/5">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-lg shadow-primary/5">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-purple-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <FileText className="h-4 w-4" />
               Applications
             </CardDescription>
@@ -166,7 +166,7 @@ export default function DeveloperDashboard() {
               <AnimatedCounter value={platformActivity?.totalApplications || 0} />
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-400">
+              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">
                 {platformActivity?.totalInterviews || 0} interviews
               </Badge>
             </div>
@@ -178,16 +178,16 @@ export default function DeveloperDashboard() {
       <motion.div variants={itemVariants}>
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className="bg-muted/50 border border-border/50">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               Overview
             </TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+            <TabsTrigger value="users" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               Users
             </TabsTrigger>
-            <TabsTrigger value="activity" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+            <TabsTrigger value="activity" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               Activity
             </TabsTrigger>
-            <TabsTrigger value="features" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-400">
+            <TabsTrigger value="features" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               Features
             </TabsTrigger>
           </TabsList>
@@ -198,17 +198,17 @@ export default function DeveloperDashboard() {
               <Card className="bg-card/50 border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <UserPlus className="h-5 w-5 text-orange-400" />
+                    <UserPlus className="h-5 w-5 text-primary" />
                     User Signups (30 days)
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ChartContainer config={{ count: { label: "Signups", color: "hsl(24, 100%, 50%)" } }} className="h-64 w-full">
+                  <ChartContainer config={{ count: { label: "Signups", color: "#1aa06a" } }} className="h-64 w-full">
                     <AreaChart data={userStats?.signupTrend || []}>
                       <defs>
                         <linearGradient id="signupGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="hsl(24, 100%, 50%)" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#1aa06a" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#1aa06a" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <XAxis 
@@ -223,7 +223,7 @@ export default function DeveloperDashboard() {
                       <Area 
                         type="monotone" 
                         dataKey="count" 
-                        stroke="hsl(24, 100%, 50%)" 
+                        stroke="#1aa06a" 
                         fill="url(#signupGradient)"
                         strokeWidth={2}
                       />
@@ -236,7 +236,7 @@ export default function DeveloperDashboard() {
               <Card className="bg-card/50 border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Users className="h-5 w-5 text-orange-400" />
+                    <Users className="h-5 w-5 text-primary" />
                     User Roles Distribution
                   </CardTitle>
                 </CardHeader>
@@ -279,14 +279,14 @@ export default function DeveloperDashboard() {
             <Card className="bg-card/50 border-border/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-orange-400" />
+                  <Activity className="h-5 w-5 text-primary" />
                   Platform Activity (30 days)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={{ 
+                <ChartContainer config={{
                   jobs: { label: "Jobs Created", color: "var(--primary)" },
-                  applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
+                  applications: { label: "Applications", color: "#9fe7c9" }
                 }} className="h-72 w-full">
                   <LineChart data={platformActivity?.activityTrend || []}>
                     <XAxis 
@@ -306,10 +306,10 @@ export default function DeveloperDashboard() {
                       dot={false}
                       name="Jobs Created"
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="applications" 
-                      stroke="hsl(24, 100%, 50%)" 
+                    <Line
+                      type="monotone"
+                      dataKey="applications"
+                      stroke="#9fe7c9"
                       strokeWidth={2}
                       dot={false}
                       name="Applications"
@@ -325,7 +325,7 @@ export default function DeveloperDashboard() {
             <Card className="bg-card/50 border-border/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-orange-400" />
+                  <TrendingUp className="h-5 w-5 text-primary" />
                   Top Employers by Activity
                 </CardTitle>
                 <CardDescription>
@@ -340,7 +340,7 @@ export default function DeveloperDashboard() {
                       className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-sm font-bold">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-bold">
                           {index + 1}
                         </div>
                         <div>
@@ -371,26 +371,26 @@ export default function DeveloperDashboard() {
             <Card className="bg-card/50 border-border/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-orange-400" />
+                  <CreditCard className="h-5 w-5 text-primary" />
                   Subscription Status Breakdown
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center">
-                    <p className="text-2xl font-bold text-green-400">{subscriptionStats?.trialing || 0}</p>
+                  <div className="p-4 rounded-xl bg-success/10 border border-success/20 text-center">
+                    <p className="text-2xl font-bold text-success">{subscriptionStats?.trialing || 0}</p>
                     <p className="text-sm text-muted-foreground">Trialing</p>
                   </div>
-                  <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
-                    <p className="text-2xl font-bold text-blue-400">{subscriptionStats?.active || 0}</p>
+                  <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 text-center">
+                    <p className="text-2xl font-bold text-accent">{subscriptionStats?.active || 0}</p>
                     <p className="text-sm text-muted-foreground">Active</p>
                   </div>
-                  <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-center">
-                    <p className="text-2xl font-bold text-yellow-400">{subscriptionStats?.expired || 0}</p>
+                  <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-center">
+                    <p className="text-2xl font-bold text-warning">{subscriptionStats?.expired || 0}</p>
                     <p className="text-sm text-muted-foreground">Expired</p>
                   </div>
-                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
-                    <p className="text-2xl font-bold text-red-400">{subscriptionStats?.canceled || 0}</p>
+                  <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
+                    <p className="text-2xl font-bold text-destructive">{subscriptionStats?.canceled || 0}</p>
                     <p className="text-sm text-muted-foreground">Canceled</p>
                   </div>
                 </div>
@@ -441,9 +441,9 @@ export default function DeveloperDashboard() {
                 <CardTitle className="text-lg">Jobs vs Applications Over Time</CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={{ 
+                <ChartContainer config={{
                   jobs: { label: "Jobs", color: "var(--primary)" },
-                  applications: { label: "Applications", color: "hsl(24, 100%, 50%)" }
+                  applications: { label: "Applications", color: "#9fe7c9" }
                 }} className="h-72 w-full">
                   <BarChart data={platformActivity?.activityTrend?.slice(-14) || []}>
                     <XAxis 
@@ -455,7 +455,7 @@ export default function DeveloperDashboard() {
                     <YAxis stroke="var(--muted-foreground)" fontSize={10} />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="jobs" fill="var(--primary)" radius={[4, 4, 0, 0]} name="Jobs" />
-                    <Bar dataKey="applications" fill="hsl(24, 100%, 50%)" radius={[4, 4, 0, 0]} name="Applications" />
+                    <Bar dataKey="applications" fill="#9fe7c9" radius={[4, 4, 0, 0]} name="Applications" />
                   </BarChart>
                 </ChartContainer>
               </CardContent>
@@ -509,7 +509,7 @@ export default function DeveloperDashboard() {
             <Card className="bg-card/50 border-border/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-orange-400" />
+                  <Activity className="h-5 w-5 text-primary" />
                   Workflow Step Usage
                 </CardTitle>
                 <CardDescription>
@@ -518,7 +518,7 @@ export default function DeveloperDashboard() {
               </CardHeader>
               <CardContent>
                 <ChartContainer config={{ 
-                  count: { label: "Usage Count", color: "hsl(24, 100%, 50%)" }
+                  count: { label: "Usage Count", color: "#1aa06a" }
                 }} className="h-72 w-full">
                   <BarChart 
                     data={featureUsage?.workflowStepUsage || []} 
@@ -536,7 +536,7 @@ export default function DeveloperDashboard() {
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar 
                       dataKey="count" 
-                      fill="hsl(24, 100%, 50%)" 
+                      fill="#1aa06a" 
                       radius={[0, 4, 4, 0]}
                       name="Usage Count"
                     />

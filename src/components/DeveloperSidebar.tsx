@@ -10,9 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Terminal,
-  LogOut,
-  Sparkles
+  LogOut
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -113,11 +113,11 @@ export default function DeveloperSidebar({ isOpen, isMobile, onToggle, onNavigat
               transition={{ duration: 0.2 }}
               className="flex items-center gap-3"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-                <Terminal className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+                <Terminal className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                   Dev Console
                 </h1>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -153,11 +153,11 @@ export default function DeveloperSidebar({ isOpen, isMobile, onToggle, onNavigat
               "text-muted-foreground hover:text-foreground hover:bg-muted/50",
               !isOpen && "justify-center px-2"
             )}
-            activeClassName="bg-gradient-to-r from-orange-500/10 to-red-500/10 text-foreground border border-orange-500/20 shadow-sm"
+            activeClassName="bg-gradient-to-r from-primary/10 to-accent/10 text-foreground border border-primary/20 shadow-sm"
           >
             <item.icon className={cn(
               "h-5 w-5 flex-shrink-0 transition-colors",
-              "group-hover:text-orange-400"
+              "group-hover:text-primary"
             )} />
             <AnimatePresence mode="wait">
               {isOpen && (
@@ -185,10 +185,10 @@ export default function DeveloperSidebar({ isOpen, isMobile, onToggle, onNavigat
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="px-3 py-2 rounded-xl bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20"
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20"
             >
               <div className="flex items-center gap-2 text-xs">
-                <Sparkles className="h-3.5 w-3.5 text-orange-400" />
+                <AvaGlyph className="h-3.5 w-3.5 text-primary" />
                 <span className="text-muted-foreground">Developer Mode Active</span>
               </div>
             </motion.div>

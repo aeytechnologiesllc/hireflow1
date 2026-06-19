@@ -15,11 +15,11 @@ import {
   Users,
   CheckCircle2,
   ArrowLeft,
-  Sparkles,
   XCircle,
   Loader2,
   AlertTriangle
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { motion } from "framer-motion";
 import { format, isPast } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -341,7 +341,7 @@ export default function JobDetails() {
                   ) : applicantLimitReached ? (
                     <>
                       <div className="text-center">
-                        <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                        <AlertTriangle className="h-8 w-8 text-warning mx-auto mb-2" />
                         <h3 className="text-lg font-semibold text-foreground">Not Accepting Applications</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           This employer is not currently accepting new applications
@@ -365,7 +365,7 @@ export default function JobDetails() {
                   ) : (
                     <>
                       <div className="text-center">
-                        <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
+                        <AvaGlyph className="h-8 w-8 text-primary mx-auto mb-2" />
                         <h3 className="text-lg font-semibold text-foreground">Ready to Apply?</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           Start your application and take the first step
@@ -396,7 +396,7 @@ export default function JobDetails() {
                                 animate={{ scale: [1, 1.2, 1] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                               >
-                                <Sparkles className="h-5 w-5" />
+                                <AvaGlyph className="h-5 w-5" />
                               </motion.span>
                             </>
                           )}

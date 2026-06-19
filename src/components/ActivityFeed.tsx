@@ -16,9 +16,9 @@ import { useActivityFeed, type ActivityItem } from "@/hooks/useActivityFeed";
 import { cn } from "@/lib/utils";
 
 const activityConfig: Record<ActivityItem["type"], { icon: React.ElementType; color: string; bgColor: string }> = {
-  application: { icon: UserPlus, color: "text-blue-500", bgColor: "bg-blue-500/10" },
-  interview: { icon: Calendar, color: "text-purple-500", bgColor: "bg-purple-500/10" },
-  document: { icon: FileText, color: "text-amber-500", bgColor: "bg-amber-500/10" },
+  application: { icon: UserPlus, color: "text-muted-foreground", bgColor: "bg-secondary" },
+  interview: { icon: Calendar, color: "text-primary", bgColor: "bg-primary/10" },
+  document: { icon: FileText, color: "text-warning", bgColor: "bg-warning/10" },
   status_change: { icon: RefreshCw, color: "text-muted-foreground", bgColor: "bg-muted" },
   hired: { icon: CheckCircle2, color: "text-primary", bgColor: "bg-primary/10" },
   rejected: { icon: XCircle, color: "text-destructive", bgColor: "bg-destructive/10" },

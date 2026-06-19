@@ -102,7 +102,7 @@ export function CandidateInterviewConfirmationCard({
         };
       case "reschedule_requested":
         return {
-          badge: <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">Reschedule Requested</Badge>,
+          badge: <Badge className="bg-warning/20 text-warning border-warning/30">Reschedule Requested</Badge>,
           message: "Waiting for employer to review your proposed times.",
         };
       default:

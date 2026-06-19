@@ -762,7 +762,7 @@ export default function SalesSimulationPhase() {
         
         <div className="flex items-center gap-3">
           <ConnectionStatusIndicator />
-          <Badge className="bg-green-500/20 text-green-500 border-green-500/30 gap-1">
+          <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
             <TrendingUp className="h-4 w-4" />
             Sales Conversation
           </Badge>
@@ -773,7 +773,7 @@ export default function SalesSimulationPhase() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-500" />
+            <TrendingUp className="h-5 w-5 text-primary" />
             Client Meeting
           </CardTitle>
           <p className="text-muted-foreground">
@@ -785,15 +785,15 @@ export default function SalesSimulationPhase() {
             <div className="space-y-6">
               {/* Meeting Briefing Card */}
               {currentScenario && (
-                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-lg p-6 space-y-4">
+                <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-6 space-y-4">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-green-500" />
+                    <Briefcase className="h-5 w-5 text-primary" />
                     Your Meeting Briefing
                   </h3>
-                  
+
                   <div className="grid gap-3">
                     <div className="flex items-start gap-3">
-                      <User className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <User className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Meeting With</p>
                         <p className="text-sm font-medium text-foreground">{currentScenario.prospectName}</p>
@@ -802,7 +802,7 @@ export default function SalesSimulationPhase() {
                     </div>
                     
                     <div className="flex items-start gap-3">
-                      <Building className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <Building className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Company</p>
                         <p className="text-sm font-medium text-foreground">{currentScenario.prospectCompany}</p>
@@ -810,14 +810,14 @@ export default function SalesSimulationPhase() {
                     </div>
                     
                     <div className="flex items-start gap-3">
-                      <TrendingUp className="h-4 w-4 mt-1 text-green-500 shrink-0" />
+                      <TrendingUp className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">You're Selling</p>
                         <p className="text-sm font-medium text-foreground">{currentScenario.productService}</p>
                       </div>
                     </div>
                     
-                    <div className="mt-2 pt-3 border-t border-green-500/10">
+                    <div className="mt-2 pt-3 border-t border-primary/10">
                       <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Situation</p>
                       <p className="text-sm text-muted-foreground">{currentScenario.scenario}</p>
                     </div>
@@ -829,19 +829,19 @@ export default function SalesSimulationPhase() {
                 <h3 className="font-semibold text-foreground">What We're Looking For</h3>
                 <ul className="space-y-2 text-muted-foreground text-sm">
                   <li className="flex items-start gap-2">
-                    <User className="h-4 w-4 mt-0.5 text-green-500" />
+                    <User className="h-4 w-4 mt-0.5 text-primary" />
                     <span><strong>Discovery Skills</strong> — How well you uncover the client's needs and challenges</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Building className="h-4 w-4 mt-0.5 text-green-500" />
+                    <Building className="h-4 w-4 mt-0.5 text-primary" />
                     <span><strong>Objection Handling</strong> — How you respond when the client pushes back or raises concerns</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Briefcase className="h-4 w-4 mt-0.5 text-green-500" />
+                    <Briefcase className="h-4 w-4 mt-0.5 text-primary" />
                     <span><strong>Value Proposition</strong> — How clearly you communicate the benefits of your solution</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 mt-0.5 text-green-500" />
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-primary" />
                     <span><strong>Rapport Building</strong> — How naturally you connect with the client</span>
                   </li>
                 </ul>
@@ -852,7 +852,7 @@ export default function SalesSimulationPhase() {
               </div>
               
               <div className="text-center">
-                <Button onClick={startSales} size="lg" className="gap-2 bg-green-600 hover:bg-green-700" disabled={!currentScenario}>
+                <Button onClick={startSales} size="lg" className="gap-2 bg-primary hover:bg-primary/90" disabled={!currentScenario}>
                   <TrendingUp className="h-5 w-5" />
                   Start Meeting
                 </Button>
@@ -894,7 +894,7 @@ export default function SalesSimulationPhase() {
                       <div
                         className={`max-w-[70%] rounded-lg p-3 ${
                           message.role === "salesRep"
-                            ? "bg-green-600 text-white"
+                            ? "bg-primary text-primary-foreground"
                             : "bg-muted"
                         }`}
                       >
@@ -907,7 +907,7 @@ export default function SalesSimulationPhase() {
                       </div>
                       {message.role === "salesRep" && (
                         <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-green-600 text-white">
+                          <AvatarFallback className="bg-primary text-primary-foreground">
                             You
                           </AvatarFallback>
                         </Avatar>
@@ -954,7 +954,7 @@ export default function SalesSimulationPhase() {
                   <Button 
                     onClick={sendMessage} 
                     disabled={!inputValue.trim() || isTyping} 
-                    className="h-[80px] px-4 bg-green-600 hover:bg-green-700"
+                    className="h-[80px] px-4 bg-primary hover:bg-primary/90"
                     aria-label="Send message"
                     title="Send message"
                   >
@@ -979,7 +979,7 @@ export default function SalesSimulationPhase() {
               {/* Evaluating State */}
               {state === "evaluating" && (
                 <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-green-500 mb-4" />
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
                   <p className="text-foreground font-medium">Evaluating your sales performance...</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     AI is analyzing your pitch

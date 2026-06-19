@@ -16,10 +16,10 @@ import {
   ArrowRight,
   ClipboardList,
   FileText,
-  Sparkles,
   RefreshCw,
   CheckCircle2
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { isPast } from "date-fns";
@@ -260,12 +260,12 @@ export default function ApplyWithCode() {
             </div>
 
             <Card className="relative overflow-hidden border-border bg-card shadow-xl">
-              <div className="h-1.5 bg-gradient-to-r from-primary via-cyan-400 to-emerald-400" />
+              <div className="h-1.5 bg-gradient-to-r from-primary via-primary/70 to-accent" />
               <CardContent className="p-6 sm:p-8 space-y-6">
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary" className="gap-1">
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <AvaGlyph className="h-3.5 w-3.5" />
                       Job preview
                     </Badge>
                     {previewJob.department && <Badge variant="outline">{previewJob.department}</Badge>}
@@ -316,7 +316,7 @@ export default function ApplyWithCode() {
                     <div className="space-y-2">
                       {getPreviewStages(previewJob).slice(0, 5).map((stage, index) => (
                         <div key={`${stage}-${index}`} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                           <span>{stage}</span>
                         </div>
                       ))}
@@ -372,7 +372,7 @@ export default function ApplyWithCode() {
               className="mb-8 text-center"
             >
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent">
-                <KeyRound className="h-8 w-8 text-white" />
+                <KeyRound className="h-8 w-8 text-primary-foreground" />
               </div>
               <h1 className="text-4xl font-bold text-foreground">Enter Job Code</h1>
               <p className="mt-2 max-w-md text-muted-foreground">

@@ -64,13 +64,18 @@ export default function JoinTeam() {
       }
 
       try {
-        const { data: inviteData, error: inviteError } = await supabase
-          .from("team_invitations")
-          .select("*")
-          .eq("invite_code", code)
-          .maybeSingle();
+        // Read the invitation through a SECURITY DEFINER RPC. The open
+        // "view invitations by code" SELECT policy has been removed, so this
+        // is the only path that exposes invitation details — and it never
+        // leaks another tenant's invitee email.
+        const { data: rows, error: inviteError } = await supabase.rpc(
+          "get_team_invitation_by_code",
+          { p_code: code }
+        );
 
         if (inviteError) throw inviteError;
+
+        const inviteData = Array.isArray(rows) ? rows[0] : rows;
 
         if (!inviteData) {
           setError("Invitation not found");
@@ -92,19 +97,19 @@ export default function JoinTeam() {
           return;
         }
 
-        // Fetch inviter profile
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("full_name, company_name")
-          .eq("user_id", inviteData.inviter_id)
-          .maybeSingle();
-
         setInvitation({
           ...inviteData,
-          inviter_profile: profileData || undefined,
-        });
+          inviter_profile:
+            inviteData.inviter_full_name || inviteData.inviter_company_name
+              ? {
+                  full_name: inviteData.inviter_full_name ?? "",
+                  company_name: inviteData.inviter_company_name ?? "",
+                }
+              : undefined,
+        } as InvitationData);
 
-        // Pre-fill email if specified
+        // Pre-fill email/name. invitee_email is only returned by the RPC when
+        // it matches the caller's verified email, so this never leaks.
         if (inviteData.invitee_email) {
           setEmail(inviteData.invitee_email);
         }
@@ -133,73 +138,32 @@ export default function JoinTeam() {
 
     setIsSubmitting(true);
     try {
-      // Check if email matches (if restricted)
-      if (invitation.invitee_email && user.email !== invitation.invitee_email) {
-        toast({
-          title: "Email Mismatch",
-          description: `This invitation is for ${invitation.invitee_email}. Please sign in with that email.`,
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Create team member record
-      const { error: memberError } = await supabase.from("team_members").insert({
-        user_id: user.id,
-        employer_id: invitation.inviter_id,
-        invitation_id: invitation.id,
-        name: invitation.invitee_name || user.user_metadata?.full_name || "",
-        email: user.email || "",
-        department: invitation.department,
-        permission_level: invitation.permission_level,
-        can_create_jobs: invitation.can_create_jobs,
-        can_delete_jobs: invitation.can_delete_jobs,
-        can_message_candidates: invitation.can_message_candidates,
-        can_manage_pipeline: invitation.can_manage_pipeline,
-        can_schedule_interviews: invitation.can_schedule_interviews,
-        can_send_documents: invitation.can_send_documents,
-        assigned_job_ids: invitation.assigned_job_ids,
-        onboarding_completed: false,
+      // Join atomically via the SECURITY DEFINER RPC. The server verifies the
+      // caller's confirmed email against the invitation, copies employer_id and
+      // all permission flags from the invitation row (never from the client),
+      // inserts the team_members row, grants the team_member role, and marks the
+      // invitation accepted — all in one transaction.
+      const { error: joinError } = await supabase.rpc("join_team_by_code", {
+        p_code: code,
       });
 
-      if (memberError) {
-        if (memberError.code === "23505") {
+      if (joinError) {
+        // 23505 = already a member of this team.
+        if ((joinError as any).code === "23505") {
           toast({
             title: "Already a Team Member",
             description: "You're already a member of this team.",
             variant: "destructive",
           });
         } else {
-          throw memberError;
+          toast({
+            title: "Could not join team",
+            description: joinError.message,
+            variant: "destructive",
+          });
         }
         setIsSubmitting(false);
         return;
-      }
-
-      // Update invitation status
-      const { error: updateError } = await supabase
-        .from("team_invitations")
-        .update({ status: "accepted" })
-        .eq("id", invitation.id);
-
-      if (updateError) {
-        console.error("Failed to update invitation status:", updateError);
-      }
-
-      // Add team_member role if not already present
-      const { data: existingRole } = await supabase
-        .from("user_roles")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("role", "team_member")
-        .maybeSingle();
-
-      if (!existingRole) {
-        await supabase.from("user_roles").insert({
-          user_id: user.id,
-          role: "team_member",
-        });
       }
 
       toast({
@@ -358,10 +322,10 @@ export default function JoinTeam() {
                   variant="outline"
                   className={
                     invitation.permission_level === "full_admin"
-                      ? "bg-red-500/10 text-red-500 border-red-500/20"
+                      ? "bg-destructive/10 text-destructive border-destructive/20"
                       : invitation.permission_level === "limited"
-                      ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                      : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                      ? "bg-warning/10 text-warning border-warning/20"
+                      : "bg-secondary text-muted-foreground border-border"
                   }
                 >
                   {permissionLabel}
@@ -395,7 +359,7 @@ export default function JoinTeam() {
               ].map((perm) => (
                 <div key={perm.label} className="flex items-center gap-2">
                   {perm.allowed ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-success" />
                   ) : (
                     <X className="h-4 w-4 text-muted-foreground" />
                   )}

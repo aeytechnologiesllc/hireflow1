@@ -10,18 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Sparkles, 
-  Trophy, 
-  Eye, 
-  Calendar, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Trophy,
+  Eye,
+  Calendar,
+  CheckCircle,
+  AlertCircle,
   XCircle,
   TrendingUp,
   Users,
   Loader2
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import type { ShortlistResult, RankedCandidate } from "@/hooks/useAIShortlist";
 import { format } from "date-fns";
 
@@ -34,20 +34,20 @@ interface AIShortlistDialogProps {
 }
 
 const recommendationConfig = {
-  strong_yes: { 
-    label: "Strong Yes", 
-    color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    icon: CheckCircle 
+  strong_yes: {
+    label: "Strong Yes",
+    color: "bg-success/20 text-success border-success/30",
+    icon: CheckCircle
   },
   yes: { 
     label: "Yes", 
     color: "bg-primary/20 text-primary border-primary/30",
     icon: CheckCircle 
   },
-  maybe: { 
-    label: "Maybe", 
-    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    icon: AlertCircle 
+  maybe: {
+    label: "Maybe",
+    color: "bg-warning/20 text-warning border-warning/30",
+    icon: AlertCircle
   },
   no: { 
     label: "Pass", 
@@ -57,9 +57,9 @@ const recommendationConfig = {
 };
 
 const rankColors = [
-  "from-amber-400 to-yellow-500", // Gold for #1
-  "from-slate-300 to-slate-400",  // Silver for #2
-  "from-amber-600 to-amber-700",  // Bronze for #3
+  "from-primary to-primary/80",       // Gold for #1
+  "from-muted-foreground to-muted",   // Silver for #2
+  "from-primary/70 to-primary/50",    // Bronze for #3
 ];
 
 function formatSignalLabel(signal: string) {
@@ -91,8 +91,8 @@ function CandidateCard({
     typeof candidate.scorecard?.directMatchScore === "number" &&
     candidate.scorecard.transferableFitScore >= Math.max(55, candidate.scorecard.directMatchScore)
   );
-  const scoreColor = needsMoreEvidence ? "text-amber-300" : "text-primary";
-  const barColor = needsMoreEvidence ? "bg-amber-300" : "bg-primary";
+  const scoreColor = needsMoreEvidence ? "text-warning" : "text-primary";
+  const barColor = needsMoreEvidence ? "bg-warning" : "bg-primary";
 
   return (
     <Card className="bg-card/50 border-border hover:border-primary/30 transition-all">
@@ -101,7 +101,7 @@ function CandidateCard({
           {/* Rank Badge */}
           <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
             candidate.rank <= 3 
-              ? `bg-gradient-to-br ${rankColors[candidate.rank - 1]} text-black` 
+              ? `bg-gradient-to-br ${rankColors[candidate.rank - 1]} text-primary-foreground`
               : 'bg-muted text-muted-foreground'
           }`}>
             {candidate.rank <= 3 && RankIcon ? (
@@ -118,7 +118,7 @@ function CandidateCard({
                   {candidate.candidateName}
                 </h4>
                 {candidate.rank === 1 && (
-                  <Badge className="bg-gradient-to-r from-amber-400 to-yellow-500 text-black text-xs">
+                  <Badge className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs">
                     Top Pick
                   </Badge>
                 )}
@@ -131,7 +131,7 @@ function CandidateCard({
             {/* AI Score */}
             {candidate.aiScore !== null && candidate.aiScore !== undefined && (
               <div className="flex items-center gap-2 mt-2">
-                <Sparkles className={`h-3.5 w-3.5 ${scoreColor}`} />
+                <AvaGlyph className={`h-3.5 w-3.5 ${scoreColor}`} />
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-20 bg-secondary rounded-full overflow-hidden">
                     <div 
@@ -149,7 +149,7 @@ function CandidateCard({
                   </Badge>
                 ) : null}
                 {needsMoreEvidence && (
-                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300">
+                  <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">
                     Awaiting more evidence
                   </Badge>
                 )}
@@ -157,13 +157,13 @@ function CandidateCard({
             )}
 
             {needsMoreEvidence && pendingSignals.length > 0 && (
-              <p className="mt-2 text-xs text-amber-300/90">
+              <p className="mt-2 text-xs text-warning/90">
                 Pending signals: {pendingSignals.join(", ")}
               </p>
             )}
 
             {showsTransferableFit && (
-              <p className="mt-2 text-xs text-emerald-300/90">
+              <p className="mt-2 text-xs text-success/90">
                 Transferable fit recognized from {transferableEvidence.join(", ")}.
               </p>
             )}
@@ -176,17 +176,17 @@ function CandidateCard({
             {/* Strengths & Concerns */}
             <div className="mt-3 flex flex-wrap gap-1.5">
               {candidate.strengths.slice(0, 2).map((strength, i) => (
-                <Badge key={i} variant="outline" className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                <Badge key={i} variant="outline" className="text-xs bg-success/10 text-success border-success/20">
                   {strength}
                 </Badge>
               ))}
               {candidate.concerns.slice(0, 1).map((concern, i) => (
-                <Badge key={i} variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
+                <Badge key={i} variant="outline" className="text-xs bg-warning/10 text-warning border-warning/20">
                   {concern}
                 </Badge>
               ))}
               {showsTransferableFit && (
-                <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
+                <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">
                   Transferable fit {candidate.scorecard?.transferableFitScore}%
                 </Badge>
               )}
@@ -250,7 +250,7 @@ export default function AIShortlistDialog({
           <div className="flex flex-col items-center justify-center py-16">
             <div className="relative">
               <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
-                <Sparkles className="h-8 w-8 text-primary" />
+                <AvaGlyph className="h-8 w-8 text-primary" />
               </div>
               <Loader2 className="h-20 w-20 absolute -top-2 -left-2 text-primary animate-spin" />
             </div>
@@ -282,7 +282,7 @@ export default function AIShortlistDialog({
         <DialogHeader className="p-6 pb-4 border-b border-border bg-gradient-to-r from-primary/10 to-accent/10">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <AvaGlyph className="h-5 w-5 text-primary" />
             </div>
             <div>
               <DialogTitle className="text-xl">
@@ -352,11 +352,11 @@ export default function AIShortlistDialog({
 
             {/* Quick Decision */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Card className="bg-emerald-500/10 border-emerald-500/20">
+              <Card className="bg-success/10 border-success/20">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="h-4 w-4 text-emerald-400" />
-                    <span className="text-xs font-medium text-emerald-400">Interview Now</span>
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <span className="text-xs font-medium text-success">Interview Now</span>
                   </div>
                   <div className="space-y-1">
                     {shortlist.quickDecision.interviewImmediately.length > 0 ? (
@@ -370,13 +370,13 @@ export default function AIShortlistDialog({
                 </CardContent>
               </Card>
 
-              <Card className="bg-amber-500/10 border-amber-500/20">
+              <Card className="bg-warning/10 border-warning/20">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="h-4 w-4 text-amber-400" />
-                    <span className="text-xs font-medium text-amber-400">{considerLabel}</span>
+                    <AlertCircle className="h-4 w-4 text-warning" />
+                    <span className="text-xs font-medium text-warning">{considerLabel}</span>
                   </div>
-                  <p className="mb-2 text-[11px] text-amber-300/80">{considerHint}</p>
+                  <p className="mb-2 text-[11px] text-warning/80">{considerHint}</p>
                   <div className="space-y-1">
                     {shortlist.quickDecision.considerWithReservations.length > 0 ? (
                       shortlist.quickDecision.considerWithReservations.map((name, i) => (
@@ -442,7 +442,7 @@ export default function AIShortlistDialog({
             {/* Comparative Insights */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-accent" />
+                <AvaGlyph className="h-5 w-5 text-accent" />
                 <h3 className="font-semibold text-foreground">Comparative Insights</h3>
               </div>
               <ul className="space-y-2">

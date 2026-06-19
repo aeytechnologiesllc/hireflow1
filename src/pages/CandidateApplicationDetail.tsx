@@ -19,8 +19,7 @@ import {
   MessageSquare, 
   Eye, 
   Users, 
-  CheckCircle, 
-  Sparkles,
+  CheckCircle,
   Clock,
   Play,
   Loader2,
@@ -34,6 +33,7 @@ import {
   Mic,
   FileUp
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { toast } from "sonner";
 import type { Tables, Json } from "@/integrations/supabase/types";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
@@ -807,7 +807,7 @@ export default function CandidateApplicationDetail() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <AvaGlyph className="h-5 w-5 text-primary" />
             Phase Breakdown
           </CardTitle>
         </CardHeader>
@@ -883,7 +883,7 @@ export default function CandidateApplicationDetail() {
                       )}
                       {isCompleted && (
                         (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type)) ? (
-                          <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
+                          <Badge className="bg-warning/20 text-warning border-warning/30">
                             <FastForward className="h-3 w-3 mr-1" />
                             Skipped
                           </Badge>
@@ -932,7 +932,7 @@ export default function CandidateApplicationDetail() {
                     )}
 
                   {isCurrent && status === "pending" && !isRejected && (
-                    <div className="flex shrink-0 items-center gap-2 text-yellow-500 sm:ml-auto">
+                    <div className="flex shrink-0 items-center gap-2 text-warning sm:ml-auto">
                       <Clock className="h-5 w-5" />
                       <span className="text-sm font-medium">Awaiting Review</span>
                     </div>

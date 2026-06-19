@@ -25,7 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Wand2, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList, ChevronRight } from "lucide-react";
+import { FileText, Clock, CheckCircle, XCircle, Eye, PenTool, Trash2, Loader2, EyeOff, CalendarDays, Search, X, ClipboardList, ChevronRight } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -58,12 +59,12 @@ const getDisplayStatus = (doc: DocumentWithApplication, isEmployer: boolean) => 
   if (candidateSigned && !employerSigned) {
     // Both employer and candidate see BLUE for awaiting employer signature
     if (isEmployer) {
-      return { color: "bg-blue-500/20 text-blue-500", icon: PenTool, label: "Awaiting Your Signature" };
+      return { color: "bg-primary/20 text-primary", icon: PenTool, label: "Awaiting Your Signature" };
     }
-    return { color: "bg-blue-500/20 text-blue-500", icon: Clock, label: "Awaiting Countersignature" };
+    return { color: "bg-primary/20 text-primary", icon: Clock, label: "Awaiting Countersignature" };
   }
-  
-  return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending" };
+
+  return { color: "bg-warning/20 text-warning", icon: Clock, label: "Pending" };
 };
 
 export default function Documents() {
@@ -425,7 +426,7 @@ export default function Documents() {
               <span className="sm:hidden">Request</span>
             </Button>
             <Button size="sm" className="gap-1.5 text-xs sm:text-sm" onClick={handleCreateDocumentClick}>
-              <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <AvaGlyph className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Create Document</span>
               <span className="sm:hidden">Create</span>
             </Button>
@@ -651,7 +652,7 @@ export default function Documents() {
                 ? {
                     label: "Create Document",
                     onClick: () => setWizardOpen(true),
-                    icon: Wand2,
+                    icon: AvaGlyph,
                   }
                 : undefined
             }

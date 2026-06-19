@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, ChevronDown, ShieldCheck, Shield, ShieldAlert, Loader2 } from "lucide-react";
+import { ChevronDown, ShieldCheck, Shield, ShieldAlert, Loader2 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -46,7 +47,7 @@ function getTrustBadge(level: "high" | "medium" | "low") {
       return {
         icon: Shield,
         label: "Medium Confidence",
-        className: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+        className: "bg-warning/10 text-warning border-warning/30",
       };
     case "low":
       return {
@@ -77,7 +78,7 @@ export function ApplicantAISummary({
         <div className="flex items-start gap-3">
           {/* Ava Icon */}
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <AvaGlyph className="h-5 w-5 text-primary" />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -160,7 +161,7 @@ export function ApplicantAISummary({
                 onClick={onReanalyze}
                 className="mt-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
               >
-                <Sparkles className="h-3 w-3 mr-1" />
+                <AvaGlyph className="h-3 w-3 mr-1" />
                 Reanalyze
               </Button>
             )}

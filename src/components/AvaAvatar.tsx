@@ -31,34 +31,34 @@ const expressionColors: Record<AvaExpression, { primary: string; glow: string; b
     glow: "bg-muted-foreground/20",
     bg: "from-muted/30 to-muted/50"
   },
-  listening: { 
-    primary: "from-blue-400 to-blue-600", 
-    glow: "bg-blue-500/30",
-    bg: "from-blue-500/10 to-blue-600/20"
+  listening: {
+    primary: "from-primary/70 to-primary",
+    glow: "bg-primary/30",
+    bg: "from-primary/10 to-primary/20"
   },
-  thinking: { 
-    primary: "from-amber-400 to-amber-600", 
-    glow: "bg-amber-500/30",
-    bg: "from-amber-500/10 to-amber-600/20"
+  thinking: {
+    primary: "from-warning/70 to-warning",
+    glow: "bg-warning/30",
+    bg: "from-warning/10 to-warning/20"
   },
-  speaking: { 
-    primary: "from-emerald-400 to-emerald-600", 
-    glow: "bg-emerald-500/30",
-    bg: "from-emerald-500/10 to-emerald-600/20"
+  speaking: {
+    primary: "from-success/70 to-success",
+    glow: "bg-success/30",
+    bg: "from-success/10 to-success/20"
   },
-  encouraging: { 
-    primary: "from-emerald-300 to-teal-500", 
-    glow: "bg-teal-500/40",
-    bg: "from-teal-500/10 to-emerald-600/20"
+  encouraging: {
+    primary: "from-success/60 to-success",
+    glow: "bg-success/40",
+    bg: "from-success/10 to-success/20"
   },
 };
 
 const statusColors: Record<AvaExpression, string> = {
   neutral: "bg-muted-foreground/50",
-  listening: "bg-blue-500",
-  thinking: "bg-amber-500",
-  speaking: "bg-emerald-500",
-  encouraging: "bg-teal-500",
+  listening: "bg-primary",
+  thinking: "bg-warning",
+  speaking: "bg-success",
+  encouraging: "bg-success",
 };
 
 const statusLabels: Record<AvaExpression, string> = {
@@ -251,7 +251,7 @@ export function AvaAvatar({
             {[0, 1, 2].map((i) => (
               <motion.div
                 key={i}
-                className="w-1.5 h-1.5 bg-amber-400 rounded-full"
+                className="w-1.5 h-1.5 bg-warning rounded-full"
                 animate={{ y: [0, -3, 0] }}
                 transition={{
                   duration: 0.6,
@@ -266,7 +266,7 @@ export function AvaAvatar({
         {/* Listening indicator - subtle ring pulse */}
         {expression === "listening" && (
           <motion.div
-            className="absolute inset-0 rounded-full border-2 border-blue-400/50"
+            className="absolute inset-0 rounded-full border-2 border-primary/50"
             animate={{
               scale: [1, 1.1, 1],
               opacity: [0.5, 0.2, 0.5],

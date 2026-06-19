@@ -3,18 +3,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Sparkles, 
-  MessageSquare, 
-  HelpCircle, 
+import {
+  MessageSquare,
+  HelpCircle,
   CheckCircle2,
   Clock,
   Keyboard,
   Video,
-  Bot,
   Upload,
   AlertTriangle
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface ApplicationQuestion {
@@ -54,7 +53,7 @@ const STEP_ICONS: Record<string, React.ElementType> = {
   typing_test: Keyboard,
   video_message: Video,
   chat_simulation: MessageSquare,
-  sales_simulation: Bot,
+  sales_simulation: AvaGlyph,
   portfolio_upload: Upload,
 };
 
@@ -75,10 +74,10 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
   const hasWorkflow = applicationQuestions.length > 0 || quizQuestions.length > 0 || workflowSteps.length > 0;
 
   const difficultyLabels: Record<string, { label: string; color: string }> = {
-    easy: { label: "Easy", color: "text-green-500" },
-    medium: { label: "Medium", color: "text-blue-500" },
-    hard: { label: "Hard", color: "text-orange-500" },
-    intense: { label: "Intense", color: "text-red-500" },
+    easy: { label: "Easy", color: "text-success" },
+    medium: { label: "Medium", color: "text-muted-foreground" },
+    hard: { label: "Hard", color: "text-warning" },
+    intense: { label: "Intense", color: "text-destructive" },
   };
 
   const difficulty = difficultyLabels[job.workflow_difficulty || "medium"];
@@ -88,7 +87,7 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
       <DialogContent className="sm:max-w-2xl max-h-[85vh] bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl text-foreground">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <AvaGlyph className="h-5 w-5 text-primary" />
             AI Hiring Workflow
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -99,7 +98,7 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
         <ScrollArea className="max-h-[60vh] pr-4">
           {!hasWorkflow ? (
             <div className="text-center py-12 text-muted-foreground">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <AvaGlyph className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No workflow has been configured for this job</p>
               <p className="text-sm mt-1">Workflows are generated when publishing a job</p>
             </div>
@@ -207,13 +206,13 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
                 <Card className="bg-background border-border">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                      <AvaGlyph className="h-4 w-4 text-primary" />
                       Workflow Steps ({workflowSteps.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {workflowSteps.map((step, index) => {
-                      const StepIcon = STEP_ICONS[step.type] || Sparkles;
+                      const StepIcon = STEP_ICONS[step.type] || AvaGlyph;
                       return (
                         <div key={step.id} className="p-3 rounded-lg bg-muted/30 border border-border">
                           <div className="flex items-start gap-3">

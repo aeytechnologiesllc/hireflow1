@@ -182,15 +182,15 @@ export function AvaInterviewConfigDialog({
                 {voiceMinutesRemaining !== undefined && (
                   <div className={cn(
                     "flex items-center justify-between p-3 rounded-lg border",
-                    hasNoMinutes ? "bg-destructive/10 border-destructive/30" : 
-                    hasInsufficientMinutes ? "bg-amber-500/10 border-amber-500/30" : 
+                    hasNoMinutes ? "bg-destructive/10 border-destructive/30" :
+                    hasInsufficientMinutes ? "bg-warning/10 border-warning/30" :
                     "bg-muted/50 border-border"
                   )}>
                     <div className="flex items-center gap-2">
                       <Clock className={cn(
                         "h-4 w-4",
-                        hasNoMinutes ? "text-destructive" : 
-                        hasInsufficientMinutes ? "text-amber-500" : 
+                        hasNoMinutes ? "text-destructive" :
+                        hasInsufficientMinutes ? "text-warning" :
                         "text-muted-foreground"
                       )} />
                       <span className="text-sm">Voice minutes available:</span>
@@ -226,10 +226,10 @@ export function AvaInterviewConfigDialog({
 
                 {/* Insufficient Minutes Warning */}
                 {hasInsufficientMinutes && (
-                  <Alert className="border-amber-500/50 bg-amber-500/10">
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                    <AlertTitle className="text-amber-600">Insufficient minutes</AlertTitle>
-                    <AlertDescription className="text-amber-600/80">
+                  <Alert className="border-warning/50 bg-warning/10">
+                    <AlertCircle className="h-4 w-4 text-warning" />
+                    <AlertTitle className="text-warning">Insufficient minutes</AlertTitle>
+                    <AlertDescription className="text-warning/80">
                       You have {voiceMinutesRemaining} minutes but selected a {selectedDuration}-minute interview. 
                       The interview may end early.
                     </AlertDescription>
@@ -384,12 +384,12 @@ export function AvaInterviewConfigDialog({
             {minutesAfterInterview !== undefined && (
               <div className={cn(
                 "flex items-center justify-between pt-2 mt-2 border-t border-border text-sm",
-                minutesAfterInterview === 0 && "text-amber-500"
+                minutesAfterInterview === 0 && "text-warning"
               )}>
                 <span className="text-muted-foreground">After this interview:</span>
                 <span className={cn(
                   "font-medium",
-                  minutesAfterInterview === 0 ? "text-amber-500" : "text-foreground"
+                  minutesAfterInterview === 0 ? "text-warning" : "text-foreground"
                 )}>
                   {minutesAfterInterview} min remaining
                 </span>
@@ -413,9 +413,9 @@ export function AvaInterviewConfigDialog({
           <div className="flex-1" />
           {step < 2 ? (
             <Button 
-              onClick={nextStep} 
+              onClick={nextStep}
               disabled={hasNoMinutes}
-              className="gap-1 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+              className="gap-1 bg-primary hover:bg-primary/90"
             >
               Next
               <ChevronRight className="h-4 w-4" />
@@ -424,7 +424,7 @@ export function AvaInterviewConfigDialog({
             <Button
               onClick={handleConfirm}
               disabled={hasNoMinutes}
-              className="gap-1 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+              className="gap-1 bg-primary hover:bg-primary/90"
             >
               Start Interview
               <Check className="h-4 w-4" />

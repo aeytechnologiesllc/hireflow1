@@ -538,15 +538,15 @@ Duration: ${formatTime(elapsedSeconds)}
   const totalSeconds = duration * 60;
   const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
   const percentUsed = (elapsedSeconds / totalSeconds) * 100;
-  const timerColor = percentUsed > 90 ? 'text-red-400' : percentUsed > 80 ? 'text-amber-400' : 'text-muted-foreground';
+  const timerColor = percentUsed > 90 ? 'text-destructive' : percentUsed > 80 ? 'text-warning' : 'text-muted-foreground';
   const timerPulse = percentUsed > 90;
 
   // Connection quality indicator
   const getConnectionIcon = () => {
     switch (connectionQuality) {
-      case 'excellent': return <Wifi className="h-4 w-4 text-green-400" />;
-      case 'good': return <Wifi className="h-4 w-4 text-yellow-400" />;
-      case 'poor': return <WifiOff className="h-4 w-4 text-red-400" />;
+      case 'excellent': return <Wifi className="h-4 w-4 text-success" />;
+      case 'good': return <Wifi className="h-4 w-4 text-warning" />;
+      case 'poor': return <WifiOff className="h-4 w-4 text-destructive" />;
       default: return <Wifi className="h-4 w-4 text-muted-foreground" />;
     }
   };
@@ -648,7 +648,7 @@ Duration: ${formatTime(elapsedSeconds)}
                             className="w-full h-full object-cover mirror"
                             style={{ transform: 'scaleX(-1)' }}
                           />
-                          <Badge className="absolute top-2 left-2 bg-green-500 text-white">
+                          <Badge className="absolute top-2 left-2 bg-success text-success-foreground">
                             <Video className="h-3 w-3 mr-1" />
                             Camera Ready
                           </Badge>
@@ -662,7 +662,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           {micLevels.map((level, i) => (
                             <motion.div
                               key={i}
-                              className={`${videoEnabled ? 'w-1.5' : 'w-2'} rounded-full ${level > 15 ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+                              className={`${videoEnabled ? 'w-1.5' : 'w-2'} rounded-full ${level > 15 ? 'bg-success' : 'bg-muted-foreground/30'}`}
                               animate={{ height: Math.max(4, level / 4 + 4) }}
                               transition={{ duration: 0.05 }}
                             />
@@ -685,7 +685,7 @@ Duration: ${formatTime(elapsedSeconds)}
                       </div>
 
                       {videoError && (
-                        <p className="text-sm text-red-400 text-center">{videoError}</p>
+                        <p className="text-sm text-destructive text-center">{videoError}</p>
                       )}
 
                       <div className="flex gap-2 justify-center pt-2">
@@ -700,7 +700,7 @@ Duration: ${formatTime(elapsedSeconds)}
                         </Button>
                         <Button
                           onClick={confirmCameraWorks}
-                          className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                          className="bg-primary hover:opacity-90"
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
                           My Setup Works
@@ -716,7 +716,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-sm text-green-400 pt-2"
+                  className="flex items-center gap-2 text-sm text-success pt-2"
                 >
                   <CheckCircle className="h-4 w-4" />
                   {videoEnabled ? 'Camera & microphone ready' : 'Microphone ready'}
@@ -726,7 +726,7 @@ Duration: ${formatTime(elapsedSeconds)}
               <div className="pt-4">
                 <Button
                   onClick={startInterview}
-                  className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                  className="w-full gap-2 bg-primary hover:opacity-90"
                   size="lg"
                   disabled={!cameraTestPassed}
                 >
@@ -812,9 +812,9 @@ Duration: ${formatTime(elapsedSeconds)}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
-                    className="mt-6 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg max-w-sm mx-auto"
+                    className="mt-6 p-3 bg-warning/10 border border-warning/20 rounded-lg max-w-sm mx-auto"
                   >
-                    <div className="flex items-center gap-2 text-amber-400 text-sm">
+                    <div className="flex items-center gap-2 text-warning text-sm">
                       <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                       <p>Please don't refresh or close this page</p>
                     </div>
@@ -838,7 +838,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 />
                 {isRecording && (
                   <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
                     <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">REC</span>
                   </div>
                 )}
@@ -858,7 +858,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 </div>
                 {isRecording && (
                   <div className="flex items-center gap-1 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
                     <span className="text-[10px] font-medium text-white">REC</span>
                   </div>
                 )}
@@ -944,11 +944,11 @@ Duration: ${formatTime(elapsedSeconds)}
 
               {/* Stuck Detection UI */}
               {isStuck && isConnected && (
-                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-amber-400 text-sm font-medium">
+                      <p className="text-warning text-sm font-medium">
                         Ava seems to be taking a while to respond
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -959,7 +959,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           variant="outline"
                           size="sm"
                           onClick={nudgeAva}
-                          className="gap-2 border-amber-500/30 hover:bg-amber-500/10"
+                          className="gap-2 border-warning/30 hover:bg-warning/10"
                         >
                           <Volume2 className="h-4 w-4" />
                           Prompt Ava
@@ -968,7 +968,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           variant="outline"
                           size="sm"
                           onClick={retryConnection}
-                          className="gap-2 border-amber-500/30 hover:bg-amber-500/10"
+                          className="gap-2 border-warning/30 hover:bg-warning/10"
                         >
                           <RefreshCw className="h-4 w-4" />
                           Reconnect
@@ -981,11 +981,11 @@ Duration: ${formatTime(elapsedSeconds)}
 
               {/* Connection Error UI */}
               {voiceError && !isConnected && !showCompletionScreen && (
-                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <WifiOff className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                    <WifiOff className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-red-400 text-sm font-medium">
+                      <p className="text-destructive text-sm font-medium">
                         Connection Lost
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -995,7 +995,7 @@ Duration: ${formatTime(elapsedSeconds)}
                         variant="outline"
                         size="sm"
                         onClick={retryConnection}
-                        className="gap-2 mt-3 border-red-500/30 hover:bg-red-500/10"
+                        className="gap-2 mt-3 border-destructive/30 hover:bg-destructive/10"
                       >
                         <RefreshCw className="h-4 w-4" />
                         Retry Connection
@@ -1007,11 +1007,11 @@ Duration: ${formatTime(elapsedSeconds)}
 
               {/* Reconnection Progress */}
               {isConnecting && reconnectAttempts > 0 && (
-                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="mt-4 p-3 bg-secondary border border-border rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
                     <div>
-                      <p className="text-blue-400 text-sm font-medium">
+                      <p className="text-primary text-sm font-medium">
                         Reconnecting...
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -1079,7 +1079,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 <CardContent className="py-12 text-center space-y-6">
                   {isProcessingEnd || isUploading ? (
                     <>
-                      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary/20 to-teal-400/20 flex items-center justify-center">
+                      <div className="w-20 h-20 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
                         <Loader2 className="h-10 w-10 text-primary animate-spin" />
                       </div>
                       <div className="space-y-2">
@@ -1093,8 +1093,8 @@ Duration: ${formatTime(elapsedSeconds)}
                         </p>
                         
                         {/* Warning message - always visible during processing/uploading */}
-                        <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                          <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-2">
+                        <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                          <p className="text-warning text-sm font-medium flex items-center justify-center gap-2">
                             <span className="text-lg">⚠️</span>
                             Please do not refresh or navigate away
                           </p>
@@ -1106,8 +1106,8 @@ Duration: ${formatTime(elapsedSeconds)}
                         {/* Progress bar only during upload */}
                         {isUploading && (
                           <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mt-4">
-                            <div 
-                              className="bg-gradient-to-r from-primary to-teal-400 h-2 rounded-full transition-all"
+                            <div
+                              className="bg-primary h-2 rounded-full transition-all"
                               style={{ width: `${uploadProgress}%` }}
                             />
                           </div>
@@ -1116,8 +1116,8 @@ Duration: ${formatTime(elapsedSeconds)}
                     </>
                   ) : (
                     <>
-                      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary to-teal-400 flex items-center justify-center">
-                        <CheckCircle className="h-10 w-10 text-white" />
+                      <div className="w-20 h-20 mx-auto rounded-full bg-success flex items-center justify-center">
+                        <CheckCircle className="h-10 w-10 text-success-foreground" />
                       </div>
                       <div className="space-y-2">
                         <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
@@ -1131,7 +1131,7 @@ Duration: ${formatTime(elapsedSeconds)}
                       <div className="flex gap-3 justify-center">
                         <Button 
                           onClick={() => navigate(`/applications/${applicationId}`)}
-                          className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
+                          className="bg-primary hover:opacity-90"
                         >
                           Return to Applications
                         </Button>

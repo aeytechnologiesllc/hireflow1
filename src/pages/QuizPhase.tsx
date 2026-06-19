@@ -1062,9 +1062,9 @@ export default function QuizPhase() {
                     <span className="text-muted-foreground">Progress</span>
                     {/* Timer */}
                     <div className="flex items-center gap-1.5">
-                      <Clock className={`h-4 w-4 ${timeRemaining <= 10 ? "text-red-500" : "text-primary"}`} />
+                      <Clock className={`h-4 w-4 ${timeRemaining <= 10 ? "text-warning" : "text-primary"}`} />
                       <span className={`font-mono text-base font-semibold ${
-                        timeRemaining <= 10 ? "text-red-500 animate-pulse" : "text-foreground"
+                        timeRemaining <= 10 ? "text-warning animate-pulse" : "text-foreground"
                       }`}>
                         {timeRemaining}s
                       </span>

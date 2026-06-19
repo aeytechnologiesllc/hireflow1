@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import AvaGlyph from "@/components/AvaGlyph";
 import {
   ClipboardList,
   Clock,
@@ -10,7 +11,6 @@ import {
   Keyboard,
   Video,
   MessageSquare,
-  Bot,
   Upload,
   Mic,
   Lightbulb,
@@ -103,7 +103,7 @@ const phaseInfoMap: Record<PhaseType, PhaseInfo> = {
     ],
   },
   chat_interview: {
-    icon: Bot,
+    icon: AvaGlyph,
     title: "Interview Conversation",
     description:
       "Have a text-based conversation about your experience and qualifications. Ava will guide you through interview questions.",
@@ -231,7 +231,7 @@ export function PhaseContextCard({ phaseType, className = "" }: PhaseContextCard
                   {/* Tips */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <Lightbulb className="h-4 w-4 text-amber-500" />
+                      <Lightbulb className="h-4 w-4 text-primary" />
                       Quick Tips
                     </div>
                     <ul className="space-y-1.5 pl-6">

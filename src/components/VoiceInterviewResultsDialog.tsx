@@ -13,9 +13,10 @@ import {
 import { jsPDF } from "jspdf";
 import {
   Download, FileText, Mic, Video, ShieldCheck, Shield, ShieldAlert,
-  Star, AlertTriangle, HelpCircle, Clock, CheckCircle, AlertCircle,
+  AlertTriangle, HelpCircle, Clock, CheckCircle, AlertCircle,
   MessageSquare, TrendingUp, Zap
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 interface VoiceInterviewResultsDialogProps {
   open: boolean;
@@ -557,7 +558,7 @@ Date: ${new Date().toLocaleDateString()}
                 ))
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Star className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <AvaGlyph className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No highlights recorded</p>
                 </div>
               )}
@@ -567,8 +568,8 @@ Date: ${new Date().toLocaleDateString()}
             <TabsContent value="followups" className="space-y-3 mt-0">
               {result.suggested_followups?.length > 0 ? (
                 <>
-                  <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 mb-4">
-                    <p className="text-sm text-blue-400">
+                  <div className="p-4 bg-secondary rounded-lg border border-border mb-4">
+                    <p className="text-sm text-muted-foreground">
                       <HelpCircle className="h-4 w-4 inline mr-2" />
                       These questions are suggested for your next interview round based on gaps identified by Ava.
                     </p>

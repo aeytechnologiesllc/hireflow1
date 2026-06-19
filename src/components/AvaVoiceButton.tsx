@@ -3,7 +3,8 @@ import EmbeddedCheckoutDialog from "./subscription/EmbeddedCheckoutDialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Lock, Clock, Sparkles, ShoppingCart } from "lucide-react";
+import { Loader2, Lock, Clock, ShoppingCart } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -240,11 +241,11 @@ export default function AvaVoiceButton() {
 
   // Dark portal with green glow - base styles (smaller size)
   const getPortalStyles = () => {
-    const baseStyles = "h-8 w-8 rounded-full bg-[hsl(220,15%,8%)] border border-border/30 transition-all duration-300";
-    
+    const baseStyles = "h-8 w-8 rounded-full bg-[#070f0b] border border-border/30 transition-all duration-300";
+
     switch (voiceAccessState) {
       case 'exhausted':
-        return cn(baseStyles, "border-amber-500/50");
+        return cn(baseStyles, "border-warning/50");
       case 'locked':
       case 'expired':
         return cn(baseStyles, "opacity-60");
@@ -265,11 +266,11 @@ export default function AvaVoiceButton() {
     if (voiceAccessState === 'exhausted') {
       return (
         <div className="flex items-center justify-center">
-          <Clock className="h-4 w-4 text-amber-500" />
+          <Clock className="h-4 w-4 text-warning" />
         </div>
       );
     }
-    
+
     if (isConnecting) {
       return (
         <div className="flex items-center justify-center">
@@ -285,7 +286,7 @@ export default function AvaVoiceButton() {
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="w-1 bg-emerald-400 rounded-full"
+              className="w-1 bg-primary rounded-full"
               animate={{ height: [6, 14, 10, 16, 6][i % 5] }}
               transition={{ 
                 duration: 0.2, 
@@ -332,9 +333,9 @@ export default function AvaVoiceButton() {
       return {
         animate: {
           boxShadow: [
-            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)",
-            "0 0 35px 4px hsla(38, 92%, 50%, 0.75)",
-            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)"
+            "0 0 20px 2px rgba(224, 179, 65, 0.5)",
+            "0 0 35px 4px rgba(224, 179, 65, 0.75)",
+            "0 0 20px 2px rgba(224, 179, 65, 0.5)"
           ]
         },
         transition: pulsingGlow.transition
@@ -388,7 +389,7 @@ export default function AvaVoiceButton() {
               ease: "easeInOut"
             }}
             style={{
-              border: "2px solid hsl(142.1 76.2% 36.3%)",
+              border: "2px solid var(--primary)",
             }}
           />
         )}
@@ -428,12 +429,12 @@ export default function AvaVoiceButton() {
             <DialogTitle className="flex items-center gap-2">
               {voiceAccessState === 'exhausted' ? (
                 <>
-                  <Clock className="h-5 w-5 text-amber-500" />
+                  <Clock className="h-5 w-5 text-warning" />
                   Voice Minutes Exhausted
                 </>
               ) : voiceAccessState === 'trial_exhausted' ? (
                 <>
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <AvaGlyph className="h-5 w-5 text-primary" />
                   Upgrade for More Voice Minutes
                 </>
               ) : (
@@ -513,7 +514,7 @@ export default function AvaVoiceButton() {
                 <Button
                   onClick={handleUpgrade}
                   disabled={isUpgrading}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   {isUpgrading ? (
                     <>

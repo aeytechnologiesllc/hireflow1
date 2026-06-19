@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, Sparkles, ArrowLeft, CheckSquare, Square, Trash2, ChevronRight } from "lucide-react";
+import { Search, Filter, Users, MoreVertical, Mail, Eye, CheckCircle, XCircle, Calendar, ArrowLeft, CheckSquare, Square, Trash2, ChevronRight } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -245,7 +246,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
                 }
               </Badge>
               {application.status === "in_progress" && (
-                <Badge variant="outline" className="text-xs bg-orange-500/10 border-orange-500/30 text-orange-500">
+                <Badge variant="outline" className="text-xs bg-warning/10 border-warning/30 text-warning">
                   Filling out application
                 </Badge>
               )}
@@ -265,13 +266,13 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
             {(application.ai_score !== null && application.ai_score !== undefined) && (() => {
               const passingScore = application.jobs?.passing_score || 60;
               const isFailing = application.ai_score < passingScore && !needsMoreEvidence;
-              const scoreColor = needsMoreEvidence ? "text-amber-300" : isFailing ? "text-rose-400" : "text-primary";
-              const barColor = needsMoreEvidence ? "bg-amber-300" : isFailing ? "bg-rose-400" : "bg-primary";
+              const scoreColor = needsMoreEvidence ? "text-warning" : isFailing ? "text-destructive" : "text-primary";
+              const barColor = needsMoreEvidence ? "bg-warning" : isFailing ? "bg-destructive" : "bg-primary";
               
               return (
                 <div className="mt-3 space-y-1.5">
                   <div className="flex items-center gap-2">
-                  <Sparkles className={`h-4 w-4 ${scoreColor}`} />
+                  <AvaGlyph className={`h-4 w-4 ${scoreColor}`} />
                   <div className="text-xs font-medium text-muted-foreground">
                     {needsMoreEvidence ? "Provisional score:" : "AI Score:"}
                   </div>
@@ -286,7 +287,7 @@ function ApplicantCard({ application, onStatusChange, onScheduleInterview, onNav
                   </div>
                 </div>
                   {needsMoreEvidence && (
-                    <div className="text-xs text-amber-300/90">
+                    <div className="text-xs text-warning/90">
                       Awaiting more evidence{pendingSignalSummary ? `: ${pendingSignalSummary}` : ""}
                     </div>
                   )}
@@ -539,7 +540,7 @@ export default function Applicants() {
             featureId="ai_shortlist"
             title="Ava's Shortlist"
             description="Let Ava analyze all applicants and rank them by fit for this role. She'll highlight top candidates and explain why."
-            icon={<Sparkles className="h-4 w-4" />}
+            icon={<AvaGlyph className="h-4 w-4" />}
             position="bottom"
           >
             <Button 
@@ -547,7 +548,7 @@ export default function Applicants() {
               className="w-full sm:w-auto gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90"
               disabled={isShortlistLoading}
             >
-              <Sparkles className="h-4 w-4" />
+              <AvaGlyph className="h-4 w-4" />
               AI Shortlist
             </Button>
           </FeatureDiscoveryTooltip>
@@ -562,15 +563,15 @@ export default function Applicants() {
         </div>
         <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-muted-foreground">Pending</p>
-          <p className="text-xl sm:text-2xl font-bold text-yellow-500">{stats?.pending || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold text-warning">{stats?.pending || 0}</p>
         </div>
         <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-muted-foreground">Reviewing</p>
-          <p className="text-xl sm:text-2xl font-bold text-blue-500">{stats?.reviewing || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold text-accent">{stats?.reviewing || 0}</p>
         </div>
         <div className="rounded-lg bg-secondary/50 p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-muted-foreground">Interview</p>
-          <p className="text-xl sm:text-2xl font-bold text-purple-500">{stats?.interview || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold text-primary">{stats?.interview || 0}</p>
         </div>
         <div className="rounded-lg bg-secondary/50 p-3 sm:p-4 col-span-2 sm:col-span-1">
           <p className="text-xs sm:text-sm text-muted-foreground">Hired</p>

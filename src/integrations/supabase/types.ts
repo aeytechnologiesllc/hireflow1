@@ -1214,9 +1214,36 @@ export type Database = {
           permission_level: string
         }[]
       }
+      get_team_invitation_by_code: {
+        Args: { p_code: string }
+        Returns: {
+          assigned_job_ids: string[]
+          can_create_jobs: boolean
+          can_delete_jobs: boolean
+          can_manage_pipeline: boolean
+          can_message_candidates: boolean
+          can_schedule_interviews: boolean
+          can_send_documents: boolean
+          department: string | null
+          email_matches: boolean
+          expires_at: string
+          id: string
+          invitee_email: string | null
+          invitee_name: string | null
+          inviter_company_name: string | null
+          inviter_full_name: string | null
+          inviter_id: string
+          permission_level: string
+          status: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      join_team_by_code: {
+        Args: { p_code: string }
+        Returns: Json
       }
       has_role: {
         Args: {

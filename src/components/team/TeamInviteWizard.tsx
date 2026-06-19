@@ -286,19 +286,19 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
                   level: "full_admin" as PermissionLevel,
                   title: "Full Admin",
                   description: "Can create, edit, delete jobs and manage everything",
-                  color: "bg-red-500/10 border-red-500/20 text-red-500",
+                  color: "bg-destructive/10 border-destructive/20 text-destructive",
                 },
                 {
                   level: "limited" as PermissionLevel,
                   title: "Limited Access",
                   description: "Can manage applicants but cannot create or delete jobs",
-                  color: "bg-yellow-500/10 border-yellow-500/20 text-yellow-500",
+                  color: "bg-warning/10 border-warning/20 text-warning",
                 },
                 {
                   level: "view_only" as PermissionLevel,
                   title: "View Only",
                   description: "Can only view jobs and applicants, no actions allowed",
-                  color: "bg-blue-500/10 border-blue-500/20 text-blue-500",
+                  color: "bg-secondary border-border text-muted-foreground",
                 },
               ].map((option) => (
                 <button
@@ -473,8 +473,8 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6 text-center"
           >
-            <div className="p-4 rounded-full bg-green-500/10 w-fit mx-auto">
-              <Check className="h-12 w-12 text-green-500" />
+            <div className="p-4 rounded-full bg-success/10 w-fit mx-auto">
+              <Check className="h-12 w-12 text-success" />
             </div>
 
             <div>

@@ -34,9 +34,9 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
   
   const getScoreColor = (value: number | undefined | null) => {
     if (value === null || value === undefined) return "text-muted-foreground";
-    if (value >= 70) return "text-emerald-500";
-    if (value >= 50) return "text-amber-500";
-    return "text-red-400";
+    if (value >= 70) return "text-success";
+    if (value >= 50) return "text-warning";
+    return "text-destructive";
   };
 
   const formatScore = (value: number | undefined | null) => {
@@ -45,9 +45,9 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
   };
 
   const getWouldBuyIcon = () => {
-    if (evaluation?.wouldBuy === "yes") return <ThumbsUp className="h-5 w-5 text-emerald-500" />;
-    if (evaluation?.wouldBuy === "maybe") return <HelpCircle className="h-5 w-5 text-amber-500" />;
-    return <ThumbsDown className="h-5 w-5 text-red-400" />;
+    if (evaluation?.wouldBuy === "yes") return <ThumbsUp className="h-5 w-5 text-success" />;
+    if (evaluation?.wouldBuy === "maybe") return <HelpCircle className="h-5 w-5 text-warning" />;
+    return <ThumbsDown className="h-5 w-5 text-destructive" />;
   };
 
   return (
@@ -79,8 +79,8 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
                 <div>
                   <p className="text-sm text-muted-foreground">Would Buy</p>
                   <p className={`font-semibold ${
-                    evaluation?.wouldBuy === "yes" ? "text-emerald-500" :
-                    evaluation?.wouldBuy === "maybe" ? "text-amber-500" : "text-red-400"
+                    evaluation?.wouldBuy === "yes" ? "text-success" :
+                    evaluation?.wouldBuy === "maybe" ? "text-warning" : "text-destructive"
                   }`}>
                     {evaluation?.wouldBuy === "yes" ? "Yes" :
                      evaluation?.wouldBuy === "maybe" ? "Maybe" : "No"}
@@ -106,8 +106,8 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
                   <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all ${
-                        (evaluation?.discovery ?? 0) >= 70 ? "bg-emerald-500" :
-                        (evaluation?.discovery ?? 0) >= 50 ? "bg-amber-500" : "bg-red-400"
+                        (evaluation?.discovery ?? 0) >= 70 ? "bg-success" :
+                        (evaluation?.discovery ?? 0) >= 50 ? "bg-warning" : "bg-destructive"
                       }`}
                       style={{ width: `${evaluation?.discovery ?? 0}%` }}
                     />
@@ -123,8 +123,8 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
                   <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all ${
-                        (evaluation?.objectionHandling ?? 0) >= 70 ? "bg-emerald-500" :
-                        (evaluation?.objectionHandling ?? 0) >= 50 ? "bg-amber-500" : "bg-red-400"
+                        (evaluation?.objectionHandling ?? 0) >= 70 ? "bg-success" :
+                        (evaluation?.objectionHandling ?? 0) >= 50 ? "bg-warning" : "bg-destructive"
                       }`}
                       style={{ width: `${evaluation?.objectionHandling ?? 0}%` }}
                     />
@@ -140,8 +140,8 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
                   <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all ${
-                        (evaluation?.valueProposition ?? 0) >= 70 ? "bg-emerald-500" :
-                        (evaluation?.valueProposition ?? 0) >= 50 ? "bg-amber-500" : "bg-red-400"
+                        (evaluation?.valueProposition ?? 0) >= 70 ? "bg-success" :
+                        (evaluation?.valueProposition ?? 0) >= 50 ? "bg-warning" : "bg-destructive"
                       }`}
                       style={{ width: `${evaluation?.valueProposition ?? 0}%` }}
                     />
@@ -157,8 +157,8 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
                   <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all ${
-                        (evaluation?.closingSkills ?? 0) >= 70 ? "bg-emerald-500" :
-                        (evaluation?.closingSkills ?? 0) >= 50 ? "bg-amber-500" : "bg-red-400"
+                        (evaluation?.closingSkills ?? 0) >= 70 ? "bg-success" :
+                        (evaluation?.closingSkills ?? 0) >= 50 ? "bg-warning" : "bg-destructive"
                       }`}
                       style={{ width: `${evaluation?.closingSkills ?? 0}%` }}
                     />
@@ -170,11 +170,11 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
             {/* Strengths */}
             {evaluation?.strengths && evaluation.strengths.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-emerald-500 mb-2">Strengths</h4>
+                <h4 className="text-sm font-semibold text-success mb-2">Strengths</h4>
                 <ul className="space-y-1.5">
                   {evaluation.strengths.map((s, i) => (
                     <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-emerald-500 mt-0.5">•</span> {s}
+                      <span className="text-success mt-0.5">•</span> {s}
                     </li>
                   ))}
                 </ul>
@@ -184,11 +184,11 @@ export function SalesAnalysisDialog({ open, onOpenChange, data }: SalesAnalysisD
             {/* Improvements */}
             {evaluation?.improvements && evaluation.improvements.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-amber-500 mb-2">Areas for Improvement</h4>
+                <h4 className="text-sm font-semibold text-warning mb-2">Areas for Improvement</h4>
                 <ul className="space-y-1.5">
                   {evaluation.improvements.map((s, i) => (
                     <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-amber-500 mt-0.5">•</span> {s}
+                      <span className="text-warning mt-0.5">•</span> {s}
                     </li>
                   ))}
                 </ul>

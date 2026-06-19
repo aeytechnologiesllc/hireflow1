@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
-import { Loader2, Sparkles, Check, Circle, PartyPopper, ArrowRight, Briefcase, Eye, EyeOff } from "lucide-react";
+import { Loader2, Check, Circle, PartyPopper, ArrowRight, Briefcase, Eye, EyeOff } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,11 +84,11 @@ const PasswordRequirements = ({ password }: { password: string }) => {
       {requirements.map((req, i) => (
         <div key={i} className="flex items-center gap-2 text-xs">
           {req.met ? (
-            <Check className="h-3 w-3 text-emerald-500" />
+            <Check className="h-3 w-3 text-success" />
           ) : (
             <Circle className="h-3 w-3 text-muted-foreground" />
           )}
-          <span className={req.met ? "text-emerald-500" : "text-muted-foreground"}>
+          <span className={req.met ? "text-success" : "text-muted-foreground"}>
             {req.label}
           </span>
         </div>
@@ -225,7 +226,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       <Dialog open={isOpen && !showCelebration} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-border">
         {/* Header with celebration */}
-        <div className="bg-gradient-to-br from-emerald-500/20 via-purple-500/10 to-background p-6 border-b border-border">
+        <div className="bg-gradient-to-br from-primary/20 to-background p-6 border-b border-border">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -238,7 +239,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
               <img src={avaOrb} alt="AVA" className="w-14 h-14 object-contain" />
             </motion.div>
             <div>
-              <div className="flex items-center gap-2 text-emerald-500 mb-1">
+              <div className="flex items-center gap-2 text-primary mb-1">
                 <PartyPopper className="h-4 w-4" />
                 <span className="text-sm font-medium">Your job is ready!</span>
               </div>
@@ -262,7 +263,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
               transition={{ duration: 1.5, repeat: Infinity }}
               className="ml-auto"
             >
-              <Sparkles className="h-5 w-5 text-emerald-500" />
+              <AvaGlyph className="h-5 w-5 text-primary" />
             </motion.div>
           </div>
 
@@ -280,7 +281,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
                 transition={{ delay: i * 0.1 }}
                 className="flex items-center gap-2 text-sm"
               >
-                <Check className="h-4 w-4 text-emerald-500" />
+                <Check className="h-4 w-4 text-success" />
                 <span className="text-muted-foreground">{benefit}</span>
               </motion.div>
             ))}

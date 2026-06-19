@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import type { Profile } from "@/hooks/useProfile";
 
 interface ProfileCompletenessProps {
@@ -175,7 +176,7 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
               animate={{ scale: 1 }}
               transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
             >
-              <Sparkles className="h-6 w-6 text-primary" />
+              <AvaGlyph className="h-6 w-6 text-primary" />
             </motion.div>
           ) : (
             <span className="text-xl font-bold text-foreground">{percentage}%</span>

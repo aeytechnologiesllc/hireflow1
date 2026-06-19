@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Check, Trophy, Sparkles, Heart } from "lucide-react";
+import { Check, Trophy, Heart } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 export type OrbMode = "success" | "processing" | "empathy" | "celebration";
 
@@ -12,30 +13,30 @@ interface PremiumOrbProps {
 
 const modeConfig = {
   success: {
-    gradient: "from-emerald-400 via-teal-400 to-cyan-400",
-    glowColor: "rgba(16, 185, 129, 0.4)",
-    accentColor: "rgba(251, 191, 36, 0.6)",
+    gradient: "from-success via-success to-[#9fe7c9]",
+    glowColor: "rgba(159, 231, 201, 0.4)",
+    accentColor: "rgba(26, 160, 106, 0.6)",
     icon: Check,
     pulseIntensity: 1.1,
   },
   celebration: {
-    gradient: "from-amber-400 via-yellow-400 to-orange-400",
-    glowColor: "rgba(251, 191, 36, 0.5)",
-    accentColor: "rgba(245, 158, 11, 0.7)",
+    gradient: "from-primary via-[#1aa06a] to-[#9fe7c9]",
+    glowColor: "rgba(26, 160, 106, 0.5)",
+    accentColor: "rgba(26, 160, 106, 0.7)",
     icon: Trophy,
     pulseIntensity: 1.12,
   },
   processing: {
-    gradient: "from-violet-400 via-purple-400 to-indigo-400",
-    glowColor: "rgba(139, 92, 246, 0.4)",
-    accentColor: "rgba(99, 102, 241, 0.5)",
-    icon: Sparkles,
+    gradient: "from-primary via-[#1aa06a] to-[#0c1c14]",
+    glowColor: "rgba(26, 160, 106, 0.4)",
+    accentColor: "rgba(26, 160, 106, 0.5)",
+    icon: AvaGlyph,
     pulseIntensity: 1.05,
   },
   empathy: {
-    gradient: "from-slate-400 via-purple-300 to-violet-300",
-    glowColor: "rgba(148, 163, 184, 0.3)",
-    accentColor: "rgba(139, 92, 246, 0.3)",
+    gradient: "from-[#0c1c14] via-[#9fe7c9] to-primary",
+    glowColor: "rgba(159, 231, 201, 0.3)",
+    accentColor: "rgba(26, 160, 106, 0.3)",
     icon: Heart,
     pulseIntensity: 1.03,
   },
@@ -201,7 +202,7 @@ export function PremiumOrb({
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="absolute w-1.5 h-1.5 rounded-full bg-amber-300"
+              className="absolute w-1.5 h-1.5 rounded-full bg-primary"
               style={{
                 left: `${25 + i * 15}%`,
                 bottom: "20%",

@@ -12,7 +12,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Crown, Sparkles, Check, Loader2, AlertTriangle } from "lucide-react";
+import { Crown, Check, Loader2, AlertTriangle } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 interface LimitReachedDialogProps {
   open: boolean;
@@ -216,7 +217,7 @@ export function LimitReachedDialog({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <AvaGlyph className="h-3.5 w-3.5" />
                     Upgrade
                   </>
                 )}

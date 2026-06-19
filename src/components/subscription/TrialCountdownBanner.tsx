@@ -52,7 +52,7 @@ export default function TrialCountdownBanner() {
       <span className="hidden text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70 xl:inline">
         Trial
       </span>
-      <span className={`font-medium ${isCritical ? "text-destructive" : isUrgent ? "text-amber-500" : "text-foreground"}`}>
+      <span className={`font-medium ${isCritical ? "text-destructive" : isUrgent ? "text-warning" : "text-foreground"}`}>
         {formatTimeCompact()} left
       </span>
       <span className="hidden font-medium text-primary 2xl:inline">Upgrade</span>

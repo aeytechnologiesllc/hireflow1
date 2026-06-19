@@ -15,7 +15,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Sparkles, Copy, Check, ChevronDown, HelpCircle } from "lucide-react";
+import { Loader2, Copy, Check, ChevronDown, HelpCircle } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -184,7 +185,7 @@ function QuestionCard({
             onClick={onCopy}
           >
             {isCopied ? (
-              <Check className="h-3.5 w-3.5 text-green-500" />
+              <Check className="h-3.5 w-3.5 text-success" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
@@ -397,7 +398,7 @@ export default function InterviewQuestionsDialog({
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <AvaGlyph className="h-5 w-5 text-primary" />
             Interview Questions
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -459,7 +460,7 @@ export default function InterviewQuestionsDialog({
           )}
           <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="gap-2">
             {isGenerating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <Sparkles className="h-3.5 w-3.5" />
+            <AvaGlyph className="h-3.5 w-3.5" />
             {parsedQuestions.length > 0 ? "Regenerate" : "Generate"}
           </Button>
         </DialogFooter>

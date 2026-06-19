@@ -54,7 +54,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(142, 76%, 36%)', 'hsl(24, 100%, 50%)', 'hsl(221, 83%, 53%)', 'var(--muted-foreground)'];
+const COLORS = ['#1aa06a', '#9fe7c9', '#0c1c14', 'var(--muted-foreground)'];
 
 interface JobWithDetails {
   id: string;
@@ -185,9 +185,9 @@ export default function DeveloperJobs() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'published': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'draft': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-      case 'closed': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'published': return 'bg-success/10 text-success border-success/20';
+      case 'draft': return 'bg-warning/10 text-warning border-warning/20';
+      case 'closed': return 'bg-destructive/10 text-destructive border-destructive/20';
       case 'archived': return 'bg-muted text-muted-foreground border-border';
       default: return 'bg-muted text-muted-foreground border-border';
     }
@@ -220,9 +220,9 @@ export default function DeveloperJobs() {
     >
       {/* Stats Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-blue-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <Briefcase className="h-4 w-4" />
               Total Jobs
             </CardDescription>
@@ -234,9 +234,9 @@ export default function DeveloperJobs() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-green-400">
+            <CardDescription className="flex items-center gap-2 text-success">
               <Eye className="h-4 w-4" />
               Published
             </CardDescription>
@@ -248,9 +248,9 @@ export default function DeveloperJobs() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-orange-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <FileText className="h-4 w-4" />
               Total Applications
             </CardDescription>
@@ -262,9 +262,9 @@ export default function DeveloperJobs() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
+        <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-yellow-400">
+            <CardDescription className="flex items-center gap-2 text-warning">
               <Briefcase className="h-4 w-4" />
               Draft Jobs
             </CardDescription>
@@ -282,17 +282,17 @@ export default function DeveloperJobs() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-orange-400" />
+              <Building2 className="h-5 w-5 text-primary" />
               Top Employers by Jobs
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{ jobCount: { label: "Jobs", color: "hsl(24, 100%, 50%)" } }} className="h-48 w-full">
+            <ChartContainer config={{ jobCount: { label: "Jobs", color: "#1aa06a" } }} className="h-48 w-full">
               <BarChart data={stats?.topEmployers || []} layout="vertical">
                 <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} />
                 <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} width={100} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="jobCount" fill="hsl(24, 100%, 50%)" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="jobCount" fill="#1aa06a" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -301,7 +301,7 @@ export default function DeveloperJobs() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-orange-400" />
+              <Briefcase className="h-5 w-5 text-primary" />
               Status Distribution
             </CardTitle>
           </CardHeader>
@@ -339,7 +339,7 @@ export default function DeveloperJobs() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-orange-400" />
+                <Briefcase className="h-5 w-5 text-primary" />
                 All Jobs
               </CardTitle>
               <div className="flex gap-2">

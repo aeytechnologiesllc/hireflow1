@@ -83,7 +83,7 @@ export default function OAuthGoogleCallback() {
   }, [navigate]);
 
   return (
-    <div className="dark min-h-[100dvh] flex items-center justify-center bg-[hsl(220,18%,10%)] text-white">
+    <div className="dark min-h-[100dvh] flex items-center justify-center bg-background text-white">
       <div className="text-center space-y-4 p-8">
         {status === "loading" && (
           <div className="flex flex-col items-center gap-4">
@@ -93,7 +93,7 @@ export default function OAuthGoogleCallback() {
         )}
         {status === "success" && (
           <>
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+            <CheckCircle className="h-12 w-12 text-success mx-auto" />
             <p className="text-lg text-foreground">{message}</p>
             <p className="text-sm text-muted-foreground">Returning to wizard...</p>
           </>

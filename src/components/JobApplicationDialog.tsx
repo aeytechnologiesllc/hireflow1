@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -104,7 +105,7 @@ export default function JobApplicationDialog({
           </div>
 
           <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <AvaGlyph className="h-4 w-4 text-primary" />
             <span className="text-sm text-muted-foreground">
               Ava will analyze your application after submission
             </span>

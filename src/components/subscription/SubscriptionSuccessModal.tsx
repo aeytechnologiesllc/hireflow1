@@ -5,9 +5,9 @@ import {
   Check,
   Crown,
   Settings2,
-  Sparkles,
   X,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { useNavigate } from "react-router-dom";
 import { PremiumOrb } from "@/components/animations/PremiumOrb";
 import { Button } from "@/components/ui/button";
@@ -102,24 +102,24 @@ export default function SubscriptionSuccessModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.98 }}
         transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 my-auto w-full max-w-4xl overflow-hidden rounded-[28px] border border-emerald-400/20 bg-slate-950/96 shadow-[0_32px_120px_-32px_rgba(16,185,129,0.45)]"
+        className="relative z-10 my-auto w-full max-w-4xl overflow-hidden rounded-[28px] border border-primary/20 bg-card/96 shadow-[0_32px_120px_-32px_rgba(26,160,106,0.45)]"
       >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_48%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.12),transparent_38%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(26,160,106,0.18),transparent_48%),radial-gradient(circle_at_bottom_right,rgba(159,231,201,0.12),transparent_38%)]" />
 
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+          className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition hover:border-border hover:bg-muted hover:text-foreground"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
 
         <div className="relative z-10 grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="border-b border-white/6 px-5 pb-6 pt-8 sm:px-8 lg:border-b-0 lg:border-r">
+          <div className="border-b border-border px-5 pb-6 pt-8 sm:px-8 lg:border-b-0 lg:border-r">
             <div className="mx-auto flex max-w-xl flex-col items-center text-center lg:items-start lg:text-left">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-emerald-200/90">
-                <Sparkles className="h-3.5 w-3.5" />
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-success">
+                <AvaGlyph className="h-3.5 w-3.5" />
                 {content.badge}
               </div>
 
@@ -127,10 +127,10 @@ export default function SubscriptionSuccessModal({
                 <PremiumOrb mode="success" size={isBusinessPlan ? 104 : 96} showIcon />
               </div>
 
-              <h2 className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                 {content.title}
               </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+              <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
                 {content.subtitle}
               </p>
 
@@ -138,12 +138,12 @@ export default function SubscriptionSuccessModal({
                 {content.summary.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3"
+                    className="rounded-2xl border border-border bg-muted/40 px-4 py-3"
                   >
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                       {item.label}
                     </div>
-                    <div className="mt-1 text-lg font-semibold text-white">
+                    <div className="mt-1 text-lg font-semibold text-foreground">
                       {item.value}
                     </div>
                   </div>
@@ -154,7 +154,7 @@ export default function SubscriptionSuccessModal({
                 <Button
                   size="lg"
                   onClick={handleStartPosting}
-                  className="h-12 flex-1 bg-emerald-500 text-white shadow-[0_18px_40px_-20px_rgba(16,185,129,0.9)] transition hover:bg-emerald-400"
+                  className="h-12 flex-1 bg-primary text-primary-foreground shadow-[0_18px_40px_-20px_rgba(26,160,106,0.9)] transition hover:bg-primary/90"
                 >
                   Start posting jobs
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -163,7 +163,7 @@ export default function SubscriptionSuccessModal({
                   size="lg"
                   variant="outline"
                   onClick={handleViewPlan}
-                  className="h-12 flex-1 border-white/12 bg-white/[0.03] text-white hover:bg-white/[0.08]"
+                  className="h-12 flex-1 border-border bg-muted/30 text-foreground hover:bg-muted/60"
                 >
                   <Settings2 className="mr-2 h-4 w-4" />
                   View plan details
@@ -174,8 +174,8 @@ export default function SubscriptionSuccessModal({
 
           <div className="px-5 py-8 sm:px-8">
             <div className="mx-auto flex h-full max-w-xl flex-col">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-slate-300">
-                <Crown className="h-3.5 w-3.5 text-emerald-300" />
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                <Crown className="h-3.5 w-3.5 text-primary" />
                 What unlocked now
               </div>
 
@@ -189,21 +189,21 @@ export default function SubscriptionSuccessModal({
                   <motion.li
                     key={feature}
                     variants={staggerItem}
-                    className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3.5"
+                    className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 px-4 py-3.5"
                   >
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
                       <Check className="h-3.5 w-3.5" />
                     </span>
-                    <span className="text-sm leading-6 text-slate-200">{feature}</span>
+                    <span className="text-sm leading-6 text-foreground">{feature}</span>
                   </motion.li>
                 ))}
               </motion.ul>
 
-              <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.05] px-4 py-4">
-                <div className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-200/80">
+              <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-4">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-primary">
                   Ava note
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {content.accent}
                 </p>
               </div>

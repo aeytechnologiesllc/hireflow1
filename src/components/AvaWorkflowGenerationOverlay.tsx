@@ -459,7 +459,7 @@ export default function AvaWorkflowGenerationOverlay({
         className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
       >
         {/* Deep backdrop */}
-        <div className="absolute inset-0 bg-[hsl(220,20%,2%)]" />
+        <div className="absolute inset-0 bg-background" />
 
         {/* Atmospheric gradients */}
         <motion.div
@@ -624,7 +624,7 @@ export default function AvaWorkflowGenerationOverlay({
                   className="flex items-center gap-3"
                 >
                   {item.state === "done" ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-300 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                   ) : item.state === "active" ? (
                     <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />
                   ) : (

@@ -73,7 +73,7 @@ function InterviewCard({
   return (
     <Card className={`
       bg-card border-border ${isUpcoming ? "card-interactive" : "transition-all"} 
-      ${needsAction ? "border-amber-500/50 ring-1 ring-amber-500/20" : ""}
+      ${needsAction ? "border-warning/50 ring-1 ring-warning/20" : ""}
     `}>
       <CardContent className="p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -100,7 +100,7 @@ function InterviewCard({
                     interview.candidate_response === 'confirmed' 
                       ? 'bg-success/20 text-success border-success/30' 
                       : interview.candidate_response === 'reschedule_requested'
-                      ? 'bg-amber-500/20 text-amber-500 border-amber-500/30'
+                      ? 'bg-warning/20 text-warning border-warning/30'
                       : 'bg-muted text-muted-foreground'
                   }>
                     {interview.candidate_response === 'confirmed' ? 'Candidate Confirmed' : 
@@ -126,7 +126,7 @@ function InterviewCard({
                   </Badge>
                 )}
                 {candidateRequestedReschedule && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
+                  <Badge className="bg-warning/20 text-warning border-warning/30">
                     Reschedule Pending
                   </Badge>
                 )}
@@ -137,7 +137,7 @@ function InterviewCard({
                     variant="outline"
                     size="sm"
                     onClick={() => onReviewReschedule(interview)}
-                    className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10 gap-1"
+                    className="border-warning/50 text-warning hover:bg-warning/10 gap-1"
                   >
                     <AlertCircle className="h-4 w-4" />
                     Review
@@ -162,7 +162,7 @@ function InterviewCard({
                             <CheckCircle className="h-4 w-4 mr-2" />
                             Mark as Completed
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onStatusChange(interview.id, "no_show")} className="text-yellow-500">
+                          <DropdownMenuItem onClick={() => onStatusChange(interview.id, "no_show")} className="text-warning">
                             <XCircle className="h-4 w-4 mr-2" />
                             Mark as No Show
                           </DropdownMenuItem>

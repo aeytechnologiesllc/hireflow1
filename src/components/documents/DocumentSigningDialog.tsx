@@ -317,17 +317,17 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
     // Pending status - check signing state
     if (candidateSigned && !employerSigned) {
       if (role === "employer") {
-        return { color: "bg-blue-500/20 text-blue-500", icon: PenTool, label: "Awaiting Your Signature" };
+        return { color: "bg-secondary text-muted-foreground", icon: PenTool, label: "Awaiting Your Signature" };
       }
-      return { color: "bg-blue-500/20 text-blue-500", icon: Clock, label: "Awaiting Countersignature" };
+      return { color: "bg-secondary text-muted-foreground", icon: Clock, label: "Awaiting Countersignature" };
     }
     if (!candidateSigned && role === "candidate") {
-      return { color: "bg-yellow-500/20 text-yellow-500", icon: PenTool, label: "Awaiting Your Signature" };
+      return { color: "bg-warning/20 text-warning", icon: PenTool, label: "Awaiting Your Signature" };
     }
     if (!candidateSigned && role === "employer") {
-      return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Awaiting Candidate Signature" };
+      return { color: "bg-warning/20 text-warning", icon: Clock, label: "Awaiting Candidate Signature" };
     }
-    return { color: "bg-yellow-500/20 text-yellow-500", icon: Clock, label: "Pending Signature" };
+    return { color: "bg-warning/20 text-warning", icon: Clock, label: "Pending Signature" };
   };
 
   const signableFields = getSignableFields();
@@ -1184,8 +1184,8 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                           log.action.includes("signed") ? "bg-success/20" :
                           log.action === "declined" ? "bg-destructive/20" :
-                          log.action === "viewed" ? "bg-blue-500/20" :
-                          log.action === "edited" ? "bg-orange-500/20" :
+                          log.action === "viewed" ? "bg-secondary" :
+                          log.action === "edited" ? "bg-warning/20" :
                           "bg-primary/20"
                         }`}>
                           {log.action.includes("signed") ? (
@@ -1193,9 +1193,9 @@ export function DocumentSigningDialog({ document, open, onOpenChange }: Document
                           ) : log.action === "declined" ? (
                             <XCircle className="h-5 w-5 text-destructive" />
                           ) : log.action === "viewed" ? (
-                            <Eye className="h-5 w-5 text-blue-500" />
+                            <Eye className="h-5 w-5 text-muted-foreground" />
                           ) : log.action === "edited" ? (
-                            <Edit className="h-5 w-5 text-orange-500" />
+                            <Edit className="h-5 w-5 text-warning" />
                           ) : (
                             <FileText className="h-5 w-5 text-primary" />
                           )}

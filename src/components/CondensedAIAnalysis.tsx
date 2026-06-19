@@ -913,9 +913,9 @@ function ScoreRing({ score, size = "md", isLoading = false }: { score: number; s
   
   const getScoreColor = (s: number) => {
     if (isLoading) return "stroke-muted-foreground/50";
-    if (s >= 70) return "stroke-emerald-500";
-    if (s >= 50) return "stroke-amber-500";
-    return "stroke-red-500";
+    if (s >= 70) return "stroke-success";
+    if (s >= 50) return "stroke-warning";
+    return "stroke-destructive";
   };
   
   const sizeClasses = size === "sm" ? "w-12 h-12" : "w-14 h-14";
@@ -1079,9 +1079,9 @@ function PhaseBasedAnalysis({
         id: "quiz",
         name: getPhaseLabel(phaseType),
         icon: quiz.passed ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <CheckCircle2 className="h-4 w-4 text-success" />
         ) : (
-          <XCircle className="h-4 w-4 text-red-500" />
+          <XCircle className="h-4 w-4 text-destructive" />
         ),
         score: `${quiz.score}%`,
         summary: buildAvaPhaseNarrative({
@@ -1117,9 +1117,9 @@ function PhaseBasedAnalysis({
         id: "typing_test",
         name: getPhaseLabel(phaseType),
         icon: passed ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <CheckCircle2 className="h-4 w-4 text-success" />
         ) : (
-          <XCircle className="h-4 w-4 text-red-500" />
+          <XCircle className="h-4 w-4 text-destructive" />
         ),
         score: `${typing.wpm} WPM`,
         summary: buildAvaPhaseNarrative({
@@ -1251,9 +1251,9 @@ function PhaseBasedAnalysis({
         id: "chat_simulation",
         name: getPhaseLabel(phaseType),
         icon: passed ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <CheckCircle2 className="h-4 w-4 text-success" />
         ) : (
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTriangle className="h-4 w-4 text-warning" />
         ),
         score: chat.score ? `${chat.score}/100` : undefined,
         summary: buildAvaPhaseNarrative({
@@ -1340,9 +1340,9 @@ function PhaseBasedAnalysis({
         id: "sales_simulation",
         name: getPhaseLabel(phaseType),
         icon: passed ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <CheckCircle2 className="h-4 w-4 text-success" />
         ) : (
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTriangle className="h-4 w-4 text-warning" />
         ),
         score: sales.score ? `${sales.score}/100` : undefined,
         summary: buildAvaPhaseNarrative({
@@ -1502,10 +1502,10 @@ function PhaseBasedAnalysis({
                   {phase.score && (
                     <span className={cn(
                       "text-xs font-medium px-2 py-0.5 rounded-full",
-                      phase.passed === false 
-                        ? "bg-red-500/10 text-red-500" 
-                        : phase.passed === true 
-                          ? "bg-emerald-500/10 text-emerald-500"
+                      phase.passed === false
+                        ? "bg-destructive/10 text-destructive"
+                        : phase.passed === true
+                          ? "bg-success/10 text-success"
                           : "bg-primary/10 text-primary"
                     )}>
                       {phase.score}
@@ -1764,20 +1764,20 @@ export function CondensedAIAnalysis({
   const isNegativeRec = verdictText === "Do not move forward";
 
   const verdictIcon = isRejected
-    ? <XCircle className="h-5 w-5 text-red-400" />
+    ? <XCircle className="h-5 w-5 text-destructive" />
     : isPositiveRec
-      ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+      ? <CheckCircle2 className="h-5 w-5 text-success" />
       : isNegativeRec
-        ? <XCircle className="h-5 w-5 text-red-400" />
-        : <AlertTriangle className="h-5 w-5 text-amber-400" />;
+        ? <XCircle className="h-5 w-5 text-destructive" />
+        : <AlertTriangle className="h-5 w-5 text-warning" />;
 
   const verdictColor = isRejected
-    ? "text-red-400"
+    ? "text-destructive"
     : isPositiveRec
-      ? "text-emerald-400"
+      ? "text-success"
       : isNegativeRec
-        ? "text-red-400"
-        : "text-amber-400";
+        ? "text-destructive"
+        : "text-warning";
   
   // Generate a full summary that includes rejection context when rejected
   const displaySummary = useMemo(() => {
@@ -1884,7 +1884,7 @@ export function CondensedAIAnalysis({
                 {decisionStatusLabel && (
                   <Badge
                     variant="outline"
-                    className={needsMoreEvidence ? "text-[11px] border-amber-500/40 text-amber-300" : "text-[11px]"}
+                    className={needsMoreEvidence ? "text-[11px] border-warning/40 text-warning" : "text-[11px]"}
                   >
                     {decisionStatusLabel}
                   </Badge>
@@ -1898,12 +1898,12 @@ export function CondensedAIAnalysis({
                   </Badge>
                 )}
                 {needsMoreEvidence && (
-                  <Badge variant="outline" className="text-[11px] border-amber-500/40 text-amber-300">
+                  <Badge variant="outline" className="text-[11px] border-warning/40 text-warning">
                     Awaiting more evidence
                   </Badge>
                 )}
                 {showsTransferableFit && (
-                  <Badge variant="outline" className="text-[11px] border-emerald-500/40 text-emerald-300">
+                  <Badge variant="outline" className="text-[11px] border-success/40 text-success">
                     Transferable fit {scorecard?.transferableFitScore}%
                   </Badge>
                 )}
@@ -1917,12 +1917,12 @@ export function CondensedAIAnalysis({
                   {cleanedDisplaySummary}
                 </p>
                 {showsTransferableFit && transferableEvidence.length > 0 && (
-                  <p className="text-xs text-emerald-300">
+                  <p className="text-xs text-success">
                     Transferable fit recognized from {transferableEvidence.join(", ")}.
                   </p>
                 )}
                 {needsMoreEvidence && pendingSignals.length > 0 && (
-                  <p className="text-xs text-amber-300">
+                  <p className="text-xs text-warning">
                     Pending signals: {pendingSignals.join(", ")}
                   </p>
                 )}
@@ -1959,7 +1959,7 @@ export function CondensedAIAnalysis({
                 <div className="space-y-1.5">
                   {visibleRiskFlags.slice(0, 3).map((flag) => (
                     <div key={flag} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                       <span className="break-words [overflow-wrap:anywhere]">{flag}</span>
                     </div>
                   ))}

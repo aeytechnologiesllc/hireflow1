@@ -34,7 +34,7 @@ const RisingSparkles = ({ count = 40 }: { count?: number }) => {
             bottom: "-10%",
             width: sparkle.size,
             height: sparkle.size,
-            background: `radial-gradient(circle, rgba(251,191,36,${sparkle.opacity}) 0%, rgba(245,158,11,0) 70%)`,
+            background: `radial-gradient(circle, rgba(26,160,106,${sparkle.opacity}) 0%, rgba(26,160,106,0) 70%)`,
             filter: sparkle.blur ? "blur(1px)" : "none",
           }}
           initial={{ y: 0, opacity: 0, scale: 0 }}
@@ -72,7 +72,7 @@ const GoldenLightRays = () => {
           style={{
             width: "200%",
             height: "4px",
-            background: "linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.6) 30%, rgba(251,191,36,0) 100%)",
+            background: "linear-gradient(90deg, transparent 0%, rgba(26,160,106,0.6) 30%, rgba(26,160,106,0) 100%)",
             transform: `rotate(${ray.angle}deg)`,
           }}
           initial={{ scaleX: 0, opacity: 0 }}
@@ -112,7 +112,7 @@ const AchievementRing = () => {
           cy="140"
           r="120"
           fill="none"
-          stroke="rgba(251,191,36,0.1)"
+          stroke="rgba(26,160,106,0.1)"
           strokeWidth="8"
         />
         {/* Animated fill ring */}
@@ -132,9 +132,9 @@ const AchievementRing = () => {
         />
         <defs>
           <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#fbbf24" />
-            <stop offset="50%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#d97706" />
+            <stop offset="0%" stopColor="#1aa06a" />
+            <stop offset="50%" stopColor="#1aa06a" />
+            <stop offset="100%" stopColor="#0c1c14" />
           </linearGradient>
         </defs>
       </svg>
@@ -173,7 +173,7 @@ const TypewriterText = ({ text, delay = 0 }: { text: string; delay?: number }) =
         <motion.span
           animate={{ opacity: [1, 0] }}
           transition={{ duration: 0.5, repeat: Infinity }}
-          className="inline-block w-0.5 h-[1em] bg-amber-400 ml-0.5 align-text-bottom"
+          className="inline-block w-0.5 h-[1em] bg-primary ml-0.5 align-text-bottom"
         />
       )}
     </span>
@@ -262,8 +262,8 @@ export default function PremiumCelebration({
             initial={{ opacity: 0 }}
             animate={{ 
               opacity: phase === "anticipation" ? 0.8 : 0.95,
-              background: phase === "climax" 
-                ? "radial-gradient(circle at center, var(--background) 0%, hsl(45 30% 5%) 100%)"
+              background: phase === "climax"
+                ? "radial-gradient(circle at center, var(--background) 0%, hsl(157 35% 6%) 100%)"
                 : "var(--background)"
             }}
             transition={{ duration: 0.5 }}
@@ -281,7 +281,7 @@ export default function PremiumCelebration({
             <div 
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full"
               style={{
-                background: "radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(26,160,106,0.15) 0%, transparent 70%)",
               }}
             />
           </motion.div>
@@ -357,7 +357,7 @@ export default function PremiumCelebration({
                 setIsVisible(false);
                 onComplete?.();
               }}
-              className="mt-8 px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold rounded-full shadow-lg shadow-amber-500/25 transition-all duration-300 hover:scale-105"
+              className="mt-8 px-8 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-full shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105"
             >
               <motion.span
                 animate={{ opacity: [1, 0.7, 1] }}

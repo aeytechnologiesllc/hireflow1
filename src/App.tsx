@@ -46,6 +46,7 @@ const CreateJob = lazy(() => import("./pages/CreateJob"));
 const GuestJobCreator = lazy(() => import("./pages/GuestJobCreator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const MarketingDemo = lazy(() => import("./pages/MarketingDemo"));
+const AvaPreview = lazy(() => import("./pages/AvaPreview"));
 const CandidatePortalLanding = lazy(() => import("./pages/CandidatePortalLanding"));
 const CandidateAuth = lazy(() => import("./pages/CandidateAuth"));
 const VerifyDocument = lazy(() => import("./pages/VerifyDocument"));
@@ -154,6 +155,7 @@ const App = () => (
                   
                   {/* Marketing Demo (full-screen, no layout) */}
                   <Route path="/marketing-demo" element={<MarketingDemo />} />
+                  <Route path="/ava-preview" element={<AvaPreview />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

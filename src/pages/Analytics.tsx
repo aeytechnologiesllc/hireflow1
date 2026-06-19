@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { 
   BarChart3, TrendingUp, TrendingDown, Users, Briefcase, CheckCircle, Clock, 
   XCircle, Target, Zap, FileText, Calendar, Award, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, Minus, Brain, UserCheck, FileCheck
+  ArrowUpRight, ArrowDownRight, Minus, UserCheck, FileCheck
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -19,7 +20,7 @@ import {
   ComposedChart, Legend
 } from "recharts";
 
-const COLORS = ["var(--primary)", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
+const COLORS = ["var(--primary)", "#070f0b", "#9fe7c9", "#1aa06a", "#0c1c14", "#eef6f1"];
 
 export default function Analytics() {
   const { role } = useAuth();
@@ -52,9 +53,9 @@ export default function Analytics() {
 
   const funnelData = [
     { name: "Applied", value: advancedStats?.totalApplications || 0, fill: "var(--primary)" },
-    { name: "Reviewing", value: appStats?.reviewing || 0, fill: "#10b981" },
-    { name: "Interview", value: appStats?.interview || 0, fill: "#8b5cf6" },
-    { name: "Hired", value: appStats?.hired || 0, fill: "#f59e0b" },
+    { name: "Reviewing", value: appStats?.reviewing || 0, fill: "#9fe7c9" },
+    { name: "Interview", value: appStats?.interview || 0, fill: "#0c1c14" },
+    { name: "Hired", value: appStats?.hired || 0, fill: "#1aa06a" },
   ];
 
   const statusPieData = [
@@ -122,7 +123,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <Users className="h-4 w-4 text-blue-500" />
+                  <Users className="h-4 w-4 text-primary" />
                   <TrendIndicator value={advancedStats?.weeklyComparison.change || 0} suffix="%" />
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.totalApplications || 0}</p>
@@ -133,7 +134,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <Calendar className="h-4 w-4 text-purple-500" />
+                  <Calendar className="h-4 w-4 text-primary" />
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.interviewMetrics?.total || 0}</p>
                 <p className="text-xs text-muted-foreground">Interviews Scheduled</p>
@@ -153,7 +154,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <Brain className="h-4 w-4 text-amber-500" />
+                  <AvaGlyph className="h-4 w-4 text-warning" />
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.candidateQualityScore || 0}</p>
                 <p className="text-xs text-muted-foreground">Avg AI Score</p>
@@ -163,7 +164,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <Clock className="h-4 w-4 text-cyan-500" />
+                  <Clock className="h-4 w-4 text-accent" />
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-foreground">{advancedStats?.timeToHire?.avgDays || "—"}</p>
                 <p className="text-xs text-muted-foreground">Avg Days to Hire</p>
@@ -219,7 +220,7 @@ export default function Analytics() {
                       }}
                     />
                     <Area type="monotone" dataKey="applications" stroke="var(--primary)" fill="url(#colorApps)" strokeWidth={2} />
-                    <Line type="monotone" dataKey="hired" stroke="#10b981" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="hired" stroke="#9fe7c9" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -361,8 +362,8 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-warning" />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Pending Review</p>
@@ -427,7 +428,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-purple-500" />
+                  <Calendar className="h-5 w-5 text-primary" />
                   Interview Analytics
                 </CardTitle>
                 <CardDescription>Interview scheduling and outcomes</CardDescription>
@@ -457,8 +458,8 @@ export default function Analytics() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-center">
-                      <div className="p-3 bg-amber-500/10 rounded-lg">
-                        <p className="text-lg font-bold text-amber-500">{advancedStats?.interviewMetrics?.cancelled || 0}</p>
+                      <div className="p-3 bg-warning/10 rounded-lg">
+                        <p className="text-lg font-bold text-warning">{advancedStats?.interviewMetrics?.cancelled || 0}</p>
                         <p className="text-xs text-muted-foreground">Cancelled</p>
                       </div>
                       <div className="p-3 bg-destructive/10 rounded-lg">
@@ -476,7 +477,7 @@ export default function Analytics() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg text-foreground flex items-center gap-2">
-                <Clock className="h-5 w-5 text-cyan-500" />
+                <Clock className="h-5 w-5 text-accent" />
                 Time to Hire Metrics
               </CardTitle>
               <CardDescription>How long it takes to hire candidates</CardDescription>
@@ -498,8 +499,8 @@ export default function Analytics() {
                     <p className="text-3xl font-bold text-primary">{advancedStats.timeToHire.medianDays}</p>
                     <p className="text-sm text-muted-foreground">Median Days</p>
                   </div>
-                  <div className="text-center p-4 bg-amber-500/10 rounded-lg">
-                    <p className="text-3xl font-bold text-amber-500">{advancedStats.timeToHire.maxDays}</p>
+                  <div className="text-center p-4 bg-warning/10 rounded-lg">
+                    <p className="text-3xl font-bold text-warning">{advancedStats.timeToHire.maxDays}</p>
                     <p className="text-sm text-muted-foreground">Longest Hire</p>
                   </div>
                 </div>
@@ -542,8 +543,8 @@ export default function Analytics() {
                     />
                     <Legend />
                     <Bar yAxisId="left" dataKey="applications" name="Applications" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="hired" name="Hired" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="conversionRate" name="Conversion %" stroke="#f59e0b" strokeWidth={2} />
+                    <Bar yAxisId="left" dataKey="hired" name="Hired" fill="#9fe7c9" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="conversionRate" name="Conversion %" stroke="#1aa06a" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
@@ -558,7 +559,7 @@ export default function Analytics() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg text-foreground flex items-center gap-2">
-                <Award className="h-5 w-5 text-amber-500" />
+                <Award className="h-5 w-5 text-primary" />
                 Top Performing Jobs
               </CardTitle>
               <CardDescription>Jobs with highest conversion rates</CardDescription>
@@ -602,7 +603,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-purple-500" />
+                  <AvaGlyph className="h-5 w-5 text-primary" />
                   AI Score Distribution
                 </CardTitle>
                 <CardDescription>How candidates score on AI analysis</CardDescription>
@@ -627,7 +628,7 @@ export default function Analytics() {
                         {advancedStats.aiScoreDistribution.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
-                            fill={index < 2 ? "#ef4444" : index === 2 ? "#f59e0b" : "#10b981"} 
+                            fill={index < 2 ? "#ef4444" : index === 2 ? "#f59e0b" : "#9fe7c9"}
                           />
                         ))}
                       </Bar>
@@ -691,8 +692,8 @@ export default function Analytics() {
                         </p>
                         <p className="text-xs text-muted-foreground">High Quality</p>
                       </div>
-                      <div className="p-3 bg-amber-500/10 rounded-lg">
-                        <p className="text-lg font-bold text-amber-500">
+                      <div className="p-3 bg-warning/10 rounded-lg">
+                        <p className="text-lg font-bold text-warning">
                           {advancedStats?.aiScoreDistribution?.[2]?.count || 0}
                         </p>
                         <p className="text-xs text-muted-foreground">Average</p>
@@ -718,7 +719,7 @@ export default function Analytics() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-500" />
+                  <FileText className="h-5 w-5 text-accent" />
                   Document Analytics
                 </CardTitle>
                 <CardDescription>Document signing and engagement</CardDescription>
@@ -749,7 +750,7 @@ export default function Analytics() {
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-amber-500" />
+                          <Clock className="h-4 w-4 text-warning" />
                           <span className="text-sm">Pending</span>
                         </div>
                         <span className="font-medium">{advancedStats?.documentMetrics?.pending || 0}</span>

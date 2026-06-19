@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
-  Sparkles,
   Briefcase,
   Trophy,
-  ChevronRight,
+
   Check,
   Loader2,
   ArrowRight,
   User,
 } from "lucide-react";
+import AvaGlyph from "@/components/AvaGlyph";
 
 const STEPS = [
   {
@@ -26,7 +26,7 @@ const STEPS = [
       "Create a job in seconds. AVA automatically generates screening questions and assessments for the role.",
   },
   {
-    icon: Sparkles,
+    icon: AvaGlyph,
     title: "AVA Screens Candidates",
     description:
       "Applicants complete assessments, skill tests, and optional voice interviews. AVA evaluates and ranks every candidate automatically.",
@@ -164,7 +164,7 @@ function FunnelVisual({ isMobile }: { isMobile: boolean }) {
           transition={{ delay: 0.7, duration: 0.5, times: [0, 0.5, 1] }}
         >
           <div className="h-px w-8 bg-primary/40" />
-          <Sparkles className="h-4 w-4 text-primary" />
+          <AvaGlyph className="h-4 w-4 text-primary" />
           <div className="h-px w-8 bg-primary/40" />
         </motion.div>
       </div>
@@ -460,7 +460,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                       boxShadow: "0 0 40px color-mix(in oklab, var(--primary) 40%, transparent)",
                     }}
                   >
-                    <Sparkles className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
+                    <AvaGlyph className={`text-white ${isMobile ? "h-7 w-7" : "h-10 w-10"}`} />
                   </div>
                 </div>
 
