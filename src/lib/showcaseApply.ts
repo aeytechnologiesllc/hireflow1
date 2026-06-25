@@ -3,6 +3,7 @@
  * Job code finds the role; phone + email + job identifies the applicant.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { rigorToDb, type Rigor } from "@/lib/avaEngine/rigor";
 
 export const SHOWCASE_EMPLOYER_ID = "emp_marias_cafe";
 
@@ -283,7 +284,12 @@ export interface CreateShowcaseRoleInput {
   pay?: string | null;
   status?: "live" | "draft";
   flow?: Record<string, unknown> | null;
+  rigor?: Rigor | string | null;
+  openings?: number | null;
   employment_type?: string | null;
+  work_mode?: string | null;
+  start_urgency?: string | null;
+  traits?: string[] | null;
 }
 
 export async function createShowcaseRole(input: CreateShowcaseRoleInput) {
@@ -304,7 +310,12 @@ export async function createShowcaseRole(input: CreateShowcaseRoleInput) {
     sort_order: Math.floor(Date.now() / 1000),
     description: input.description ?? null,
     flow: input.flow ?? null,
+    rigor: input.rigor ? rigorToDb(input.rigor as Rigor) : null,
+    openings: input.openings ?? 1,
     employment_type: input.employment_type ?? null,
+    work_mode: input.work_mode ?? null,
+    start_urgency: input.start_urgency ?? null,
+    traits: input.traits ?? null,
   };
 
   const { data, error } = await supabase.from("roles").insert(row).select("*").single();

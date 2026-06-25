@@ -21,6 +21,7 @@ import { SearchInput, FilterSelect } from "../components/controls";
 import { AvaCard } from "../components/AvaCard";
 import { useCockpitJobsData, useCockpitAccount } from "../hooks/useCockpitData";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
+import { clearDraft } from "@/lib/avaEngine/draft";
 import type { JobRow, JobStatus } from "../data";
 
 const ROLE_ICONS = { coffee: Coffee, star: Star, register: Store, tray: Utensils, chef: ChefHat };
@@ -212,7 +213,7 @@ export default function CockpitJobs() {
         title="Jobs"
         subtitle={`Open roles at ${account.name}`}
         actions={
-          <button className="ck-btn ck-btn-brass max-md:w-full" onClick={() => navigate("/jobs/create")}>
+          <button className="ck-btn ck-btn-brass max-md:w-full" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
             <Plus className="h-4 w-4" />
             New role
           </button>
