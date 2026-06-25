@@ -33,7 +33,7 @@ export default function CandidatePortalLanding() {
           </Link>
         </header>
 
-        <section className="cand-rise mx-auto mb-14 max-w-2xl text-center">
+        <section className="cand-rise mx-auto mb-14 max-w-2xl text-center" style={{ ["--cand-i" as string]: 0 }}>
           <p className="cand-kicker mb-4">Candidate portal</p>
           <h1 className="font-display text-4xl font-medium leading-tight md:text-5xl" style={{ color: "hsl(150 33% 95%)" }}>
             Apply without the hassle.
@@ -55,7 +55,7 @@ export default function CandidatePortalLanding() {
           </div>
         </section>
 
-        <section className="cand-rise mb-14 grid gap-4 md:grid-cols-3" style={{ animationDelay: "0.08s" }}>
+        <section className="cand-rise mb-14 grid gap-4 md:grid-cols-3" style={{ ["--cand-i" as string]: 1 }}>
           {features.map((feature) => (
             <div key={feature.title} className="cand-panel p-5 text-left">
               <div
@@ -70,7 +70,7 @@ export default function CandidatePortalLanding() {
           ))}
         </section>
 
-        <section className="cand-rise cand-panel mx-auto max-w-2xl p-6 md:p-8" style={{ animationDelay: "0.12s" }}>
+        <section className="cand-rise cand-panel mx-auto max-w-2xl p-6 md:p-8" style={{ ["--cand-i" as string]: 5 }}>
           <h2 className="font-display text-center text-2xl" style={{ color: "hsl(150 30% 93%)" }}>How it works</h2>
           <div className="mt-6 space-y-4">
             {[

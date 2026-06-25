@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { clearDraft } from "@/lib/avaEngine/draft";
 import {
   Briefcase,
   Users,
@@ -69,8 +69,17 @@ export default function CockpitDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" />
+      <div className="space-y-6 md:space-y-7">
+        <div className="ck-rise grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="ck-card ck-reveal h-[132px]"
+              style={{ ["--ck-i" as string]: i, opacity: 0.55 }}
+            />
+          ))}
+        </div>
+        <div className="ck-card ck-reveal h-[220px]" style={{ ["--ck-i" as string]: 4, opacity: 0.55 }} />
       </div>
     );
   }
@@ -102,10 +111,10 @@ export default function CockpitDashboard() {
             <CalendarDays className="h-4 w-4" style={{ color: "hsl(150 14% 64%)" }} />
             Schedule
           </button>
-          <button className="ck-btn ck-btn-outline !px-3" onClick={() => navigate("/jobs")}>
-            <Megaphone className="h-4 w-4" style={{ color: "hsl(150 14% 64%)" }} />
-            Publish role
-          </button>
+            <button className="ck-btn ck-btn-outline !px-3" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
+              <Megaphone className="h-4 w-4" style={{ color: "hsl(150 14% 64%)" }} />
+              New role
+            </button>
         </div>
       </section>
 
@@ -133,9 +142,9 @@ export default function CockpitDashboard() {
               <CalendarDays className="h-4 w-4" style={{ color: "hsl(150 14% 64%)" }} />
               Schedule interviews
             </button>
-            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/jobs")}>
+            <button className="ck-btn ck-btn-outline" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
               <Megaphone className="h-4 w-4" style={{ color: "hsl(150 14% 64%)" }} />
-              Publish barista role
+              New role
             </button>
           </div>
         </div>

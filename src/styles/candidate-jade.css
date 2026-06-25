@@ -13,6 +13,9 @@
   background: var(--cand-bg);
   color: var(--cand-text);
   font-family: Inter, system-ui, sans-serif;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cand-root .font-display {
@@ -39,7 +42,7 @@
   background: linear-gradient(180deg, hsl(38 58% 58%), hsl(38 52% 46%));
   color: hsl(150 30% 12%);
   border: none;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cand-btn-primary:hover {
@@ -89,22 +92,26 @@
 }
 
 .cand-rise {
-  animation: cand-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --cand-i: 0;
+  animation: cand-rise 0.48s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(var(--cand-i) * 0.05s + var(--cand-delay, 0s));
 }
 
 @keyframes cand-rise {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translate3d(0, 10px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .cand-rise {
     animation: none;
+    transform: none;
+    opacity: 1;
   }
 }

@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import "./cockpit/cockpit.css";
 import "./styles/candidate-jade.css";
+import "./styles/motion.css";
 
 // Unregister any cached service workers that might interfere with fetch requests
 if ('serviceWorker' in navigator) {

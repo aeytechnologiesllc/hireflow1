@@ -9,6 +9,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AppLayout from "@/components/AppLayout";
 import DeveloperLayout from "@/components/DeveloperLayout";
+import { OrbLoader } from "@/components/ava/OrbLoader";
 
 // Core pages loaded eagerly for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -43,7 +44,8 @@ const ChatInterviewPhase = lazy(() => import("./pages/ChatInterviewPhase"));
 const SalesSimulationPhase = lazy(() => import("./pages/SalesSimulationPhase"));
 const VoiceInterviewPhase = lazy(() => import("./pages/VoiceInterviewPhase"));
 const PortfolioUploadPhase = lazy(() => import("./pages/PortfolioUploadPhase"));
-const CreateJob = lazy(() => import("./pages/CreateJob"));
+const CreateJob = lazy(() => import("./pages/AvaCreateJob"));
+const CreateJobLegacy = lazy(() => import("./pages/CreateJob"));
 const GuestJobCreator = lazy(() => import("./pages/GuestJobCreator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const MarketingDemo = lazy(() => import("./pages/MarketingDemo"));
@@ -63,14 +65,11 @@ const DeveloperJobs = lazy(() => import("./pages/DeveloperJobs"));
 const DeveloperActivity = lazy(() => import("./pages/DeveloperActivity"));
 const DeveloperSettings = lazy(() => import("./pages/DeveloperSettings"));
 const OrbPreview = lazy(() => import("./pages/OrbPreview"));
+const AvaFlowPreview = lazy(() => import("./pages/AvaFlowPreview"));
 
-// Minimal fallback — no heavy animations
+// Standard premium loading state — a properly sized, centered Ava orb.
 function LazyFallback() {
-  return (
-    <div className="min-h-[100dvh] bg-background flex items-center justify-center">
-      <div className="h-8 w-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-    </div>
-  );
+  return <OrbLoader />;
 }
 
 // Configure QueryClient for production
@@ -127,8 +126,8 @@ const App = () => (
                   <Route element={<AppLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/jobs" element={<Jobs />} />
-                    <Route path="/jobs/create" element={<CreateJob />} />
-                    <Route path="/jobs/edit/:id" element={<CreateJob />} />
+                    <Route path="/jobs/create-legacy" element={<CreateJobLegacy />} />
+                    <Route path="/jobs/edit/:id" element={<CreateJobLegacy />} />
                     <Route path="/applicants" element={<Applicants />} />
                     <Route path="/applicants/:id" element={<ApplicantDetails />} />
                     <Route path="/interviews" element={<Interviews />} />
@@ -162,6 +161,8 @@ const App = () => (
                   {/* Marketing Demo (full-screen, no layout) */}
                   <Route path="/marketing-demo" element={<MarketingDemo />} />
                   <Route path="/orb-preview" element={<OrbPreview />} />
+                  <Route path="/ava-preview" element={<AvaFlowPreview />} />
+                  <Route path="/jobs/create" element={<CreateJob />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

@@ -36,7 +36,7 @@ export function StatCard({ label, value, unit, icon, delta, className, index = 0
                   decimals={countable.decimals}
                   prefix={countable.prefix}
                   suffix={countable.suffix}
-                  delay={index * 70}
+                  delay={index * 50}
                 />
               ) : (
                 value

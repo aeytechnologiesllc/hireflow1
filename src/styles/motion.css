@@ -1,0 +1,66 @@
+/* ============================================================
+   Hireflow — global motion + scroll performance polish
+   GPU-composited properties only. Gated behind reduced-motion.
+   ============================================================ */
+
+/* Smooth anchor / programmatic scroll — not for nested containers */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Reusable buttery scroll container (cockpit main, auth, candidate long pages) */
+.scroll-perf {
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-perf {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Snappy route-fallback fade — avoids a sticky blank frame before the orb */
+@keyframes hf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.orb-loader-fade {
+  animation: hf-fade-in 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-loader-fade {
+    animation: none;
+  }
+}
+
+/* Shared premium easing for micro-interactions */
+.ease-premium {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Snappier staggered reveal — overrides cockpit.css base (no will-change bloat) */
+.ck-reveal {
+  animation: ck-reveal 0.48s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(var(--ck-i, 0) * 0.05s + var(--ck-delay, 0s));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-reveal {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

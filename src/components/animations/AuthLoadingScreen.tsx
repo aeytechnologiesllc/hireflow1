@@ -1,9 +1,10 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FloatingParticles, GradientOrbs } from "./FloatingParticles";
 import { StaggeredBarsLoader } from "./StaggeredBarsLoader";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvaOrb } from "@/components/ava/AvaOrb";
+import { ORB_SIZE } from "@/components/ava/orbSizes";
 
 interface AuthLoadingScreenProps {
   variant?: "employer" | "candidate";
@@ -27,6 +28,7 @@ const candidateMessages = [
 export function AuthLoadingScreen({ variant = "employer", message }: AuthLoadingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const isMobile = useIsMobile();
+  const reduceMotion = useReducedMotion();
   const messages = variant === "employer" ? employerMessages : candidateMessages;
   const isEmployer = variant === "employer";
 
@@ -60,20 +62,21 @@ export function AuthLoadingScreen({ variant = "employer", message }: AuthLoading
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-[#1f9e77]/15 rounded-full blur-[120px] pointer-events-none" />
 
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           className="relative z-10 flex flex-col items-center px-6"
           style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         >
-          <AvaOrb size={isMobile ? 120 : 140} reflection={false} />
+          <AvaOrb size={ORB_SIZE.md} reflection={false} />
           <div className="mt-8 h-8 overflow-hidden relative">
             <AnimatePresence mode="wait">
               <motion.p
                 key={message ? "custom" : messageIndex}
-                initial={{ opacity: 0, y: 16 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -16 }}
-                transition={{ duration: 0.3 }}
+                exit={reduceMotion ? undefined : { opacity: 0, y: -12 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                 className="text-base font-medium text-center"
                 style={{ color: "rgba(238,246,241,0.75)" }}
               >
@@ -104,8 +107,9 @@ export function AuthLoadingScreen({ variant = "employer", message }: AuthLoading
       />
 
       <motion.div
-        initial={{ opacity: 0 }}
+        initial={reduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
+        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
         className="relative z-10 flex flex-col items-center"
       >
         <div className="mb-8">
@@ -115,10 +119,10 @@ export function AuthLoadingScreen({ variant = "employer", message }: AuthLoading
           <AnimatePresence mode="wait">
             <motion.p
               key={message ? "custom" : messageIndex}
-              initial={{ opacity: 0, y: 20 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -12 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
               className="text-lg font-medium text-foreground text-center"
             >
               {displayMessage}
