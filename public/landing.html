@@ -76,6 +76,8 @@
   .btn-ghost{background:rgba(255,255,255,.04);color:var(--cream);font-size:14px;font-weight:700;padding:15px 32px;border-radius:14px;border:1px solid rgba(238,246,241,.15);backdrop-filter:blur(10px);transition:all .2s}
   .btn-ghost:hover{border-color:rgba(238,246,241,.35);background:rgba(255,255,255,.08)}
 
+  a.btn-primary, a.btn-ghost, a.nav-cta { display: inline-block; text-decoration: none; text-align: center; }
+
   .hero-risk{display:flex;gap:16px;justify-content:flex-start;margin-top:16px;font-size:12px;color:rgba(238,246,241,.35);font-weight:500;opacity:0;animation:fadeInUp 0.6s 2.2s forwards}
   @media(max-width:1024px){.hero-risk{justify-content:center}}
   .hero-risk .check{color:var(--jade-glow);font-weight:700;margin-right:2px}
@@ -375,7 +377,7 @@
     <a href="#how" class="magnetic-link">How it works</a>
     <a href="#live" class="magnetic-link">Live demo</a>
     <a href="#proof" class="magnetic-link">Results</a>
-    <button class="nav-cta magnetic-btn">Try free</button>
+    <a href="/auth" target="_parent" class="nav-cta magnetic-btn">Try free</a>
   </div>
 </nav>
 
@@ -394,8 +396,8 @@
       </h1>
       <p class="hero-sub">Brief her on the role. She builds the screening flow, interviews every candidate, and hands you a <strong>ranked shortlist</strong> — ready to Advance or Pass.</p>
       <div class="cta-row">
-        <button class="btn-primary magnetic-btn">Try free — first hire at no cost</button>
-        <button class="btn-ghost magnetic-btn">Watch how it works</button>
+        <a href="/auth" target="_parent" class="btn-primary magnetic-btn">Try free — first hire at no cost</a>
+        <a href="#live" class="btn-ghost magnetic-btn">Watch how it works</a>
       </div>
       <div class="hero-risk">
         <span><span class="check">✓</span> No credit card</span>
@@ -542,7 +544,7 @@
           <li>Voice interview transcripts</li>
           <li>Email support</li>
         </ul>
-        <button class="btn-ghost" style="width:100%">Start free</button>
+        <a href="/auth" target="_parent" class="btn-ghost" style="width:100%;display:block">Start free</a>
         <div class="price-risk">No credit card required</div>
       </div>
       <div class="price-card popular" data-reveal>
@@ -558,7 +560,7 @@
           <li>Priority Slack support</li>
           <li>Custom screening questions</li>
         </ul>
-        <button class="btn-primary" style="width:100%">Start free</button>
+        <a href="/auth" target="_parent" class="btn-primary" style="width:100%;display:block">Start free</a>
         <div class="price-risk">First hire free. Cancel anytime.</div>
       </div>
       <div class="price-card" data-reveal>
@@ -573,7 +575,7 @@
           <li>SSO & team permissions</li>
           <li>Dedicated account manager</li>
         </ul>
-        <button class="btn-ghost" style="width:100%">Contact sales</button>
+        <a href="mailto:hello@hireflownow.com" target="_parent" class="btn-ghost" style="width:100%;display:block">Contact sales</a>
         <div class="price-risk">Custom onboarding included</div>
       </div>
     </div>
@@ -719,7 +721,7 @@
       <div class="try-flow">
         <h4>Ava's screening flow for "<span id="try-role-name">Barista</span>"</h4>
         <div id="try-phases"></div>
-        <div style="margin-top:24px;text-align:center"><button class="btn-primary magnetic-btn" style="padding:12px 28px;font-size:13px">Get the full flow — free</button></div>
+        <div style="margin-top:24px;text-align:center"><a href="/auth" target="_parent" class="btn-primary magnetic-btn" style="padding:12px 28px;font-size:13px;display:inline-block">Get the full flow — free</a></div>
       </div>
     </div>
   </div>
@@ -733,7 +735,7 @@
     <div class="footer-trust-item"><span class="icon">🛡️</span> GDPR Compliant</div>
     <div class="footer-trust-item"><span class="icon">💳</span> Stripe Payments</div>
   </div>
-  <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a></div>
+  <div class="footer-links"><a href="/privacy" target="_parent">Privacy</a><a href="/terms" target="_parent">Terms</a><a href="mailto:hello@hireflownow.com" target="_parent">Contact</a></div>
   <p>© 2026 Hireflow. Hiring, handled by Ava.</p>
 </footer>
 
