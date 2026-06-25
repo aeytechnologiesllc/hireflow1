@@ -5,27 +5,45 @@ import {
   UsersRound,
   BarChart3,
   Settings,
+  User as UserIcon,
   CreditCard,
   HelpCircle,
   ChevronRight,
   Clock,
+  LogOut,
 } from "lucide-react";
+import { toast } from "sonner";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { useCockpitAccount } from "../hooks/useCockpitData";
+import { useAuth } from "@/hooks/useAuth";
 
 const ITEMS = [
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "Documents", to: "/documents", icon: FileText },
   { label: "Team", to: "/team", icon: UsersRound },
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
+  { label: "Profile", to: "/profile", icon: UserIcon },
   { label: "Settings", to: "/settings", icon: Settings },
-  { label: "Billing", to: "/settings", icon: CreditCard },
+  { label: "Billing", to: "/settings?tab=subscription", icon: CreditCard },
   { label: "Help", to: "/settings", icon: HelpCircle },
 ];
 
 export default function CockpitMore() {
   const navigate = useNavigate();
   const { account } = useCockpitAccount();
+  const { signOut } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("Signed out");
+    } catch {
+      // local state is cleared by signOut; navigate regardless.
+    } finally {
+      navigate("/auth", { replace: true });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[640px] space-y-3 pb-6">
       {/* account card */}
@@ -69,8 +87,19 @@ export default function CockpitMore() {
       <div className="ck-card flex items-center gap-3 p-4">
         <Clock className="h-5 w-5" style={{ color: "hsl(38 64% 66%)" }} />
         <span className="flex-1 text-[14px]" style={{ color: "hsl(150 22% 82%)" }}>Trial ends {account.trialEnds}</span>
-        <button className="ck-btn ck-btn-brass !px-4 !py-2 !text-[13px]" onClick={() => navigate("/settings")}>Manage plan</button>
+        <button className="ck-btn ck-btn-brass !px-4 !py-2 !text-[13px]" onClick={() => navigate("/settings?tab=subscription")}>Manage plan</button>
       </div>
+
+      {/* log out */}
+      <button
+        onClick={handleLogout}
+        className="ck-card flex w-full items-center gap-3 p-4 text-left transition-colors"
+        style={{ color: "hsl(6 70% 72%)" }}
+      >
+        <LogOut className="h-5 w-5 shrink-0" />
+        <span className="flex-1 text-[15px] font-medium">Log out</span>
+        <ChevronRight className="h-4 w-4" style={{ color: "hsl(6 40% 50%)" }} />
+      </button>
     </div>
   );
 }

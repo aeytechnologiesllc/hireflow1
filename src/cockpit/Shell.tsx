@@ -18,6 +18,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
 import { Wordmark } from "./components/Wordmark";
+import { AccountMenu } from "./components/AccountMenu";
 
 interface NavItem {
   label: string;
@@ -63,23 +64,26 @@ function isActive(pathname: string, to: string) {
 function AccountChip({ compact }: { compact?: boolean }) {
   const { account } = useCockpitAccount();
   return (
-    <button
-      className="flex items-center gap-2 rounded-full px-2.5 py-1.5"
-      style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)" }}
-    >
-      <span
-        className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
-        style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+    <AccountMenu align="end" side="bottom">
+      <button
+        aria-label="Account menu"
+        className="flex items-center gap-2 rounded-full px-2.5 py-1.5"
+        style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)" }}
       >
-        {account.initials}
-      </span>
-      {!compact && (
-        <span className="text-[13px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
-          {account.name}
+        <span
+          className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
+          style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+        >
+          {account.initials}
         </span>
-      )}
-      <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
-    </button>
+        {!compact && (
+          <span className="text-[13px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
+            {account.name}
+          </span>
+        )}
+        <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+      </button>
+    </AccountMenu>
   );
 }
 
@@ -138,21 +142,24 @@ function Sidebar() {
 
       <div className="mt-4 space-y-3">
         <TrialBadge />
-        <button
-          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5"
-          style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 15% / 0.9)" }}
-        >
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold"
-            style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+        <AccountMenu align="start" side="top">
+          <button
+            aria-label="Account menu"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-[hsl(152_24%_11%)]"
+            style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 15% / 0.9)" }}
           >
-            {account.initials}
-          </span>
-          <span className="flex-1 text-left text-[14px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
-            {account.name}
-          </span>
-          <ChevronDown className="h-4 w-4" style={{ color: "hsl(150 10% 58%)" }} />
-        </button>
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold"
+              style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+            >
+              {account.initials}
+            </span>
+            <span className="flex-1 text-left text-[14px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
+              {account.name}
+            </span>
+            <ChevronDown className="h-4 w-4" style={{ color: "hsl(150 10% 58%)" }} />
+          </button>
+        </AccountMenu>
       </div>
     </aside>
   );
@@ -185,10 +192,12 @@ function DesktopTopBar() {
           <div className="flex items-center gap-2 text-[14px]">
             <span style={{ color: "hsl(38 60% 64%)" }}>Dashboard</span>
             <span style={{ color: "hsl(150 10% 38%)" }}>/</span>
-            <button className="flex items-center gap-1.5" style={{ color: "hsl(150 12% 64%)" }}>
-              {account.name}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            <AccountMenu align="start" side="bottom">
+              <button aria-label="Account menu" className="flex items-center gap-1.5" style={{ color: "hsl(150 12% 64%)" }}>
+                {account.name}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </AccountMenu>
           </div>
           <TodayPill />
         </>

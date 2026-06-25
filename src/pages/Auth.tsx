@@ -7,12 +7,27 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Check, Circle, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { AvaOrb } from "@/components/ava/AvaOrb";
+import { ORB_SIZE } from "@/components/ava/orbSizes";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+// Authoritative check (against auth.users via a SECURITY DEFINER RPC) used to
+// turn Supabase's deliberately-vague "Invalid login credentials" into a real,
+// actionable message: "no account" vs "wrong password". Falls back to `null`
+// (unknown) if the RPC is unavailable so we never block sign-in on it.
+async function checkEmailExists(email: string): Promise<boolean | null> {
+  try {
+    const { data, error } = await supabase.rpc("email_exists", { p_email: email });
+    if (error) return null;
+    return Boolean(data);
+  } catch {
+    return null;
+  }
+}
 
 // Detect if running inside a WebView (Natively or generic)
 const isWebView = () => {
@@ -71,6 +86,7 @@ export default function Auth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
   const isMobile = useIsMobile();
+  const reduceMotion = useReducedMotion();
   const formRef = useRef<HTMLDivElement>(null);
   const redirectingRef = useRef(false);
 
@@ -221,13 +237,47 @@ export default function Auth() {
     const { error } = await signIn(signInEmail, signInPassword);
 
     if (error) {
-      toast({
-        variant: "warning",
-        title: "Sign In Failed",
-        description: error.message === "Invalid login credentials" 
-          ? "Invalid email or password. Please try again."
-          : error.message,
-      });
+      const isBadCreds = /invalid login credentials/i.test(error.message);
+
+      if (isBadCreds) {
+        // Disambiguate the generic credential error so the user knows whether
+        // to create an account or just fix/reset their password.
+        const exists = await checkEmailExists(signInEmail);
+
+        if (exists === false) {
+          toast({
+            variant: "warning",
+            title: "No account found",
+            description: "We couldn't find an account for that email. Switching you to Sign Up.",
+          });
+          setSignUpEmail(signInEmail);
+          setActiveTab("signup");
+        } else if (exists === true) {
+          toast({
+            variant: "warning",
+            title: "Incorrect password",
+            description: "That password doesn't match this account. Try again or use \u201cForgot password?\u201d to reset it.",
+          });
+        } else {
+          toast({
+            variant: "warning",
+            title: "Sign In Failed",
+            description: "Invalid email or password. Please try again.",
+          });
+        }
+      } else if (/email not confirmed/i.test(error.message)) {
+        toast({
+          variant: "warning",
+          title: "Confirm your email",
+          description: "Please confirm your email address, then sign in. Check your inbox for the link.",
+        });
+      } else {
+        toast({
+          variant: "warning",
+          title: "Sign In Failed",
+          description: error.message,
+        });
+      }
     } else {
       toast({
         title: "Welcome back!",
@@ -307,27 +357,18 @@ export default function Auth() {
       }
     }
 
-    // First check if email exists in the system
-    try {
-      const response = await supabase.functions.invoke('check-email-exists', {
-        body: { email: forgotPasswordEmail }
+    // First check if the email actually has an account (authoritative, against
+    // auth.users). If the RPC is unavailable it returns null → we fall through
+    // and send the reset anyway rather than blocking the user.
+    const exists = await checkEmailExists(forgotPasswordEmail);
+    if (exists === false) {
+      toast({
+        variant: "warning",
+        title: "Email Not Found",
+        description: "No account found with this email address. Please check the email or sign up for a new account.",
       });
-
-      if (response.error) {
-        console.error('Error checking email:', response.error);
-        // Fall back to sending reset email anyway if check fails
-      } else if (!response.data?.exists) {
-        toast({
-          variant: "warning",
-          title: "Email Not Found",
-          description: "No account found with this email address. Please check the email or sign up for a new account.",
-        });
-        setIsLoading(false);
-        return;
-      }
-    } catch (checkError) {
-      console.error('Error checking email existence:', checkError);
-      // Continue with password reset if check fails
+      setIsLoading(false);
+      return;
     }
 
     const redirectUrl = `${window.location.origin}/auth?reset=true`;
@@ -438,7 +479,7 @@ export default function Auth() {
 
   return (
     <div
-      className="auth-jade dark min-h-[100dvh] relative overflow-y-auto overflow-x-hidden"
+      className="auth-jade dark scroll-perf min-h-[100dvh] relative overflow-y-auto overflow-x-hidden"
       style={{ background: "#0a2019", color: "#eef6f1" }}
     >
       <style>{`
@@ -509,12 +550,15 @@ export default function Auth() {
         <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">
           {/* LEFT — Ava is the centerpiece */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center lg:items-start"
           >
-            <AvaOrb size={isMobile ? 188 : 360} />
+            {/* Standard hero sizing (orbSizes.ts) — density scales by area, so
+                the lg token reads as a crisp, well-separated dotted mesh instead
+                of the dense blob the oversized 360px orb produced. */}
+            <AvaOrb size={isMobile ? ORB_SIZE.md : ORB_SIZE.lg} />
             <span
               className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{
@@ -542,9 +586,9 @@ export default function Auth() {
 
           {/* RIGHT — auth card */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ duration: 0.38, delay: reduceMotion ? 0 : 0.06, ease: [0.4, 0, 0.2, 1] }}
             className="w-full max-w-md mx-auto lg:mx-0"
           >
             {/* Auth Card */}
@@ -637,9 +681,9 @@ export default function Auth() {
             {isResettingPassword ? (
               <motion.div
                 key="reset-password"
-                initial={{ opacity: 0, x: -10 }}
+                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
               >
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Set new password</h2>
@@ -722,9 +766,9 @@ export default function Auth() {
             ) : showForgotPassword ? (
               <motion.div
                 key="forgot"
-                initial={{ opacity: 0, x: -10 }}
+                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
               >
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Reset your password</h2>
@@ -798,9 +842,9 @@ export default function Auth() {
             ) : activeTab === "signin" ? (
               <motion.div
                 key="signin"
-                initial={{ opacity: 0, x: -10 }}
+                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
               >
                 <div className="mb-3 sm:mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
