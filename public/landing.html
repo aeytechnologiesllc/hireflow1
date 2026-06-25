@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hireflow — Hiring, handled by Ava</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@300..800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  :root{
+    --jade-deep:#0a2019;
+    --jade-mid:#0e2a22;
+    --jade-light:#16382c;
+    --jade-glow:#1f9e77;
+    --jade-mint:#9fe7c9;
+    --brass:#cba36a;
+    --brass-light:#e6c184;
+    --cream:#eef6f1;
+    --cream-dim:rgba(238,246,241,.55);
+    --cream-faint:rgba(238,246,241,.25);
+  }
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background:var(--jade-deep);
+    color:var(--cream);
+    overflow-x:hidden;
+    cursor:auto;
+  }
+
+  /* ─── WEBGL HERO ─── */
+  #hero-canvas{position:fixed;inset:0;z-index:0;width:100%;height:100%}
+  #hero-canvas canvas{display:block}
+
+  .hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;pointer-events:none}
+  .hero > *{pointer-events:auto}
+
+  .hero-inner{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;max-width:1200px;width:100%;margin:0 auto}
+  @media(max-width:1024px){.hero-inner{grid-template-columns:1fr;gap:40px;text-align:center}}
+
+  .hero-left{display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .hero-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+  @media(max-width:1024px){.hero-right{align-items:center}}
+
+  .hero-orb-wrap{position:relative;width:420px;height:420px;filter:drop-shadow(0 0 140px rgba(31,158,119,.5)) drop-shadow(0 0 50px rgba(203,163,106,.15))}
+  @media(max-width:1024px){.hero-orb-wrap{width:320px;height:320px}}
+  @media(max-width:640px){.hero-orb-wrap{width:260px;height:260px}}
+  #orb-canvas{width:100%;height:100%;display:block}
+
+  .hero-badge{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);border:1px solid rgba(203,163,106,.35);border-radius:999px;padding:7px 18px;margin-top:28px;backdrop-filter:blur(10px);background:rgba(10,32,25,.6);opacity:0;transform:translateY(12px);animation:fadeInUp 0.6s 0.4s forwards}
+  @media(max-width:1024px){.hero-badge{margin-top:20px}}
+  .hero-badge .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--jade-glow);box-shadow:0 0 10px rgba(31,158,119,.6);animation:pulseDot 2.2s ease-in-out infinite}
+  @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+
+  .hero h1{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:56px;line-height:1.08;letter-spacing:-.025em;margin-bottom:20px;text-align:left;text-shadow:0 2px 40px rgba(0,0,0,.4)}
+  @media(max-width:1024px){.hero h1{text-align:center;font-size:48px}}
+  @media(max-width:768px){.hero h1{font-size:36px}}
+  .hero h1 .accent{color:var(--brass);font-weight:600}
+  .hero h1 .line{display:block}
+  .hero h1 .char{display:inline-block;opacity:0;transform:translateY(24px) rotateX(-40deg);animation:textReveal 0.55s cubic-bezier(.22,1,.36,1) forwards}
+  @keyframes textReveal{to{opacity:1;transform:translateY(0) rotateX(0)}}
+  .hero h1 .char.space{width:0.3em}
+
+  .hero-sub{font-size:17px;line-height:1.65;color:var(--cream-dim);max-width:480px;text-align:left;margin-bottom:32px;font-weight:400;opacity:0;animation:fadeInUp 0.6s 1.2s forwards}
+  @media(max-width:1024px){.hero-sub{text-align:center}}
+  .hero-sub strong{color:var(--cream);font-weight:600}
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+  .cta-row{display:flex;gap:14px;justify-content:flex-start;flex-wrap:wrap;opacity:0;animation:fadeInUp 0.6s 1.4s forwards}
+  @media(max-width:1024px){.cta-row{justify-content:center}}
+  .btn-primary{background:linear-gradient(135deg,var(--brass),var(--brass-light));color:var(--jade-deep);font-size:14px;font-weight:800;padding:15px 32px;border-radius:14px;border:0;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;box-shadow:0 8px 32px rgba(203,163,106,.25),inset 0 1px 0 rgba(255,255,255,.3)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 48px rgba(203,163,106,.35),inset 0 1px 0 rgba(255,255,255,.3)}
+  .btn-primary:active{transform:translateY(0) scale(0.98)}
+  .btn-ghost{background:rgba(255,255,255,.04);color:var(--cream);font-size:14px;font-weight:700;padding:15px 32px;border-radius:14px;border:1px solid rgba(238,246,241,.15);backdrop-filter:blur(10px);transition:all .2s}
+  .btn-ghost:hover{border-color:rgba(238,246,241,.35);background:rgba(255,255,255,.08)}
+
+  .hero-risk{display:flex;gap:16px;justify-content:flex-start;margin-top:16px;font-size:12px;color:rgba(238,246,241,.35);font-weight:500;opacity:0;animation:fadeInUp 0.6s 2.2s forwards}
+  @media(max-width:1024px){.hero-risk{justify-content:center}}
+  .hero-risk .check{color:var(--jade-glow);font-weight:700;margin-right:2px}
+
+  .hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;margin-top:40px;padding-top:32px;border-top:1px solid rgba(238,246,241,.08);opacity:0;animation:fadeInUp 0.6s 2.4s forwards}
+  @media(max-width:640px){.hero-stats{grid-template-columns:repeat(2,1fr);gap:20px}}
+  .hero-stat{text-align:left}
+  @media(max-width:1024px){.hero-stat{text-align:center}}
+  .hero-stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:28px;color:var(--cream);letter-spacing:-.01em}
+  .hero-stat-label{font-size:12px;color:var(--cream-dim);margin-top:4px;font-weight:500}
+
+  .scroll-hint{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12px;color:rgba(238,246,241,.3);letter-spacing:.05em;animation:fadeInUp 0.6s 1.8s forwards,floatHint 2.8s ease-in-out infinite 2s}
+  .scroll-hint::after{content:'';width:1px;height:28px;background:linear-gradient(180deg,var(--brass),transparent)}
+  @keyframes floatHint{0%,100%{transform:translateX(-50%)translateY(0)}50%{transform:translateX(-50%)translateY(8px)}}
+  .noise-overlay{position:fixed;inset:0;z-index:9990;pointer-events:none;opacity:0.035;mix-blend-mode:overlay}
+  @media(pointer:coarse){.noise-overlay{display:none}}
+
+  .scroll-progress{position:fixed;top:0;left:0;height:2px;z-index:10000;background:linear-gradient(90deg,var(--jade-glow),var(--brass));transform-origin:left;transform:scaleX(0);transition:transform 0.1s linear}
+
+  /* ─── SECTIONS ─── */
+  .section{position:relative;z-index:2;padding:120px 24px;background:var(--jade-deep)}
+  .section-alt{background:linear-gradient(180deg,var(--jade-deep),var(--jade-mid),var(--jade-deep))}
+  .section-narrow{max-width:1100px;margin:0 auto}
+
+  .sec-head{text-align:center;margin-bottom:64px}
+  .sec-eyebrow{font-size:11px;font-weight:700;letter-spacing:.4em;text-transform:uppercase;color:var(--brass);margin-bottom:14px;display:inline-block;padding:4px 12px;border-radius:999px;border:1px solid rgba(203,163,106,.2)}
+  .sec-title{font-family:'Fraunces',serif;font-weight:500;font-size:42px;line-height:1.08;letter-spacing:-.01em;margin-bottom:14px}
+  .sec-sub{font-size:16px;color:var(--cream-dim);line-height:1.6;max-width:480px;margin:0 auto}
+  @media(max-width:768px){.sec-title{font-size:30px}}
+
+  /* ─── HOW IT WORKS (progressive pipeline) ─── */
+  .pipeline-wrap{position:relative;perspective:1200px;max-width:1000px;margin:0 auto;padding-top:24px}
+  .pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;position:relative}
+
+  .pipe-track{position:absolute;top:36px;left:12%;right:12%;height:3px;background:rgba(238,246,241,.08);border-radius:2px;overflow:hidden}
+  .pipe-fill{position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,var(--jade-glow),var(--brass));border-radius:2px;transition:width 1.8s cubic-bezier(.22,1,.36,1)}
+  .pipe-fill.active{width:100%}
+
+  .stage{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.15);border-radius:22px;padding:32px 24px;text-align:center;position:relative;z-index:1;transition:opacity 0.6s cubic-bezier(.22,1,.36,1),transform 0.6s cubic-bezier(.34,1.56,.64,1),border-color 0.4s,box-shadow 0.4s;transform-style:preserve-3d;opacity:0;transform:translateY(40px) scale(0.92)}
+  .stage.visible{opacity:1;transform:translateY(0) scale(1)}
+  .stage:hover{border-color:rgba(202,163,106,.4);box-shadow:0 24px 56px rgba(0,0,0,.3),0 0 0 1px rgba(203,163,106,.08)}
+  .stage-num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:'Fraunces',serif;font-weight:500;font-size:17px;background:rgba(203,163,106,.12);color:var(--brass);margin:0 auto 18px;border:1px solid rgba(203,163,106,.2);transition:all 0.5s cubic-bezier(.22,1,.36,1)}
+  .stage.visible .stage-num{animation:nodeGlow 0.5s ease-out forwards}
+  @keyframes nodeGlow{0%{box-shadow:0 0 0 0 rgba(203,163,106,0)}50%{box-shadow:0 0 24px rgba(203,163,106,.3)}100%{box-shadow:0 0 12px rgba(203,163,106,.15)}}
+  .stage:hover .stage-num{transform:translateZ(30px);box-shadow:0 0 20px rgba(203,163,106,.2)}
+  .stage h3{font-size:17px;font-weight:700;margin-bottom:10px;transition:transform 0.4s}
+  .stage:hover h3{transform:translateZ(20px)}
+  .stage p{font-size:13.5px;color:var(--cream-dim);line-height:1.55;transition:transform 0.4s}
+  .stage:hover p{transform:translateZ(10px)}
+  @media(max-width:768px){.pipeline{grid-template-columns:1fr 1fr}.pipe-track{display:none}}
+  @media(max-width:480px){.pipeline{grid-template-columns:1fr}}
+
+  /* ─── LIVE SIMULATION ─── */
+  .sim-card{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.18);border-radius:24px;padding:36px;position:relative;overflow:hidden;opacity:0;transform:translateY(30px);transition:all .6s cubic-bezier(.22,1,.36,1)}
+  .sim-card.visible{opacity:1;transform:translateY(0)}
+  .sim-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--brass),transparent);opacity:.4}
+  .sim-header{display:flex;align-items:center;gap:16px;margin-bottom:28px}
+  .sim-orb{width:52px;height:52px;border-radius:50%;flex:none;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);box-shadow:0 0 24px rgba(31,158,119,.3),inset 0 2px 6px rgba(255,255,255,.3);position:relative}
+  .sim-orb::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(31,158,119,.25);animation:orbRing 2.5s ease-in-out infinite}
+  @keyframes orbRing{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:.5}}
+  .sim-header h3{font-family:'Fraunces',serif;font-weight:500;font-size:22px}
+  .sim-status{font-size:12px;font-weight:700;color:var(--jade-glow);display:flex;align-items:center;gap:8px;margin-top:4px}
+  .sim-status::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--jade-glow);animation:liveBlink 1.8s ease-in-out infinite}
+  @keyframes liveBlink{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .sim-candidates{display:flex;flex-direction:column;gap:10px}
+  .sim-row{display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,255,255,.025);border-radius:14px;border:1px solid rgba(255,255,255,.05);transition:all .3s}
+  .sim-row:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
+  .sim-av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;flex:none}
+  .sim-name{font-size:14px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sim-track{display:flex;align-items:center;gap:5px;flex:1.5;max-width:260px}
+  .track-step{height:7px;border-radius:4px;flex:1;background:rgba(255,255,255,.06);transition:background .8s ease}
+  .track-step.done{background:var(--jade-glow);box-shadow:0 0 10px rgba(31,158,119,.25)}
+  .track-step.current{background:var(--brass);animation:stepPulse 1.5s ease-in-out infinite}
+  @keyframes stepPulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .track-label{font-size:11px;font-weight:700;color:rgba(238,246,241,.4);min-width:64px;text-align:right}
+  .sim-score{font-family:'Fraunces',serif;font-weight:500;font-size:20px;color:var(--brass);min-width:40px;text-align:right}
+
+  /* ─── APP MOCKUP PHONE ─── */
+  .mockup-section{padding:80px 24px 120px;position:relative;z-index:2}
+  .mockup-wrap{display:flex;justify-content:center;gap:48px;align-items:center;flex-wrap:wrap;max-width:1000px;margin:0 auto}
+  .mockup-text{flex:1;min-width:300px;max-width:460px}
+  .mockup-text h3{font-family:'Fraunces',serif;font-weight:500;font-size:32px;margin-bottom:14px;line-height:1.1}
+  .mockup-text p{font-size:15px;color:var(--cream-dim);line-height:1.65;margin-bottom:24px}
+  .mockup-feature{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .mockup-feature:last-child{border-bottom:0}
+  .mockup-feature-icon{width:36px;height:36px;border-radius:10px;background:rgba(203,163,106,.1);display:grid;place-items:center;font-size:16px}
+  .mockup-feature span{font-size:14px;font-weight:600}
+
+  .phone-frame{width:280px;height:580px;border-radius:44px;background:linear-gradient(150deg,#2a2733,#0e0c14 72%);padding:10px;box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);flex:none;position:relative;transition:transform 0.6s cubic-bezier(.22,1,.36,1);opacity:0;transform:translateY(40px) rotateY(-8deg)}
+  .phone-frame.visible{opacity:1;transform:translateY(0) rotateY(-8deg)}
+  .phone-frame:hover{transform:translateY(-8px) rotateY(-4deg) scale(1.02)}
+  .phone-screen{position:relative;overflow:hidden;height:100%;border-radius:36px;background:var(--jade-mid);border:1px solid rgba(255,255,255,.1);padding:20px;display:flex;flex-direction:column;gap:12px}
+  .phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:90px;height:24px;border-radius:14px;background:#0b0910;z-index:5}
+  .phone-header{display:flex;align-items:center;gap:10px;margin-top:16px;margin-bottom:8px}
+  .phone-orb{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);flex:none}
+  .phone-wm{font-weight:700;font-size:13px;letter-spacing:.15em;text-transform:uppercase}
+  .phone-card{background:rgba(255,255,255,.04);border:1px solid rgba(202,163,106,.15);border-radius:16px;padding:16px;transition:all 0.3s}
+  .phone-card:hover{border-color:rgba(202,163,106,.3);transform:translateY(-2px)}
+  .phone-card-label{font-size:11px;color:rgba(238,246,241,.45);font-weight:700;margin-bottom:6px}
+  .phone-card-val{font-family:'Fraunces',serif;font-weight:500;font-size:24px;color:var(--brass)}
+  .phone-card-sub{font-size:11px;color:rgba(238,246,241,.4);margin-top:2px}
+  .phone-list{display:flex;flex-direction:column;gap:8px}
+  .phone-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.05)}
+  .phone-row-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+  .phone-row-info{flex:1}
+  .phone-row-name{font-size:12px;font-weight:700}
+  .phone-row-role{font-size:10px;color:rgba(238,246,241,.45)}
+  .phone-row-score{font-family:'Fraunces',serif;font-size:14px;color:var(--brass);font-weight:500}
+  @media(max-width:768px){.phone-frame{width:240px;height:500px}.mockup-text{text-align:center}}
+
+  /* ─── STATS ─── */
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+  .stat-card{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.12);border-radius:22px;padding:40px 28px;text-align:center;transition:transform .3s,border-color .3s;opacity:0;transform:translateY(24px)}
+  .stat-card.visible{opacity:1;transform:translateY(0)}
+  .stat-card:hover{transform:translateY(-4px);border-color:rgba(202,163,106,.35)}
+  .stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:52px;letter-spacing:-.02em;color:var(--brass);margin-bottom:6px;line-height:1}
+  .stat-label{font-size:13px;color:var(--cream-dim);font-weight:600}
+  @media(max-width:768px){.stats-row{grid-template-columns:1fr}.stat-val{font-size:42px}}
+
+  /* ─── TRUSTED BY MARQUEE ─── */
+  .marquee-section{padding:60px 24px;position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden}
+  .marquee-label{text-align:center;font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:rgba(238,246,241,.35);margin-bottom:24px}
+  .marquee-track{display:flex;gap:64px;animation:marquee 30s linear infinite;width:max-content}
+  .marquee-track:hover{animation-play-state:paused}
+  @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  .marquee-item{display:flex;align-items:center;gap:10px;opacity:0.35;transition:opacity 0.3s;white-space:nowrap}
+  .marquee-item:hover{opacity:0.8}
+  .marquee-item svg{width:28px;height:28px}
+  .marquee-item span{font-size:14px;font-weight:700;letter-spacing:0.05em}
+
+  /* ─── TESTIMONIALS ─── */
+  .testimonials{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
+  .testi{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:28px;transition:all .3s;opacity:0;transform:translateY(20px)}
+  .testi.visible{opacity:1;transform:translateY(0)}
+  .testi:hover{border-color:rgba(202,163,106,.2);transform:translateY(-3px)}
+  .testi q{display:block;font-size:14px;line-height:1.65;color:rgba(238,246,241,.65);font-style:italic;margin-bottom:18px}
+  .testi-author{display:flex;align-items:center;gap:12px}
+  .testi-av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;flex:none}
+  .testi-name{font-size:13px;font-weight:700}.testi-role{font-size:12px;color:rgba(238,246,241,.4)}
+  @media(max-width:768px){.testimonials{grid-template-columns:1fr}}
+
+  /* ─── TRY IT ─── */
+  .try-input-wrap{display:flex;gap:12px;max-width:520px;margin:32px auto 0;background:rgba(255,255,255,.04);border:1px solid rgba(202,163,106,.2);border-radius:16px;padding:7px;transition:border-color .3s}
+  .try-input-wrap:focus-within{border-color:rgba(202,163,106,.5)}
+  .try-input{flex:1;background:transparent;border:0;color:var(--cream);font-size:15px;padding:13px 18px;outline:none;font-family:inherit}
+  .try-input::placeholder{color:rgba(238,246,241,.25)}
+  .try-btn{background:var(--brass);color:var(--jade-deep);font-size:14px;font-weight:800;padding:13px 24px;border-radius:12px;border:0;white-space:nowrap;transition:all .2s}
+  .try-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(203,163,106,.2)}
+  @media(pointer:coarse){.try-btn{cursor:pointer}}
+  .try-result{margin-top:28px;max-width:640px;margin-left:auto;margin-right:auto;text-align:left;opacity:0;transform:translateY(16px);transition:all .5s;pointer-events:none}
+  .try-result.show{opacity:1;transform:translateY(0);pointer-events:auto}
+  .try-flow{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.18);border-radius:20px;padding:28px;position:relative}
+  .try-flow::before{content:'';position:absolute;top:0;left:32px;right:32px;height:1px;background:linear-gradient(90deg,transparent,var(--brass),transparent)}
+  .try-flow h4{font-size:14px;font-weight:700;margin-bottom:20px;color:var(--brass);letter-spacing:.02em}
+  .try-phase{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06);opacity:0;transform:translateX(-12px);animation:phaseIn .4s forwards}
+  .try-phase:last-child{border-bottom:0}
+  @keyframes phaseIn{to{opacity:1;transform:translateX(0)}}
+  .try-phase-num{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;background:rgba(203,163,106,.12);color:var(--brass);flex:none;margin-top:1px}
+  .try-phase-title{font-size:14px;font-weight:700;margin-bottom:3px}
+  .try-phase-desc{font-size:12.5px;color:var(--cream-dim);line-height:1.5}
+
+  /* ─── FOOTER ─── */
+  .footer{position:relative;z-index:2;padding:60px 24px 40px;text-align:center;border-top:1px solid rgba(255,255,255,.06)}
+  .footer-links{display:flex;gap:28px;justify-content:center;margin-bottom:16px}
+  .footer a{color:rgba(238,246,241,.4);text-decoration:none;font-size:13px;font-weight:600;transition:color .2s}
+  .footer a:hover{color:var(--brass)}
+  .footer p{font-size:13px;color:rgba(238,246,241,.25)}
+
+  /* ─── NAV (scroll reveal) ─── */
+  .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,32,25,.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);transform:translateY(-100%);transition:transform .4s cubic-bezier(.22,1,.36,1)}
+  .nav.visible{transform:translateY(0)}
+  .nav-logo{display:flex;align-items:center;gap:12px;font-weight:700;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream)}
+  .nav-logo .mini-orb{width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);box-shadow:0 0 12px rgba(31,158,119,.3)}
+  .nav-links{display:flex;gap:32px;align-items:center}
+  .nav-links a{color:rgba(238,246,241,.5);text-decoration:none;font-size:13px;font-weight:600;transition:color .2s}
+  .nav-links a:hover{color:var(--cream)}
+  .nav-cta{background:var(--brass);color:var(--jade-deep);font-size:12px;font-weight:800;padding:8px 20px;border-radius:10px;border:0}
+  @media(pointer:coarse){.nav-cta{cursor:pointer}}
+  @media(max-width:640px){.nav-links{display:none}}
+  /* ─── HERO STATS BAR ─── */
+  .hero-stats{display:flex;gap:48px;justify-content:center;margin-top:48px;opacity:0;animation:fadeInUp 0.6s 2.0s forwards}
+  .hero-stat{text-align:center}
+  .hero-stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:32px;color:var(--brass);line-height:1}
+  .hero-stat-label{font-size:12px;color:var(--cream-dim);margin-top:6px;letter-spacing:0.05em}
+  @media(max-width:640px){.hero-stats{gap:24px}.hero-stat-val{font-size:26px}}
+
+  /* ─── WHY US COMPARISON ─── */
+  .compare-wrap{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:900px;margin:0 auto}
+  .compare-col{padding:40px 32px;border-radius:24px;position:relative}
+  .compare-col.old{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+  .compare-col.new{background:rgba(31,158,119,.08);border:1px solid rgba(31,158,119,.25)}
+  .compare-col.new::before{content:'';position:absolute;top:0;left:24px;right:24px;height:1px;background:linear-gradient(90deg,transparent,var(--jade-glow),transparent)}
+  .compare-head{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:28px;display:flex;align-items:center;gap:10px}
+  .compare-col.old .compare-head{color:var(--cream-dim)}
+  .compare-col.new .compare-head{color:var(--jade-mint)}
+  .compare-item{display:flex;align-items:flex-start;gap:14px;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:15px;color:var(--cream);line-height:1.6;font-weight:500}
+  .compare-item:last-child{border-bottom:0}
+  .compare-item .x{color:#e74c3c;font-size:20px;line-height:1;flex:none;margin-top:2px;font-weight:700}
+  .compare-item .check{color:var(--jade-glow);font-size:20px;line-height:1;flex:none;margin-top:2px;font-weight:700}
+  @media(max-width:768px){.compare-wrap{grid-template-columns:1fr}}
+
+  /* ─── PRICING ─── */
+  .pricing-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:960px;margin:0 auto;align-items:start}
+  .price-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:36px 28px;text-align:center;position:relative;transition:all .3s;opacity:0;transform:translateY(30px)}
+  .price-card.visible{opacity:1;transform:translateY(0)}
+  .price-card:hover{transform:translateY(-6px);border-color:rgba(202,163,106,.25);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+  .price-card.popular{border-color:var(--brass);background:linear-gradient(180deg,rgba(203,163,106,.08),rgba(255,255,255,.03))}
+  .price-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--brass);color:var(--jade-deep);font-size:11px;font-weight:800;padding:6px 16px;border-radius:999px;letter-spacing:0.05em}
+  .price-name{font-size:16px;font-weight:700;margin-bottom:8px}
+  .price-amount{font-family:'Fraunces',serif;font-weight:500;font-size:48px;color:var(--cream);margin-bottom:4px;line-height:1}
+  .price-amount span{font-size:18px;color:var(--cream-dim);vertical-align:super}
+  .price-period{font-size:13px;color:var(--cream-dim);margin-bottom:24px}
+  .price-features{text-align:left;list-style:none;display:flex;flex-direction:column;gap:12px;margin-bottom:28px}
+  .price-features li{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--cream-dim)}
+  .price-features li::before{content:'✓';color:var(--jade-glow);font-weight:800;font-size:16px;flex:none}
+  .price-risk{font-size:12px;color:rgba(238,246,241,.35);margin-top:16px;font-weight:500}
+  @media(max-width:768px){.pricing-row{grid-template-columns:1fr;max-width:420px}.price-card.popular{order:-1}}
+
+  /* ─── INTEGRATIONS ─── */
+  .integ-row{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;align-items:center;margin-top:40px}
+  .integ-item{display:flex;align-items:center;gap:10px;opacity:0.4;transition:opacity .3s;filter:grayscale(40%)}
+  .integ-item:hover{opacity:0.9;filter:grayscale(0%)}
+  .integ-item svg{width:28px;height:28px}
+  .integ-item span{font-size:13px;font-weight:700;letter-spacing:0.02em}
+
+  /* ─── TRUST BADGES ─── */
+  .trust-row{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;margin-top:40px}
+  .trust-item{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:rgba(238,246,241,.4);opacity:0.6;transition:opacity .3s}
+  .trust-item:hover{opacity:1}
+  .trust-item .icon{font-size:16px}
+
+  /* ─── FAQ ─── */
+  .faq-list{max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+  .faq-item{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:16px;overflow:hidden;transition:border-color .3s;opacity:0;transform:translateY(16px)}
+  .faq-item.visible{opacity:1;transform:translateY(0)}
+  .faq-item:hover{border-color:rgba(202,163,106,.15)}
+  .faq-q{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;cursor:pointer;font-size:15px;font-weight:700;color:var(--cream);transition:color .2s}
+  .faq-q:hover{color:var(--brass)}
+  .faq-q::after{content:'+';font-size:20px;color:var(--brass);transition:transform .3s}
+  .faq-item.open .faq-q::after{transform:rotate(45deg)}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease;padding:0 24px;font-size:14px;color:var(--cream-dim);line-height:1.6}
+  .faq-item.open .faq-a{max-height:200px;padding:0 24px 20px}
+  .faq-item.open{border-color:rgba(202,163,106,.2)}
+
+  /* ─── RISK MICRO-COPY ─── */
+  .risk-note{display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px;color:rgba(238,246,241,.4);margin-top:16px;font-weight:500}
+  .risk-note .dot{width:4px;height:4px;border-radius:50%;background:var(--jade-glow)}
+
+  /* ─── STICKY NAV CTA ENHANCEMENT ─── */
+  .nav-cta:hover{background:var(--brass-light);transform:translateY(-1px);box-shadow:0 8px 24px rgba(203,163,106,.2)}
+  .nav-cta{transition:all .2s}
+
+  /* ─── TESTIMONIAL ENHANCEMENT ─── */
+  .testi-stars{display:flex;gap:3px;margin-bottom:12px}
+  .testi-stars span{color:var(--brass);font-size:14px}
+
+  /* ─── FOOTER TRUST ─── */
+  .footer-trust{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
+  .footer-trust-item{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:rgba(238,246,241,.3);text-transform:uppercase;letter-spacing:0.08em}
+  .footer-trust-item .icon{font-size:14px}
+
+  /* ─── HERO RISK ─── */
+  .hero-risk{display:flex;gap:16px;justify-content:center;margin-top:16px;font-size:12px;color:rgba(238,246,241,.35);font-weight:500;opacity:0;animation:fadeInUp 0.6s 2.2s forwards}
+  .hero-risk span{display:flex;align-items:center;gap:6px}
+  .hero-risk .check{color:var(--jade-glow);font-size:14px}
+
+  /* ─── COMPARISON SECTION ─── */
+  .compare-section{padding:0 24px 120px;position:relative;z-index:2}
+
+  /* ─── PRICING SECTION WRAPPER ─── */
+  .pricing-section{padding:120px 24px;position:relative;z-index:2;background:var(--jade-deep)}
+
+  /* ─── INTEGRATION SECTION WRAPPER ─── */
+  .integ-section{padding:80px 24px;position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06)}
+
+  /* ─── FAQ SECTION WRAPPER ─── */
+  .faq-section{padding:120px 24px;position:relative;z-index:2;background:linear-gradient(180deg,var(--jade-deep),var(--jade-mid),var(--jade-deep))}
+
+</style>
+</head>
+<body>
+
+<!-- Noise Texture Overlay -->
+<canvas class="noise-overlay" id="noise-canvas"></canvas>
+
+<!-- Scroll Progress -->
+<div class="scroll-progress" id="scroll-progress"></div>
+
+<!-- Background WebGL Canvas -->
+<div id="hero-canvas"></div>
+
+<!-- Nav -->
+<nav class="nav" id="nav">
+  <div class="nav-logo"><div class="mini-orb"></div>Hireflow</div>
+  <div class="nav-links">
+    <a href="#how" class="magnetic-link">How it works</a>
+    <a href="#live" class="magnetic-link">Live demo</a>
+    <a href="#proof" class="magnetic-link">Results</a>
+    <button class="nav-cta magnetic-btn">Try free</button>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-orb-wrap"><canvas id="orb-canvas"></canvas></div>
+      <div class="hero-badge"><span class="pulse-dot"></span>AI Hiring for Small Business</div>
+    </div>
+    <div class="hero-right">
+      <h1 id="hero-headline">
+        <span class="line">Meet <span class="accent">Ava</span>.</span>
+        <span class="line">She handles hiring,</span>
+        <span class="line">so you don't have to.</span>
+      </h1>
+      <p class="hero-sub">Brief her on the role. She builds the screening flow, interviews every candidate, and hands you a <strong>ranked shortlist</strong> — ready to Advance or Pass.</p>
+      <div class="cta-row">
+        <button class="btn-primary magnetic-btn">Try free — first hire at no cost</button>
+        <button class="btn-ghost magnetic-btn">Watch how it works</button>
+      </div>
+      <div class="hero-risk">
+        <span><span class="check">✓</span> No credit card</span>
+        <span><span class="check">✓</span> Cancel anytime</span>
+        <span><span class="check">✓</span> First hire free</span>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="hero-stat-val">2,400+</div><div class="hero-stat-label">Hires made</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">14,000+</div><div class="hero-stat-label">Candidates screened</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">4.8</div><div class="hero-stat-label">Average rating</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">500+</div><div class="hero-stat-label">Small businesses</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-hint">Scroll to explore</div>
+</section>
+
+<!-- How It Works -->
+<section class="section section-alt" id="how">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">How it works</span>
+      <h2 class="sec-title">From brief to shortlist in 4 steps</h2>
+      <p class="sec-sub">Ava does the heavy lifting. You make the final call.</p>
+    </div>
+    <div class="pipeline-wrap" id="pipeline-wrap">
+      <div class="pipe-track"><div class="pipe-fill" id="pipe-fill"></div></div>
+                              <div class="pipeline">
+        <div class="stage tilt-card" data-reveal data-index="0">
+          <div class="stage-num">1</div>
+          <h3>Brief Ava</h3>
+          <p>Tell her the role, pay, and what matters. She listens and builds the perfect screening flow.</p>
+        </div>
+        <div class="stage tilt-card" data-reveal data-index="1">
+          <div class="stage-num">2</div>
+          <h3>Publish & Collect</h3>
+          <p>Share your role anywhere. Candidates apply, take a timed quiz, and answer questions out loud.</p>
+        </div>
+        <div class="stage tilt-card" data-reveal data-index="2">
+          <div class="stage-num">3</div>
+          <h3>Ava Screens</h3>
+          <p>She grades every quiz, transcribes voice answers, and scores candidates on the traits you care about.</p>
+        </div>
+        <div class="stage tilt-card" data-reveal data-index="3">
+          <div class="stage-num">4</div>
+          <h3>Your Shortlist</h3>
+          <p>A ranked list of the best candidates, with scores and interview clips. Tap Advance or Pass.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Why Us -->
+<section class="compare-section" id="why">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">Why Hireflow</span>
+      <h2 class="sec-title">The old way vs. the smart way</h2>
+      <p class="sec-sub">Stop managing hiring. Start making decisions.</p>
+    </div>
+    <div class="compare-wrap" data-reveal>
+      <div class="compare-col old">
+        <div class="compare-head">❌ Hiring the old way</div>
+        <div class="compare-item"><span class="x">×</span> Post on 5 job boards, sift through 50+ resumes</div>
+        <div class="compare-item"><span class="x">×</span> Phone screen every applicant manually</div>
+        <div class="compare-item"><span class="x">×</span> No idea who's actually qualified until you meet them</div>
+        <div class="compare-item"><span class="x">×</span> Spreadsheet tracking that breaks by week 2</div>
+        <div class="compare-item"><span class="x">×</span> 2-4 weeks to make your first hire</div>
+      </div>
+      <div class="compare-col new">
+        <div class="compare-head">✓ Hiring with Ava</div>
+        <div class="compare-item"><span class="check">✓</span> One brief. Ava builds a smart link and collects candidates.</div>
+        <div class="compare-item"><span class="check">✓</span> Ava interviews every candidate with voice quizzes</div>
+        <div class="compare-item"><span class="check">✓</span> Scored shortlist ranked by fit — data, not gut</div>
+        <div class="compare-item"><span class="check">✓</span> One dashboard. Listen to clips, Advance or Pass</div>
+        <div class="compare-item"><span class="check">✓</span> Top picks in 48-72 hours, not weeks</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- App Mockup -->
+<section class="mockup-section" id="app">
+  <div class="mockup-wrap">
+    <div class="mockup-text">
+      <h3>Your hiring, in one dashboard</h3>
+      <p>No more spreadsheets, no more email threads, no more sifting through 50 resumes. Ava hands you a clean shortlist with scores and interview clips.</p>
+      <div class="mockup-feature"><div class="mockup-feature-icon">☕</div><span>See all active roles and applicant counts</span></div>
+      <div class="mockup-feature"><div class="mockup-feature-icon">📊</div><span>Ranked shortlist with scores and Ava's read</span></div>
+      <div class="mockup-feature"><div class="mockup-feature-icon">🎙️</div><span>Listen to voice interview clips in one tap</span></div>
+      <div class="mockup-feature"><div class="mockup-feature-icon">✅</div><span>Advance or Pass — one decision, done</span></div>
+    </div>
+    <div class="phone-frame" data-reveal>
+      <div class="phone-screen">
+        <div class="phone-notch"></div>
+        <div class="phone-header"><div class="phone-orb"></div><div class="phone-wm">Hireflow</div></div>
+        <div class="phone-card"><div class="phone-card-label">Shortlist ready</div><div class="phone-card-val">5</div><div class="phone-card-sub">for Barista — part-time</div></div>
+        <div class="phone-list">
+          <div class="phone-row"><div class="phone-row-av" style="background:#d9d4ec;color:#3e3bc4">JD</div><div class="phone-row-info"><div class="phone-row-name">Jordan Davis</div><div class="phone-row-role">Scored 8.4</div></div><div class="phone-row-score">8.4</div></div>
+          <div class="phone-row"><div class="phone-row-av" style="background:#f3d9cc;color:#b5491f">AO</div><div class="phone-row-info"><div class="phone-row-name">Alex Ortiz</div><div class="phone-row-role">Scored 7.8</div></div><div class="phone-row-score">7.8</div></div>
+          <div class="phone-row"><div class="phone-row-av" style="background:#cfeee0;color:#0c7a57">TM</div><div class="phone-row-info"><div class="phone-row-name">Taylor Morgan</div><div class="phone-row-role">Scored 6.2</div></div><div class="phone-row-score">6.2</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Live Simulation -->
+<section class="section" id="live">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">Live demo</span>
+      <h2 class="sec-title">Watch Ava screen in real time</h2>
+      <p class="sec-sub">This is what your dashboard looks like while candidates move through the pipeline.</p>
+    </div>
+    <div class="sim-card" data-reveal>
+      <div class="sim-header">
+        <div class="sim-orb"></div>
+        <div><h3>Ava is screening</h3><div class="sim-status">6 Barista applicants in progress</div></div>
+      </div>
+      <div class="sim-candidates" id="sim-candidates"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="pricing-section" id="pricing">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">Pricing</span>
+      <h2 class="sec-title">Simple pricing. No surprises.</h2>
+      <p class="sec-sub">Pay only for what you use. First hire is always free.</p>
+    </div>
+    <div class="pricing-row">
+      <div class="price-card" data-reveal>
+        <div class="price-name">Starter</div>
+        <div class="price-amount"><span>$</span>29</div>
+        <div class="price-period">per month</div>
+        <ul class="price-features">
+          <li>1 active role</li>
+          <li>Up to 50 applicants per role</li>
+          <li>AI screening & scoring</li>
+          <li>Voice interview transcripts</li>
+          <li>Email support</li>
+        </ul>
+        <button class="btn-ghost" style="width:100%">Start free</button>
+        <div class="price-risk">No credit card required</div>
+      </div>
+      <div class="price-card popular" data-reveal>
+        <div class="price-badge">Most Popular</div>
+        <div class="price-name">Growth</div>
+        <div class="price-amount"><span>$</span>79</div>
+        <div class="price-period">per month</div>
+        <ul class="price-features">
+          <li>5 active roles</li>
+          <li>Unlimited applicants</li>
+          <li>AI screening & scoring</li>
+          <li>Voice interview transcripts</li>
+          <li>Priority Slack support</li>
+          <li>Custom screening questions</li>
+        </ul>
+        <button class="btn-primary" style="width:100%">Start free</button>
+        <div class="price-risk">First hire free. Cancel anytime.</div>
+      </div>
+      <div class="price-card" data-reveal>
+        <div class="price-name">Enterprise</div>
+        <div class="price-amount" style="font-size:36px;margin-top:12px">Custom</div>
+        <div class="price-period">For teams of 10+</div>
+        <ul class="price-features">
+          <li>Unlimited active roles</li>
+          <li>Unlimited applicants</li>
+          <li>Advanced AI scoring</li>
+          <li>API access</li>
+          <li>SSO & team permissions</li>
+          <li>Dedicated account manager</li>
+        </ul>
+        <button class="btn-ghost" style="width:100%">Contact sales</button>
+        <div class="price-risk">Custom onboarding included</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Trusted By Marquee -->
+<section class="marquee-section">
+  <div class="marquee-label">Trusted by small businesses everywhere</div>
+  <div class="marquee-track" id="marquee-track">
+    <!-- Duplicated for seamless loop -->
+    <div class="marquee-item"><span>☕ Maria's Café</span></div>
+    <div class="marquee-item"><span>🍳 Austin Kitchen Co.</span></div>
+    <div class="marquee-item"><span>🧁 Portland Bakehouse</span></div>
+    <div class="marquee-item"><span>🐕 Brooklyn Groomers</span></div>
+    <div class="marquee-item"><span>🏨 The Riverside Inn</span></div>
+    <div class="marquee-item"><span>🎨 Creative Studio LA</span></div>
+    <div class="marquee-item"><span>🍕 North End Pizza</span></div>
+    <div class="marquee-item"><span>🌿 Green Thumb Nursery</span></div>
+    <div class="marquee-item"><span>☕ Maria's Café</span></div>
+    <div class="marquee-item"><span>🍳 Austin Kitchen Co.</span></div>
+    <div class="marquee-item"><span>🧁 Portland Bakehouse</span></div>
+    <div class="marquee-item"><span>🐕 Brooklyn Groomers</span></div>
+    <div class="marquee-item"><span>🏨 The Riverside Inn</span></div>
+    <div class="marquee-item"><span>🎨 Creative Studio LA</span></div>
+    <div class="marquee-item"><span>🍕 North End Pizza</span></div>
+    <div class="marquee-item"><span>🌿 Green Thumb Nursery</span></div>
+  </div>
+</section>
+
+<!-- Integrations -->
+<section class="integ-section" id="integrations">
+  <div class="section-narrow">
+    <div class="sec-head" style="margin-bottom:24px">
+      <span class="sec-eyebrow">Integrations</span>
+      <h2 class="sec-title" style="font-size:28px">Works with your tools</h2>
+    </div>
+    <div class="integ-row">
+      <div class="integ-item">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.521-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521zM15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.526 2.526 0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+        <span>Slack</span>
+      </div>
+      <div class="integ-item">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <span>Google Calendar</span>
+      </div>
+      <div class="integ-item">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.131 1.58l.623-4.029C17.33.631 15.157 0 12.567 0 8.765 0 6.007 1.756 6.007 4.872c0 2.995 1.782 4.055 5.828 5.592 2.567.956 3.36 1.576 3.36 2.574 0 .98-.84 1.545-2.353 1.545-1.875 0-4.965-.921-6.99-2.109l-.66 4.039C5.064 21.566 8.205 22.001 11.51 22.001c4.039 0 6.835-1.652 6.835-4.898 0-3.118-1.954-4.118-5.37-5.953z"/></svg>
+        <span>Stripe</span>
+      </div>
+      <div class="integ-item">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.453-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933l3.174-.186z"/></svg>
+        <span>Notion</span>
+      </div>
+      <div class="integ-item">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.164 7.93V5.084a2.198 2.198 0 0 0 1.267-1.984 2.21 2.21 0 0 0-4.42 0c0 .852.49 1.59 1.2 1.953V7.93c-2.274.424-4.11 1.975-4.965 4.15H6.857V7.758a2.204 2.204 0 0 0 1.255-1.99 2.21 2.21 0 0 0-4.42 0c0 .862.497 1.606 1.215 1.968v4.517h-.567c-1.215 0-2.2 1.07-2.2 2.39v.002c0 1.32.985 2.39 2.2 2.39h.567v3.015c-.718.362-1.215 1.106-1.215 1.968a2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.255-1.99v-2.993h3.894c1.215 0 2.2-1.07 2.2-2.39 0-1.32-.985-2.39-2.2-2.39H6.857V12.08h.629c.855 2.175 2.69 3.726 4.965 4.15v2.846a2.198 2.198 0 0 0-1.267 1.984 2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.267-1.984v-2.846c2.274-.424 4.11-1.975 4.965-4.15h.906v2.993a2.198 2.198 0 0 0-1.255 1.99 2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.255-1.99V15.87c1.215 0 2.2-1.07 2.2-2.39 0-1.32-.985-2.39-2.2-2.39h-.906z"/></svg>
+        <span>Zapier</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Social Proof -->
+<section class="section section-alt" id="proof">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">Results</span>
+      <h2 class="sec-title">Built for owners who need<br>to hire fast, not manage tools</h2>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card" data-reveal><div class="stat-val" data-target="89" data-suffix="%">0%</div><div class="stat-label">less time-to-hire</div></div>
+      <div class="stat-card" data-reveal><div class="stat-val" data-target="42" data-suffix="h">0h</div><div class="stat-label">saved per role</div></div>
+      <div class="stat-card" data-reveal><div class="stat-val" data-target="1247" data-suffix="">0</div><div class="stat-label">hires made</div></div>
+    </div>
+    <div class="testimonials">
+      <div class="testi" data-reveal>
+        <div class="testi-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <q>I posted a Barista role on Monday and had my top pick by Wednesday. Ava did everything.</q>
+        <div class="testi-author"><div class="testi-av" style="background:#d9d4ec;color:#3e3bc4">MK</div><div><div class="testi-name">Maria K.</div><div class="testi-role">Café owner, Brooklyn</div></div></div>
+      </div>
+      <div class="testi" data-reveal>
+        <div class="testi-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <q>No more sifting through 50 resumes. Ava handed me 3 people worth calling. Done.</q>
+        <div class="testi-author"><div class="testi-av" style="background:#f3d9cc;color:#b5491f">JR</div><div><div class="testi-name">James R.</div><div class="testi-role">Restaurant manager, Austin</div></div></div>
+      </div>
+      <div class="testi" data-reveal>
+        <div class="testi-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <q>The voice interview is genius. I heard how candidates actually talk — not just what's on paper.</q>
+        <div class="testi-author"><div class="testi-av" style="background:#cfeee0;color:#0c7a57">SL</div><div><div class="testi-name">Sarah L.</div><div class="testi-role">Boutique owner, Portland</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="section-narrow">
+    <div class="sec-head">
+      <span class="sec-eyebrow">FAQ</span>
+      <h2 class="sec-title">Questions, answered</h2>
+      <p class="sec-sub">Everything you need to know before starting your first role.</p>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">What if Ava picks the wrong people?</div>
+        <div class="faq-a">Ava doesn't make final decisions — she screens and ranks. You always review the shortlist and choose who to Advance or Pass. Think of her as a super-powered recruiter, not a replacement for your judgment.</div>
+      </div>
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">How is my candidate data protected?</div>
+        <div class="faq-a">All data is encrypted at rest (AES-256) and in transit (TLS 1.3). We are SOC 2 Type II certified and GDPR compliant. Candidate data is never shared with third parties.</div>
+      </div>
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">Can I customize the screening questions?</div>
+        <div class="faq-a">Absolutely. Ava starts with smart defaults based on your role, but you can add, edit, or remove any question. You can also set custom scoring weights for the traits that matter most to your business.</div>
+      </div>
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">What happens after the free trial?</div>
+        <div class="faq-a">Your first hire is always free, no matter what plan you're on. After that, you can upgrade to Growth or stay on Starter. No surprise charges, no locked-in contracts.</div>
+      </div>
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">Do candidates need to download an app?</div>
+        <div class="faq-a">Nope. Candidates apply through a simple web link — no app install, no account creation. They take a quiz, answer voice questions, and they're done in under 10 minutes.</div>
+      </div>
+      <div class="faq-item" data-reveal>
+        <div class="faq-q">Can I integrate with my existing tools?</div>
+        <div class="faq-a">Yes. Hireflow connects with Slack, Google Calendar, Stripe, Notion, and Zapier. New integrations are added monthly based on customer requests.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Try It -->
+<section class="section" id="try">
+  <div class="section-narrow" style="text-align:center">
+    <span class="sec-eyebrow">Try it now</span>
+    <h2 class="sec-title">What would Ava build for your role?</h2>
+    <p class="sec-sub">Type any job title and see the screening flow she'd create.</p>
+    <div class="try-input-wrap">
+      <input type="text" class="try-input" placeholder="e.g. Barista, Dog Groomer, Line Cook..." id="try-input" value="Barista">
+      <button class="try-btn magnetic-btn" id="try-btn">Build my flow</button>
+    </div>
+    <div class="try-result" id="try-result">
+      <div class="try-flow">
+        <h4>Ava's screening flow for "<span id="try-role-name">Barista</span>"</h4>
+        <div id="try-phases"></div>
+        <div style="margin-top:24px;text-align:center"><button class="btn-primary magnetic-btn" style="padding:12px 28px;font-size:13px">Get the full flow — free</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-trust">
+    <div class="footer-trust-item"><span class="icon">🔒</span> 256-bit Encryption</div>
+    <div class="footer-trust-item"><span class="icon">✓</span> SOC 2 Certified</div>
+    <div class="footer-trust-item"><span class="icon">🛡️</span> GDPR Compliant</div>
+    <div class="footer-trust-item"><span class="icon">💳</span> Stripe Payments</div>
+  </div>
+  <div class="footer-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a></div>
+  <p>© 2026 Hireflow. Hiring, handled by Ava.</p>
+</footer>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// MOUSE TRACKING + MAGNETIC BUTTONS + TILT
+const isTouch = window.matchMedia('(pointer:coarse)').matches;
+
+let mouseX = 0.5, mouseY = 0.5;
+window.addEventListener('mousemove', (e) => { mouseX = e.clientX / window.innerWidth; mouseY = 1.0 - e.clientY / window.innerHeight; });
+
+if (!isTouch) {
+  const magneticEls = document.querySelectorAll('.magnetic-btn, .magnetic-link, .tilt-card');
+  magneticEls.forEach(el => {
+    el.addEventListener('mousemove', (e) => {
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (e.clientX - cx) * 0.15;
+      const dy = (e.clientY - cy) * 0.15;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+  });
+}
+
+// 3D Tilt cards
+if (!isTouch) {
+  document.querySelectorAll('.tilt-card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const rx = (y - cy) / cy * -8;
+      const ry = (x - cx) / cx * 8;
+      card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(10px)`;
+    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  });
+}
+
+// FAQ accordion
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.parentElement;
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  });
+});
+
+// Noise texture
+(function() {
+  const canvas = document.getElementById('noise-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  const imgData = ctx.createImageData(200, 200);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const v = Math.random() * 255;
+    imgData.data[i] = v;
+    imgData.data[i + 1] = v;
+    imgData.data[i + 2] = v;
+    imgData.data[i + 3] = 255;
+  }
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = 200; offCanvas.height = 200;
+  offCanvas.getContext('2d').putImageData(imgData, 0, 0);
+  ctx.fillStyle = ctx.createPattern(offCanvas, 'repeat');
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+})();
+
+
+// HERO TEXT REVEAL
+const headline = document.getElementById('hero-headline');
+const lines = headline.querySelectorAll('.line');
+let charDelay = 0;
+lines.forEach((line, lineIdx) => {
+  const text = line.textContent;
+  line.innerHTML = '';
+  const words = text.split(' ');
+  words.forEach((word, wi) => {
+    const wordSpan = document.createElement('span');
+    wordSpan.style.display = 'inline-block';
+    wordSpan.style.whiteSpace = 'nowrap';
+    for (let i = 0; i < word.length; i++) {
+      const span = document.createElement('span');
+      span.className = 'char';
+      span.textContent = word[i];
+      span.style.animationDelay = (0.6 + charDelay * 0.025) + 's';
+      wordSpan.appendChild(span);
+      charDelay++;
+    }
+    line.appendChild(wordSpan);
+    if (wi < words.length - 1) {
+      const space = document.createElement('span');
+      space.className = 'char space';
+      space.style.animationDelay = (0.6 + charDelay * 0.025) + 's';
+      line.appendChild(space);
+      charDelay++;
+    }
+  });
+});
+
+
+// WEBGL HERO BACKGROUND — Jade Aurora
+const bgVert = `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.0);}`;
+const bgFrag = `precision highp float;varying vec2 vUv;uniform float uTime;uniform vec2 uResolution;uniform vec2 uMouse;
+vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod(i,289.0);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=1.0/7.0;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
+float fbm(vec3 p){float v=0.0,a=0.5;for(int i=0;i<4;i++){v+=a*snoise(p);p*=2.0;a*=0.5;}return v;}
+void main(){vec2 uv=vUv;vec2 aspect=vec2(uResolution.x/uResolution.y,1.0);vec2 p=(uv-0.5)*aspect;float t=uTime*0.12;float n1=fbm(vec3(p*1.2,t));float n2=fbm(vec3(p*2.5,t*0.7+50.0));float n3=fbm(vec3(p*0.6,t*1.3+100.0));vec3 jadeDeep=vec3(0.039,0.125,0.098);vec3 jadeMid=vec3(0.055,0.165,0.133);vec3 jadeLight=vec3(0.086,0.220,0.173);vec3 brass=vec3(0.796,0.639,0.416);vec3 mint=vec3(0.624,0.906,0.788);vec3 col=mix(jadeDeep,jadeMid,uv.y+0.3);col=mix(col,jadeLight,n3*0.3+0.3);float band1=smoothstep(-0.3,0.6,n1);float band2=smoothstep(0.2,0.8,n2);col=mix(col,jadeLight*1.1,band1*0.15);col=mix(col,vec3(0.12,0.35,0.28),band2*0.12);float wisp=smoothstep(0.4,0.9,n1*n2);col=mix(col,brass*0.4,wisp*0.08);float highlight=smoothstep(0.5,0.9,n3);col=mix(col,mint*0.3,highlight*0.06);float vig=1.0-smoothstep(0.4,1.2,length(p));col*=0.85+0.15*vig;vec2 mouseOffset=(uMouse-0.5)*aspect;float mouseDist=length(p-mouseOffset);float mouseGlow=smoothstep(0.8,0.0,mouseDist)*0.04;col+=vec3(0.5,0.8,0.6)*mouseGlow;gl_FragColor=vec4(col,1.0);}`;
+
+const heroCanvas = document.getElementById('hero-canvas');
+const bgRenderer = new THREE.WebGLRenderer({ alpha: false, antialias: false });
+bgRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+const bgScene = new THREE.Scene();
+const bgCamera = new THREE.Camera();
+const bgUniforms = { uTime: { value: 0 }, uResolution: { value: new THREE.Vector2() }, uMouse: { value: new THREE.Vector2(0.5, 0.5) } };
+const bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ vertexShader: bgVert, fragmentShader: bgFrag, uniforms: bgUniforms }));
+bgScene.add(bgMesh);
+heroCanvas.appendChild(bgRenderer.domElement);
+
+function resizeBg() { const w = window.innerWidth, h = window.innerHeight; bgRenderer.setSize(w, h); bgUniforms.uResolution.value.set(w, h); }
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+(function bgLoop(now) {
+  requestAnimationFrame(bgLoop);
+  bgUniforms.uTime.value = now * 0.001;
+  bgUniforms.uMouse.value.x += (mouseX - bgUniforms.uMouse.value.x) * 0.03;
+  bgUniforms.uMouse.value.y += (mouseY - bgUniforms.uMouse.value.y) * 0.03;
+  bgRenderer.render(bgScene, bgCamera);
+})(performance.now());
+
+
+// THE LIVING ORB
+const orbVert = `uniform float uTime,uFlow,uAmp,uSize;varying float vB;varying float vBrass;varying float vFace;varying float vVel;
+vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod(i,289.0);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=1.0/7.0;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
+void main(){vec3 nrm=normalize(position);float n1=snoise(nrm*2.4+vec3(0.0,0.0,uTime*uFlow));float n2=snoise(nrm*5.2-vec3(uTime*uFlow*0.6,0.0,0.0));float n3=snoise(nrm*8.0+vec3(uTime*uFlow*0.3,0.0,0.0));float disp=n1*0.55+n2*0.30+n3*0.15;vec3 p=nrm*(1.0+disp*uAmp);vec4 mv=modelViewMatrix*vec4(p,1.0);vec3 vn=normalize((modelViewMatrix*vec4(nrm,0.0)).xyz);vFace=clamp(vn.z,0.0,1.0);vB=smoothstep(-0.4,0.9,disp);vBrass=smoothstep(0.4,0.92,n2*0.5+0.5);vVel=smoothstep(0.3,0.9,abs(n3));gl_PointSize=uSize*(4.2/-mv.z)*(0.40+0.95*vB)*(0.45+0.7*vFace)*(0.7+0.6*vVel);gl_Position=projectionMatrix*mv;}`;
+const orbFrag = `precision highp float;varying float vB;varying float vBrass;varying float vFace;varying float vVel;uniform vec3 cJade,cMint,cBrass,cDeep;uniform float uBright,uAlpha,uEdge;
+void main(){vec2 c=gl_PointCoord-0.5;float d=length(c);if(d>0.5)discard;float a=smoothstep(0.5,0.08,d);vec3 col=mix(cJade,cMint,vB);col=mix(col,cBrass,vBrass*0.65);col=mix(col,cDeep,(1.0-vB)*0.15);float fall=uEdge+(1.0-uEdge)*vFace;float bright=(0.22+0.95*vB+0.3*vVel)*fall*uBright;float glow=a*a*0.5;gl_FragColor=vec4(col*bright+glow*vec3(0.6,0.9,0.75),a*fall*uAlpha);}`;
+const innerVert = `varying vec3 vN;varying vec3 vView;void main(){vec4 wp=modelMatrix*vec4(position,1.0);vN=normalize(mat3(modelMatrix)*normal);vView=cameraPosition-wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`;
+const innerFrag = `precision highp float;varying vec3 vN;varying vec3 vView;void main(){float f=clamp(dot(normalize(vN),normalize(vView)),0.0,1.0);vec3 col=mix(vec3(0.015,0.05,0.035),vec3(0.08,0.22,0.16),pow(f,1.25));gl_FragColor=vec4(col,1.0);}`;
+
+const orbCanvas = document.getElementById('orb-canvas');
+const orbRenderer = new THREE.WebGLRenderer({ canvas: orbCanvas, antialias: true, alpha: true });
+orbRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const orbScene = new THREE.Scene();
+const orbCamera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+orbCamera.position.set(0, 0, 4.3);
+const orbGrp = new THREE.Group(); orbScene.add(orbGrp);
+orbGrp.add(new THREE.Mesh(new THREE.SphereGeometry(0.9, 48, 48), new THREE.ShaderMaterial({ vertexShader: innerVert, fragmentShader: innerFrag })));
+
+// DENSE CORE LAYER (8,000 dots)
+const nCore = 8000, arrCore = new Float32Array(nCore * 3), ga = Math.PI * (3 - Math.sqrt(5));
+for (let i = 0; i < nCore; i++) { const y = 1 - (i / (nCore - 1)) * 2; const r = Math.sqrt(Math.max(0, 1 - y * y)); const th = ga * i; arrCore[i * 3] = Math.cos(th) * r; arrCore[i * 3 + 1] = y; arrCore[i * 3 + 2] = Math.sin(th) * r; }
+const geoCore = new THREE.BufferGeometry(); geoCore.setAttribute('position', new THREE.BufferAttribute(arrCore, 3));
+const orbU = { uTime: { value: 0 }, uFlow: { value: 0.55 }, uAmp: { value: 0.22 }, uSize: { value: 5.0 }, uBright: { value: 1.0 }, uAlpha: { value: 0.95 }, uEdge: { value: 0.15 }, cJade: { value: new THREE.Color(0x1f9e77) }, cMint: { value: new THREE.Color(0x9fe7c9) }, cBrass: { value: new THREE.Color(0xe6c184) }, cDeep: { value: new THREE.Color(0x0a2019) } };
+orbGrp.add(new THREE.Points(geoCore, new THREE.ShaderMaterial({ vertexShader: orbVert, fragmentShader: orbFrag, uniforms: orbU, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
+
+// OUTER HALO LAYER (2,000 large faint dots)
+const nHalo = 2000, arrHalo = new Float32Array(nHalo * 3);
+for (let i = 0; i < nHalo; i++) { const y = 1 - (i / (nHalo - 1)) * 2; const r = Math.sqrt(Math.max(0, 1 - y * y)); const th = ga * i + 0.5; arrHalo[i * 3] = Math.cos(th) * r * 1.08; arrHalo[i * 3 + 1] = y * 1.08; arrHalo[i * 3 + 2] = Math.sin(th) * r * 1.08; }
+const geoHalo = new THREE.BufferGeometry(); geoHalo.setAttribute('position', new THREE.BufferAttribute(arrHalo, 3));
+const haloU = { uTime: { value: 0 }, uFlow: { value: 0.35 }, uAmp: { value: 0.12 }, uSize: { value: 3.0 }, uBright: { value: 0.6 }, uAlpha: { value: 0.45 }, uEdge: { value: 0.0 }, cJade: { value: new THREE.Color(0x1f9e77) }, cMint: { value: new THREE.Color(0x9fe7c9) }, cBrass: { value: new THREE.Color(0xe6c184) }, cDeep: { value: new THREE.Color(0x0a2019) } };
+orbGrp.add(new THREE.Points(geoHalo, new THREE.ShaderMaterial({ vertexShader: orbVert, fragmentShader: orbFrag, uniforms: haloU, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
+
+function resizeOrb() { const w = orbCanvas.clientWidth || 320, h = orbCanvas.clientHeight || 320; orbRenderer.setSize(w, h, false); orbCamera.aspect = w / h; orbCamera.updateProjectionMatrix(); }
+new ResizeObserver(resizeOrb).observe(orbCanvas); resizeOrb();
+const t0 = performance.now();
+(function orbLoop(now) {
+  requestAnimationFrame(orbLoop);
+  const t = (now - t0) / 1000;
+  orbU.uTime.value = now / 1000;
+  haloU.uTime.value = now / 1000;
+  orbGrp.rotation.y += 0.06 * 0.02;
+  orbGrp.rotation.x = Math.sin(t * 0.25) * 0.1;
+  orbRenderer.render(orbScene, orbCamera);
+})(performance.now());
+
+
+// FLOATING PARTICLES
+(function () {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;width:100%;height:100%;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  let W, H; const particles = [];
+  function resize() { W = canvas.width = window.innerWidth * 0.5; H = canvas.height = window.innerHeight * 0.5; canvas.style.width = '100%'; canvas.style.height = '100%'; }
+  resize(); window.addEventListener('resize', resize);
+  for (let i = 0; i < 60; i++) particles.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * 0.3, vy: (Math.random() - .5) * 0.3, r: Math.random() * 1.5 + 0.5, alpha: Math.random() * 0.3 + 0.1 });
+  let frame = 0;
+  (function loop() {
+    requestAnimationFrame(loop); frame++;
+    if (frame % 2 !== 0) return;
+    ctx.clearRect(0, 0, W, H);
+    const mx = mouseX * W, my = mouseY * H;
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0; if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+      const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 80) { p.x += dx / dist * 0.8; p.y += dy / dist * 0.8; }
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3);
+      g.addColorStop(0, `rgba(159,231,201,${p.alpha})`); g.addColorStop(1, 'rgba(159,231,201,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(159,231,201,0.03)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i < 60; i++) for (let j = i + 1; j < 60; j++) {
+      const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 100) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
+    }
+  })();
+})();
+
+
+// SCROLL ANIMATIONS + NAV
+const nav = document.getElementById('nav');
+const scrollProgress = document.getElementById('scroll-progress');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('visible', window.scrollY > 500);
+  if (scrollProgress) {
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = Math.min(window.scrollY / docHeight, 1);
+    scrollProgress.style.transform = `scaleX(${pct})`;
+  }
+}, { passive: true });
+
+// Pipeline animation controller
+const pipeFill = document.getElementById('pipe-fill');
+const pipelineWrap = document.getElementById('pipeline-wrap');
+let pipelineActivated = false;
+
+function activatePipeline() {
+  if (pipelineActivated) return;
+  pipelineActivated = true;
+  if (pipeFill) pipeFill.classList.add('active');
+}
+
+const pipelineObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      activatePipeline();
+      pipelineObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.2 });
+if (pipelineWrap) pipelineObserver.observe(pipelineWrap);
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      const idx = parseInt(entry.target.dataset.index || '0', 10);
+      const delay = 400 + idx * 450;
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+
+      }, delay);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.05 });
+document.querySelectorAll('[data-reveal]').forEach(el => observer.observe(el));
+
+const kpiObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      const target = parseInt(el.dataset.target);
+      const suffix = el.dataset.suffix || '';
+      let current = 0;
+      const duration = 2200;
+      const start = performance.now();
+      function tick(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        current = Math.round(target * eased);
+        el.textContent = current + suffix;
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      kpiObserver.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-val').forEach(el => kpiObserver.observe(el));
+
+
+// LIVE SIMULATION
+const candidates = [
+  { name: 'Jordan D.', initials: 'JD', color: '#d9d4ec', text: '#3e3bc4', stages: [1, 1, 1, 1], score: 8.4, label: 'Scored' },
+  { name: 'Alex O.', initials: 'AO', color: '#f3d9cc', text: '#b5491f', stages: [1, 1, 1, 0], score: null, label: 'Interview' },
+  { name: 'Taylor M.', initials: 'TM', color: '#cfeee0', text: '#0c7a57', stages: [1, 1, 0, 0], score: null, label: 'Quiz' },
+  { name: 'Riley P.', initials: 'RP', color: '#f0e4c6', text: '#8a5a09', stages: [1, 1, 1, 0], score: null, label: 'Interview' },
+  { name: 'Sam K.', initials: 'SK', color: 'rgba(127,127,127,.18)', text: 'rgba(238,246,241,.5)', stages: [1, 0, 0, 0], score: null, label: 'Applied' },
+];
+const simContainer = document.getElementById('sim-candidates');
+const stageLabels = ['Applied', 'Quiz', 'Interview', 'Scored'];
+function renderCandidates() {
+  simContainer.innerHTML = candidates.map(c => `
+    <div class="sim-row">
+      <div class="sim-av" style="background:${c.color};color:${c.text}">${c.initials}</div>
+      <div class="sim-name">${c.name}</div>
+      <div class="sim-track">${c.stages.map((done, i) => `<div class="track-step ${done ? 'done' : (i === c.stages.indexOf(0) ? 'current' : '')}"></div>`).join('')}</div>
+      <div class="track-label">${c.label}</div>
+      <div class="sim-score">${c.score !== null ? c.score : '—'}</div>
+    </div>
+  `).join('');
+}
+renderCandidates();
+let simStep = 0;
+setInterval(() => {
+  simStep++;
+  const movable = candidates.filter(c => c.stages.includes(0));
+  if (movable.length > 0) {
+    const c = movable[Math.floor(Math.random() * movable.length)];
+    const nextIdx = c.stages.indexOf(0);
+    if (nextIdx !== -1) {
+      c.stages[nextIdx] = 1;
+      if (nextIdx === 3) { c.score = (Math.random() * 4 + 5.5).toFixed(1); c.label = 'Scored'; }
+      else { c.label = stageLabels[nextIdx + 1]; }
+      renderCandidates();
+    }
+  }
+  if (simStep % 22 === 0) { candidates.forEach(c => { c.stages = [0, 0, 0, 0]; c.score = null; c.label = 'Applied'; }); renderCandidates(); }
+}, 2800);
+
+
+// TRY IT INTERACTIVE
+const tryInput = document.getElementById('try-input');
+const tryBtn = document.getElementById('try-btn');
+const tryResult = document.getElementById('try-result');
+const tryRoleName = document.getElementById('try-role-name');
+const tryPhases = document.getElementById('try-phases');
+const flowTemplates = {
+  barista: [{ title: 'Application', desc: 'Work history, availability, and why this role' }, { title: 'Timed Quiz', desc: '3 scenario questions — 90 seconds each. Customer service under pressure.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Ava listens for clarity, warmth, and initiative.' }, { title: 'Ranked Shortlist', desc: 'Top 5 candidates, scored and ranked. You decide who to advance.' }],
+  chef: [{ title: 'Application', desc: 'Kitchen experience, cuisine specialty, and references' }, { title: 'Timed Quiz', desc: '4 scenario questions — food safety, line pressure, and creativity under constraints.' }, { title: 'Voice Interview', desc: 'Answer 6 questions out loud. Leadership, hygiene standards, and calm under fire.' }, { title: 'Ranked Shortlist', desc: 'Top 3 candidates, scored and ranked. You decide who to advance.' }],
+  groomer: [{ title: 'Application', desc: 'Animal handling experience, certification, and availability' }, { title: 'Timed Quiz', desc: '3 scenario questions — difficult pet behavior, safety protocols, and client communication.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Patience, technique, and care for anxious animals.' }, { title: 'Ranked Shortlist', desc: 'Top 5 candidates, scored and ranked. You decide who to advance.' }],
+  default: [{ title: 'Application', desc: 'Work history, skills, and availability' }, { title: 'Timed Quiz', desc: '3 scenario questions tailored to your role and industry.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Ava scores on the traits that matter to you.' }, { title: 'Ranked Shortlist', desc: 'Top candidates, scored and ranked. You decide who to advance.' }],
+};
+function getFlow(title) { const t = title.toLowerCase(); if (t.includes('barista')) return flowTemplates.barista; if (t.includes('chef') || t.includes('cook') || t.includes('kitchen')) return flowTemplates.chef; if (t.includes('groom') || t.includes('dog')) return flowTemplates.groomer; return flowTemplates.default; }
+function showFlow(title) {
+  const flow = getFlow(title); tryRoleName.textContent = title || 'your role';
+  tryPhases.innerHTML = flow.map((phase, i) => `<div class="try-phase" style="animation-delay:${i * 0.15}s"><div class="try-phase-num">${i + 1}</div><div><div class="try-phase-title">${phase.title}</div><div class="try-phase-desc">${phase.desc}</div></div></div>`).join('');
+  tryResult.classList.add('show');
+}
+tryBtn.addEventListener('click', () => showFlow(tryInput.value));
+tryInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') showFlow(tryInput.value); });
+showFlow('Barista');
+</script>
+</body>
+</html>
