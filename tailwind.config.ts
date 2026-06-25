@@ -22,9 +22,17 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["'Plus Jakarta Sans'", "system-ui", "sans-serif"],
+        sans: ["'Inter'", "system-ui", "sans-serif"],
+        display: ["'Fraunces'", "Georgia", "serif"],
       },
       colors: {
+        jade: "hsl(var(--ck-jade))",
+        mint: "hsl(var(--ck-mint))",
+        brass: {
+          DEFAULT: "hsl(var(--ck-brass))",
+          bright: "hsl(var(--ck-brass-bright))",
+        },
+        cream: "hsl(var(--ck-cream))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

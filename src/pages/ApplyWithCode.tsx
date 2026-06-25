@@ -16,13 +16,15 @@ import {
   ArrowRight,
   ClipboardList,
   FileText,
-  Sparkles,
   RefreshCw,
   CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { isPast } from "date-fns";
+import { CandidateShell } from "@/components/candidate/CandidateShell";
+import { fetchRoleByCode, type ShowcaseRole } from "@/lib/showcaseApply";
+import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 
 interface JobPreview {
   id: string;
@@ -122,6 +124,7 @@ export default function ApplyWithCode() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
   const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
+  const [showcaseRole, setShowcaseRole] = useState<ShowcaseRole | null>(null);
   const autoLoadedCodeRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -139,8 +142,21 @@ export default function ApplyWithCode() {
     setIsSearching(true);
     setError("");
     setJobCode(normalizedCode);
+    setShowcaseRole(null);
+    setPreviewJob(null);
 
     try {
+      const mode = await detectSchemaMode();
+      if (mode === "showcase") {
+        const role = await fetchRoleByCode(normalizedCode);
+        if (!role) {
+          setError("No job found with this code. Please check and try again.");
+          return;
+        }
+        setShowcaseRole(role);
+        return;
+      }
+
       const { data, error: fetchError } = await supabase
         .from("jobs")
         .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
@@ -205,6 +221,7 @@ export default function ApplyWithCode() {
 
   const handleSearchAnotherCode = useCallback(() => {
     setPreviewJob(null);
+    setShowcaseRole(null);
     setError("");
     setJobCode("");
     window.requestAnimationFrame(() => {
@@ -229,9 +246,50 @@ export default function ApplyWithCode() {
   }
 
   return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center">
+    <CandidateShell className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-10">
       <AnimatePresence mode="wait">
-        {previewJob ? (
+        {showcaseRole ? (
+          <motion.div
+            key="showcase-preview"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="w-full max-w-2xl"
+          >
+            <div className="mb-6 text-center">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+                <CheckCircle2 className="h-4 w-4" />
+                Position found
+              </div>
+              <h1 className="text-4xl font-bold text-foreground">Review the role</h1>
+              <p className="mt-2 text-muted-foreground">No account needed — apply in about a minute.</p>
+              <button type="button" onClick={handleSearchAnotherCode} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
+                <RefreshCw className="h-4 w-4" />
+                Search another code
+              </button>
+            </div>
+            <Card className="border-border bg-card shadow-xl overflow-hidden">
+              <div className="h-1.5 bg-gradient-to-r from-primary via-cyan-400 to-emerald-400" />
+              <CardContent className="p-6 sm:p-8 space-y-6">
+                <div>
+                  <h2 className="text-2xl font-semibold">{showcaseRole.title}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{showcaseRole.location} · {showcaseRole.pay}</p>
+                  {showcaseRole.description && <p className="mt-3 text-sm text-muted-foreground line-clamp-4">{showcaseRole.description}</p>}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button size="lg" className="flex-1 gap-2" onClick={() => navigate(`/candidate/apply/${showcaseRole.id}/form`)}>
+                    Start application
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="lg" onClick={() => navigate("/candidate/continue")} className="gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Continue your application
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : previewJob ? (
           <motion.div
             key="job-preview-state"
             initial={{ opacity: 0, y: 20 }}
@@ -265,8 +323,8 @@ export default function ApplyWithCode() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary" className="gap-1">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Job preview
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Role preview
                     </Badge>
                     {previewJob.department && <Badge variant="outline">{previewJob.department}</Badge>}
                     {previewJob.job_type && <Badge variant="outline" className="capitalize">{previewJob.job_type.replace(/_/g, " ")}</Badge>}
@@ -433,7 +491,10 @@ export default function ApplyWithCode() {
                   </AnimatePresence>
 
                   <p className="text-center text-sm text-muted-foreground">
-                    The employer will provide you with this code
+                    Already applied?{" "}
+                    <Link to="/candidate/continue" className="text-primary hover:underline">
+                      Continue your application
+                    </Link>
                   </p>
                 </div>
               </CardContent>
@@ -441,6 +502,6 @@ export default function ApplyWithCode() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </CandidateShell>
   );
 }

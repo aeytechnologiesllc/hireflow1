@@ -604,7 +604,7 @@ Duration: ${formatTime(elapsedSeconds)}
                   <li>Find a quiet place with minimal background noise</li>
                   <li>Ensure your {videoEnabled ? 'camera and microphone are' : 'microphone is'} working properly</li>
                   <li>Speak clearly and take your time with responses</li>
-                  <li><strong>Important:</strong> Please wait for Ava to finish speaking before you respond</li>
+                  <li><strong>Important:</strong> Please wait for the question to finish before you respond</li>
                   <li>The interview will last approximately <strong>{duration} minutes</strong></li>
                   <li>Your interview will be <strong>{videoEnabled ? 'video' : 'audio'} recorded</strong> for review</li>
                   <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
@@ -767,10 +767,10 @@ Duration: ${formatTime(elapsedSeconds)}
                     </div>
                   </div>
                   <h2 className="text-xl font-semibold text-foreground">
-                    Connecting to Ava...
+                    Connecting…
                   </h2>
                   <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                    Please wait while Ava prepares to start your interview.
+                    Please wait while your session prepares.
                   </p>
                 </motion.div>
               </motion.div>
@@ -805,8 +805,8 @@ Duration: ${formatTime(elapsedSeconds)}
                   </h2>
                   <p className="text-muted-foreground text-sm max-w-xs mx-auto">
                     {isUserEndingInterview && !isEndingInterview 
-                      ? "Asking Ava to wrap up. She may have a few closing questions."
-                      : "Ava is finishing up. Your responses are being saved."}
+                      ? "Wrapping up. You may have a few closing questions."
+                      : "Finishing up. Your responses are being saved."}
                   </p>
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -889,9 +889,9 @@ Duration: ${formatTime(elapsedSeconds)}
                         : isListening && !isSpeaking
                         ? "You're speaking..."
                         : isSpeaking
-                        ? "Ava is speaking..."
+                        ? "Speaking…"
                         : isProcessing
-                        ? "Ava is thinking..."
+                        ? "Thinking…"
                         : "Ready to listen"}
                     </p>
                     <p className="text-sm text-muted-foreground">
@@ -949,10 +949,10 @@ Duration: ${formatTime(elapsedSeconds)}
                     <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-amber-400 text-sm font-medium">
-                        Ava seems to be taking a while to respond
+                        Taking a moment to respond
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        This could be a connection issue. Try prompting Ava or reconnecting.
+                        This could be a connection issue. Try prompting or reconnecting.
                       </p>
                       <div className="flex gap-2 mt-3">
                         <Button
@@ -962,7 +962,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           className="gap-2 border-amber-500/30 hover:bg-amber-500/10"
                         >
                           <Volume2 className="h-4 w-4" />
-                          Prompt Ava
+                          Prompt to continue
                         </Button>
                         <Button
                           variant="outline"

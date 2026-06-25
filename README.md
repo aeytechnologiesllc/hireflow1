@@ -1,3 +1,18 @@
+# Hireflow `_repo`
+
+Employer cockpit + accountless candidate apply (Deep Jade). See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for schema split and data layers, **[docs/CANDIDATE-FLOW.md](docs/CANDIDATE-FLOW.md)** for the applicant UX, and **[docs/BACKEND-SCHEMA.md](docs/BACKEND-SCHEMA.md)** for Supabase tables on project `yqklrkpptnhubsnijqze`.
+
+## Local dev
+
+```sh
+npm install
+npm run dev
+```
+
+Requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env`.
+
+---
+
 # Welcome to your Lovable project
 
 ## Project info

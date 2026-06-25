@@ -1,0 +1,110 @@
+/* Deep Jade — candidate-facing surfaces (NO AI language in copy; visual only) */
+
+.cand-root {
+  --cand-bg: hsl(156 22% 5%);
+  --cand-surface: hsl(156 18% 8%);
+  --cand-surface-raised: hsl(156 16% 11%);
+  --cand-border: hsl(150 12% 16% / 0.85);
+  --cand-text: hsl(150 30% 92%);
+  --cand-muted: hsl(150 12% 58%);
+  --cand-brass: hsl(38 64% 62%);
+  --cand-jade: hsl(152 46% 52%);
+  min-height: 100dvh;
+  background: var(--cand-bg);
+  color: var(--cand-text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.cand-root .font-display {
+  font-family: Fraunces, Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.cand-panel {
+  background: var(--cand-surface-raised);
+  border: 1px solid var(--cand-border);
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px hsl(156 30% 2% / 0.45);
+}
+
+.cand-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: linear-gradient(180deg, hsl(38 58% 58%), hsl(38 52% 46%));
+  color: hsl(150 30% 12%);
+  border: none;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.cand-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.cand-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.cand-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--cand-muted);
+  border: 1px solid var(--cand-border);
+}
+
+.cand-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--cand-border);
+  background: hsl(156 20% 7%);
+  color: var(--cand-text);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.cand-input:focus {
+  border-color: hsl(152 40% 38%);
+  box-shadow: 0 0 0 2px hsl(152 46% 40% / 0.2);
+}
+
+.cand-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cand-brass);
+  font-weight: 600;
+}
+
+.cand-rise {
+  animation: cand-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cand-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cand-rise {
+    animation: none;
+  }
+}

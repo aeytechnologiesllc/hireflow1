@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "./cockpit/cockpit.css";
+import "./styles/candidate-jade.css";
 
 // Unregister any cached service workers that might interfere with fetch requests
 if ('serviceWorker' in navigator) {

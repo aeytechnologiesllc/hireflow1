@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+import CockpitShell from "@/cockpit/Shell";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
 import OnboardingWizard from "./subscription/OnboardingWizard";
@@ -377,49 +378,14 @@ export default function AppLayout() {
 
   return (
     <TooltipProvider>
-      <div 
-        className="h-[100dvh] bg-background relative overflow-x-hidden flex w-full"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Offline indicator */}
-        <OfflineIndicator />
-        
-        {/* Global notification toasts listener */}
-        <GlobalNotificationToasts />
-        
-        {/* Premium gradient orbs - hidden on mobile for WebView GPU savings */}
-        <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
-        <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
-        
-        {/* Mobile overlay backdrop — no blur on mobile for performance */}
-        {isMobile && sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-        
-        <AppSidebar 
-          isOpen={sidebarOpen}
-          isMobile={isMobile}
-          onToggle={handleToggleSidebar}
-          onNavigate={handleNavigate}
-        />
-        <div 
-          ref={mainContentRef}
-          className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
-        >
-          <AppHeader 
-            onMenuClick={handleToggleSidebar}
-            isMobile={isMobile}
-          />
-          <main className="flex-1 p-4 md:p-8 overflow-auto overflow-x-hidden w-full max-w-full">
-            <Outlet />
-          </main>
-        </div>
-      </div>
+      {/* Offline indicator */}
+      <OfflineIndicator />
+      {/* Global notification toasts listener */}
+      <GlobalNotificationToasts />
+      {/* Deep Jade Owner Cockpit shell (desktop sidebar + mobile bottom tabs) */}
+      <CockpitShell>
+        <Outlet />
+      </CockpitShell>
     </TooltipProvider>
   );
 }

@@ -1028,7 +1028,7 @@ export default function ChatSimulationPhase() {
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
                   <p className="text-foreground font-medium">Evaluating your performance...</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AI is reviewing your customer service skills
+                    Reviewing your responses
                   </p>
                 </div>
               )}

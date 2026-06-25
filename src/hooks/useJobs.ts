@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
+import { createShowcaseRole } from "@/lib/showcaseApply";
 
 export type Job = Tables<"jobs">;
 export type JobInsert = TablesInsert<"jobs">;
@@ -158,6 +160,29 @@ export function useCreateJob() {
 
   return useMutation({
     mutationFn: async (job: Omit<JobInsert, "employer_id">) => {
+      const mode = await detectSchemaMode();
+      if (mode === "showcase") {
+        const pay =
+          job.salary_min && job.salary_max
+            ? `$${job.salary_min} – $${job.salary_max}`
+            : job.salary_min
+              ? `$${job.salary_min}+`
+              : "Competitive";
+        const created = await createShowcaseRole({
+          title: job.title,
+          description: job.description,
+          location: job.location,
+          pay,
+          status: job.status === "draft" ? "draft" : "live",
+          employment_type: job.job_type,
+        });
+        return {
+          ...created,
+          job_code: created.role_code,
+          job_type: job.job_type,
+        } as unknown as Job;
+      }
+
       const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data, error } = await supabase
         .from("jobs")
@@ -168,9 +193,10 @@ export function useCreateJob() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, _vars, _ctx) => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      // CRITICAL: Invalidate subscription to update job count in usage limits
+      queryClient.invalidateQueries({ queryKey: ["showcase-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
   });

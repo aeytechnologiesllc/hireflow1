@@ -400,7 +400,7 @@ export default function CandidateApplicationDetail() {
     if (voiceInterviewStep) {
       allPhases.push({
         id: voiceInterviewStep.id,
-        title: "Ava Interview",
+        title: "Voice Interview",
         icon: Mic,
         type: "voice_interview",
       });

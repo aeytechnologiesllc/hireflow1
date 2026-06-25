@@ -55,7 +55,7 @@ export const phaseDisplayNames: Record<string, string> = {
   chat_simulation: "Chat Simulation",
   chat_interview: "Chat Interview",
   sales_simulation: "Sales Simulation",
-  voice_interview: "Ava Interview", // Always "Ava Interview" - consistent branding
+  voice_interview: "Voice Interview",
   portfolio_upload: "Portfolio",
   review: "Review",
   interview: "Interview",
@@ -73,11 +73,35 @@ export const phaseActionMessages: Record<string, { buttonText: string; descripti
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
   video_message: { buttonText: "Record Video", description: "Record a 60-second video about yourself" },
   chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
-  chat_interview: { buttonText: "Begin Interview", description: "Start your interview with Ava" },
+  chat_interview: { buttonText: "Begin Interview", description: "Answer a few questions in the chat" },
   sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
   portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
-  voice_interview: { buttonText: "Start Ava Interview", description: "Have a voice conversation with Ava" },
+  voice_interview: { buttonText: "Start Voice Interview", description: "Answer a few questions out loud" },
 };
+
+// ============================================
+// CANDIDATE-FACING LABELS (no AI/Ava language)
+// ============================================
+
+export const candidatePhaseDisplayNames: Record<string, string> = {
+  application: "Application",
+  quiz: "Assessment",
+  typing_test: "Typing Test",
+  video_intro: "Video Introduction",
+  video_message: "Video Message",
+  chat_simulation: "Chat Simulation",
+  chat_interview: "Interview",
+  sales_simulation: "Sales Simulation",
+  voice_interview: "Voice Interview",
+  portfolio_upload: "Portfolio",
+  review: "Review",
+  interview: "Interview",
+  hired: "Hired",
+};
+
+export function getCandidatePhaseDisplayName(phaseType: string): string {
+  return candidatePhaseDisplayNames[phaseType] ?? getPhaseDisplayName(phaseType);
+}
 
 // ============================================
 // CANDIDATE PHASE STATUS LABELS

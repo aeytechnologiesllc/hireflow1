@@ -758,7 +758,7 @@ export function CandidateStatusScreen({
                     🎉 Congratulations!
                   </h2>
                   <p className="text-emerald-400 font-semibold text-lg">
-                    You've Been Selected for an Ava Interview!
+                    You've Been Selected for a Voice Interview!
                   </p>
                 </motion.div>
 
@@ -770,7 +770,7 @@ export function CandidateStatusScreen({
                   className="text-muted-foreground leading-relaxed"
                 >
                   The employer has reviewed your application and wants to learn more about you.
-                  Your next step is a voice interview with Ava.
+                  Your next step is a short voice interview — answer a few questions out loud.
                 </motion.p>
 
                 {/* Job info */}
@@ -787,10 +787,10 @@ export function CandidateStatusScreen({
 
                 <NextStepCallout
                   title="What happens next"
-                  summary="Nothing else is required right now. When you're ready, open your application and start the Ava interview."
+                  summary="Nothing else is required right now. When you're ready, open your application and start the voice interview."
                   steps={[
                     "Make sure you're in a quiet place before you begin.",
-                    "Use the Start Ava Interview button from your application page.",
+                    "Use the Start Voice Interview button from your application page.",
                     "Answer naturally and keep your responses clear and specific.",
                   ]}
                   tone="emerald"
@@ -807,7 +807,7 @@ export function CandidateStatusScreen({
                     onClick={onClose} 
                     className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                   >
-                    Start Ava Interview
+                    Start Voice Interview
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>

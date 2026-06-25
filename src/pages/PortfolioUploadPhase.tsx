@@ -363,7 +363,7 @@ export default function PortfolioUploadPhase() {
         allPhases.push({ 
           id: voiceInterviewStep.id, 
           type: "voice_interview", 
-          title: voiceInterviewStep.title || "Ava Interview" 
+          title: voiceInterviewStep.title || "Voice Interview"
         });
       }
       

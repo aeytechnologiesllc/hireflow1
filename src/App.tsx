@@ -17,6 +17,7 @@ import Applicants from "./pages/Applicants";
 import ApplicantDetails from "./pages/ApplicantDetails";
 import Messages from "./pages/Messages";
 import Documents from "./pages/Documents";
+import More from "./cockpit/pages/More";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 
@@ -46,6 +47,8 @@ const CreateJob = lazy(() => import("./pages/CreateJob"));
 const GuestJobCreator = lazy(() => import("./pages/GuestJobCreator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const MarketingDemo = lazy(() => import("./pages/MarketingDemo"));
+const ShowcaseApplyForm = lazy(() => import("./pages/ShowcaseApplyForm"));
+const CandidateContinue = lazy(() => import("./pages/CandidateContinue"));
 const CandidatePortalLanding = lazy(() => import("./pages/CandidatePortalLanding"));
 const CandidateAuth = lazy(() => import("./pages/CandidateAuth"));
 const VerifyDocument = lazy(() => import("./pages/VerifyDocument"));
@@ -59,6 +62,7 @@ const DeveloperSubscriptions = lazy(() => import("./pages/DeveloperSubscriptions
 const DeveloperJobs = lazy(() => import("./pages/DeveloperJobs"));
 const DeveloperActivity = lazy(() => import("./pages/DeveloperActivity"));
 const DeveloperSettings = lazy(() => import("./pages/DeveloperSettings"));
+const OrbPreview = lazy(() => import("./pages/OrbPreview"));
 
 // Minimal fallback — no heavy animations
 function LazyFallback() {
@@ -105,6 +109,8 @@ const App = () => (
                   <Route path="/candidate" element={<CandidatePortalLanding />} />
                   <Route path="/candidate/auth" element={<CandidateAuth />} />
                   <Route path="/candidate/apply" element={<ApplyWithCode />} />
+                  <Route path="/candidate/apply/:roleId/form" element={<ShowcaseApplyForm />} />
+                  <Route path="/candidate/continue" element={<CandidateContinue />} />
                   <Route path="/candidate/job/:id" element={<JobDetails />} />
                   
                   {/* Developer Dashboard (role-based access) */}
@@ -128,6 +134,7 @@ const App = () => (
                     <Route path="/interviews" element={<Interviews />} />
                     <Route path="/messages" element={<Messages />} />
                     <Route path="/documents" element={<Documents />} />
+                    <Route path="/more" element={<More />} />
                     <Route path="/team" element={<Team />} />
                     <Route path="/team-portal" element={<TeamPortal />} />
                     <Route path="/analytics" element={<Analytics />} />
@@ -154,6 +161,7 @@ const App = () => (
                   
                   {/* Marketing Demo (full-screen, no layout) */}
                   <Route path="/marketing-demo" element={<MarketingDemo />} />
+                  <Route path="/orb-preview" element={<OrbPreview />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, Check, Circle, Briefcase, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Loader2, Check, Circle, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import appIcon from "@/assets/app-icon-new.png";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { AvaOrb } from "@/components/ava/AvaOrb";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Detect if running inside a WebView (Natively or generic)
 const isWebView = () => {
@@ -69,6 +70,7 @@ export default function Auth() {
   const { toast } = useToast();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
+  const isMobile = useIsMobile();
   const formRef = useRef<HTMLDivElement>(null);
   const redirectingRef = useRef(false);
 
@@ -435,58 +437,121 @@ export default function Auth() {
   }
 
   return (
-    <div className="dark min-h-[100dvh] bg-[hsl(220,18%,10%)] text-white relative overflow-y-auto">
+    <div
+      className="auth-jade dark min-h-[100dvh] relative overflow-y-auto overflow-x-hidden"
+      style={{ background: "#0a2019", color: "#eef6f1" }}
+    >
+      <style>{`
+        .auth-jade{
+          --background:158 52% 8%;
+          --foreground:150 30% 95%;
+          --card:158 46% 11%;
+          --card-foreground:150 30% 95%;
+          --popover:158 46% 11%;
+          --popover-foreground:150 30% 95%;
+          --primary:36 48% 61%;
+          --primary-foreground:158 60% 9%;
+          --secondary:158 28% 16%;
+          --secondary-foreground:150 30% 95%;
+          --muted:158 26% 14%;
+          --muted-foreground:156 14% 64%;
+          --accent:162 67% 37%;
+          --accent-foreground:0 0% 100%;
+          --border:152 22% 22%;
+          --input:152 22% 22%;
+          --ring:36 48% 61%;
+          font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+        }
+        .auth-jade h1,.auth-jade h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
+        .auth-jade .bg-primary{background-image:linear-gradient(135deg,#cba36a,#e6c184);border:0;color:#0a2019;}
+        .auth-jade .bg-primary:hover:not(:disabled){filter:brightness(1.05);background-image:linear-gradient(135deg,#cba36a,#e6c184);}
+        .auth-jade .text-primary{color:#7fe3c2;}
+        .auth-jade .auth-card{border-color:rgba(203,163,106,0.22);background:rgba(14,42,34,0.92);}
+        /* Premium amber focus — single ring + soft glow, no green */
+        .auth-jade input{transition:border-color .18s ease, box-shadow .18s ease;}
+        .auth-jade input:focus,.auth-jade input:focus-visible{
+          outline:none;
+          border-color:#cba36a;
+          box-shadow:0 0 0 1px rgba(203,163,106,0.55), 0 0 18px rgba(203,163,106,0.20);
+          --tw-ring-color:transparent;
+          --tw-ring-offset-width:0px;
+          --tw-ring-shadow:0 0 #0000;
+          --tw-ring-offset-shadow:0 0 #0000;
+        }
+      `}</style>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400;500;600;700&display=swap"
+      />
+
       {/* Background grid pattern */}
-      <div 
-        className="absolute inset-0 opacity-[0.03]"
+      <div
+        className="absolute inset-0 opacity-[0.035] pointer-events-none"
         style={{
           backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
-          backgroundSize: '60px 60px'
+          backgroundSize: "64px 64px",
         }}
       />
 
-      {/* Gradient orbs */}
-      <div className="absolute top-0 left-1/4 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
+      {/* Jade + brass glow blooms */}
+      <div className="absolute top-0 left-1/4 w-[320px] h-[320px] sm:w-[560px] sm:h-[560px] bg-accent/20 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[260px] h-[260px] sm:w-[440px] sm:h-[440px] bg-primary/15 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="container mx-auto px-4 py-4 sm:py-8 relative z-10">
+      <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         <Link
           to={inWebView ? "/?showLanding=true" : "/"}
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4 sm:mb-8"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-md mx-auto"
-        >
-          {/* Logo */}
-          <div className="text-center mb-4 sm:mb-8">
-            <div className="inline-flex items-center gap-3 mb-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-accent/40 rounded-xl blur-lg" />
-                <img src={appIcon} alt="HireFlow" className="h-12 w-12 rounded-xl relative" />
-              </div>
-              <span className="text-2xl font-bold text-foreground">HireFlow</span>
-            </div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium">
-              <Briefcase className="h-3.5 w-3.5" />
+        <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">
+          {/* LEFT — Ava is the centerpiece */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-col items-center lg:items-start"
+          >
+            <AvaOrb size={isMobile ? 188 : 360} />
+            <span
+              className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
+              style={{
+                borderColor: "rgba(203,163,106,0.35)",
+                color: "#cba36a",
+                background: "rgba(10,32,25,0.6)",
+              }}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: "#1f9e77", boxShadow: "0 0 8px rgba(31,158,119,0.6)" }}
+              />
               Employer Portal
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground hidden sm:block">
+            </span>
+            <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
+              Hiring, handled by Ava.
+            </h1>
+            <p className="mt-3 text-sm text-muted-foreground hidden sm:block text-center lg:text-left">
               Looking for work?{" "}
               <Link to="/candidate" className="text-primary hover:underline">
                 Go to Candidate Portal →
               </Link>
             </p>
-          </div>
+          </motion.div>
 
-          {/* Auth Card */}
-          <div ref={formRef} className="bg-card/50 backdrop-blur-sm border border-border rounded-2xl p-5 sm:p-8">
+          {/* RIGHT — auth card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="w-full max-w-md mx-auto lg:mx-0"
+          >
+            {/* Auth Card */}
+            <div
+              ref={formRef}
+              className="auth-card border rounded-2xl p-5 sm:p-8 shadow-[0_28px_80px_-16px_rgba(0,0,0,0.6)]"
+            >
             {/* Google Sign In - compact icon in native app, full button on web */}
             {inWebView ? (
               <div className="flex justify-center mb-4">
@@ -537,7 +602,7 @@ export default function Auth() {
                     <span className="w-full border-t border-border" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card/50 px-2 text-muted-foreground">or continue with email</span>
+                    <span className="bg-card px-2 text-muted-foreground">or continue with email</span>
                   </div>
                 </div>
               </>
@@ -897,8 +962,9 @@ export default function Auth() {
                 Visit the candidate portal
               </Link>
             </p>
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

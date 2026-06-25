@@ -24,6 +24,8 @@ import { motion } from "framer-motion";
 import { format, isPast } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
+import { fetchRoleById } from "@/lib/showcaseApply";
 
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
@@ -36,7 +38,21 @@ export default function JobDetails() {
   const isEmployer = role === "employer";
   const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
   const shouldRestrictToPublished = !user || role === "candidate";
-  const { data: job, isLoading, error } = useQuery({
+  const { data: schemaMode } = useQuery({
+    queryKey: ["cockpit-schema-mode"],
+    queryFn: detectSchemaMode,
+    staleTime: Infinity,
+  });
+
+  const isShowcase = schemaMode === "showcase";
+
+  const { data: showcaseRole, isLoading: showcaseLoading, error: showcaseError } = useQuery({
+    queryKey: ["showcase-job-details", id],
+    queryFn: () => fetchRoleById(id!),
+    enabled: !!id && isShowcase,
+  });
+
+  const { data: job, isLoading: hireflowLoading, error: hireflowError } = useQuery({
     queryKey: ["job-details", id, shouldRestrictToPublished],
     queryFn: async () => {
       let query = supabase
@@ -53,7 +69,7 @@ export default function JobDetails() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !isShowcase,
   });
   
   // Check if application deadline has passed
@@ -95,30 +111,35 @@ export default function JobDetails() {
   };
 
   const handleStartApplication = async () => {
-    if (!job) return;
-
-    if (!user) {
-      navigate(`/candidate/auth?redirect=${encodeURIComponent(`/candidate/job/${job.id}`)}`);
+    if (isShowcase && showcaseRole) {
+      navigate(`/candidate/apply/${showcaseRole.id}/form`);
       return;
     }
+
+    if (!job) return;
     
     setIsStartingApplication(true);
     try {
-      // Check for existing application
-      const { data: existingApp } = await supabase
-        .from("applications")
-        .select("id, status")
-        .eq("job_id", job.id)
-        .eq("candidate_id", user.id)
-        .maybeSingle();
+      if (user) {
+        const { data: existingApp } = await supabase
+          .from("applications")
+          .select("id, status")
+          .eq("job_id", job.id)
+          .eq("candidate_id", user.id)
+          .maybeSingle();
 
-      if (existingApp) {
-        // Navigate to existing application
-        navigate(`/applications/${existingApp.id}`);
+        if (existingApp) {
+          navigate(`/applications/${existingApp.id}`);
+          return;
+        }
+      }
+
+      // Accountless hireflow1 path: still requires auth for full phase engine today
+      if (!user) {
+        navigate(`/candidate/apply/${job.id}/form`.replace("/candidate/apply/", "/candidate/job/"));
         return;
       }
 
-      // Create draft application
       const { data: newApp, error: createError } = await supabase
         .from("applications")
         .insert({
@@ -132,12 +153,10 @@ export default function JobDetails() {
 
       if (createError) throw createError;
 
-      // Get the first step ID for the application phase
       const workflowSteps = job.workflow_steps as Array<{ id: string; type: string }> | null;
       const applicationStep = workflowSteps?.find(s => s.type === "application");
       const stepId = applicationStep?.id || "application";
 
-      // Navigate to the full-page application form
       navigate(`/applications/${newApp.id}/application/${stepId}`);
     } catch (err) {
       console.error("Error starting application:", err);
@@ -146,6 +165,10 @@ export default function JobDetails() {
       setIsStartingApplication(false);
     }
   };
+
+  const isLoading = isShowcase ? showcaseLoading : hireflowLoading;
+  const loadError = isShowcase ? showcaseError : hireflowError;
+  const activeRole = isShowcase ? showcaseRole : job;
 
   if (isEmployer) {
     return (
@@ -169,6 +192,60 @@ export default function JobDetails() {
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  if (loadError || !activeRole) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Card className="bg-card border-border max-w-md">
+          <CardContent className="p-8 text-center">
+            <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Job Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              This job may no longer be available or the link is invalid.
+            </p>
+            <Button onClick={() => navigate(applyEntryRoute)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Apply
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isShowcase && showcaseRole) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 px-4 py-6">
+        <Button variant="ghost" onClick={() => navigate(applyEntryRoute)} className="text-muted-foreground">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Apply
+        </Button>
+        <Card className="overflow-hidden border-border">
+          <div className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 p-8">
+            <h1 className="text-3xl font-bold text-foreground">{showcaseRole.title}</h1>
+            <p className="mt-2 text-muted-foreground">{showcaseRole.location} · {showcaseRole.pay}</p>
+            {showcaseRole.role_code && (
+              <p className="mt-2 font-mono text-sm text-primary">Code: {showcaseRole.role_code}</p>
+            )}
+          </div>
+          <CardContent className="p-8 space-y-6">
+            {showcaseRole.description && (
+              <p className="text-muted-foreground whitespace-pre-wrap">{showcaseRole.description}</p>
+            )}
+            <Button size="lg" className="w-full h-14 text-lg" onClick={() => navigate(`/candidate/apply/${showcaseRole.id}/form`)}>
+              Start application — no account needed
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Already applied?{" "}
+              <button type="button" className="text-primary hover:underline" onClick={() => navigate("/candidate/continue")}>
+                Continue with your phone
+              </button>
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }

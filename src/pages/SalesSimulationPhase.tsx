@@ -982,7 +982,7 @@ export default function SalesSimulationPhase() {
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-green-500 mb-4" />
                   <p className="text-foreground font-medium">Evaluating your sales performance...</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AI is analyzing your pitch
+                    Reviewing your pitch
                   </p>
                 </div>
               )}

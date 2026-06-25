@@ -81,6 +81,41 @@ const defaultTeamAccess: TeamAccessState = {
   employerId: null,
 };
 
+// Defensive fallback used when the `get-subscription` Edge Function is
+// unreachable (not deployed, network failure, cold-start error, etc.).
+// Without this, `AppLayout` blocks the ENTIRE employer app behind
+// `subLoading` and the user is stuck on "Preparing your dashboard..."
+// forever. Returning a usable trial state lets the app render instead of
+// hanging; the real subscription is picked up automatically on the next
+// successful fetch.
+function buildFallbackSubscriptionState(userId: string | undefined): SubscriptionState {
+  const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    subscription: {
+      id: 'fallback_trial',
+      user_id: userId ?? 'unknown',
+      stripe_customer_id: null,
+      stripe_subscription_id: null,
+      plan_type: 'trial',
+      status: 'trialing',
+      trial_start: new Date().toISOString(),
+      trial_end: trialEnd,
+      current_period_start: null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+      currency: 'usd',
+      amount: null,
+      // Skip onboarding so the employer reaches the dashboard rather than
+      // being trapped behind an onboarding wizard that also needs the backend.
+      onboarding_completed: true,
+    },
+    usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
+    limits: { jobs: 1, applicants: 15, documents: 10, teamMembers: 1, aiAnalyses: 15, voiceMinutes: 15, hasAdvancedAnalytics: false, hasTeamPortal: true, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: true },
+    voiceCredits: { totalMinutesAvailable: 0, credits: [] },
+    teamAccess: defaultTeamAccess,
+  };
+}
+
 export function useSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -112,10 +147,27 @@ export function useSubscription() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async (): Promise<SubscriptionState> => {
-      return invokeAuthedFunction<SubscriptionState>('get-subscription');
+      try {
+        return await invokeAuthedFunction<SubscriptionState>('get-subscription');
+      } catch (err) {
+        // A genuine "session expired" should still surface so the user is
+        // signed out; anything else (function missing/unreachable, network)
+        // must NOT leave the app hung on the loading screen.
+        const message = err instanceof Error ? err.message : String(err);
+        if (/session expired/i.test(message)) {
+          throw err;
+        }
+        console.debug(
+          "[useSubscription] get-subscription unavailable — using fallback trial state.",
+        );
+        return buildFallbackSubscriptionState(user?.id);
+      }
     },
     enabled: !!user,
     staleTime: 30000,
+    // Keep retries short so the fallback (and the dashboard) appear quickly
+    // instead of stretching the spinner across the global 3x/30s backoff.
+    retry: 1,
   });
 
   const createCheckoutSession = useMutation({

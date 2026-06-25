@@ -43,23 +43,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Safety watchdog: no matter what happens during auth bootstrap, never
+    // leave the app stuck on the "Preparing your dashboard..." spinner.
+    // If initialization hasn't resolved within a few seconds, release the
+    // loading gate so route guards can render (and surface any real error)
+    // instead of hanging forever.
+    const loadingWatchdog = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     const validateSession = async () => {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
-      // If the client has a session cached but the server says it doesn't exist anymore,
-      // we must clear local auth state to avoid infinite "User not authenticated" loops.
-      if (error || !user) {
-        await supabase.auth.signOut({ scope: "local" });
-        setUser(null);
-        setSession(null);
-        setRole(null);
-        setIsTeamMember(false);
+        // If the client has a session cached but the server says it doesn't exist anymore,
+        // we must clear local auth state to avoid infinite "User not authenticated" loops.
+        if (error || !user) {
+          await supabase.auth.signOut({ scope: "local" });
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setIsTeamMember(false);
+        }
+
+        return { user, error };
+      } catch (error) {
+        // Network/lock failures must not bubble up and skip setLoading(false).
+        console.error("Error validating session:", error);
+        return { user: null, error: error as Error };
       }
-
-      return { user, error };
     };
 
     // Set up auth state listener FIRST
@@ -84,25 +99,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // THEN check for existing session.
+    // CRITICAL: `setLoading(false)` MUST run in a `finally` — if any awaited
+    // step (getUser, role/team lookups) throws, skipping it would trap the
+    // app on the infinite loading screen.
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
 
-      if (session?.user) {
-        const { user: verifiedUser } = await validateSession();
-        if (verifiedUser) {
-          await Promise.all([
-            fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser)),
-            checkTeamMembership(verifiedUser.id),
-          ]);
+          if (session?.user) {
+            // Seed the role from user metadata immediately so route guards can
+            // resolve even if the role/team lookups are slow or fail.
+            setRole((prev) => prev ?? getFallbackRoleFromUser(session.user));
+
+            const { user: verifiedUser } = await validateSession();
+            if (verifiedUser) {
+              await Promise.all([
+                fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser)),
+                checkTeamMembership(verifiedUser.id),
+              ]);
+            }
+          }
+        } catch (error) {
+          console.error("Error during auth initialization:", error);
+        } finally {
+          setLoading(false);
         }
-      }
+      })
+      .catch((error) => {
+        console.error("Error retrieving session:", error);
+        setLoading(false);
+      });
 
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(loadingWatchdog);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserRole = async (userId: string, fallbackRole: AppRole | null = null) => {

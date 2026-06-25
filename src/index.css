@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -66,68 +64,76 @@
   }
 
   .dark {
-    /* Core backgrounds - blue-tinted dark for depth layering */
-    --background: 222 47% 7%;
-    --foreground: 0 0% 98%;
+    /* ── Deep Jade (Owner Cockpit) — near-black jade base, cream text, brass accent ── */
+    --background: 156 22% 5%;        /* #0a0f0d content base */
+    --foreground: 150 33% 95%;       /* #eef6f1 cream */
 
-    --card: 222 35% 10%;
-    --card-foreground: 0 0% 98%;
+    --card: 156 18% 8%;              /* elevated solid panel */
+    --card-foreground: 150 33% 95%;
 
-    --popover: 222 35% 12%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 156 20% 7%;
+    --popover-foreground: 150 33% 95%;
 
-    /* Primary stays teal/emerald */
-    --primary: 160 84% 39%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary = brass/gold (CTAs, focus, value) */
+    --primary: 38 58% 60%;           /* #cba36a */
+    --primary-foreground: 150 30% 10%;
 
-    /* Secondary/muted - visible interactive states */
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 0 0% 98%;
+    /* Secondary = subtle elevated jade surface (outlined/secondary buttons) */
+    --secondary: 156 14% 13%;
+    --secondary-foreground: 150 30% 92%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 220 15% 58%;
+    --muted: 156 14% 12%;
+    --muted-foreground: 150 10% 60%;
 
-    --accent: 150 60% 40%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 156 16% 14%;
+    --accent-foreground: 150 30% 92%;
 
-    --success: 150 50% 35%;
-    --success-foreground: 0 0% 100%;
+    --success: 152 46% 46%;
+    --success-foreground: 150 30% 10%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 38 70% 62%;
+    --warning-foreground: 150 30% 10%;
 
-    --destructive: 0 62% 50%;
+    --destructive: 8 64% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders - subtle but visible separation */
-    --border: 222 20% 16%;
-    --input: 222 20% 16%;
-    --ring: 150 50% 35%;
+    /* Borders — faint, low-contrast (surfaces separate by fill + shadow, not outlines) */
+    --border: 150 12% 15%;
+    --input: 150 12% 16%;
+    --ring: 38 58% 60%;
 
-    /* Gradients with warm dark base */
-    --gradient-primary: linear-gradient(135deg, hsl(150 50% 35%) 0%, hsl(150 60% 42%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(220 15% 8%) 0%, hsl(150 50% 35% / 0.02) 50%, hsl(150 60% 40% / 0.03) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(220 13% 11%) 0%, hsl(220 13% 14%) 100%);
-    --gradient-bg: radial-gradient(ellipse 80% 50% at 90% 10%, hsl(150 50% 35% / 0.05) 0%, transparent 50%),
-                   radial-gradient(ellipse 60% 40% at 10% 90%, hsl(150 60% 40% / 0.04) 0%, transparent 50%),
-                   hsl(220 15% 8%);
+    /* ── Cockpit brand tokens ── */
+    --ck-bg: 156 22% 5%;
+    --ck-sidebar: 156 20% 4%;
+    --ck-surface: 156 17% 8%;
+    --ck-surface-2: 156 16% 10%;
+    --ck-line: 150 12% 16%;
+    --ck-cream: 150 33% 95%;
+    --ck-sub: 150 10% 62%;
+    --ck-jade: 152 46% 46%;
+    --ck-mint: 156 55% 72%;
+    --ck-brass: 38 58% 60%;
+    --ck-brass-bright: 38 64% 71%;
 
-    /* Shadows with blue-gray depth */
-    --shadow-sm: 0 1px 2px 0 hsl(220 20% 3% / 0.5);
-    --shadow-md: 0 4px 6px -1px hsl(220 20% 3% / 0.5), 0 2px 4px -2px hsl(220 20% 3% / 0.5);
-    --shadow-lg: 0 10px 15px -3px hsl(220 20% 3% / 0.5), 0 4px 6px -4px hsl(220 20% 3% / 0.5);
-    --shadow-xl: 0 20px 25px -5px hsl(220 20% 3% / 0.5), 0 8px 10px -6px hsl(220 20% 3% / 0.5);
-    --shadow-glow: 0 0 15px hsl(150 50% 35% / 0.12);
+    --gradient-primary: linear-gradient(135deg, hsl(38 64% 71%) 0%, hsl(38 56% 58%) 100%);
+    --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, hsl(152 40% 18% / 0.55) 0%, transparent 60%), hsl(156 22% 5%);
+    --gradient-card: linear-gradient(180deg, hsl(156 18% 9%) 0%, hsl(156 18% 7%) 100%);
+    --gradient-bg: hsl(156 22% 5%);
 
-    /* Sidebar - distinctly darker than main bg */
-    --sidebar-background: 222 47% 6%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 160 84% 39%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 13% 15%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 12% 18%;
-    --sidebar-ring: 160 84% 39%;
+    --shadow-sm: 0 1px 2px 0 hsl(156 30% 2% / 0.5);
+    --shadow-md: 0 6px 16px -6px hsl(156 40% 2% / 0.6);
+    --shadow-lg: 0 18px 40px -12px hsl(156 40% 2% / 0.7);
+    --shadow-xl: 0 28px 60px -16px hsl(156 40% 2% / 0.75);
+    --shadow-glow: 0 0 40px hsl(152 46% 40% / 0.15);
+
+    --sidebar-background: 156 20% 4%;
+    --sidebar-foreground: 150 33% 95%;
+    --sidebar-primary: 38 58% 60%;
+    --sidebar-primary-foreground: 150 30% 10%;
+    --sidebar-accent: 156 16% 11%;
+    --sidebar-accent-foreground: 150 33% 95%;
+    --sidebar-border: 150 12% 14%;
+    --sidebar-ring: 38 58% 60%;
   }
 }
 
@@ -161,7 +167,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     min-width: 0;
   }
 
