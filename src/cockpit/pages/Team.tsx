@@ -94,7 +94,12 @@ export default function CockpitTeam() {
               <div>Invitee</div><div>Invited by</div><div>Role</div><div>Status</div><div>Expires</div><div />
             </div>
             <div className="mt-1">
-              {team.invites.map((inv) => (
+              {team.invites.length === 0 ? (
+                <p className="py-6 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+                  No pending invites. Team invites will appear here when you add teammates.
+                </p>
+              ) : (
+                team.invites.map((inv) => (
                 <div key={inv.id} className="grid grid-cols-[1.6fr_auto] items-center gap-2 py-3 md:grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto]" style={{ borderTop: "1px solid hsl(150 12% 13% / 0.6)" }}>
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CkAvatar who={null} initials={inv.initials} size={36} />
@@ -106,9 +111,12 @@ export default function CockpitTeam() {
                   <div className="hidden text-[12.5px] md:block" style={{ color: "hsl(150 14% 66%)" }}>{inv.expires}</div>
                   <button className="justify-self-end" style={{ color: "hsl(150 10% 52%)" }}><MoreVertical className="h-4 w-4" /></button>
                 </div>
-              ))}
+              ))
+              )}
             </div>
-            <div className="mt-3 text-[12px]" style={{ color: "hsl(150 10% 50%)" }}>Showing 2 of 2 pending invites</div>
+            {team.invites.length > 0 && (
+            <div className="mt-3 text-[12px]" style={{ color: "hsl(150 10% 50%)" }}>Showing {team.invites.length} pending invite{team.invites.length === 1 ? "" : "s"}</div>
+            )}
           </div>
         </div>
 

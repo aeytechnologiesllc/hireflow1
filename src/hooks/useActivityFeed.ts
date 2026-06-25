@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 
 export interface ActivityItem {
   id: string;
@@ -19,6 +20,7 @@ export interface ActivityItem {
 
 export function useActivityFeed(limit: number = 20) {
   const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
 
   const { data: activities, isLoading } = useQuery({
@@ -209,7 +211,7 @@ export function useActivityFeed(limit: number = 20) {
 
       return activityItems.slice(0, limit);
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
     staleTime: 30000,
   });
 

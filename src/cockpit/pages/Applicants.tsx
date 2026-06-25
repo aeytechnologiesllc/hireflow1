@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   X,
@@ -99,12 +99,40 @@ function DetailPanel({ c, onClose, onAdvance, onPass }: { c: Candidate; onClose?
 
 export default function CockpitApplicants() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const roleIdFilter = searchParams.get("roleId");
   const { candidates, pipeline, applications, isLoading } = useCockpitCandidates();
   const { advance, pass } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const effectiveSelectedId = selectedId ?? candidates[0]?.id ?? null;
-  const selected = candidates.find((c) => c.id === effectiveSelectedId) ?? candidates[0];
+  const filteredCandidates = useMemo(() => {
+    if (!roleIdFilter) return candidates;
+    const appIds = new Set(applications.filter((a) => a.role_id === roleIdFilter).map((a) => a.id));
+    return candidates.filter((c) => appIds.has(c.id));
+  }, [candidates, applications, roleIdFilter]);
+
+  const filteredPipeline = useMemo(() => {
+    if (!roleIdFilter) return pipeline;
+    const total = Math.max(filteredCandidates.length, 1);
+    const count = (stage: CandidateStage) => filteredCandidates.filter((c) => c.stage === stage).length;
+    const application = count("Application");
+    const quiz = count("Quiz");
+    const voice = count("Voice");
+    const shortlist = count("Shortlist");
+    const hired = count("Hired");
+    const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
+    const drop = (from: number, to: number) => (from > 0 ? Math.max(0, from - to) : 0);
+    return [
+      { key: "application", label: "Application", count: application, pct: pct(application), tone: "green" as const, dropOff: drop(application, quiz) },
+      { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "green" as const, dropOff: drop(quiz, voice) },
+      { key: "voice", label: "Voice", count: voice, pct: pct(voice), tone: voice > 0 && voice / total < 0.25 ? "bottleneck" as const : "green" as const, dropOff: drop(voice, shortlist) },
+      { key: "shortlist", label: "Shortlist", count: shortlist, pct: pct(shortlist), tone: "muted" as const, dropOff: drop(shortlist, hired) },
+      { key: "hired", label: "Hired", count: hired, pct: pct(hired), tone: "muted" as const },
+    ];
+  }, [filteredCandidates, pipeline, roleIdFilter]);
+
+  const effectiveSelectedId = selectedId ?? filteredCandidates[0]?.id ?? null;
+  const selected = filteredCandidates.find((c) => c.id === effectiveSelectedId) ?? filteredCandidates[0];
   const selectedApp = applications.find((a) => a.id === effectiveSelectedId);
 
   const handleAdvance = (id: string) => {
@@ -126,11 +154,20 @@ export default function CockpitApplicants() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Applicants" subtitle={candidates[0]?.role ? `${candidates[0].role} pipeline` : "Your hiring pipeline"} />
+      <PageHeader
+        title="Applicants"
+        subtitle={
+          roleIdFilter
+            ? `Filtered to one role · ${filteredCandidates.length} applicant${filteredCandidates.length === 1 ? "" : "s"}`
+            : filteredCandidates[0]?.role
+              ? `${filteredCandidates[0].role} pipeline`
+              : "Your hiring pipeline"
+        }
+      />
 
       {/* Pipeline */}
       <div className="ck-card p-5 md:p-6">
-        <Pipeline variant="large" nodes={pipeline} />
+        <Pipeline variant="large" nodes={filteredPipeline} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_316px]">
@@ -152,10 +189,12 @@ export default function CockpitApplicants() {
             >
               <div>Candidate</div><div>Role</div><div>Stage</div><div>Quiz score</div><div>Voice score</div><div>Ava's read</div><div>Actions</div>
             </div>
-            {candidates.length === 0 ? (
-              <div className="p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No applicants yet.</div>
+            {filteredCandidates.length === 0 ? (
+              <div className="p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+                {roleIdFilter ? "No applicants for this role yet." : "No applicants yet."}
+              </div>
             ) : (
-              candidates.map((c, i) => {
+              filteredCandidates.map((c, i) => {
               const isSel = c.id === effectiveSelectedId;
               return (
                 <div
@@ -193,7 +232,7 @@ export default function CockpitApplicants() {
             })
             )}
             <div className="flex items-center justify-between px-4 py-3 text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>
-              <span>Showing {candidates.length} candidate{candidates.length === 1 ? "" : "s"}</span>
+              <span>Showing {filteredCandidates.length} candidate{filteredCandidates.length === 1 ? "" : "s"}</span>
               <div className="flex items-center gap-1">
                 {["1", "2", "3", "…", "9"].map((p, i) => (
                   <button
@@ -211,7 +250,7 @@ export default function CockpitApplicants() {
 
           {/* mobile cards */}
           <div className="space-y-3 md:hidden">
-            {candidates.map((c, i) => (
+            {filteredCandidates.map((c, i) => (
               <div key={c.id} className="ck-row p-3.5" onClick={() => navigate(`/applicants/${c.id}`)}>
                 <div className="flex items-start gap-3">
                   <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={48} score={c.overall} index={i} variant="signal" />

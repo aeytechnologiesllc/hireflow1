@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useSchemaMode } from "./useSchemaMode";
 
 export interface SubscriptionData {
   id: string;
@@ -119,6 +120,7 @@ function buildFallbackSubscriptionState(userId: string | undefined): Subscriptio
 export function useSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: schemaMode } = useSchemaMode();
 
   const invokeAuthedFunction = async <TData = unknown>(
     functionName: string,
@@ -147,6 +149,11 @@ export function useSubscription() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async (): Promise<SubscriptionState> => {
+      // Showcase deploy has no billing edge fn — use trial fallback immediately (no 404 noise).
+      if (schemaMode === "showcase") {
+        return buildFallbackSubscriptionState(user?.id);
+      }
+
       try {
         return await invokeAuthedFunction<SubscriptionState>('get-subscription');
       } catch (err) {
@@ -163,7 +170,7 @@ export function useSubscription() {
         return buildFallbackSubscriptionState(user?.id);
       }
     },
-    enabled: !!user,
+    enabled: !!user && schemaMode !== undefined,
     staleTime: 30000,
     // Keep retries short so the fallback (and the dashboard) appear quickly
     // instead of stretching the spinner across the global 3x/30s backoff.
@@ -226,7 +233,7 @@ export function useSubscription() {
 
   // Real-time subscription for usage updates - useEffect comes after all hooks
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || schemaMode === "showcase") return;
 
     const jobsChannel = supabase
       .channel(`subscription-jobs-${user.id}`)
@@ -278,7 +285,7 @@ export function useSubscription() {
       supabase.removeChannel(documentsChannel);
       supabase.removeChannel(voiceCreditsChannel);
     };
-  }, [user?.id, queryClient]);
+  }, [user?.id, queryClient, schemaMode]);
 
   // Calculate trial time remaining
   const getTrialTimeRemaining = () => {

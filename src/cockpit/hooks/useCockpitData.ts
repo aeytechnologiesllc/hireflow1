@@ -30,7 +30,6 @@ import {
   candidateSignalFromApp,
 } from "../lib/mappers";
 import {
-  detectSchemaMode,
   fetchShowcaseAccount,
   fetchShowcaseJobs,
   fetchShowcaseCandidates,
@@ -39,16 +38,14 @@ import {
   fetchShowcaseConversations,
   fetchShowcaseThread,
   fetchShowcaseDocuments,
+  fetchShowcaseInterviews,
+  fetchShowcaseAnalytics,
+  fetchShowcaseTeam,
   buildShowcasePipeline,
 } from "../data/showcaseSource";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 
-export function useSchemaMode() {
-  return useQuery({
-    queryKey: ["cockpit-schema-mode"],
-    queryFn: detectSchemaMode,
-    staleTime: Infinity,
-  });
-}
+export { useSchemaMode };
 
 export function useCockpitAccount() {
   const { data: mode } = useSchemaMode();
@@ -263,10 +260,19 @@ export function useCockpitActions() {
 }
 
 export function useCockpitInterviews() {
-  const { data: interviews = [], isLoading } = useInterviews();
-  const today = new Date();
+  const { data: mode } = useSchemaMode();
+  const { data: interviews = [], isLoading: hfLoading } = useInterviews();
+
+  const showcaseQ = useQuery({
+    queryKey: ["showcase-interviews"],
+    queryFn: fetchShowcaseInterviews,
+    enabled: mode === "showcase",
+  });
 
   const data = useMemo(() => {
+    if (mode === "showcase" && showcaseQ.data) return showcaseQ.data;
+
+    const today = new Date();
     const upcoming = interviews
       .filter((i) => i.status === "scheduled" && new Date(i.scheduled_at) >= today)
       .slice(0, 8)
@@ -282,9 +288,7 @@ export function useCockpitInterviews() {
     const needsReview = interviews.filter((i) => i.status === "completed").length;
 
     const daysWithInterviews = [
-      ...new Set(
-        interviews.map((i) => new Date(i.scheduled_at).getDate()).filter(Boolean),
-      ),
+      ...new Set(interviews.map((i) => new Date(i.scheduled_at).getDate()).filter(Boolean)),
     ];
 
     return {
@@ -299,9 +303,9 @@ export function useCockpitInterviews() {
       upcoming,
       reads: [] as Array<{ id: string; icon: "user" | "star"; text: string }>,
     };
-  }, [interviews, today]);
+  }, [mode, showcaseQ.data, interviews]);
 
-  return { interviews: data, isLoading };
+  return { interviews: data, isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading };
 }
 
 export function useCockpitDocuments() {
@@ -403,10 +407,24 @@ export function useCockpitMessages(contactId: string | null) {
 }
 
 export function useCockpitTeam() {
+  const { data: mode } = useSchemaMode();
+  const { data: profile } = useProfile();
   const { data: members = [], isLoading: membersLoading } = useTeamMembers();
   const { data: invites = [], isLoading: invitesLoading } = useTeamInvitations();
 
+  const showcaseQ = useQuery({
+    queryKey: ["showcase-team", profile?.full_name, profile?.email],
+    queryFn: () =>
+      fetchShowcaseTeam({
+        name: profile?.full_name,
+        email: profile?.email,
+      }),
+    enabled: mode === "showcase",
+  });
+
   const team = useMemo(() => {
+    if (mode === "showcase" && showcaseQ.data) return showcaseQ.data;
+
     const mappedMembers = members.filter((m) => m.status === "active").map((m) => mapTeamMember(m));
     const mappedInvites = invites.filter((i) => i.status === "pending").map(mapTeamInvite);
     const viewOnly = members.filter((m) => !m.can_manage_pipeline && m.status === "active").length;
@@ -434,16 +452,29 @@ export function useCockpitTeam() {
         { label: "Manage team and settings", icon: "users" as const, allow: [true, false, false, false, false] },
       ],
     };
-  }, [members, invites]);
+  }, [mode, showcaseQ.data, members, invites]);
 
-  return { team, isLoading: membersLoading || invitesLoading };
+  return { team, isLoading: mode === "showcase" ? showcaseQ.isLoading : membersLoading || invitesLoading };
 }
 
 export function useCockpitAnalytics() {
-  const { data, isLoading } = useAdvancedAnalytics();
-  const { pipeline } = useCockpitCandidates();
+  const { data: mode } = useSchemaMode();
+  const { data, isLoading: hfLoading } = useAdvancedAnalytics();
+  const { pipeline: hfPipeline } = useCockpitCandidates();
+
+  const showcaseQ = useQuery({
+    queryKey: ["showcase-analytics"],
+    queryFn: fetchShowcaseAnalytics,
+    enabled: mode === "showcase",
+  });
 
   const analytics = useMemo(() => {
+    if (mode === "showcase" && showcaseQ.data) {
+      const { pipeline: _p, ...rest } = showcaseQ.data;
+      return rest;
+    }
+
+    const pipeline = hfPipeline;
     const timeToHire = data?.timeToHire?.avgDays ?? 0;
     const totalApps = data?.applicationTrends?.reduce((s, t) => s + t.applications, 0) ?? 0;
     const hired = data?.applicationTrends?.reduce((s, t) => s + t.hired, 0) ?? 0;
@@ -481,7 +512,9 @@ export function useCockpitAnalytics() {
       quality: trend.length ? trend.map((v) => Math.min(95, 60 + v)) : [62, 66, 70, 74, 78],
       insight: bottleneck ? `${bottleneck.label} stage is the largest drop-off — review your flow settings.` : "Your pipeline is moving steadily.",
     };
-  }, [data, pipeline]);
+  }, [mode, showcaseQ.data, data, hfPipeline]);
 
-  return { analytics, pipeline, isLoading };
+  const pipeline = mode === "showcase" && showcaseQ.data ? showcaseQ.data.pipeline : hfPipeline;
+
+  return { analytics, pipeline, isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading };
 }

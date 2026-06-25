@@ -67,7 +67,7 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
     {
       icon: Eye,
       label: "View",
-      onClick: () => navigate(`/jobs/edit/${job.id}`),
+      onClick: () => navigate(`/applicants?roleId=${job.id}`),
     },
     {
       icon: copied === "code" ? Check : Copy,

@@ -84,6 +84,7 @@ function AccountChip({ compact }: { compact?: boolean }) {
 }
 
 function TrialBadge() {
+  const { account } = useCockpitAccount();
   return (
     <div
       className="rounded-xl px-3.5 py-3"
@@ -104,6 +105,7 @@ function TrialBadge() {
 
 function Sidebar() {
   const { pathname } = useLocation();
+  const { account } = useCockpitAccount();
   return (
     <aside
       className="hidden md:flex w-[216px] shrink-0 flex-col px-3 py-5"
@@ -171,6 +173,7 @@ function TodayPill() {
 
 function DesktopTopBar() {
   const { pathname } = useLocation();
+  const { account } = useCockpitAccount();
   const isDashboard = isActive(pathname, "/dashboard");
   // Dashboard: breadcrumb on the left (matches mockup). Other pages: the big
   // page title lives in the PageHeader, so the bar only carries the account +

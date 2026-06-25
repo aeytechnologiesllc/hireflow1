@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
@@ -20,6 +21,7 @@ function setLastSeenTimestamp(): void {
 
 export function useUpcomingInterviewsCount() {
   const { user, role, isTeamMember } = useAuth();
+  const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
   const location = useLocation();
 
@@ -28,8 +30,16 @@ export function useUpcomingInterviewsCount() {
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      const lastSeen = getLastSeenTimestamp();
       const isEmployerOrTeam = role === "employer" || isTeamMember;
+      if (mode === "showcase" && isEmployerOrTeam) {
+        const { count } = await supabase
+          .from("applications")
+          .select("*", { count: "exact", head: true })
+          .eq("stage", "interview");
+        return count || 0;
+      }
+
+      const lastSeen = getLastSeenTimestamp();
 
       if (isEmployerOrTeam) {
         // Get employer's jobs
@@ -106,7 +116,7 @@ export function useUpcomingInterviewsCount() {
         return count || 0;
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && mode !== undefined,
     staleTime: 30000,
   });
 

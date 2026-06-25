@@ -129,7 +129,13 @@ export default function CockpitInterviews() {
         <div className="ck-card p-5">
           <div className="font-display text-[17px]" style={{ color: "hsl(150 30% 91%)", fontWeight: 500 }}>Upcoming interviews</div>
           <div className="mt-1">
-            {interviews.upcoming.map((it) => <UpcomingRow key={it.id} it={it} />)}
+            {interviews.upcoming.length === 0 ? (
+              <p className="py-6 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+                No upcoming interviews scheduled. Candidates in the voice stage appear here when interviews are booked.
+              </p>
+            ) : (
+              interviews.upcoming.map((it) => <UpcomingRow key={it.id} it={it} />)
+            )}
           </div>
           <button className="ck-btn ck-btn-ghost mt-2 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }}>View all interviews<ChevronRight className="h-4 w-4" /></button>
         </div>
@@ -140,7 +146,12 @@ export default function CockpitInterviews() {
             <AvaOrb size={140} reflection={false} amp={0.22} flow={0.5} />
           </div>
           <div className="mt-3 space-y-2.5">
-            {interviews.reads.map((r) => {
+            {interviews.reads.length === 0 ? (
+              <p className="text-center text-[13px] py-4" style={{ color: "hsl(150 10% 56%)" }}>
+                Interview summaries appear after candidates complete voice screening.
+              </p>
+            ) : (
+              interviews.reads.map((r) => {
               const Icon = r.icon === "user" ? UserRound : Star;
               return (
                 <div key={r.id} className="ck-inset flex items-center gap-3 p-3">
@@ -151,7 +162,8 @@ export default function CockpitInterviews() {
                   <ChevronRight className="h-4 w-4" style={{ color: "hsl(150 10% 46%)" }} />
                 </div>
               );
-            })}
+            })
+            )}
           </div>
           <button className="ck-btn ck-btn-ghost mt-3 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }}>View all reads<ChevronRight className="h-4 w-4" /></button>
         </div>

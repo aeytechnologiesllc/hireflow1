@@ -299,3 +299,134 @@ export async function fetchShowcaseDocuments() {
     detailTimeline: [],
   };
 }
+
+export async function fetchShowcaseInterviews() {
+  const { candidates } = await fetchShowcaseCandidates();
+  const voiceStage = candidates.filter((c) => c.stage === "Voice" || c.stage === "Shortlist");
+  const today = new Date();
+
+  const upcoming = voiceStage.slice(0, 6).map((c, i) => ({
+    id: c.id,
+    avatar: c.avatar,
+    name: c.name,
+    role: c.role,
+    time: i === 0 ? "Today · 2:00 PM" : `${i + 1}d`,
+    kind: (c.stage === "Voice" ? "voice-scheduled" : "voice-completed") as
+      | "voice-scheduled"
+      | "voice-completed"
+      | "in-person-confirmed"
+      | "scheduled",
+  }));
+
+  const reads = voiceStage.slice(0, 3).map((c) => ({
+    id: c.id,
+    icon: (c.overall >= 80 ? "star" : "user") as "user" | "star",
+    text: c.readFull.slice(0, 90) + (c.readFull.length > 90 ? "…" : ""),
+  }));
+
+  return {
+    kpis: [
+      { label: "Today", value: Math.min(1, upcoming.length), icon: "calendar" as const },
+      { label: "Scheduled", value: candidates.filter((c) => c.stage === "Voice").length, icon: "calendar" as const },
+      { label: "Completed", value: candidates.filter((c) => c.stage === "Shortlist").length, icon: "check" as const },
+      { label: "Needs review", value: candidates.filter((c) => c.stage === "Shortlist").length, icon: "clock" as const },
+    ],
+    daysWithInterviews: upcoming.length ? [today.getDate(), today.getDate() + 2].filter((d) => d <= 30) : [],
+    selectedDay: today.getDate(),
+    upcoming,
+    reads,
+  };
+}
+
+export async function fetchShowcaseAnalytics() {
+  const { candidates } = await fetchShowcaseCandidates();
+  const pipeline = buildShowcasePipeline(candidates);
+  const totalApps = candidates.length;
+  const shortlist = candidates.filter((c) => c.stage === "Shortlist").length;
+  const hireRate = totalApps > 0 ? Math.round((shortlist / totalApps) * 100) : 0;
+  const scores = candidates.map((c) => c.overall).filter((s) => s > 0);
+  const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const trend = pipeline.map((p) => p.count);
+  const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
+
+  return {
+    kpis: [
+      { label: "Time to hire", value: "4.2", unit: "days", delta: "demo dataset", trend: "down" as const, good: true, icon: "clock" as const },
+      { label: "Hire rate", value: String(hireRate), unit: "%", delta: "shortlist / applicants", trend: "up" as const, good: true, icon: "userCheck" as const },
+      { label: "Applicant quality", value: String(avgScore || "—"), unit: avgScore ? "" : "", delta: "avg screening score", trend: "up" as const, good: true, icon: "star" as const },
+      { label: "Applications", value: String(totalApps), unit: "", delta: "in pipeline", trend: "up" as const, good: true, icon: "chat" as const },
+    ],
+    trend: trend.length ? trend : [12, 18, 15, 22, 19],
+    trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4", "Now"],
+    sources: [
+      { label: "Direct apply", value: Math.round(totalApps * 0.55), pct: "55%" },
+      { label: "Job boards", value: Math.round(totalApps * 0.25), pct: "25%" },
+      { label: "Referrals", value: Math.round(totalApps * 0.15), pct: "15%" },
+      { label: "Other", value: Math.max(0, totalApps - Math.round(totalApps * 0.95)), pct: "5%" },
+    ],
+    quality: trend.length ? trend.map((v) => Math.min(95, 55 + v * 3)) : [62, 66, 70, 74, 78],
+    insight: bottleneck
+      ? `${bottleneck.label} is your largest drop-off — review voice-stage completion.`
+      : totalApps === 0
+        ? "Publish a role and share your apply code to start seeing funnel data."
+        : "Your pipeline is moving steadily.",
+    pipeline,
+  };
+}
+
+export async function fetchShowcaseTeam(profile?: { name?: string | null; email?: string | null }) {
+  const ownerName = profile?.name?.trim() || "You";
+  const ownerEmail = profile?.email?.trim() || "owner@hireflow.dev";
+  const initials = getInitials(ownerName);
+
+  return {
+    kpis: [
+      { label: "Active members", value: 1, note: "People with access", icon: "users" as const, dot: "jade" as const },
+      { label: "Pending invites", value: 0, note: "Invites awaiting response", icon: "mail" as const, dot: "brass" as const },
+      { label: "View-only members", value: 0, note: "Can view but not edit", icon: "eye" as const, dot: "muted" as const },
+    ],
+    members: [
+      {
+        id: "owner",
+        avatar: initials.toLowerCase().slice(0, 2),
+        name: ownerName,
+        email: ownerEmail,
+        role: "Owner",
+        permission: "Full admin",
+        permissionTone: "jade" as const,
+      },
+    ],
+    invites: [] as Array<{
+      id: string;
+      initials: string;
+      name: string;
+      email: string;
+      invitedBy: string;
+      role: string;
+      expires: string;
+    }>,
+    permissionCols: [
+      { title: "Owner", sub: "Full Admin" },
+      { title: "Manager", sub: "Can manage\npipeline" },
+      { title: "Shift Lead", sub: "Can message\ncandidates" },
+      { title: "Accountant", sub: "Documents\nonly" },
+      { title: "View-only", sub: "Can view\nonly" },
+    ],
+    permissionRows: [
+      { label: "Create jobs", icon: "briefcase" as const, allow: [true, true, true, false, false] },
+      { label: "Advance / pass candidates", icon: "sparkle" as const, allow: [true, true, false, false, false] },
+      { label: "Schedule interviews", icon: "calendar" as const, allow: [true, true, true, false, false] },
+      { label: "Send documents", icon: "doc" as const, allow: [true, true, true, true, false] },
+      { label: "Manage team and settings", icon: "users" as const, allow: [true, false, false, false, false] },
+    ],
+  };
+}
+
+export async function updateShowcaseRole(
+  roleId: string,
+  updates: { title?: string; description?: string | null; location?: string | null; pay?: string | null; status?: string },
+) {
+  const { data, error } = await supabase.from("roles").update(updates).eq("id", roleId).select("*").single();
+  if (error) throw error;
+  return data;
+}

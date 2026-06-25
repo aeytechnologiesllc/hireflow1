@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
@@ -20,6 +21,7 @@ function setLastSeenTimestamp(): void {
 
 export function useNewApplicantsCount() {
   const { user, role, isTeamMember } = useAuth();
+  const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
   const location = useLocation();
   const isEmployerOrTeam = role === "employer" || isTeamMember;
@@ -28,6 +30,16 @@ export function useNewApplicantsCount() {
     queryKey: ["new-applicants-count", user?.id],
     queryFn: async () => {
       if (!user?.id || !isEmployerOrTeam) return 0;
+      if (mode === "showcase") {
+        const lastSeen = getLastSeenTimestamp();
+        const lastSeenEpoch = Math.floor(new Date(lastSeen).getTime() / 1000);
+        const { count, error } = await supabase
+          .from("applications")
+          .select("*", { count: "exact", head: true })
+          .gt("sort_order", lastSeenEpoch);
+        if (error) return 0;
+        return count || 0;
+      }
 
       const lastSeen = getLastSeenTimestamp();
 
@@ -74,7 +86,7 @@ export function useNewApplicantsCount() {
 
       return count || 0;
     },
-    enabled: !!user?.id && isEmployerOrTeam,
+    enabled: !!user?.id && isEmployerOrTeam && mode !== undefined,
     staleTime: 30000,
   });
 

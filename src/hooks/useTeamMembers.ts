@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 
 export interface TeamMember {
   id: string;
@@ -27,6 +28,7 @@ export interface TeamMember {
 
 export function useTeamMembers() {
   const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["team-members", user?.id],
@@ -40,7 +42,7 @@ export function useTeamMembers() {
       if (error) throw error;
       return data as TeamMember[];
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }
 

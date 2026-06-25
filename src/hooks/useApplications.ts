@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import {
   notifyApplicationReceived,
@@ -112,6 +113,7 @@ export function useCandidateApplications() {
 
 export function useEmployerApplications() {
   const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["applications", "employer", user?.id],
@@ -162,12 +164,13 @@ export function useEmployerApplications() {
         profiles: profileMap.get(app.candidate_id) || null,
       })) as ApplicationWithCandidate[];
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }
 
 export function useApplicationStats() {
   const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["applications", "stats", user?.id],
@@ -200,7 +203,7 @@ export function useApplicationStats() {
         hired: myApps.filter((a) => a.status === "hired").length,
       };
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }
 

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { subDays, format, startOfDay, differenceInDays } from "date-fns";
 
 export interface ApplicationTrend {
@@ -56,6 +57,7 @@ export interface DocumentMetrics {
 
 export function useAdvancedAnalytics() {
   const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["advanced-analytics", user?.id],
@@ -262,6 +264,6 @@ export function useAdvancedAnalytics() {
         pendingReview: applications?.filter(a => a.status === "pending" || a.status === "reviewing").length || 0,
       };
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }

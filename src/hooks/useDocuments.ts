@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type Document = Tables<"documents">;
@@ -16,6 +17,7 @@ export interface DocumentWithApplication extends Document {
 
 export function useDocuments() {
   const { user, role } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["documents", user?.id, role],
@@ -74,6 +76,6 @@ export function useDocuments() {
         } : null,
       })) as DocumentWithApplication[];
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }

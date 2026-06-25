@@ -45,9 +45,14 @@ Data module: `src/lib/showcaseApply.ts`
 
 ## Auth
 
-- Employer: `/auth` → AppLayout → subscription gating
+- Employer: `/auth` → AppLayout → subscription gating (showcase uses local trial fallback — no `get-subscription` call)
 - Candidate: optional `/candidate/auth` — **not** required to apply on showcase path
 - `linked_user_id` on applications links guest rows after OAuth/email signup
+- Logged-in employers on showcase see `emp_marias_cafe` data via `showcaseSource.ts` (not auth user id)
+
+## Hireflow1 hook gating
+
+Hooks that query `jobs` / `jobs!inner` joins are **disabled** when `detectSchemaMode()` returns `showcase` (`useSchemaMode` in `src/hooks/useSchemaMode.ts`). Cockpit pages use `showcaseSource` adapters instead.
 
 ## What is NOT unified yet
 

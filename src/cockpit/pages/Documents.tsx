@@ -43,7 +43,15 @@ function docIcon(type: string) {
   return FileText;
 }
 
-function DetailPanel({ row, onClose }: { row: DocRow; onClose: () => void }) {
+function DetailPanel({
+  row,
+  onClose,
+  detailTimeline,
+}: {
+  row: DocRow;
+  onClose: () => void;
+  detailTimeline: Array<{ id: string; icon: string; text: string; time: string }>;
+}) {
   const [tab, setTab] = useState("Details");
   return (
     <div className="ck-card flex h-full flex-col p-5">
@@ -92,7 +100,10 @@ function DetailPanel({ row, onClose }: { row: DocRow; onClose: () => void }) {
 
       <div className="mt-5 text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Timeline</div>
       <div className="mt-2 space-y-3">
-        {documents.detailTimeline.map((t) => {
+        {detailTimeline.length === 0 ? (
+          <p className="text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>No activity recorded yet.</p>
+        ) : (
+          detailTimeline.map((t) => {
           const Icon = t.icon === "clock" ? Clock : t.icon === "eye" ? Eye : CircleDot;
           return (
             <div key={t.id} className="flex items-start gap-2.5">
@@ -103,7 +114,8 @@ function DetailPanel({ row, onClose }: { row: DocRow; onClose: () => void }) {
               </div>
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       <div className="mt-auto flex gap-2 pt-5">
@@ -199,7 +211,7 @@ export default function CockpitDocuments() {
           })}
 
           <div className="flex items-center justify-between px-5 py-3 text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>
-            <span>Showing 1 to 5 of 17 documents</span>
+            <span>Showing {documents.rows.length} document{documents.rows.length === 1 ? "" : "s"}</span>
             <div className="flex items-center gap-1">
               <button className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "hsl(150 12% 56%)" }}><ChevronLeft className="h-4 w-4" /></button>
               {["1", "2", "3"].map((p, i) => (
@@ -211,7 +223,7 @@ export default function CockpitDocuments() {
         </div>
 
         <div className="hidden lg:block">
-          <DetailPanel row={selected} onClose={() => undefined} />
+          <DetailPanel row={selected} onClose={() => undefined} detailTimeline={documents.detailTimeline} />
         </div>
       </div>
     </div>

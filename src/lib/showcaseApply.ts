@@ -240,6 +240,11 @@ export async function submitPhase1Application(input: Phase1Input): Promise<Phase
   });
   if (appRes.error) throw new Error(appRes.error.message);
 
+  const next = nextPhaseAfterApply(role);
+  if (next.phase !== "applied") {
+    await updateShowcaseApplicationPhase(applicationId, next.phase, next.stage);
+  }
+
   return { applicationId, candidateId, isExisting: false };
 }
 
@@ -305,6 +310,25 @@ export async function createShowcaseRole(input: CreateShowcaseRoleInput) {
   const { data, error } = await supabase.from("roles").insert(row).select("*").single();
   if (error) throw new Error(error.message);
   return data as ShowcaseRole & { role_code: string };
+}
+
+export async function updateShowcaseApplicationPhase(applicationId: string, phase: string, stage?: string) {
+  const { error } = await supabase
+    .from("applications")
+    .update({
+      current_phase: phase,
+      ...(stage ? { stage } : {}),
+    })
+    .eq("id", applicationId);
+  if (error) throw error;
+}
+
+function nextPhaseAfterApply(role: ShowcaseRole): { phase: string; stage: string } {
+  const flow = role.flow as { stages?: Array<{ kind?: string }> } | null;
+  const kinds = flow?.stages?.map((s) => s.kind) ?? [];
+  if (kinds.includes("quiz")) return { phase: "quiz", stage: "quiz" };
+  if (kinds.includes("interview") || kinds.includes("voice")) return { phase: "interview", stage: "interview" };
+  return { phase: "applied", stage: "applied" };
 }
 
 export function resumeRouteForApplication(summary: PhoneApplicationSummary): string {

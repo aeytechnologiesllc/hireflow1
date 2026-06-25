@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 export type Interview = Tables<"interviews">;
@@ -17,6 +18,7 @@ export interface InterviewWithDetails extends Interview {
 
 export function useInterviews() {
   const { user, role } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["interviews", user?.id, role],
@@ -75,7 +77,7 @@ export function useInterviews() {
         } : null,
       })) as InterviewWithDetails[];
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }
 
@@ -141,7 +143,7 @@ export function useUpcomingInterviews() {
         } : null,
       })) as InterviewWithDetails[];
     },
-    enabled: !!user,
+    enabled: !!user && mode === "hireflow1",
   });
 }
 

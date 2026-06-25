@@ -116,6 +116,7 @@ export default function ShowcaseApplyForm() {
 
   if (step === "resume" && existingAppId) {
     const label = resumePhase ? phaseLabel(resumePhase) : phaseLabel("applied");
+    const isNextStep = resumePhase === "quiz" || resumePhase === "interview";
     return (
       <CandidateShell className="flex min-h-[60vh] items-center justify-center px-4 py-10">
         <Card className="max-w-lg w-full">
@@ -124,10 +125,17 @@ export default function ShowcaseApplyForm() {
             <p className="text-muted-foreground text-sm">
               Current step: <span className="text-foreground font-medium">{label}</span>
             </p>
-            {resumePhase === "quiz" || resumePhase === "interview" ? (
-              <p className="text-sm text-muted-foreground">
-                The next step in your application will be available here soon. The hiring team has your information on file.
-              </p>
+            {isNextStep ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {resumePhase === "quiz"
+                    ? "Your timed assessment is the next step. It will open here when your employer enables it on this role."
+                    : "Answer a few questions out loud is the next step. It will open here when your employer enables it on this role."}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Your application is saved — the hiring team has your contact details on file.
+                </p>
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">
                 Your application is on file. The hiring team will reach out by email or phone.
