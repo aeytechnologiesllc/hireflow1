@@ -372,7 +372,7 @@ export default function AvaCreateJob() {
 
               {step === 2 && (
                 <div className="mx-auto max-w-3xl text-center">
-                  <AvaOrb size={84} reflection={false} amp={0.24} flow={0.7} />
+                  <AvaOrb size={wide ? 224 : 184} reflection={false} amp={0.24} flow={0.7} />
                   <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How thoroughly should I screen?</h2>
                   <div className="mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl p-4 text-left" style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
                     <Sparkles className="mt-1 h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-brass-bright))" }} />
