@@ -12,7 +12,7 @@ const corsHeaders = {
 };
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_MODEL = Deno.env.get("OPENAI_SHORTLIST_MODEL") || "gpt-5.4";
+const OPENAI_MODEL = Deno.env.get("OPENAI_SHORTLIST_MODEL") || "gpt-4.1";
 
 type Recommendation = "strong_yes" | "yes" | "maybe" | "no";
 type RecommendedAction = "advance" | "review" | "reject";

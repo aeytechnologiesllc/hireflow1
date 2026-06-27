@@ -9,8 +9,8 @@ const corsHeaders = {
 };
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_SALES_SIMULATION_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_MODEL") || "gpt-5.4-mini";
-const OPENAI_SALES_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_EVAL_MODEL") || "gpt-5.4";
+const OPENAI_SALES_SIMULATION_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_MODEL") || "gpt-4o-mini";
+const OPENAI_SALES_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_EVAL_MODEL") || "gpt-4.1";
 
 interface ChatMessage {
   role: "user" | "assistant";

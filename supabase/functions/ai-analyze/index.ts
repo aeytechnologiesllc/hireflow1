@@ -8,7 +8,7 @@ import {
 } from "../_shared/openai.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.4";
+const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-4.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,8 +33,15 @@ interface StructuredScore {
   directMatchScore: number;
   transferableFitScore: number;
   learningSignalScore: number;
+  writingQualityScore: number;
+  attentionToDetailScore: number;
+  authenticityScore: number;
+  specificityScore: number;
   hardRequirementConflicts: string[];
   transferableEvidence: string[];
+  writingIssues: string[];
+  personalityTraits: string[];
+  personalitySummary: string;
   confidence: number;
   summary: string;
 }
@@ -66,8 +73,15 @@ function sanitizeStructuredScore(value: StructuredScore | null | undefined): Str
     directMatchScore: clampScore(value.directMatchScore, 0),
     transferableFitScore: clampScore(value.transferableFitScore, 0),
     learningSignalScore: clampScore(value.learningSignalScore, 0),
+    writingQualityScore: clampScore(value.writingQualityScore, 70),
+    attentionToDetailScore: clampScore(value.attentionToDetailScore, 70),
+    authenticityScore: clampScore(value.authenticityScore, 80),
+    specificityScore: clampScore(value.specificityScore, 50),
     hardRequirementConflicts: sanitizeStringArray(value.hardRequirementConflicts),
     transferableEvidence: sanitizeStringArray(value.transferableEvidence),
+    writingIssues: sanitizeStringArray(value.writingIssues),
+    personalityTraits: sanitizeStringArray(value.personalityTraits),
+    personalitySummary: String(value.personalitySummary || "").trim(),
     confidence: clampScore(value.confidence, 0),
     summary: String(value.summary || "").trim(),
   };
@@ -86,18 +100,32 @@ function getStructuredResponseInstruction(type: AnalyzeRequest["type"]) {
     "directMatchScore": 0,
     "transferableFitScore": 0,
     "learningSignalScore": 0,
+    "writingQualityScore": 0,
+    "attentionToDetailScore": 0,
+    "authenticityScore": 0,
+    "specificityScore": 0,
     "hardRequirementConflicts": ["..."],
     "transferableEvidence": ["..."],
+    "writingIssues": ["..."],
+    "personalityTraits": ["..."],
+    "personalitySummary": "...",
     "confidence": 0,
     "summary": "..."
   }
 }
 
-Rules for structuredScore:
-- overallScore must match the final score in the narrative report
+Rules for structuredScore (every sub-score is 0-100):
 - directMatchScore measures direct background alignment to this exact role
 - transferableFitScore measures how well adjacent and transferable experience supports success in this role
 - learningSignalScore measures trainability, learning effort, and growth indicators
+- writingQualityScore rates spelling, grammar, clarity, and professionalism of the candidate's OWN writing (resume + cover letter + answers). COUNT the concrete spelling/grammar errors. Many errors = LOW (5+ misspellings on a resume => below 40). Clean, polished writing = high. Do NOT penalize an image-based/unextractable resume here.
+- attentionToDetailScore reflects care and precision: typos, inconsistent formatting, and contradictory facts LOWER it; specific, consistent, well-organized material raises it. Sloppy writing is direct evidence of weak attention to detail.
+- authenticityScore rates credibility/verifiability: 100 = consistent and believable; LOW (below 30) for impossible timelines, overlapping full-time roles, name mismatch, fabrication, or AI-generated/templated boilerplate.
+- specificityScore: concrete metrics, named employers, and real achievements = high; vague buzzwords ("hard-working team player", "results-driven") with no specifics = LOW (below 30).
+- writingIssues: list up to 6 concrete spelling/grammar/consistency problems actually found (quote them). Empty array if the writing is clean.
+- personalityTraits: 2-5 JOB-RELEVANT work-style traits inferred WITH evidence (e.g. "customer-empathetic", "detail-oriented", "proactive", "resilient under pressure"). NEVER infer or use age, gender, race, nationality, religion, health, or any protected/demographic attribute.
+- personalitySummary: 1-2 evidence-based sentences on work style and fit for THIS role.
+- overallScore is your holistic 0-100 fit judgment for THIS role and MUST reflect the sub-scores: low writingQuality/attentionToDetail, and ESPECIALLY low authenticity or low specificity, must pull it down materially. A polished-but-fabricated resume is a reject; a strong resume riddled with misspellings is NOT a top candidate. It must match the final score in the narrative report.
 - hardRequirementConflicts must only list explicit hard conflicts, non-negotiables, wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold

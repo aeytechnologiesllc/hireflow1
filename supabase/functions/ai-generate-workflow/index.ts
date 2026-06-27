@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.4";
+const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-4.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_MODEL = Deno.env.get("OPENAI_JOB_MODEL") || "gpt-5.4";
+const OPENAI_MODEL = Deno.env.get("OPENAI_JOB_MODEL") || "gpt-4.1";
 
 interface JobContentRequest {
   field: string;

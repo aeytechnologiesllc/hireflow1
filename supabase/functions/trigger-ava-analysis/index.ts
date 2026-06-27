@@ -226,7 +226,7 @@ async function handleAutopilotDecision(params: {
       success: true,
       previewOnly: true,
       score,
-      decision: autopilotAction === "reject" ? "rejected" : "advanced",
+      decision: autopilotAction === "reject" ? "recommend_decline" : "advanced",
       autopilotAction,
       nextPhaseId: nextPhase?.nextPhaseId ?? null,
       nextPhaseTitle: nextPhase?.nextPhaseTitle ?? null,
@@ -257,37 +257,40 @@ async function handleAutopilotDecision(params: {
   }
 
   if (autopilotAction === "reject") {
-    const rejectReason = scorecard?.hardRejectReason
+    // LEGAL/POLICY: Ava NEVER auto-rejects. It surfaces a decline RECOMMENDATION and
+    // a human makes the final call (bulk-reject in the cockpit). Keep the candidate in
+    // a review state with Ava's reasoning — no status:"rejected", no rejected_by_type:"ava",
+    // no rejection email to the candidate.
+    const declineReason = scorecard?.hardRejectReason
       ? `${scorecard.hardRejectReason}.`
       : `Overall Ava score of ${score || 0}% is below the passing threshold of ${passingScore}%.`;
 
-    const rejectQuery = applyExpectedApplicationStateFilter(
+    const reviewQuery = applyExpectedApplicationStateFilter(
       supabaseAdmin
         .from("applications")
         .update({
-          status: "rejected",
-          rejected_by_type: "ava",
-          phase_ai_analysis: rejectReason,
+          status: "reviewing",
+          phase_ai_analysis: `Ava recommends declining — needs your review. ${declineReason}`,
         }),
       latestStatus,
       latestPhase,
     );
 
-    const { data: rejectedApplication, error: rejectError } = await rejectQuery
+    const { data: reviewApplication, error: reviewError } = await reviewQuery
       .eq("id", applicationId)
       .select("id, status, phase, rejected_by_type")
       .maybeSingle();
 
-    if (rejectError) {
-      console.error("[trigger-ava-analysis] Failed to reject application:", rejectError);
+    if (reviewError) {
+      console.error("[trigger-ava-analysis] Failed to flag application for human review:", reviewError);
       return jsonResponse({
-        error: "Failed to reject application",
-        details: rejectError.message,
+        error: "Failed to record Ava's recommendation",
+        details: reviewError.message,
       }, 500);
     }
 
-    if (!rejectedApplication) {
-      console.log("[trigger-ava-analysis] Reject write skipped because application state changed mid-flight", {
+    if (!reviewApplication) {
+      console.log("[trigger-ava-analysis] Recommend-decline write skipped because application state changed mid-flight", {
         applicationId,
         expectedStatus: latestStatus,
         expectedPhase: latestPhase,
@@ -296,7 +299,7 @@ async function handleAutopilotDecision(params: {
       return jsonResponse({
         success: true,
         skipped: true,
-        message: "Application state changed before the reject decision could be applied",
+        message: "Application state changed before Ava's recommendation could be applied",
         score,
         decision: "stale",
         autopilotAction,
@@ -306,36 +309,15 @@ async function handleAutopilotDecision(params: {
       });
     }
 
-    try {
-      const jobTitle = job?.title || "this position";
-      const { data: employerProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("company_name")
-        .eq("user_id", job?.employer_id)
-        .single();
-
-      await supabaseAdmin.functions.invoke("send-notification-email", {
-        body: {
-          type: "status_rejected",
-          recipientUserId: application.candidate_id,
-          data: {
-            job_title: jobTitle,
-            company_name: employerProfile?.company_name || undefined,
-          },
-        },
-      });
-    } catch (emailError) {
-      console.error("[trigger-ava-analysis] Failed to send rejection email:", emailError);
-    }
-
+    // No rejection email — a human owns the decline decision.
     return jsonResponse({
       success: true,
-      message: "Analysis completed, candidate rejected",
+      message: "Analysis completed — Ava recommends declining; awaiting human review",
       score,
-      decision: "rejected",
-      reason: rejectReason,
+      decision: "recommend_decline",
+      reason: declineReason,
       autopilotAction,
-      updatedApplication: rejectedApplication,
+      updatedApplication: reviewApplication,
       scorecard,
     });
   }
