@@ -277,7 +277,7 @@ export default function AvaCreateJob() {
 
   return (
     <div
-      className="ava-flow scroll-perf relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      className="ava-flow scroll-perf relative flex h-[100dvh] flex-col overflow-hidden"
       style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, hsl(152 40% 14% / 0.5) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
     >
       <style>{FOCUS_CSS}</style>
@@ -297,7 +297,7 @@ export default function AvaCreateJob() {
 
       <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} /></div>
 
-      <main className="relative z-10 flex flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
+      <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="my-auto w-full max-w-5xl">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
