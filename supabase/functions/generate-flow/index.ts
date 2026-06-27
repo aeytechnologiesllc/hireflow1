@@ -8,6 +8,7 @@
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 type RigorKey = "easy" | "medium" | "hard";
 
@@ -94,6 +95,14 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
+    // Require an authenticated employer — blocks anonymous abuse of the OpenAI key.
+    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const SB_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!token || !SB_URL || !SERVICE_KEY) return json({ error: "unauthorized" }, 401);
+    const { data: { user }, error: authErr } = await createClient(SB_URL, SERVICE_KEY).auth.getUser(token);
+    if (authErr || !user) return json({ error: "unauthorized" }, 401);
+
     const body = await req.json().catch(() => ({}));
     const brief = body?.brief ?? body;
     const rigor: RigorKey = (["easy", "medium", "hard"] as const).includes(body?.rigor)
