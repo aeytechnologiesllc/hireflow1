@@ -2,12 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL ?? "").trim();
+// Hardcoded fallbacks to the canonical backend (public anon-level values — safe to
+// ship) so the app can NEVER boot with an empty/missing Supabase URL or key, which
+// is what causes "Failed to fetch" on auth. Env vars still take precedence.
+const FALLBACK_SUPABASE_URL = "https://yqklrkpptnhubsnijqze.supabase.co";
+const FALLBACK_SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
+
+export const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL ?? "").trim() || FALLBACK_SUPABASE_URL;
 export const SUPABASE_PUBLISHABLE_KEY = (
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
   import.meta.env.VITE_SUPABASE_ANON_KEY ??
   ""
-).trim();
+).trim() || FALLBACK_SUPABASE_KEY;
 export const SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:

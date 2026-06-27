@@ -12,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { AvaOrb } from "@/components/ava/AvaOrb";
-import { ORB_SIZE } from "@/components/ava/orbSizes";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Authoritative check (against auth.users via a SECURITY DEFINER RPC) used to
@@ -118,6 +117,17 @@ export default function Auth() {
 
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
+
+  // Hero orb size (px). `AvaOrb`'s `size` is a NUMBER — it drives the canvas
+  // width/height AND particle-density math — so we can't hand it a CSS clamp()
+  // string. Instead we compute a responsive numeric size:
+  //  • Desktop (lg): a clearly larger fixed 280px hero (was ORB_SIZE.lg = 208).
+  //  • Mobile: 220px, but capped to (viewport − 80px) so the orb can never
+  //    overflow horizontally or push the sign-in card off-screen even on a
+  //    ~320px device. (Page container uses px-6 ⇒ 48px of side padding; the
+  //    extra margin keeps a comfortable gutter.) Was ORB_SIZE.md = 112.
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const orbSize = isMobile ? Math.min(220, viewportWidth - 80) : 280;
 
   // Scroll submit button into view when keyboard opens on mobile
   const scrollFormIntoView = useCallback(() => {
@@ -281,6 +291,12 @@ export default function Auth() {
           variant: "warning",
           title: "Confirm your email",
           description: "Please confirm your email address, then sign in. Check your inbox for the link.",
+        });
+      } else if (/failed to fetch|load failed|networkerror|network error/i.test(error.message)) {
+        toast({
+          variant: "warning",
+          title: "Can't reach the server",
+          description: "Your sign-in request was blocked before it left your device — usually an ad/privacy blocker, VPN, or network firewall. Turn off shields/VPN for this site (or try an incognito window or another network), then try again. Your account is fine.",
         });
       } else {
         toast({
@@ -566,10 +582,11 @@ export default function Auth() {
             transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center lg:items-start"
           >
-            {/* Standard hero sizing (orbSizes.ts) — density scales by area, so
-                the lg token reads as a crisp, well-separated dotted mesh instead
-                of the dense blob the oversized 360px orb produced. */}
-            <AvaOrb size={isMobile ? ORB_SIZE.md : ORB_SIZE.lg} />
+            {/* Hero orb — bumped up on both breakpoints (see `orbSize` above).
+                Density scales by area, so the larger sizes still read as a
+                crisp, well-separated dotted mesh. Mobile size is viewport-capped
+                so it grows without ever overflowing the sign-in card. */}
+            <AvaOrb size={orbSize} />
             <span
               className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{
