@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5" />
+    <!-- Capture password-recovery intent from the URL hash BEFORE the Supabase client (detectSessionInUrl) consumes and clears it, so /auth can show the reset form instead of bouncing to the dashboard. -->
+    <script>try{window.__HF_PASSWORD_RECOVERY=/[#&]type=recovery/.test(window.location.hash);}catch(e){}</script>
     <link rel="icon" type="image/png" href="/app-icon.png" />
     <link rel="apple-touch-icon" href="/app-icon.png" />
     

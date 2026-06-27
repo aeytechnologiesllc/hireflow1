@@ -141,31 +141,37 @@ export default function Auth() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [isGoogleLoading]);
 
-  // Detect password reset mode from URL and listen for PASSWORD_RECOVERY event
+  // Detect password reset mode. Supabase strips the ?reset=true query while it
+  // consumes the recovery hash, so we also rely on a flag captured from the hash
+  // at page load (see index.html) and the hash itself.
   useEffect(() => {
-    const isResetMode = searchParams.get("reset") === "true";
-    if (isResetMode) {
-      // Show loading state while waiting for session to establish
-      setIsWaitingForSession(true);
-    }
+    const isResetMode =
+      searchParams.get("reset") === "true" ||
+      (window as Window & { __HF_PASSWORD_RECOVERY?: boolean }).__HF_PASSWORD_RECOVERY === true ||
+      /[#&]type=recovery/.test(window.location.hash);
 
-    // Listen for PASSWORD_RECOVERY event - this fires when session is ready
+    if (!isResetMode) return;
+
+    // Hold the screen and let the authenticated-redirect effect know we're
+    // recovering, so it never bounces us to the dashboard.
+    setIsWaitingForSession(true);
+
+    // Depending on timing Supabase may emit PASSWORD_RECOVERY, SIGNED_IN, or
+    // INITIAL_SESSION — treat any session during recovery as reset mode.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" && session) {
+      if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         setIsWaitingForSession(false);
         setIsResettingPassword(true);
       }
     });
 
-    // Also check if session already exists (in case event fired before listener was set up)
-    if (isResetMode) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          setIsWaitingForSession(false);
-          setIsResettingPassword(true);
-        }
-      });
-    }
+    // In case the event fired before this listener was attached.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsWaitingForSession(false);
+        setIsResettingPassword(true);
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, [searchParams]);
@@ -211,10 +217,15 @@ export default function Auth() {
   }, [navigate, redirectTo, toast]);
 
   useEffect(() => {
-    if (user && !authLoading && !isResettingPassword && !isWaitingForSession) {
+    const inRecovery =
+      (window as Window & { __HF_PASSWORD_RECOVERY?: boolean }).__HF_PASSWORD_RECOVERY === true ||
+      /[#&]type=recovery/.test(window.location.hash) ||
+      searchParams.get("reset") === "true";
+
+    if (user && !authLoading && !isResettingPassword && !isWaitingForSession && !inRecovery) {
       void routeAuthenticatedUser();
     }
-  }, [user, authLoading, isResettingPassword, isWaitingForSession, routeAuthenticatedUser]);
+  }, [user, authLoading, isResettingPassword, isWaitingForSession, routeAuthenticatedUser, searchParams]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
