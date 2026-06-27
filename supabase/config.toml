@@ -1,7 +1,10 @@
-project_id = "kcotpxlggfvgclwksmhl"
+project_id = "yqklrkpptnhubsnijqze"
 
 [functions.ai-analyze]
 verify_jwt = false
+
+[functions.generate-flow]
+verify_jwt = true
 
 [functions.ai-analyze-document-fields]
 verify_jwt = true

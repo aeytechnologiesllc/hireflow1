@@ -400,10 +400,13 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
       return name.toLowerCase() === String(candidate.candidateName || "").toLowerCase();
     }) || applications[index];
 
+    // SINGLE SOURCE OF TRUTH: the stored canonical score/scorecard wins. The LLM
+    // re-ranker only orders candidates and writes narrative (strengths/concerns) — it
+    // never overrides the number a candidate already received, so no two screens disagree.
     const score = clampScore(
-      toNumber(candidate.aiScore ?? candidate.scorecard?.overallScore ?? matchingApp?.ai_score, 0),
+      toNumber(matchingApp?.ai_score ?? candidate.aiScore ?? candidate.scorecard?.overallScore, 0),
     );
-    const scorecard = candidate.scorecard || buildScorecard(matchingApp || {}, score);
+    const scorecard = buildScorecard(matchingApp || {}, score);
     const needsMoreEvidence = scorecard.decisionState === "needs_more_evidence";
 
     return {
@@ -423,19 +426,19 @@ function normalizeShortlist(raw: unknown, applications: any[], jobId: string, jo
           ? candidate.recommendation
           : inferRecommendation(score),
       scorecard: {
+        // All score-bearing fields come from the canonical stored scorecard so the
+        // shortlist can never show a different number than the candidate detail page.
         overallScore: scorecard.overallScore ?? score,
-        confidence: clampScore(toNumber(candidate.scorecard?.confidence ?? scorecard.confidence, 65)),
+        confidence: clampScore(toNumber(scorecard.confidence, 65)),
         recommendedAction: scorecard.decisionState === "needs_more_evidence"
           ? "review"
-          : ["advance", "review", "reject"].includes(candidate.scorecard?.recommendedAction)
-            ? candidate.scorecard.recommendedAction
-            : inferAction(score),
+          : scorecard.recommendedAction || inferAction(score),
         decisionState: scorecard.decisionState,
         pendingHighSignalPhases: scorecard.pendingHighSignalPhases,
         autopilotAction: scorecard.autopilotAction,
-        dimensionScores: candidate.scorecard?.dimensionScores || scorecard.dimensionScores,
-        riskFlags: Array.isArray(candidate.scorecard?.riskFlags) ? candidate.scorecard.riskFlags.map(String) : scorecard.riskFlags,
-        rationale: String(candidate.scorecard?.rationale || scorecard.rationale || ""),
+        dimensionScores: scorecard.dimensionScores,
+        riskFlags: scorecard.riskFlags,
+        rationale: String(scorecard.rationale || ""),
       },
       applicationId: matchingApp?.id,
     };

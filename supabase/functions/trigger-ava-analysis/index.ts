@@ -1308,6 +1308,8 @@ ${interviewType} Interview with AVA Results:
       .update({
         ai_analysis: analysisData?.analysis || null,
         ai_score: typeof finalScore === "number" && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
+        // Canonical scorecard — single source of truth read by every screen.
+        ai_scorecard: scorecard ?? null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
         resume_score: resumeUnavailable ? null : (typeof newScore === "number" && newScore >= 0 && newScore <= 100 ? newScore : null),
         notes: JSON.stringify(updatedNotes),

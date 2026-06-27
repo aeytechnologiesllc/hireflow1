@@ -2,6 +2,7 @@
 import { generateTemplateFlow } from "./templateGenerator";
 import { buildJobFlow, defaultShortlistWeights, emptyRubric, RIGOR_SPEC } from "./assemble";
 import { rigorToLegacy } from "./rigor";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   GenerateFlowRequest,
   GenerateFlowResult,
@@ -44,6 +45,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
   let order = 0;
   let r = 0;
 
+  const appQs = take(payload.application, spec.app);
   phases.push({
     id: "ph_app",
     kind: "application",
@@ -51,11 +53,20 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     title: "A few quick questions",
     candidateDescription: "Availability, experience, and why this role.",
     rationale: rationales[r++] ?? "A quick filter for fit.",
-    config: { kind: "application", questions: take(payload.application, spec.app) },
-    rubric: emptyRubric(),
+    config: { kind: "application", questions: appQs },
+    rubric: {
+      criteria: appQs.length
+        ? appQs.map((q, i) => ({
+            id: `app${i}`,
+            label: `Answer ${i + 1}`,
+            guidance: `Completeness and role-relevance of the response to: ${q}`,
+            weightWithinPhase: 1 / appQs.length,
+          }))
+        : [{ id: "app0", label: "Application", guidance: "Completeness and role-relevance of the answers.", weightWithinPhase: 1 }],
+    },
     weight: 0.1,
     scoringMode: "auto",
-    countLabel: `${take(payload.application, spec.app).length} questions`,
+    countLabel: `${appQs.length} questions`,
     durationLabel: "~3 min",
   });
 
@@ -99,7 +110,14 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
         kind: "simulation",
         scenarios: sims.map((s, i) => ({ id: `sim${i}`, title: s.title, prompt: s.prompt })),
       },
-      rubric: emptyRubric(),
+      rubric: {
+        criteria: sims.map((s, i) => ({
+          id: `sim${i}`,
+          label: s.title,
+          guidance: `Did they handle this well: ${s.prompt}`,
+          weightWithinPhase: 1 / sims.length,
+        })),
+      },
       weight: 0.2,
       scoringMode: "auto",
       countLabel: `${sims.length} scenario(s)`,
@@ -108,6 +126,9 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
   }
 
   const voiceQs = take(payload.voiceQuestions, spec.voice);
+  const voiceDims = take(payload.voiceDimensions, 4).length
+    ? take(payload.voiceDimensions, 4)
+    : ["Clarity", "Judgment", "Ownership", "Fit"];
   phases.push({
     id: "ph_voice",
     kind: "voice_interview",
@@ -119,11 +140,16 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
       kind: "voice_interview",
       maxCallLengthSec: spec.callMin * 60,
       questions: voiceQs.map((q, i) => ({ id: `v${i}`, prompt: q })),
-      dimensions: take(payload.voiceDimensions, 4).length
-        ? take(payload.voiceDimensions, 4)
-        : ["Clarity", "Judgment", "Ownership", "Fit"],
+      dimensions: voiceDims,
     },
-    rubric: emptyRubric(),
+    rubric: {
+      criteria: voiceDims.map((d, i) => ({
+        id: `vdim${i}`,
+        label: d,
+        guidance: `Score the spoken answers on ${d.toLowerCase()}, citing transcript evidence.`,
+        weightWithinPhase: 1 / voiceDims.length,
+      })),
+    },
     weight: 0.35,
     scoringMode: "auto",
     countLabel: `${voiceQs.length} questions`,
@@ -153,12 +179,17 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
 
 async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
   if (!SB_URL || !SB_KEY) throw new Error("Supabase env not configured");
+  // Require a signed-in employer: send the user's access token so generate-flow
+  // (verify_jwt) rejects anonymous calls and can't be abused to drain the API key.
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) throw new Error("Not signed in — sign in to generate with Ava");
   const res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
       brief: req.brief,
