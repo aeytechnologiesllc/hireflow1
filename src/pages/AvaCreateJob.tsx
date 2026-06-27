@@ -345,7 +345,8 @@ export default function AvaCreateJob() {
               )}
 
               {step === 1 && (() => {
-                const fu = followUps[fuIndex];
+                const fu = followUps[Math.min(fuIndex, Math.max(0, followUps.length - 1))];
+                if (!fu) return null;
                 const picked = chipAnswers[fu.id] ?? fu.def;
                 return (
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">

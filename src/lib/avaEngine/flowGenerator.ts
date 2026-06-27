@@ -12,7 +12,7 @@ import type {
 } from "./types";
 
 const SB_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const SB_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined;
 
 interface EdgeFlowPayload {
   jobPost?: JobPost;
