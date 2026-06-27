@@ -11,7 +11,7 @@ import AppHeader from "./AppHeader";
 import CockpitShell from "@/cockpit/Shell";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
-import OnboardingWizard from "./subscription/OnboardingWizard";
+import EmployerWelcome from "./EmployerWelcome";
 import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
 import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -335,7 +335,7 @@ export default function AppLayout() {
 
   // Show onboarding wizard for employers only
   if (hookNeedsOnboarding && !isGuestDraftHandoff && role === "employer") {
-    return <OnboardingWizard onComplete={() => {/* navigation handled inside wizard */}} />;
+    return <EmployerWelcome />;
   }
 
   if (hasRevokedTeamAccess) {

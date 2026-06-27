@@ -297,8 +297,8 @@ export default function AvaCreateJob() {
 
       <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} /></div>
 
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-6 sm:px-6 sm:py-10">
-        <div className="w-full max-w-5xl">
+      <main className="relative z-10 flex flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
+        <div className="my-auto w-full max-w-5xl">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
               {step === 0 && (
