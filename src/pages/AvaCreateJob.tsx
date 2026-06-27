@@ -51,6 +51,7 @@ import {
   briefFromForm,
   chipAnswersToBriefAnswers,
   clearDraft,
+  withRemoteFollowUps,
   detectFamily,
   generateJobFlow,
   loadDraft,
@@ -149,7 +150,8 @@ export default function AvaCreateJob() {
 
   const family = useMemo(() => detectFamily(briefFromForm({ ...briefFields, followUps: [] })), [briefFields]);
   const playbook = PLAYBOOKS[family];
-  const followUps = useMemo(() => playbook.followUps(chipAnswers), [playbook, chipAnswers]);
+  const workMode = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }).workMode, [briefFields]);
+  const followUps = useMemo(() => withRemoteFollowUps(playbook.followUps(chipAnswers), workMode), [playbook, chipAnswers, workMode]);
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
@@ -173,7 +175,7 @@ export default function AvaCreateJob() {
   const runGeneration = useCallback(async () => {
     setGenerating(true);
     setGenSource(null);
-    const followUpDefs = playbook.followUps(chipAnswers);
+    const followUpDefs = withRemoteFollowUps(playbook.followUps(chipAnswers), briefFromForm({ ...briefFields, followUps: [] }).workMode);
     const brief = briefFromForm({
       ...briefFields,
       followUps: chipAnswersToBriefAnswers(followUpDefs, chipAnswers),
@@ -312,7 +314,7 @@ export default function AvaCreateJob() {
               {step === 0 && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                    <AvaOrb size={172} reflection={false} />
+                    <AvaOrb size={240} reflection={false} />
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
                       <Sparkles className="h-3 w-3" /> Ava · Hiring assistant
                     </span>
@@ -329,23 +331,23 @@ export default function AvaCreateJob() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
-                        <input value={briefFields.location} onChange={(e) => setBrief("location", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} />
+                        <input value={briefFields.location} onChange={(e) => setBrief("location", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="City, State — or 'Remote'" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
-                        <input value={briefFields.type} onChange={(e) => setBrief("type", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} />
+                        <input value={briefFields.type} onChange={(e) => setBrief("type", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Full-time · On-site / Hybrid / Remote" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay</label>
-                        <input value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} />
+                        <input value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="e.g. $22/hr or $90k–$110k" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><CalendarClock className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Start</label>
-                        <input value={briefFields.start} onChange={(e) => setBrief("start", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} />
+                        <input value={briefFields.start} onChange={(e) => setBrief("start", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="ASAP, within a few weeks, or flexible" />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do</label>
-                        <textarea value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} />
+                        <textarea value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="2–3 sentences in your own words: the day-to-day, who they work with, and what success looks like." />
                       </div>
                     </div>
                   </div>
@@ -357,7 +359,7 @@ export default function AvaCreateJob() {
                 const picked = chipAnswers[fu.id] ?? fu.def;
                 return (
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-                    <AvaOrb size={wide ? 232 : 176} reflection={false} amp={0.26} flow={0.72} />
+                    <AvaOrb size={wide ? 248 : 208} reflection={false} amp={0.26} flow={0.72} />
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
                       <Sparkles className="h-2.5 w-2.5" /> Tailored to a {playbook.label} role
@@ -451,7 +453,7 @@ export default function AvaCreateJob() {
 
               {step === 5 && publishedCode && (
                 <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                  <AvaOrb size={132} reflection={false} amp={0.26} flow={0.7} />
+                  <AvaOrb size={168} reflection={false} amp={0.26} flow={0.7} />
                   <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
                     <Check className="h-3 w-3" /> Your role is live
                   </span>

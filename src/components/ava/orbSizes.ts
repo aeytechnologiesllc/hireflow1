@@ -6,7 +6,7 @@
  * closest token below.
  *
  *  - sm  (40px) : small in-UI accents — list/empty-state marks, inline avatars.
- *  - md (112px) : the standard LOADER size — route fallbacks, "preparing…" screens.
+ *  - md (144px) : the standard LOADER size — route fallbacks, "preparing…" screens.
  *  - lg (208px) : large / hero — full-screen moments where the orb is the star.
  *
  * Pair with the right LOD: `mode` is implicit in <AvaOrb> (rich by default); for
@@ -15,7 +15,7 @@
  */
 export const ORB_SIZE = {
   sm: 40,
-  md: 112,
+  md: 144,
   lg: 208,
 } as const;
 

@@ -93,7 +93,7 @@ export default function CockpitDashboard() {
         style={{ background: "var(--gradient-hero)", borderColor: "hsl(150 12% 15% / 0.6)" }}
       >
         <div className="flex items-center gap-3">
-          <AvaOrb size={116} reflection={false} amp={0.24} flow={0.55} />
+          <AvaOrb size={132} reflection={false} amp={0.24} flow={0.55} />
           <div className="min-w-0">
             <h1 className="font-display" style={{ fontSize: 22, lineHeight: 1.08, color: "hsl(150 33% 95%)", fontWeight: 500 }}>
               {hero.headline}

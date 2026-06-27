@@ -401,7 +401,7 @@ function IntroStep({ brief, setBrief }: { brief: Record<string, string>; setBrie
     <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
       <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
         <motion.div initial={reduce ? false : { scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
-          <AvaOrb size={172} reflection={false} />
+          <AvaOrb size={240} reflection={false} />
         </motion.div>
         <motion.span
           initial={reduce ? false : { opacity: 0, y: 10 }}
@@ -485,7 +485,7 @@ function FollowUpStep({
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
-        <AvaOrb size={wide ? 232 : 176} reflection={false} amp={0.26} flow={0.72} />
+        <AvaOrb size={wide ? 248 : 208} reflection={false} amp={0.26} flow={0.72} />
       </motion.div>
 
       <div className="mt-1 flex flex-col items-center gap-2">
@@ -686,7 +686,7 @@ function BuildStep({ onDone, role, rigorLabel, reasoning }: { onDone: () => void
   return (
     <div className="flex flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 1, type: "spring", bounce: 0.25 }}>
-        <AvaOrb size={232} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
+        <AvaOrb size={248} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
       </motion.div>
 
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
@@ -952,7 +952,7 @@ function PublishStep({ count }: { count: number }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.9, type: "spring", bounce: 0.4 }}>
-        <AvaOrb size={132} reflection={false} amp={0.26} flow={0.7} />
+        <AvaOrb size={168} reflection={false} amp={0.26} flow={0.7} />
       </motion.div>
 
       <motion.span

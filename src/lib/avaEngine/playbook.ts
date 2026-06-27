@@ -13,6 +13,28 @@ export interface FollowUpDef {
   def: number;
 }
 
+// Remote-critical follow-ups. For remote roles, reliable internet + the right
+// computer/equipment are the make-or-break factors, so Ava asks about them up front.
+export const REMOTE_FOLLOWUPS: FollowUpDef[] = [
+  {
+    id: "remote-internet",
+    question: "This role is remote — how solid does their home internet need to be?",
+    chips: ["Basic broadband is fine", "Reliable, video-call ready", "Fast wired connection required"],
+    def: 1,
+  },
+  {
+    id: "remote-equipment",
+    question: "What computer or equipment will they work on?",
+    chips: ["We provide the computer", "They use their own computer", "Own computer + specific specs"],
+    def: 0,
+  },
+];
+
+/** Append the remote-critical follow-ups (internet + equipment) for remote roles. */
+export function withRemoteFollowUps(defs: FollowUpDef[], workMode?: string): FollowUpDef[] {
+  return workMode === "remote" ? [...defs, ...REMOTE_FOLLOWUPS] : defs;
+}
+
 export interface Playbook {
   label: string;
   followUps: (answers: Record<string, number>) => FollowUpDef[];

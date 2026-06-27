@@ -227,7 +227,7 @@ export function BuildStep({
   return (
     <div className="flex flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.55, type: "spring", bounce: 0.2 }}>
-        <AvaOrb size={232} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
+        <AvaOrb size={248} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
       </motion.div>
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring flow…</h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
