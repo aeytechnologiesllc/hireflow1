@@ -59,7 +59,8 @@ import {
   type JobFlow,
   type Rigor,
 } from "@/lib/avaEngine";
-import { candidateApplyUrl, createShowcaseRole } from "@/lib/showcaseApply";
+import { candidateApplyUrl } from "@/lib/showcaseApply";
+import { createJobFromFlow } from "@/lib/jobFromFlow";
 import type { LucideIcon } from "lucide-react";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -212,23 +213,12 @@ export default function AvaCreateJob() {
         ...briefFields,
         followUps: chipAnswersToBriefAnswers(followUps, chipAnswers),
       });
-      const created = await createShowcaseRole({
-        title: brief.roleTitle,
-        description: edited.jobPost.summary,
-        location: brief.location,
-        pay: brief.pay,
-        status: "live",
-        flow: edited as unknown as Record<string, unknown>,
-        rigor: edited.rigor,
-        openings: brief.openings,
-        employment_type: brief.employmentType,
-        work_mode: brief.workMode,
-        start_urgency: brief.startUrgency,
-      });
+      const created = await createJobFromFlow(edited, brief, { status: "published" });
       clearDraft();
       sessionStorage.removeItem(DRAFT_SESSION_KEY);
-      setPublishedCode(created.role_code);
+      setPublishedCode(created.job_code);
       setPublishedRoleId(created.id);
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
       setStep(5);
