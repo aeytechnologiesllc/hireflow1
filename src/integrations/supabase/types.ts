@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1201,6 +1201,26 @@ export type Database = {
     }
     Functions: {
       assign_user_role: { Args: { p_role: string }; Returns: undefined }
+      can_create_document_workflows_for_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      can_create_jobs_for_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      can_invite_team_members: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      document_workflow_count_for_user: {
+        Args: { target_user_id: string }
+        Returns: number
+      }
+      document_workflow_limit_for_user: {
+        Args: { target_user_id: string }
+        Returns: number
+      }
       email_exists: { Args: { p_email: string }; Returns: boolean }
       get_team_member_permissions: {
         Args: { _employer_id: string; _user_id: string }
@@ -1229,6 +1249,15 @@ export type Database = {
       is_team_member: {
         Args: { _employer_id: string; _user_id: string }
         Returns: boolean
+      }
+      job_limit_for_user: { Args: { target_user_id: string }; Returns: number }
+      subscription_plan_for_limits: {
+        Args: { target_user_id: string }
+        Returns: string
+      }
+      team_member_limit_for_user: {
+        Args: { target_user_id: string }
+        Returns: number
       }
     }
     Enums: {
