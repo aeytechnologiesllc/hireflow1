@@ -43,6 +43,7 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
   const avaMsgId = useRef<number | null>(null);
   const greeted = useRef(false);
   const finishing = useRef(false);
+  const handedOff = useRef(false);
   const jobBriefRef = useRef(jobBrief);
   jobBriefRef.current = jobBrief;
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -67,13 +68,17 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
     });
   }, []);
 
-  const doCreate = useCallback(() => {
-    const b = jobBriefRef.current;
-    if (finishing.current || !canCreate(b)) return;
-    finishing.current = true;
-    setCreating(true);
-    window.setTimeout(() => onComplete(mapJobBriefToFormPayload(b)), 700);
+  const handoff = useCallback(() => {
+    if (handedOff.current) return;
+    handedOff.current = true;
+    onComplete(mapJobBriefToFormPayload(jobBriefRef.current));
   }, [onComplete]);
+
+  const doCreate = useCallback(() => {
+    if (finishing.current || !canCreate(jobBriefRef.current)) return;
+    finishing.current = true;
+    setCreating(true); // show "building…" while Ava finishes her handoff line; the effects below transition
+  }, []);
 
   const onToolCall = useCallback(
     (toolName: string, args: any) => {
@@ -105,6 +110,19 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
 
   useEffect(() => () => { try { disconnect(); } catch { /* no-op */ } }, [disconnect]);
   useEffect(() => { transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
+
+  // Smooth handoff: once confirmed, let Ava finish her closing line, THEN glide into the build
+  // animation. Transition a beat after she stops speaking; a hard cap ensures we never hang.
+  useEffect(() => {
+    if (!creating) return;
+    const cap = window.setTimeout(handoff, 6000);
+    return () => window.clearTimeout(cap);
+  }, [creating, handoff]);
+  useEffect(() => {
+    if (!creating || isSpeaking) return; // keep waiting while she's still talking
+    const t = window.setTimeout(handoff, 700); // a calm beat after she finishes → transition
+    return () => window.clearTimeout(t);
+  }, [creating, isSpeaking, handoff]);
 
   const hasData = briefHasAnyData(jobBrief);
   const phase: Phase = creating ? "creating"
