@@ -86,7 +86,7 @@ export default function TalkToAva({ brief, onBriefPatch, onComplete, onPreferTyp
   );
 
   const voice = useAvaVoice({ mode: "intake", currentRoute: "/jobs/create", onTranscript, onToolCall });
-  const { connect, disconnect, triggerResponse, isConnected, isConnecting, isSpeaking, isListening, isProcessing, error } = voice;
+  const { connect, disconnect, triggerResponse, getAvaLevel, isConnected, isConnecting, isSpeaking, isListening, isProcessing, error } = voice;
 
   // Ava greets first once the realtime channel is live.
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function TalkToAva({ brief, onBriefPatch, onComplete, onPreferTyp
           aria-hidden
           style={{ transform: `scale(${orbScale})`, filter: orbGlow, transition: "transform 0.4s ease, filter 0.4s ease" }}
         >
-          <AvaOrb size={236} reflection={false} amp={0.26} flow={0.72} />
+          <AvaOrb size={236} reflection={false} amp={0.26} flow={0.72} getIntensity={getAvaLevel} />
         </div>
 
         <span

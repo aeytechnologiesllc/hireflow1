@@ -73,6 +73,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const recorderRef = useRef<AudioRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<AudioQueue | null>(null);
+  const avaLevelRef = useRef(0); // 0..1 smoothed amplitude of Ava's voice (drives the orb pulse)
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -486,6 +487,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       });
       
       setState(s => ({ ...s, audioLevels: levels }));
+      avaLevelRef.current *= 0.9; // decay Ava's voice level between audio chunks (natural fade-out)
       animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
     };
     updateAudioLevels();
@@ -577,6 +579,14 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               bytes[i] = binaryString.charCodeAt(i);
             }
             audioQueueRef.current?.addToQueue(bytes);
+            // Rough amplitude of Ava's voice (PCM16 RMS) → drives the orb's live pulse.
+            try {
+              const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
+              let sum = 0, n = 0;
+              for (let i = 0; i < i16.length; i += 8) { const v = i16[i] / 32768; sum += v * v; n++; }
+              const rms = n ? Math.sqrt(sum / n) : 0;
+              avaLevelRef.current = Math.max(avaLevelRef.current, Math.min(1, rms * 3.2));
+            } catch { /* no-op */ }
           }
           // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
           // This ensures the UI shows "Speaking" not "Thinking"
@@ -801,6 +811,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           // BARGE-IN: user is interrupting — stop Ava's already-buffered audio at once.
           // (Server VAD halts generation, but buffered audio would otherwise talk over them.)
           audioQueueRef.current?.clear();
+          avaLevelRef.current = 0; // drop the orb pulse instantly on interrupt
           if (audioElRef.current) {
             try { audioElRef.current.pause(); } catch { /* no-op */ }
           }
@@ -1014,6 +1025,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
   }, []);
 
+  // Live 0..1 amplitude of Ava's voice — read by the orb each frame (ref-based, no re-render).
+  const getAvaLevel = useCallback(() => avaLevelRef.current, []);
+
   return {
     ...state,
     connect,
@@ -1022,6 +1036,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     sendSystemInstruction,
     getAvaAudioElement,
     triggerResponse,
+    getAvaLevel,
     retryConnection,
     nudgeAva,
   };

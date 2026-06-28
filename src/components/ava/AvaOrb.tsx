@@ -164,6 +164,9 @@ export interface AvaOrbProps {
   reflection?: boolean;
   /** Outer glow halo via CSS drop-shadow. Default true. */
   glow?: boolean;
+  /** Optional 0..1 live intensity (e.g. Ava's voice amplitude) read each frame to make the
+   *  orb pulse WITHOUT re-initializing the scene. Pass a getter, not a changing prop. */
+  getIntensity?: () => number;
   className?: string;
   style?: CSSProperties;
 }
@@ -178,6 +181,7 @@ export function AvaOrb({
   spin = 0.06,
   reflection = true,
   glow = true,
+  getIntensity,
   className,
   style,
 }: AvaOrbProps) {
@@ -197,6 +201,10 @@ export function AvaOrb({
   const resolvedDot = dotSize ?? 2.8 + 2.5 * Math.min(1, size / 380);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  // Live intensity getter kept in a ref so updating it never re-runs the scene effect
+  // (changing amp/flow props would tear down + rebuild the WebGL context every frame).
+  const getIntensityRef = useRef(getIntensity);
+  getIntensityRef.current = getIntensity;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -331,7 +339,14 @@ export function AvaOrb({
       const t = (now - t0) / 1000;
       coreU.uTime.value = now / 1000;
       haloU.uTime.value = now / 1000;
-      grp.rotation.y += spin * 0.02;
+      // Live voice reactivity — modulate uniforms in place (no scene re-init). k=0 → unchanged.
+      const k = Math.max(0, Math.min(1, getIntensityRef.current?.() ?? 0));
+      coreU.uAmp.value = amp * (1 + k * 0.9);
+      coreU.uFlow.value = flow * (1 + k * 0.7);
+      coreU.uBright.value = 1.15 + k * 0.9;
+      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.9);
+      haloU.uBright.value = 0.65 + k * 0.6;
+      grp.rotation.y += spin * 0.02 * (1 + k * 0.6);
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);
     };
