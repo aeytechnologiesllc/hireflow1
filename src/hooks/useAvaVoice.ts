@@ -443,9 +443,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // Set up audio element for remote audio
     audioElRef.current = document.createElement('audio');
     audioElRef.current.autoplay = true;
-    // SINGLE voice path: Ava's audio also plays via the AudioQueue (PCM deltas), which drives
-    // isSpeaking + barge-in + the orb. Mute the WebRTC element so we never hear two copies at once.
-    audioElRef.current.muted = true;
+    // This WebRTC element IS Ava's voice (the realtime audio track). Keep it audible.
     pcRef.current.ontrack = (e) => {
       if (audioElRef.current) {
         audioElRef.current.srcObject = e.streams[0];
@@ -584,8 +582,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
             }
-            audioQueueRef.current?.addToQueue(bytes);
-            // Rough amplitude of Ava's voice (PCM16 RMS) → drives the orb's live pulse.
+            // Amplitude for the orb (PCM16 RMS) — computed regardless of playback path.
             try {
               const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
               let sum = 0, n = 0;
@@ -593,6 +590,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               const rms = n ? Math.sqrt(sum / n) : 0;
               avaLevelRef.current = Math.max(avaLevelRef.current, Math.min(1, rms * 3.2));
             } catch { /* no-op */ }
+            // For intake, the WebRTC <audio> element is the single voice; the AudioQueue would be
+            // a second copy. Only feed it for the interview path, which depends on it.
+            if (optionsRef.current.mode !== 'intake') audioQueueRef.current?.addToQueue(bytes);
           }
           // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
           // This ensures the UI shows "Speaking" not "Thinking"

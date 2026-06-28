@@ -132,18 +132,18 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
   const GOLD = "38 60% 60%";
   const orb = (() => {
     switch (phase) {
-      case "creating": return { scale: 1.12, glow: `drop-shadow(0 0 120px hsl(${GREEN} / 0.62))` };
-      case "readback": return { scale: 1.04, glow: `drop-shadow(0 0 90px hsl(${GOLD} / 0.42)) drop-shadow(0 0 64px hsl(${GREEN} / 0.42))` };
-      case "speaking": return { scale: 1.07, glow: `drop-shadow(0 0 100px hsl(${GREEN} / 0.5)) drop-shadow(0 0 50px hsl(${GOLD} / 0.28))` };
-      case "listening": return { scale: 1.04, glow: `drop-shadow(0 0 84px hsl(${GREEN} / 0.46))` };
-      case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 64px hsl(${GREEN} / 0.36))` };
+      case "creating": return { scale: 1.06, glow: `drop-shadow(0 0 110px hsl(${GREEN} / 0.55))` };
+      case "readback": return { scale: 1.02, glow: `drop-shadow(0 0 80px hsl(${GOLD} / 0.36)) drop-shadow(0 0 56px hsl(${GREEN} / 0.38))` };
+      case "speaking": return { scale: 1.03, glow: `drop-shadow(0 0 86px hsl(${GREEN} / 0.46)) drop-shadow(0 0 44px hsl(${GOLD} / 0.22))` };
+      case "listening": return { scale: 1.02, glow: `drop-shadow(0 0 76px hsl(${GREEN} / 0.42))` };
+      case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 62px hsl(${GREEN} / 0.34))` };
       case "error": return { scale: 1.0, glow: "drop-shadow(0 0 40px hsl(0 50% 50% / 0.3))" };
       default: return { scale: 1.0, glow: `drop-shadow(0 0 56px hsl(${GREEN} / 0.3))` };
     }
   })();
 
   const OrbVisual = (
-    <div aria-hidden style={{ transform: `scale(${orb.scale})`, filter: orb.glow, transition: "transform 0.5s ease, filter 0.5s ease" }}>
+    <div aria-hidden style={{ transform: `scale(${orb.scale})`, filter: orb.glow, transition: "transform 0.8s ease, filter 0.8s ease" }}>
       <AvaOrb size={orbSize} reflection={false} amp={0.26} flow={0.72} getIntensity={getVoiceLevel} />
     </div>
   );

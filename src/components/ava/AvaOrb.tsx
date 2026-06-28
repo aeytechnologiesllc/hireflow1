@@ -325,6 +325,7 @@ export function AvaOrb({
     };
     document.addEventListener("visibilitychange", onVis);
 
+    let smoothK = 0; // low-pass accumulator for the live-intensity pulse (calm, never jittery)
     const loop = (now: number) => {
       if (cancelled) return;
       raf = requestAnimationFrame(loop);
@@ -339,14 +340,17 @@ export function AvaOrb({
       const t = (now - t0) / 1000;
       coreU.uTime.value = now / 1000;
       haloU.uTime.value = now / 1000;
-      // Live voice reactivity — modulate uniforms in place (no scene re-init). k=0 → unchanged.
-      const k = Math.max(0, Math.min(1, getIntensityRef.current?.() ?? 0));
-      coreU.uAmp.value = amp * (1 + k * 0.9);
-      coreU.uFlow.value = flow * (1 + k * 0.7);
-      coreU.uBright.value = 1.15 + k * 0.9;
-      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.9);
-      haloU.uBright.value = 0.65 + k * 0.6;
-      grp.rotation.y += spin * 0.02 * (1 + k * 0.6);
+      // Live voice reactivity — SUBTLE and low-pass smoothed, so the orb gently breathes with
+      // the voice and never jitters. k=0 → identical to the resting orb. Rotation stays steady.
+      const rawK = Math.max(0, Math.min(1, getIntensityRef.current?.() ?? 0));
+      smoothK += (rawK - smoothK) * 0.08;
+      const k = smoothK;
+      coreU.uAmp.value = amp * (1 + k * 0.16);
+      coreU.uFlow.value = flow * (1 + k * 0.12);
+      coreU.uBright.value = 1.15 + k * 0.38;
+      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.16);
+      haloU.uBright.value = 0.65 + k * 0.28;
+      grp.rotation.y += spin * 0.02;
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);
     };
