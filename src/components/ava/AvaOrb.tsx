@@ -343,13 +343,16 @@ export function AvaOrb({
       // Live voice reactivity — SUBTLE and low-pass smoothed, so the orb gently breathes with
       // the voice and never jitters. k=0 → identical to the resting orb. Rotation stays steady.
       const rawK = Math.max(0, Math.min(1, getIntensityRef.current?.() ?? 0));
-      smoothK += (rawK - smoothK) * 0.08;
+      // Asymmetric smoothing — rise quickly so it feels responsive, fall slowly so it never
+      // flickers. Lean the reaction on GLOW (brightness) over mesh displacement, so the orb
+      // pulses with light rather than wobbling its shape. Reads premium, not jittery.
+      smoothK += (rawK - smoothK) * (rawK > smoothK ? 0.2 : 0.045);
       const k = smoothK;
-      coreU.uAmp.value = amp * (1 + k * 0.16);
-      coreU.uFlow.value = flow * (1 + k * 0.12);
-      coreU.uBright.value = 1.15 + k * 0.38;
-      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.16);
-      haloU.uBright.value = 0.65 + k * 0.28;
+      coreU.uAmp.value = amp * (1 + k * 0.07);
+      coreU.uFlow.value = flow * (1 + k * 0.1);
+      coreU.uBright.value = 1.15 + k * 0.55;
+      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.07);
+      haloU.uBright.value = 0.65 + k * 0.46;
       grp.rotation.y += spin * 0.02;
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);

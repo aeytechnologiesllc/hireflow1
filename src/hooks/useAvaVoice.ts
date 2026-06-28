@@ -490,7 +490,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       });
       
       const micScalar = bands.reduce((a, i) => a + (dataArray[i] || 0), 0) / (bands.length * 255);
-      micLevelRef.current = Math.min(1, micScalar * 1.6); // fresh each frame (real-time mic level)
+      // Smooth the mic envelope so the orb reacts to the *shape* of your voice, not every spike.
+      micLevelRef.current = micLevelRef.current * 0.6 + Math.min(1, micScalar * 1.7) * 0.4;
 
       setState(s => ({ ...s, audioLevels: levels }));
       avaLevelRef.current *= 0.9; // decay Ava's voice level between audio chunks (natural fade-out)
