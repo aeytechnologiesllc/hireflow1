@@ -134,9 +134,12 @@ export default function JobDetails() {
         }
       }
 
-      // Accountless hireflow1 path: still requires auth for full phase engine today
+      // Accountless hireflow1 path: the full phase engine still requires auth.
+      // Send them to candidate auth with a return path back to this job, rather
+      // than a dead route. After signing in they land here and apply for real.
       if (!user) {
-        navigate(`/candidate/apply/${job.id}/form`.replace("/candidate/apply/", "/candidate/job/"));
+        const back = `/candidate/job/${job.id}`;
+        navigate(`/candidate/auth?redirect=${encodeURIComponent(back)}`);
         return;
       }
 
@@ -250,7 +253,7 @@ export default function JobDetails() {
     );
   }
 
-  if (error || !job) {
+  if (loadError || !job) {
     return (
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">

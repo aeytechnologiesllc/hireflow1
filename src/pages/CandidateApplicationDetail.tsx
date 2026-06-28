@@ -19,8 +19,8 @@ import {
   MessageSquare, 
   Eye, 
   Users, 
-  CheckCircle, 
-  Sparkles,
+  CheckCircle,
+  ListChecks,
   Clock,
   Play,
   Loader2,
@@ -807,7 +807,7 @@ export default function CandidateApplicationDetail() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <ListChecks className="h-5 w-5 text-primary" />
             Phase Breakdown
           </CardTitle>
         </CardHeader>

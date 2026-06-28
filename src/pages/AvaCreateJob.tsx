@@ -468,7 +468,7 @@ export default function AvaCreateJob() {
 
               {step === 5 && publishedCode && (
                 <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                  <AvaOrb size={168} reflection={false} amp={0.26} flow={0.7} />
+                  <AvaOrb size={248} reflection={false} amp={0.26} flow={0.7} />
                   <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
                     <Check className="h-3 w-3" /> Your role is live
                   </span>
