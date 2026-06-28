@@ -68,6 +68,7 @@ const DeveloperSettings = lazy(() => import("./pages/DeveloperSettings"));
 const OrbPreview = lazy(() => import("./pages/OrbPreview"));
 const AvaFlowPreview = lazy(() => import("./pages/AvaFlowPreview"));
 const OrbAudit = lazy(() => import("./pages/OrbAudit"));
+const OrbIconCapture = lazy(() => import("./pages/OrbIconCapture"));
 
 // Standard premium loading state — a properly sized, centered Ava orb.
 function LazyFallback() {
@@ -165,6 +166,7 @@ const App = () => (
                   <Route path="/orb-preview" element={<OrbPreview />} />
                   <Route path="/ava-preview" element={<AvaFlowPreview />} />
                   <Route path="/orb-audit" element={<OrbAudit />} />
+                  <Route path="/preview/orb-icon" element={<OrbIconCapture />} />
                   <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
                   <Route path="/jobs/create" element={<CreateJob />} />
                   
