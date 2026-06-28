@@ -345,7 +345,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     const externalStream = optionsRef.current.externalMicStream;
     if (!externalStream) {
       // Request microphone permission only if no external stream
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     }
 
     // Get session token from edge function
@@ -455,7 +455,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     if (optionsRef.current.externalMicStream) {
       ms = optionsRef.current.externalMicStream;
     } else {
-      ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Echo cancellation is critical: Ava's voice plays aloud, and without AEC the mic re-ingests
+      // it, the server transcribes it as a user turn, and Ava answers herself.
+      ms = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     }
     micStreamRef.current = ms;
     
@@ -541,7 +543,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // In assistant mode, she'll greet contextually based on current page
       // Use 1.5s delay for better audio stability and synchronization
       setTimeout(() => {
-        if (dcRef.current?.readyState === 'open') {
+        // Intake's greeting is owned by TalkToAva (triggerResponse) — don't double-greet here,
+        // or two overlapping response.create calls make Ava answer her own question.
+        if (dcRef.current?.readyState === 'open' && optionsRef.current.mode !== 'intake') {
           dcRef.current.send(JSON.stringify({ type: 'response.create' }));
           // Don't start processing timeout immediately - wait for first audio
           // This prevents premature "taking too long" alerts on connection
@@ -1026,6 +1030,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
   // Ask Ava to speak first (no user turn) — used by intake so she greets on connect.
   const triggerResponse = useCallback(() => {
+    if (isResponseActiveRef.current) return; // never stack a second greeting on an in-flight one
     if (dcRef.current?.readyState === 'open') {
       dcRef.current.send(JSON.stringify({ type: 'response.create' }));
     }

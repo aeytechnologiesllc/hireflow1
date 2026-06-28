@@ -2374,6 +2374,7 @@ Style:
                 prefix_padding_ms: 300,
                 silence_duration_ms: 700, // ChatGPT-like quick turn-taking
               },
+              noise_reduction: { type: "far_field" }, // strip leaked speaker audio (anti-echo belt)
               transcription: {
                 model: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
               },
