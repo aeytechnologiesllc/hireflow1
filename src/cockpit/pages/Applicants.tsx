@@ -132,10 +132,15 @@ export default function CockpitApplicants() {
   const [page, setPage] = useState(1);
   const [menuId, setMenuId] = useState<string | null>(null);
 
+  // The role identifier differs by schema: showcase apps carry `role_id`, hireflow1 apps carry
+  // `job_id`. Support both so the Role filter + the Jobs "View" deep-link (?roleId=<jobId>) work.
+  const appRoleId = (a: (typeof applications)[number]): string | null =>
+    ((a as { role_id?: string | null }).role_id ?? (a as { job_id?: string | null }).job_id) ?? null;
+
   // Role-scoped set (drives the funnel + the role title) — only the URL roleId filter applies here.
   const roleScoped = useMemo(() => {
     if (!roleIdFilter) return candidates;
-    const appIds = new Set(applications.filter((a) => a.role_id === roleIdFilter).map((a) => a.id));
+    const appIds = new Set(applications.filter((a) => appRoleId(a) === roleIdFilter).map((a) => a.id));
     return candidates.filter((c) => appIds.has(c.id));
   }, [candidates, applications, roleIdFilter]);
 
@@ -169,8 +174,9 @@ export default function CockpitApplicants() {
   const roleOptions = useMemo<FilterOption[]>(() => {
     const map = new Map<string, string>();
     for (const a of applications) {
+      const rid = appRoleId(a);
       const c = candidates.find((x) => x.id === a.id);
-      if (a.role_id && c?.role) map.set(a.role_id, c.role);
+      if (rid && c?.role) map.set(rid, c.role);
     }
     return [{ label: "All roles", value: "" }, ...[...map].map(([value, label]) => ({ label, value }))];
   }, [applications, candidates]);
