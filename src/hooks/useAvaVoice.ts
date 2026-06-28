@@ -74,6 +74,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<AudioQueue | null>(null);
   const avaLevelRef = useRef(0); // 0..1 smoothed amplitude of Ava's voice (drives the orb pulse)
+  const micLevelRef = useRef(0); // 0..1 amplitude of the user's mic (drives the orb while listening)
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -485,6 +486,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
         return Math.max(8, Math.min(32, 8 + (value / 255) * 24));
       });
       
+      const micScalar = bands.reduce((a, i) => a + (dataArray[i] || 0), 0) / (bands.length * 255);
+      micLevelRef.current = Math.min(1, micScalar * 1.6); // fresh each frame (real-time mic level)
+
       setState(s => ({ ...s, audioLevels: levels }));
       avaLevelRef.current *= 0.9; // decay Ava's voice level between audio chunks (natural fade-out)
       animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
@@ -627,7 +631,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               
               // Intake tools (set_brief_fields / finish_brief) only mutate the create-job
               // form state — handle them client-side and skip the ava-voice-tools round-trip.
-              if (event.name === 'set_brief_fields' || event.name === 'finish_brief') {
+              if (event.name === 'set_brief_fields' || event.name === 'present_readback' || event.name === 'create_job' || event.name === 'finish_brief') {
                 optionsRef.current.onToolCall?.(event.name, args);
                 if (dcRef.current?.readyState === 'open') {
                   dcRef.current.send(JSON.stringify({
@@ -1024,8 +1028,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
   }, []);
 
-  // Live 0..1 amplitude of Ava's voice — read by the orb each frame (ref-based, no re-render).
+  // Live 0..1 amplitude — read by the orb each frame (ref-based, no re-render).
+  // getAvaLevel = Ava's voice; getVoiceLevel = whoever is talking (Ava OR the user's mic).
   const getAvaLevel = useCallback(() => avaLevelRef.current, []);
+  const getVoiceLevel = useCallback(() => Math.max(avaLevelRef.current, micLevelRef.current), []);
 
   return {
     ...state,
@@ -1036,6 +1042,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     getAvaAudioElement,
     triggerResponse,
     getAvaLevel,
+    getVoiceLevel,
     retryConnection,
     nudgeAva,
   };

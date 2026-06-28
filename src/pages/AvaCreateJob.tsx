@@ -289,7 +289,7 @@ export default function AvaCreateJob() {
         <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
-        <div className="hidden flex-1 sm:block"><StepRail step={step} /></div>
+        {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} /></div>}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
             {genSource === "openai" ? "AI generated" : "Template fallback"}
@@ -297,7 +297,7 @@ export default function AvaCreateJob() {
         )}
       </header>
 
-      <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} /></div>
+      {!(step === 0 && inputMode === "voice") && <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} /></div>}
 
       <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="my-auto w-full max-w-5xl">
@@ -307,7 +307,17 @@ export default function AvaCreateJob() {
                 <TalkToAva
                   brief={briefFields}
                   onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
-                  onComplete={() => setStep(1)}
+                  onComplete={(payload) => {
+                    // Voice confirmed → skip Follow-ups + Rigor: map the brief, auto-pick the
+                    // recommended rigor for the detected role family, and jump straight into the
+                    // existing "Ava is building" step (which auto-runs generateJobFlow).
+                    const merged = { ...briefFields, ...payload };
+                    setBriefFields(merged);
+                    const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
+                    setRigor(PLAYBOOKS[fam].rigor.recommended);
+                    setRigorTouched(true);
+                    setStep(3);
+                  }}
                   onPreferType={() => setInputMode("form")}
                 />
               )}
@@ -494,7 +504,7 @@ export default function AvaCreateJob() {
         </div>
       </main>
 
-      {step !== 3 && step !== 5 && (
+      {step !== 3 && step !== 5 && !(step === 0 && inputMode === "voice") && (
         <footer className="relative z-10 flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <button type="button" onClick={handleBack} disabled={step === 0} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-30" style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}>
             <ArrowLeft className="h-4 w-4" /> Back
