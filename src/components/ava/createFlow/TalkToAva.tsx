@@ -58,6 +58,7 @@ export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete,
   const [messages, setMessages] = useState<Msg[]>([]);
   const [readback, setReadback] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [handedBack, setHandedBack] = useState(false);
   const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
 
   const msgCounter = useRef(0);
@@ -132,6 +133,8 @@ export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete,
         if (ids.length) onReorderPhases(ids);
       } else if (toolName === "confirm_plan") {
         onConfirmPublish();
+      } else if (toolName === "hand_off") {
+        setHandedBack(true);
       }
     },
     [onBriefPatch, doCreate, onEditPhase, onRemovePhase, onReorderPhases, onConfirmPublish],
@@ -169,17 +172,30 @@ export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete,
     if (step >= 4) setCreating(false);
   }, [step]);
 
-  // REVIEW: when the plan first appears and Ava is quiet, prompt her — ONCE — to present it and
-  // invite changes. Guarded on isSpeaking/isProcessing so we never talk over her closing line.
+  // REVIEW: prompt Ava — ONCE — to present the plan and invite changes. She must NOT announce it
+  // before the employer can see it, so we (a) wait until she's quiet, then (b) hold a beat for the
+  // build→review transition to finish, so "it's ready" lands exactly when the plan is on screen.
   useEffect(() => {
     if (step !== 4 || !isConnected || reviewPromptedRef.current) return;
-    if (isSpeaking || isProcessing) return; // wait until she's finished talking
-    reviewPromptedRef.current = true;
-    const summary = reviewCardsRef.current.map((c, i) => `${i + 1}. ${c.kind} — ${c.title}`).join("; ");
-    voice.sendSystemInstruction(
-      `[The hiring plan is now built and on screen with these steps: ${summary}. Briefly tell the employer it's ready, then ask if they'd like to change anything — you can rename or reword a step, remove one, reorder them, or publish. One or two sentences.]`,
-    );
+    if (isSpeaking || isProcessing) return; // wait until she's finished her build line
+    const t = window.setTimeout(() => {
+      if (reviewPromptedRef.current) return;
+      reviewPromptedRef.current = true;
+      const summary = reviewCardsRef.current.map((c, i) => `${i + 1}. ${c.kind} — ${c.title}`).join("; ");
+      voice.sendSystemInstruction(
+        `[The build animation has finished and the hiring plan is NOW VISIBLE on the employer's screen, with these steps: ${summary}. NOW (not before) tell them it's ready and ask if they'd like to change anything — you can rename or reword a step, remove one, reorder them, or publish. One or two sentences.]`,
+      );
+    }, 1300);
+    return () => window.clearTimeout(t);
   }, [step, isConnected, isSpeaking, isProcessing, voice]);
+
+  // Graceful handoff: when Ava hands the plan back, let her finish her sign-off line, then quietly
+  // end the voice session so the employer can publish manually.
+  useEffect(() => {
+    if (!handedBack || !isConnected || isSpeaking) return;
+    const t = window.setTimeout(() => { try { disconnect(); } catch { /* no-op */ } }, 900);
+    return () => window.clearTimeout(t);
+  }, [handedBack, isConnected, isSpeaking, disconnect]);
 
   const hasData = briefHasAnyData(jobBrief);
   const phase: Phase = creating ? "creating"
@@ -228,6 +244,20 @@ export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete,
 
   // REVIEW step — a compact "Ava is here" bar so she can refine the plan with the employer by voice.
   if (step === 4) {
+    if (handedBack) {
+      return (
+        <div className="mx-auto mb-6 w-full max-w-2xl">
+          <div className="flex items-center gap-3 rounded-2xl p-3.5 sm:p-4" style={PANEL}>
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
+              <Check className="h-4 w-4" />
+            </span>
+            <p className="text-[13.5px] leading-snug" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
+              Ava stepped back — hit <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>Publish role</strong> when you're ready.
+            </p>
+          </div>
+        </div>
+      );
+    }
     const reviewStatus = !isConnected ? "Connecting…" : isSpeaking ? "Speaking" : isProcessing ? "One moment…" : "Listening";
     return (
       <div className="mx-auto mb-6 w-full max-w-2xl">
