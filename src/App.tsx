@@ -10,6 +10,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import AppLayout from "@/components/AppLayout";
 import DeveloperLayout from "@/components/DeveloperLayout";
 import { OrbLoader } from "@/components/ava/OrbLoader";
+import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
 // Core pages loaded eagerly for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -164,6 +165,7 @@ const App = () => (
                   <Route path="/orb-preview" element={<OrbPreview />} />
                   <Route path="/ava-preview" element={<AvaFlowPreview />} />
                   <Route path="/orb-audit" element={<OrbAudit />} />
+                  <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
                   <Route path="/jobs/create" element={<CreateJob />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}

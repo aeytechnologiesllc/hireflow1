@@ -33,7 +33,7 @@ const HEROES: Item[] = [
 
 const FEATURE: Item[] = [
   { label: "Onboarding Welcome · 172", size: 172, reflection: false },
-  { label: "Loader ORB_SIZE.md · 144", size: 144, reflection: false, amp: 0.24, flow: 0.6 },
+  { label: "Loader / sign-in (ORB_SIZE.md) · 240", size: 240, reflection: false, amp: 0.24, flow: 0.6 },
 ];
 
 // Small accents that sit next to text (candidate "Ava's read", cards, lists).
