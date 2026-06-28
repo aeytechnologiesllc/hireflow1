@@ -2341,31 +2341,38 @@ How to behave:
     });
 
     // Request ephemeral token from OpenAI Realtime API
-    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
+    // GA Realtime API: ephemeral tokens are minted at /v1/realtime/client_secrets with the
+    // config nested under `session` (the old /v1/realtime/sessions beta endpoint was removed).
+    const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: OPENAI_REALTIME_MODEL,
-        voice: selectedVoice,
-        instructions,
-        tools,
-        tool_choice: "auto",
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
-        input_audio_transcription: {
-          model: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+        session: {
+          type: "realtime",
+          model: OPENAI_REALTIME_MODEL,
+          instructions,
+          tools,
+          tool_choice: "auto",
+          audio: {
+            input: {
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 700, // ChatGPT-like quick turn-taking
+              },
+              transcription: {
+                model: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+              },
+            },
+            output: {
+              voice: selectedVoice,
+            },
+          },
         },
-        turn_detection: {
-          type: "server_vad",
-          threshold: 0.5, // Default - detect normal speech (faster response)
-          prefix_padding_ms: 300, // Faster detection (was 600)
-          silence_duration_ms: 700, // Quick response after pause - ChatGPT-like (was 2500!)
-        },
-        temperature: 0.7, // Faster, more consistent responses
-        max_response_output_tokens: "inf",
       }),
     });
 
@@ -2376,14 +2383,15 @@ How to behave:
     }
 
     const sessionData = await response.json();
-    console.log("Voice session created:", { sessionId: sessionData.id, voice: selectedVoice });
-
-    // Voice usage will be tracked when session ends via webhook or frontend tracking
-    // The voice_credits table is used for minute tracking with FIFO consumption
+    // GA /client_secrets returns the ephemeral key at top-level `value`; the client reads
+    // client_secret.value, so map it for backward compatibility.
+    const ephemeralValue = sessionData?.value ?? sessionData?.client_secret?.value;
+    console.log("Voice session created:", { hasKey: !!ephemeralValue, voice: selectedVoice });
 
     return new Response(
       JSON.stringify({
         ...sessionData,
+        client_secret: { value: ephemeralValue },
         selectedVoice,
         selectedModel: OPENAI_REALTIME_MODEL,
         selectedTranscriptionModel: OPENAI_REALTIME_TRANSCRIPTION_MODEL,

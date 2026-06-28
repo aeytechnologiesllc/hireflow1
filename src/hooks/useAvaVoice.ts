@@ -831,8 +831,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     const offer = await pcRef.current.createOffer();
     await pcRef.current.setLocalDescription(offer);
 
-    // Connect to OpenAI's Realtime API
-    const baseUrl = 'https://api.openai.com/v1/realtime';
+    // Connect to OpenAI's Realtime API (GA: WebRTC SDP exchange moved to /v1/realtime/calls).
+    const baseUrl = 'https://api.openai.com/v1/realtime/calls';
     const model = realtimeModel;
     const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
       method: 'POST',
