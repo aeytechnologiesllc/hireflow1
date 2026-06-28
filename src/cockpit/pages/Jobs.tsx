@@ -14,11 +14,13 @@ import {
   Pencil,
   Copy,
   Check,
+  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { AvaCard } from "../components/AvaCard";
+import { AvaOrb } from "@/components/ava/AvaOrb";
 import { useCockpitJobsData, useCockpitAccount } from "../hooks/useCockpitData";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -233,26 +235,41 @@ export default function CockpitJobs() {
             {isLoading ? (
               <div className="ck-card p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>Loading roles…</div>
             ) : jobs.length === 0 ? (
-              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No roles yet — create your first job to get started.</div>
+              <div className="ck-card flex flex-col items-center gap-4 p-10 text-center">
+                <AvaOrb size={132} reflection={false} />
+                <div>
+                  <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>Create your first role with Ava</div>
+                  <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed" style={{ color: "hsl(150 10% 60%)" }}>
+                    Just tell her who you need to hire — she'll shape it into a complete hiring flow.
+                  </p>
+                </div>
+                <button className="ck-btn ck-btn-brass inline-flex items-center gap-2" onClick={() => { clearDraft(); navigate("/jobs/create"); }}>
+                  <Mic className="h-4 w-4" /> Talk to Ava
+                </button>
+              </div>
             ) : (
               jobs.map((job) => <JobCard key={job.id} job={job} />)
             )}
           </div>
         </div>
 
-        <div className="hidden lg:block">
-          <AvaCard
-            text="Ava recommends closing the voice bottleneck for Barista."
-            ctaLabel="View insight"
-            orbSize={132}
-            onCta={() => navigate("/analytics")}
-          />
-        </div>
+        {jobs.length > 0 && (
+          <div className="hidden lg:block">
+            <AvaCard
+              text="Ava recommends closing the voice bottleneck for Barista."
+              ctaLabel="View insight"
+              orbSize={132}
+              onCta={() => navigate("/analytics")}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="lg:hidden">
-        <AvaCard variant="wide" text="Ava recommends closing the voice bottleneck for Barista." onCta={() => navigate("/analytics")} />
-      </div>
+      {jobs.length > 0 && (
+        <div className="lg:hidden">
+          <AvaCard variant="wide" text="Ava recommends closing the voice bottleneck for Barista." onCta={() => navigate("/analytics")} />
+        </div>
+      )}
     </div>
   );
 }

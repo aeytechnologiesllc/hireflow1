@@ -443,6 +443,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     // Set up audio element for remote audio
     audioElRef.current = document.createElement('audio');
     audioElRef.current.autoplay = true;
+    // SINGLE voice path: Ava's audio also plays via the AudioQueue (PCM deltas), which drives
+    // isSpeaking + barge-in + the orb. Mute the WebRTC element so we never hear two copies at once.
+    audioElRef.current.muted = true;
     pcRef.current.ontrack = (e) => {
       if (audioElRef.current) {
         audioElRef.current.srcObject = e.streams[0];
