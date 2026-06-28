@@ -4,7 +4,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
   Check,
-  Sparkles,
   ArrowUp,
   ArrowDown,
   Pencil,
@@ -14,6 +13,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { AvaOrb } from "@/components/ava/AvaOrb";
+import { AvaGlyph } from "@/components/ava/AvaGlyph";
 
 export const DISPLAY = "'Fraunces', Georgia, serif";
 
@@ -140,43 +140,52 @@ export function PhaseRow({
           boxShadow: editing ? "0 0 30px hsl(var(--primary) / 0.1)" : "var(--shadow-md)",
         }}
       >
+        {/* Header: icon paired with kind + title; controls pinned top-right */}
         <div className="flex items-start gap-3.5">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: a.tile, color: a.fg, border: `1px solid ${a.edge}` }}>
             <Icon className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: a.fg }}>{phase.kind}</span>
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>{phase.count}</span>
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>
-                <Clock className="h-2.5 w-2.5" /> {phase.duration}
-              </span>
-              <div className="ml-auto flex items-center gap-1">
-                <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
-                <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
-                <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", border: "1px solid hsl(var(--primary))" } : ctrlStyle}>
-                  {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                </button>
-                <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
-              </div>
-            </div>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: a.fg }}>{phase.kind}</span>
             {editing ? (
-              <div className="mt-2 space-y-2">
-                <input value={phase.title} onChange={(e) => onField("title", e.target.value)} className="w-full rounded-lg px-3 py-2 text-base font-semibold outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", fontFamily: DISPLAY }} />
-                {phase.candidate && (
-                  <textarea value={phase.candidate} onChange={(e) => onField("candidate", e.target.value)} rows={2} className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }} />
-                )}
-              </div>
+              <input value={phase.title} onChange={(e) => onField("title", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-[17px] font-semibold outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", fontFamily: DISPLAY }} />
             ) : (
-              <>
-                <h3 className="mt-1 text-base font-semibold" style={{ color: "hsl(var(--foreground))", fontFamily: DISPLAY }}>{phase.title}</h3>
-                {phase.candidate && <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.82)" }}>{phase.candidate}</p>}
-              </>
+              <h3 className="mt-0.5 text-[17px] font-semibold leading-snug" style={{ color: "hsl(var(--foreground))", fontFamily: DISPLAY }}>{phase.title}</h3>
             )}
-            <div className="mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: "hsl(var(--ck-surface-2))" }}>
-              <Sparkles className="mt-0.5 h-3 w-3 shrink-0" style={{ color: "hsl(var(--ck-brass))" }} />
-              <span className="text-xs italic leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>{phase.rationale}</span>
-            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
+            <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", border: "1px solid hsl(var(--primary))" } : ctrlStyle}>
+              {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            </button>
+            <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
+          </div>
+        </div>
+
+        {/* What the candidate experiences */}
+        {editing ? (
+          phase.candidate && (
+            <textarea value={phase.candidate} onChange={(e) => onField("candidate", e.target.value)} rows={2} className="mt-3 w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }} />
+          )
+        ) : (
+          phase.candidate && <p className="mt-3 text-sm leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.85)" }}>{phase.candidate}</p>
+        )}
+
+        {/* Metrics — their own quiet line, not competing with the title */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>{phase.count}</span>
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>
+            <Clock className="h-2.5 w-2.5" /> {phase.duration}
+          </span>
+        </div>
+
+        {/* Ava's reasoning — elevated insight (legible, not buried metadata) */}
+        <div className="mt-3 flex items-start gap-2.5 rounded-r-lg py-1.5 pl-3 pr-2" style={{ borderLeft: "2px solid hsl(var(--ck-brass) / 0.6)", background: "hsl(var(--ck-surface-2) / 0.55)" }}>
+          <AvaGlyph size={14} className="mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--ck-brass))" }}>Why this step</span>
+            <span className="mt-0.5 block text-[13px] leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.85)" }}>{phase.rationale}</span>
           </div>
         </div>
       </div>

@@ -26,13 +26,34 @@ type Phase = "idle" | "listening" | "thinking" | "speaking" | "readback" | "crea
 type Msg = { id: number; role: "user" | "ava"; text: string };
 
 interface TalkToAvaProps {
+  /** Current wizard step. TalkToAva stays mounted across 0 (intake) → 3 (build) → 4 (review). */
+  step: number;
   brief: { role: string; location: string; type: string; pay: string; start: string; work: string; openings: number };
+  /** The live plan (review step) — lets Ava resolve which step the employer means by voice. */
+  reviewCards: { id: string; kind: string; title: string }[];
   onBriefPatch: (patch: Partial<BriefFormPayload>) => void;
   onComplete: (payload: BriefFormPayload) => void;
   onPreferType: () => void;
+  /** Real-time voice editing of the plan on the review step. */
+  onEditPhase: (id: string, field: "title" | "candidate", value: string) => void;
+  onRemovePhase: (id: string) => void;
+  onReorderPhases: (ids: string[]) => void;
+  onConfirmPublish: () => void;
 }
 
-export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: TalkToAvaProps) {
+/** Match a plain step name Ava says ("the quiz", "voice interview") to a plan card. */
+function matchCard(cards: { id: string; kind: string; title: string }[], name: unknown): { id: string } | null {
+  const q = String(name ?? "").toLowerCase().trim();
+  if (!q) return null;
+  return (
+    cards.find((c) => c.kind.toLowerCase() === q) ||
+    cards.find((c) => c.kind.toLowerCase().includes(q) || q.includes(c.kind.toLowerCase())) ||
+    cards.find((c) => c.title.toLowerCase().includes(q)) ||
+    null
+  );
+}
+
+export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete, onPreferType, onEditPhase, onRemovePhase, onReorderPhases, onConfirmPublish }: TalkToAvaProps) {
   const [jobBrief, setJobBrief] = useState<JobBrief>(emptyJobBrief);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [readback, setReadback] = useState(false);
@@ -46,6 +67,9 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
   const handedOff = useRef(false);
   const jobBriefRef = useRef(jobBrief);
   jobBriefRef.current = jobBrief;
+  const reviewCardsRef = useRef(reviewCards);
+  reviewCardsRef.current = reviewCards;
+  const reviewPromptedRef = useRef(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -92,9 +116,25 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
         setReadback(true);
       } else if (toolName === "create_job" || toolName === "finish_brief") {
         doCreate();
+      } else if (toolName === "edit_phase") {
+        const card = matchCard(reviewCardsRef.current, args?.phase);
+        if (card) {
+          if (typeof args?.title === "string" && args.title.trim()) onEditPhase(card.id, "title", args.title.trim());
+          if (typeof args?.description === "string" && args.description.trim()) onEditPhase(card.id, "candidate", args.description.trim());
+        }
+      } else if (toolName === "remove_phase") {
+        const card = matchCard(reviewCardsRef.current, args?.phase);
+        if (card) onRemovePhase(card.id);
+      } else if (toolName === "reorder_phases") {
+        const ids = (Array.isArray(args?.order) ? args.order : [])
+          .map((n: unknown) => matchCard(reviewCardsRef.current, n)?.id)
+          .filter((x: string | undefined): x is string => Boolean(x));
+        if (ids.length) onReorderPhases(ids);
+      } else if (toolName === "confirm_plan") {
+        onConfirmPublish();
       }
     },
-    [onBriefPatch, doCreate],
+    [onBriefPatch, doCreate, onEditPhase, onRemovePhase, onReorderPhases, onConfirmPublish],
   );
 
   const voice = useAvaVoice({ mode: "intake", currentRoute: "/jobs/create", onTranscript, onToolCall });
@@ -123,6 +163,23 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
     const t = window.setTimeout(handoff, 700); // a calm beat after she finishes → transition
     return () => window.clearTimeout(t);
   }, [creating, isSpeaking, handoff]);
+
+  // Once the plan is on screen (review step), clear the building state.
+  useEffect(() => {
+    if (step >= 4) setCreating(false);
+  }, [step]);
+
+  // REVIEW: when the plan first appears and Ava is quiet, prompt her — ONCE — to present it and
+  // invite changes. Guarded on isSpeaking/isProcessing so we never talk over her closing line.
+  useEffect(() => {
+    if (step !== 4 || !isConnected || reviewPromptedRef.current) return;
+    if (isSpeaking || isProcessing) return; // wait until she's finished talking
+    reviewPromptedRef.current = true;
+    const summary = reviewCardsRef.current.map((c, i) => `${i + 1}. ${c.kind} — ${c.title}`).join("; ");
+    voice.sendSystemInstruction(
+      `[The hiring plan is now built and on screen with these steps: ${summary}. Briefly tell the employer it's ready, then ask if they'd like to change anything — you can rename or reword a step, remove one, reorder them, or publish. One or two sentences.]`,
+    );
+  }, [step, isConnected, isSpeaking, isProcessing, voice]);
 
   const hasData = briefHasAnyData(jobBrief);
   const phase: Phase = creating ? "creating"
@@ -165,6 +222,30 @@ export default function TalkToAva({ onBriefPatch, onComplete, onPreferType }: Ta
       <AvaOrb size={orbSize} reflection={false} amp={0.26} flow={0.72} getIntensity={getVoiceLevel} />
     </div>
   );
+
+  // BUILD step — keep the voice session alive (BuildStep renders its own orb); nothing visible here.
+  if (step === 3) return <div aria-hidden className="hidden" />;
+
+  // REVIEW step — a compact "Ava is here" bar so she can refine the plan with the employer by voice.
+  if (step === 4) {
+    const reviewStatus = !isConnected ? "Connecting…" : isSpeaking ? "Speaking" : isProcessing ? "One moment…" : "Listening";
+    return (
+      <div className="mx-auto mb-6 w-full max-w-2xl">
+        <div className="flex items-center gap-3.5 rounded-2xl p-3.5 sm:p-4" style={PANEL}>
+          <div aria-hidden className="shrink-0" style={{ filter: `drop-shadow(0 0 26px hsl(${GREEN} / 0.4))` }}>
+            <AvaOrb size={56} reflection={false} amp={0.26} flow={0.72} getIntensity={getVoiceLevel} />
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            <div className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · {reviewStatus}</div>
+            <p className="mt-0.5 text-[13.5px] leading-snug" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
+              Tell me what to change — rename a step, remove one, reorder, or say “publish it.”
+            </p>
+          </div>
+          <button type="button" onClick={() => disconnect()} className="shrink-0 text-[12px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--muted-foreground))" }}>End voice</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">

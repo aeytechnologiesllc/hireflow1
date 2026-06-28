@@ -24,17 +24,18 @@ import {
   QrCode,
   Share2,
   ShieldCheck,
-  Sparkles,
   Timer,
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { AvaOrb } from "@/components/ava/AvaOrb";
+import { AvaGlyph } from "@/components/ava/AvaGlyph";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { CountUp } from "@/cockpit/components/CountUp";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import {
   BuildStep,
   DISPLAY,
@@ -104,13 +105,18 @@ function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
 
 function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
   const post = cards.find((c) => c.id === "job-post");
-  const next = { ...flow, jobPost: { ...flow.jobPost, title: post?.title ?? flow.jobPost.title, summary: post?.candidate ?? flow.jobPost.summary } };
-  next.phases = flow.phases.map((p) => {
-    const card = cards.find((c) => c.id === p.id);
-    if (!card) return p;
-    return { ...p, title: card.title, candidateDescription: card.candidate };
-  });
-  return next;
+  const jobPost = { ...flow.jobPost, title: post?.title ?? flow.jobPost.title, summary: post?.candidate ?? flow.jobPost.summary };
+  // The cards are the source of truth for which phases ship AND their order — so removing or
+  // reordering a card (by hand or by voice) actually changes the published flow. Rebuild phases
+  // from the card order, dropping any card whose phase no longer exists.
+  const byId = new Map(flow.phases.map((p) => [p.id, p]));
+  const phases = cards
+    .filter((c) => c.id !== "job-post" && byId.has(c.id))
+    .map((c) => {
+      const p = byId.get(c.id)!;
+      return { ...p, title: c.title, candidateDescription: c.candidate };
+    });
+  return { ...flow, jobPost, phases };
 }
 
 const DRAFT_SESSION_KEY = "ava-create-active";
@@ -119,6 +125,8 @@ export default function AvaCreateJob() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
+  const { limits } = useSubscription();
+  const hasVoiceInterviews = limits?.hasVoiceInterviews ?? false;
   const wide = useWide();
   const reduceMotion = useReducedMotion();
 
@@ -215,7 +223,7 @@ export default function AvaCreateJob() {
         ...briefFields,
         followUps: chipAnswersToBriefAnswers(followUps, chipAnswers),
       });
-      const created = await createJobFromFlow(edited, brief, { status: "published" });
+      const created = await createJobFromFlow(edited, brief, { status: "published", voiceInterview: hasVoiceInterviews });
       clearDraft();
       sessionStorage.removeItem(DRAFT_SESSION_KEY);
       setPublishedCode(created.job_code);
@@ -231,6 +239,27 @@ export default function AvaCreateJob() {
       setPublishing(false);
     }
   };
+
+  // Real-time voice editing of the plan (Ava calls these via TalkToAva on the review step).
+  // These mutate the SAME reviewCards the manual buttons do — one source of truth.
+  const onEditPhase = useCallback((id: string, field: "title" | "candidate", value: string) => {
+    setReviewCards((arr) => arr.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
+  }, []);
+  const onRemovePhase = useCallback((id: string) => {
+    setReviewCards((arr) => arr.filter((x) => x.id !== id));
+  }, []);
+  const onReorderPhases = useCallback((ids: string[]) => {
+    setReviewCards((arr) => {
+      const jobPost = arr.filter((x) => x.id === "job-post");
+      const rest = arr.filter((x) => x.id !== "job-post");
+      const ordered = ids.map((id) => rest.find((x) => x.id === id)).filter((x): x is ReviewPhaseCard => Boolean(x));
+      const remaining = rest.filter((x) => !ids.includes(x.id));
+      return [...jobPost, ...ordered, ...remaining];
+    });
+  }, []);
+
+  // Voice flow keeps Ava mounted across intake (0) → build (3) → review (4), so she's never cut off.
+  const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || step === 3 || step === 4);
 
   const canContinueBrief = briefFields.role.trim().length > 1 && briefFields.location.trim() && briefFields.pay.trim() && briefFields.work.trim();
 
@@ -301,33 +330,40 @@ export default function AvaCreateJob() {
 
       <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="my-auto w-full max-w-5xl">
+          {/* Persistent voice presence — stays mounted across intake → build → review so Ava is
+              never cut off and can refine the plan with the employer by voice in real time. */}
+          {voiceLed && (
+            <TalkToAva
+              step={step}
+              brief={briefFields}
+              reviewCards={reviewCards}
+              onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
+              onComplete={(payload) => {
+                // Voice confirmed → skip Follow-ups + Rigor: map the brief, auto-pick the
+                // recommended rigor for the detected role family, and jump straight into the
+                // existing "Ava is building" step (which auto-runs generateJobFlow).
+                const merged = { ...briefFields, ...payload };
+                setBriefFields(merged);
+                const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
+                setRigor(PLAYBOOKS[fam].rigor.recommended);
+                setRigorTouched(true);
+                setStep(3);
+              }}
+              onPreferType={() => setInputMode("form")}
+              onEditPhase={onEditPhase}
+              onRemovePhase={onRemovePhase}
+              onReorderPhases={onReorderPhases}
+              onConfirmPublish={() => void handlePublish()}
+            />
+          )}
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
-              {step === 0 && inputMode === "voice" && (
-                <TalkToAva
-                  brief={briefFields}
-                  onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
-                  onComplete={(payload) => {
-                    // Voice confirmed → skip Follow-ups + Rigor: map the brief, auto-pick the
-                    // recommended rigor for the detected role family, and jump straight into the
-                    // existing "Ava is building" step (which auto-runs generateJobFlow).
-                    const merged = { ...briefFields, ...payload };
-                    setBriefFields(merged);
-                    const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
-                    setRigor(PLAYBOOKS[fam].rigor.recommended);
-                    setRigorTouched(true);
-                    setStep(3);
-                  }}
-                  onPreferType={() => setInputMode("form")}
-                />
-              )}
-
               {step === 0 && inputMode === "form" && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
                     <AvaOrb size={240} reflection={false} />
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
-                      <Sparkles className="h-3 w-3" /> Ava · Hiring assistant
+                      <AvaGlyph size={12} /> Ava · Hiring assistant
                     </span>
                     <h1 className="mt-4 text-3xl leading-[1.1] sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Tell Ava what you're<br className="hidden sm:block" /> hiring for.</h1>
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
@@ -377,7 +413,7 @@ export default function AvaCreateJob() {
                     <AvaOrb size={wide ? 248 : 208} reflection={false} amp={0.26} flow={0.72} />
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
-                      <Sparkles className="h-2.5 w-2.5" /> Tailored to a {playbook.label} role
+                      <AvaGlyph size={11} /> Tailored to a {playbook.label} role
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
                     <div className="mt-7 flex flex-wrap justify-center gap-2.5">
@@ -399,7 +435,7 @@ export default function AvaCreateJob() {
                   <AvaOrb size={wide ? 224 : 184} reflection={false} amp={0.24} flow={0.7} />
                   <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How thoroughly should I screen?</h2>
                   <div className="mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl p-4 text-left" style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
-                    <Sparkles className="mt-1 h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-brass-bright))" }} />
+                    <AvaGlyph size={16} className="mt-1 shrink-0" />
                     <p className="text-sm leading-relaxed">I'd screen this at <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>{RIGOR_OPTIONS.find((o) => o.id === playbook.rigor.recommended)?.label}</strong>. {playbook.rigor.rationale}</p>
                   </div>
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -522,7 +558,7 @@ export default function AvaCreateJob() {
           >
             {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
             {nextLabel}
-            {step === 2 ? <Sparkles className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+            {step === 2 ? <AvaGlyph size={16} /> : <ArrowRight className="h-4 w-4" />}
           </button>
         </footer>
       )}

@@ -124,7 +124,7 @@ function buildPhases(brief: GenerateFlowRequest["brief"], rigor: GenerateFlowReq
     kind: "voice_interview",
     order: order++,
     title: "Answer a few questions out loud",
-    candidateDescription: "A short, friendly recording about your experience and approach.",
+    candidateDescription: "A short, friendly spoken conversation with Ava about your experience and approach.",
     rationale: "The strongest signal — clarity, judgment, and ownership; hardest to fake.",
     config: {
       kind: "voice_interview",

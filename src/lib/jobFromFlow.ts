@@ -65,6 +65,12 @@ export interface CreateJobFromFlowResult {
 export interface CreateJobFromFlowOptions {
   /** "published" (default) or "draft". */
   status?: "published" | "draft";
+  /**
+   * When true, a planned voice-interview phase is persisted as a real `voice_interview`
+   * step (spoken interview with Ava). When false, it degrades to `chat_interview` (typed).
+   * Mirror the employer's plan access (useSubscription().limits.hasVoiceInterviews).
+   */
+  voiceInterview?: boolean;
 }
 
 function uid(prefix: string): string {
@@ -162,7 +168,7 @@ function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
  * and are intentionally excluded here. Each emitted step uses a `type` that has a real
  * candidate runtime + route (see src/utils/getApplicationDisplayState.ts).
  */
-function buildWorkflowSteps(phases: ScreeningPhase[]): WorkflowStep[] {
+function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boolean): WorkflowStep[] {
   const steps: WorkflowStep[] = [];
 
   for (const phase of phases) {
@@ -183,13 +189,18 @@ function buildWorkflowSteps(phases: ScreeningPhase[]): WorkflowStep[] {
       });
     } else if (phase.kind === "voice_interview") {
       const cfg = phase.config as VoiceConfig;
-      // Map to chat_interview (text) — universally available runtime; CreateJob upgrades
-      // chat_interview -> voice_interview only when the employer has premium voice access.
+      // A planned voice interview persists as a real `voice_interview` step (spoken interview
+      // with Ava via the Realtime stack) when the employer has voice access; otherwise it
+      // degrades to `chat_interview` (typed) so the candidate flow never breaks on the gate.
       steps.push({
         id: uid("step"),
-        type: "chat_interview",
-        title: phase.title || "Interview with Ava",
-        description: phase.candidateDescription || "A short conversation about your experience.",
+        type: voiceInterview ? "voice_interview" : "chat_interview",
+        title: phase.title || (voiceInterview ? "Voice interview with Ava" : "Interview with Ava"),
+        description:
+          phase.candidateDescription ||
+          (voiceInterview
+            ? "A short spoken conversation with Ava about your experience."
+            : "A short conversation about your experience."),
         required: true,
         config: {
           questions: (cfg.questions ?? []).map((q) => q.prompt),
@@ -242,7 +253,7 @@ export async function createJobFromFlow(
 
   const applicationQuestions = buildApplicationQuestions(flow.phases);
   const quizQuestions = buildQuizQuestions(flow.phases);
-  const workflowSteps = buildWorkflowSteps(flow.phases);
+  const workflowSteps = buildWorkflowSteps(flow.phases, opts.voiceInterview ?? false);
 
   const row = {
     employer_id: employerId,

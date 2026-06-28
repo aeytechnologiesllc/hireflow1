@@ -490,8 +490,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       });
       
       const micScalar = bands.reduce((a, i) => a + (dataArray[i] || 0), 0) / (bands.length * 255);
-      // Smooth the mic envelope so the orb reacts to the *shape* of your voice, not every spike.
-      micLevelRef.current = micLevelRef.current * 0.6 + Math.min(1, micScalar * 1.7) * 0.4;
+      // Heavily low-pass the mic envelope so the orb tracks the *shape* of your voice, not every
+      // spike. Calm coefficients (0.85/0.15 + modest 0.8x gain) keep the pulse subtle, never haywire.
+      micLevelRef.current = micLevelRef.current * 0.85 + Math.min(1, micScalar * 0.8) * 0.15;
 
       setState(s => ({ ...s, audioLevels: levels }));
       avaLevelRef.current *= 0.9; // decay Ava's voice level between audio chunks (natural fade-out)
@@ -593,7 +594,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
               let sum = 0, n = 0;
               for (let i = 0; i < i16.length; i += 8) { const v = i16[i] / 32768; sum += v * v; n++; }
               const rms = n ? Math.sqrt(sum / n) : 0;
-              avaLevelRef.current = Math.max(avaLevelRef.current, Math.min(1, rms * 3.2));
+              // EMA toward the new RMS (not max) so Ava's voice glides the orb instead of spiking it.
+              avaLevelRef.current = avaLevelRef.current * 0.85 + Math.min(1, rms * 2.0) * 0.15;
             } catch { /* no-op */ }
             // For intake, the WebRTC <audio> element is the single voice; the AudioQueue would be
             // a second copy. Only feed it for the interview path, which depends on it.
@@ -637,9 +639,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
             try {
               const args = JSON.parse(event.arguments);
               
-              // Intake tools (set_brief_fields / finish_brief) only mutate the create-job
-              // form state — handle them client-side and skip the ava-voice-tools round-trip.
-              if (event.name === 'set_brief_fields' || event.name === 'present_readback' || event.name === 'create_job' || event.name === 'finish_brief') {
+              // Intake tools (set_brief_fields / present_readback / create_job + the review-phase
+              // edit tools edit_phase / remove_phase / reorder_phases / confirm_plan) only mutate
+              // create-job React state — handle ALL of them client-side and skip the
+              // ava-voice-tools round-trip. Keyed off intake mode so new tools route automatically.
+              if (optionsRef.current.mode === 'intake') {
                 optionsRef.current.onToolCall?.(event.name, args);
                 if (dcRef.current?.readyState === 'open') {
                   dcRef.current.send(JSON.stringify({

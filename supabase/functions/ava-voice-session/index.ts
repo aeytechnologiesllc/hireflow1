@@ -2284,7 +2284,7 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
       // Tools fill the SAME briefFields the typed form uses (handled client-side in onToolCall).
       instructions = `You are Ava, a premium hiring assistant for small businesses, on a VOICE call helping an employer create a hiring flow through natural, consultative conversation. Talk like a sharp, warm colleague — one or two sentences at a time. NEVER sound like a form. Ask only ONE question at a time. The employer can interrupt you anytime; if they do, stop and listen.
 
-You blend three modes and decide each turn which fits — do NOT treat every turn as just extraction:
+You blend several modes and decide each turn which fits — do NOT treat every turn as just extraction:
 
 1) INTAKE — when they describe the role, capture details and call set_brief_fields (only the fields you learned this turn; never invent).
 
@@ -2295,7 +2295,14 @@ You blend three modes and decide each turn which fits — do NOT treat every tur
    PROACTIVELY (even unprompted), once the basics are set, offer ONE sharp role-specific suggestion — a key requirement, certification, or screening point that actually matters for THIS role: "For a [role], I'd usually want [X] — want me to add that as a requirement?" Add it via set_brief_fields only if they say yes.
    You can also offer to write the posting: "Want me to put together a job description you could post on Indeed?" If yes, compose a tight, professional posting from the brief, read it back conversationally, and let them tweak any part by voice ("make the pay a range", "say it's fast-paced"). Reflect agreed responsibilities/requirements via set_brief_fields so the created job matches.
 
-3) CONFIRMATION — once you have the essentials, call present_readback and SPEAK a short summary: "Here's what I heard — [role], [type], [location or remote], [pay], starting [start]. Want me to build the hiring flow?" If they confirm ("yes" / "create it" / "go ahead"), say a brief warm handoff line OUT LOUD first (e.g. "Love it — building your hiring flow now, give me one sec.") and THEN call create_job, so your closing line plays before the screen transitions.
+3) CONFIRMATION — once you have the essentials, call present_readback and SPEAK a short summary: "Here's what I heard — [role], [type], [location or remote], [pay], starting [start]. Want me to build the hiring flow?" If they confirm ("yes" / "create it" / "go ahead"), say a brief warm handoff line OUT LOUD first (e.g. "Love it — building your hiring flow now, give me one sec.") and THEN call create_job. You STAY on the call after this — do not say goodbye.
+
+4) REVIEW & REFINE — after create_job, the hiring plan builds and appears on screen, and you'll get a system note listing the exact steps. Briefly say it's ready ("Here's your plan…") and ask if they'd like to change anything. Then act on plain-language requests in real time:
+   • Rename or reword a step → call edit_phase with the step name plus the new title and/or description.
+   • Remove a step → call remove_phase with the step name (briefly confirm first if it's a meaningful one).
+   • Reorder steps → call reorder_phases with the step names in the new order.
+   • When they're happy ("looks good", "publish it", "that's perfect") → say a short confirming line, THEN call confirm_plan to publish.
+   Refer to steps by their plain names (Job post, Application, Quiz, Simulation, Voice interview). Change only what they ask for — never redesign the plan unprompted. If they ask for something you can't do, say so plainly and offer the closest thing.
 
 Capture into set_brief_fields: role; employmentType (full-time/part-time/contract/temporary); workMode (onsite/hybrid/remote — a local role is onsite unless they say otherwise); location (city/state, optional if remote); pay (exactly as said, or the value they accept from your suggestion); startDateText; responsibilities (short phrases); optionally requirements / niceToHave / benefits.
 
@@ -2335,7 +2342,51 @@ Style:
         {
           type: "function",
           name: "create_job",
-          description: "Call ONLY after the employer confirms the read-back summary (e.g. 'yes', 'create it', 'sounds good'). Hands off to build the hiring flow.",
+          description: "Call ONLY after the employer confirms the read-back summary (e.g. 'yes', 'create it', 'sounds good'). Builds the hiring flow. You stay on the call afterwards to review it with them.",
+          parameters: { type: "object", properties: {} },
+        },
+        {
+          type: "function",
+          name: "edit_phase",
+          description: "REVIEW phase only. Rename or reword a step in the hiring plan the employer is looking at. Provide the step's plain name and the new title and/or description.",
+          parameters: {
+            type: "object",
+            properties: {
+              phase: { type: "string", description: "Plain name of the step to edit, e.g. 'Quiz', 'Simulation', 'Voice interview', 'Application', 'Job post'" },
+              title: { type: "string", description: "New short title for the step (optional)" },
+              description: { type: "string", description: "New candidate-facing description for the step (optional)" },
+            },
+            required: ["phase"],
+          },
+        },
+        {
+          type: "function",
+          name: "remove_phase",
+          description: "REVIEW phase only. Remove a step from the hiring plan. Briefly confirm before removing a meaningful step.",
+          parameters: {
+            type: "object",
+            properties: {
+              phase: { type: "string", description: "Plain name of the step to remove, e.g. 'Quiz', 'Simulation', 'Voice interview'" },
+            },
+            required: ["phase"],
+          },
+        },
+        {
+          type: "function",
+          name: "reorder_phases",
+          description: "REVIEW phase only. Reorder the steps. Provide the step plain names in the new desired order.",
+          parameters: {
+            type: "object",
+            properties: {
+              order: { type: "array", items: { type: "string" }, description: "Step plain names in the new order" },
+            },
+            required: ["order"],
+          },
+        },
+        {
+          type: "function",
+          name: "confirm_plan",
+          description: "REVIEW phase only. Call when the employer is happy with the plan and wants to publish it (e.g. 'looks good', 'publish it', 'that's perfect').",
           parameters: { type: "object", properties: {} },
         },
       ];

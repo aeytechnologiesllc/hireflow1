@@ -346,13 +346,13 @@ export function AvaOrb({
       // Asymmetric smoothing — rise quickly so it feels responsive, fall slowly so it never
       // flickers. Lean the reaction on GLOW (brightness) over mesh displacement, so the orb
       // pulses with light rather than wobbling its shape. Reads premium, not jittery.
-      smoothK += (rawK - smoothK) * (rawK > smoothK ? 0.2 : 0.045);
+      smoothK += (rawK - smoothK) * (rawK > smoothK ? 0.1 : 0.05);
       const k = smoothK;
-      coreU.uAmp.value = amp * (1 + k * 0.07);
-      coreU.uFlow.value = flow * (1 + k * 0.1);
-      coreU.uBright.value = 1.15 + k * 0.55;
-      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.07);
-      haloU.uBright.value = 0.65 + k * 0.46;
+      coreU.uAmp.value = amp * (1 + k * 0.04);
+      coreU.uFlow.value = flow * (1 + k * 0.06);
+      coreU.uBright.value = 1.15 + k * 0.28;
+      haloU.uAmp.value = amp * 0.55 * (1 + k * 0.04);
+      haloU.uBright.value = 0.65 + k * 0.22;
       grp.rotation.y += spin * 0.02;
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);

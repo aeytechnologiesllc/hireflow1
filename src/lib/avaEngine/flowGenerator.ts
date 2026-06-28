@@ -134,7 +134,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     kind: "voice_interview",
     order: order++,
     title: "Answer a few questions out loud",
-    candidateDescription: "A short recording about your experience and approach.",
+    candidateDescription: "A short spoken conversation with Ava about your experience and approach.",
     rationale: rationales[r++] ?? "Strongest signal — clarity, judgment, ownership.",
     config: {
       kind: "voice_interview",
