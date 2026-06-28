@@ -394,7 +394,6 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     const EPHEMERAL_KEY = response.data.client_secret.value;
     const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
-    const realtimeModel = (response.data as any)?.selectedModel || 'gpt-realtime';
 
     setState(s => ({ ...s, voiceNameUsed }));
 
@@ -842,10 +841,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     const offer = await pcRef.current.createOffer();
     await pcRef.current.setLocalDescription(offer);
 
-    // Connect to OpenAI's Realtime API (GA: WebRTC SDP exchange moved to /v1/realtime/calls).
-    const baseUrl = 'https://api.openai.com/v1/realtime/calls';
-    const model = realtimeModel;
-    const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+    // Connect to OpenAI's Realtime API. GA: the WebRTC SDP exchange is POSTed to
+    // /v1/realtime/calls with NO query string — the model/instructions/tools/voice are
+    // already bound to the ephemeral token from the mint step.
+    const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
       body: offer.sdp,
       headers: {

@@ -45,6 +45,8 @@ export default function TalkToAva({ brief, onBriefPatch, onComplete, onPreferTyp
   const avaMsgId = useRef<number | null>(null);
   const greeted = useRef(false);
   const finishing = useRef(false);
+  const briefRef = useRef(brief);
+  briefRef.current = brief;
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const onTranscript = useCallback((text: string, role: "user" | "assistant") => {
@@ -76,6 +78,10 @@ export default function TalkToAva({ brief, onBriefPatch, onComplete, onPreferTyp
         if (Object.keys(patch).length) onBriefPatch(patch);
       } else if (toolName === "finish_brief") {
         if (finishing.current) return;
+        // Defensive: never advance into the flow with an empty brief, even if Ava jumps early
+        // (she's instructed to gate this, but the essentials are the source of truth).
+        const b = briefRef.current;
+        if (!(b.role.trim() && b.location.trim() && b.pay.trim() && b.work.trim())) return;
         finishing.current = true;
         // onComplete advances the flow → this component unmounts → the unmount effect
         // disconnects the voice session. Give Ava's closing line a beat to play first.
