@@ -61,6 +61,7 @@ import {
 } from "@/lib/avaEngine";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow } from "@/lib/jobFromFlow";
+import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -124,6 +125,7 @@ export default function AvaCreateJob() {
   const resumeDraft = typeof window !== "undefined" && sessionStorage.getItem(DRAFT_SESSION_KEY) === "1";
   const saved = resumeDraft ? loadDraft() : null;
   const [step, setStep] = useState(0);
+  const [inputMode, setInputMode] = useState<"voice" | "form">("voice");
   const [fuIndex, setFuIndex] = useState(0);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
@@ -301,7 +303,16 @@ export default function AvaCreateJob() {
         <div className="my-auto w-full max-w-5xl">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
-              {step === 0 && (
+              {step === 0 && inputMode === "voice" && (
+                <TalkToAva
+                  brief={briefFields}
+                  onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
+                  onComplete={() => setStep(1)}
+                  onPreferType={() => setInputMode("form")}
+                />
+              )}
+
+              {step === 0 && inputMode === "form" && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
                     <AvaOrb size={240} reflection={false} />
@@ -312,6 +323,9 @@ export default function AvaCreateJob() {
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
                       A few details is all I need. I'll ask follow-ups, recommend screening rigor, then build your whole hiring flow.
                     </p>
+                    <button type="button" onClick={() => setInputMode("voice")} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--ck-brass))" }}>
+                      <Mic className="h-3.5 w-3.5" /> Talk to Ava instead
+                    </button>
                   </div>
                   <div className="rounded-2xl p-5 sm:p-6" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-2">

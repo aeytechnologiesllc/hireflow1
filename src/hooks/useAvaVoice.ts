@@ -4,7 +4,7 @@ import { AudioRecorder, encodeAudioForAPI, AudioQueue, createWavFromPCM, resetAu
 import { useToast } from '@/hooks/use-toast';
 
 interface UseAvaVoiceOptions {
-  mode: 'assistant' | 'interview';
+  mode: 'assistant' | 'interview' | 'intake';
   applicationId?: string;
   jobId?: string;
   language?: string;
@@ -616,6 +616,24 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
             try {
               const args = JSON.parse(event.arguments);
               
+              // Intake tools (set_brief_fields / finish_brief) only mutate the create-job
+              // form state — handle them client-side and skip the ava-voice-tools round-trip.
+              if (event.name === 'set_brief_fields' || event.name === 'finish_brief') {
+                optionsRef.current.onToolCall?.(event.name, args);
+                if (dcRef.current?.readyState === 'open') {
+                  dcRef.current.send(JSON.stringify({
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'function_call_output',
+                      call_id: event.call_id,
+                      output: JSON.stringify({ ok: true }),
+                    },
+                  }));
+                  dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+                }
+                break;
+              }
+
               // For schedule_interview, inject Google Calendar tokens
               if (event.name === 'schedule_interview') {
                 const googleAccessToken = sessionStorage.getItem("google_access_token");
@@ -780,10 +798,20 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           clearProcessingTimeout();
           clearSilenceTimer(); // User is speaking, reset silence detection
           silenceNudgeCountRef.current = 0; // Reset nudge count when user speaks
-          setState(s => ({ ...s, isListening: true, isProcessing: false, isStuck: false }));
+          // BARGE-IN: user is interrupting — stop Ava's already-buffered audio at once.
+          // (Server VAD halts generation, but buffered audio would otherwise talk over them.)
+          audioQueueRef.current?.clear();
+          if (audioElRef.current) {
+            try { audioElRef.current.pause(); } catch { /* no-op */ }
+          }
+          setState(s => ({ ...s, isListening: true, isSpeaking: false, isProcessing: false, isStuck: false }));
           break;
 
         case 'input_audio_buffer.speech_stopped':
+          // Resume Ava's audio element (paused during barge-in) so her next reply plays.
+          if (audioElRef.current) {
+            audioElRef.current.play().catch(() => { /* no-op */ });
+          }
           setState(s => ({ ...s, isListening: false, isProcessing: true }));
           startProcessingTimeout();
           break;
@@ -858,8 +886,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   }, [connectInternal, toast]);
 
   const disconnect = useCallback(async () => {
-    // Deduct voice minutes if session was started (and not already deducted by end_interview)
-    if (sessionStartTimeRef.current) {
+    // Deduct voice minutes if session was started (and not already deducted by end_interview).
+    // Intake mode is unmetered during the build phase — skip deduction.
+    if (sessionStartTimeRef.current && optionsRef.current.mode !== 'intake') {
       const sessionDurationMs = Date.now() - sessionStartTimeRef.current;
       const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000); // Round up to nearest minute
       
@@ -978,6 +1007,13 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     return audioElRef.current;
   }, []);
 
+  // Ask Ava to speak first (no user turn) — used by intake so she greets on connect.
+  const triggerResponse = useCallback(() => {
+    if (dcRef.current?.readyState === 'open') {
+      dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+    }
+  }, []);
+
   return {
     ...state,
     connect,
@@ -985,6 +1021,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     sendTextMessage,
     sendSystemInstruction,
     getAvaAudioElement,
+    triggerResponse,
     retryConnection,
     nudgeAva,
   };

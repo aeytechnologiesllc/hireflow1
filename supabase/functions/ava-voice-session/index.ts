@@ -243,7 +243,7 @@ async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<st
 }
 
 interface VoiceSessionRequest {
-  mode: 'assistant' | 'interview';
+  mode: 'assistant' | 'interview' | 'intake';
   applicationId?: string;
   jobId?: string;
   language?: string;
@@ -348,15 +348,18 @@ serve(async (req) => {
       .maybeSingle();
 
     // Check access - only Enterprise and Trial can use voice
-    if (!subscription) {
-      throw new Error("No subscription found");
-    }
-    
     const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
     const isTrial = subscription?.status === 'trialing';
-    
-    if (!isEnterprise && !isTrial) {
-      throw new Error("Voice features require Enterprise plan");
+
+    // Voice access is Enterprise/Trial only — EXCEPT 'intake' (employer Talk-to-Ava job creation),
+    // which is relaxed during the build phase. Restore gating + server-side metering when billing lands.
+    if (mode !== 'intake') {
+      if (!subscription) {
+        throw new Error("No subscription found");
+      }
+      if (!isEnterprise && !isTrial) {
+        throw new Error("Voice features require Enterprise plan");
+      }
     }
 
     // Get active voice credits from voice_credits table (FIFO by expiration)
@@ -427,7 +430,7 @@ serve(async (req) => {
       );
     }
 
-    if (totalMinutesAvailable <= 0) {
+    if (mode !== 'intake' && totalMinutesAvailable <= 0) {
       if (isTrial) {
         throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 150 minutes/month.");
       }
@@ -2275,6 +2278,56 @@ ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUI
             required: ["note"]
           }
         }
+      ];
+    } else if (mode === 'intake') {
+      // Employer "Talk to Ava" job intake — collect a structured job brief by voice.
+      // Tools fill the SAME briefFields the typed form uses (handled client-side in onToolCall).
+      instructions = `You are Ava, a warm and sharp hiring assistant having a VOICE conversation with an employer who wants to create a job. Speak naturally and briefly — one or two sentences at a time, like a sharp colleague, never a monologue. The employer can interrupt you at any time; if they do, stop and listen.
+
+Your goal: collect a structured job brief by talking, and call set_brief_fields the moment you learn or correct any detail so the screen fills in live.
+
+Brief fields:
+• role — the job title (e.g. "Line Cook", "Barista", "Frontend Developer").
+• location — city and state, or "Remote".
+• type — employment type + work mode, EXACTLY one of: "Full-time · On-site", "Full-time · Hybrid", "Full-time · Remote", "Part-time · On-site", "Part-time · Hybrid", "Part-time · Remote", "Contract · On-site", "Contract · Hybrid", "Contract · Remote".
+• pay — exactly as the employer states it ("$22/hr", "$90k–$110k"). If they decline, set "Discuss at interview".
+• start — EXACTLY one of: "ASAP", "Within a few weeks", "Flexible".
+• work — 2-3 sentences on the day-to-day.
+• openings — a number, default 1.
+
+How to behave:
+• You speak first: greet them warmly and ask what they're hiring for.
+• Call set_brief_fields as soon as you learn anything; include ONLY the fields you learned or changed this turn. Infer the obvious (a "downtown cafe barista" is On-site) but NEVER invent pay or location — ask.
+• Ask at most ONE question per turn. Aim to finish within 2-3 questions once you know role, location, pay, and what they'll do. Always prioritize whichever of those four is still missing.
+• Add ONE role-aware question only if it adds real signal (e.g. for a cook: kitchen pace or cuisine; for a remote role: reliable internet and their own computer).
+• If they say "discuss at the interview", "not sure", or "flexible", accept it gracefully, set the field, and move on. Never re-ask a field they've answered or declined.
+• The employer can override anything; if they correct a value, update it with set_brief_fields. The on-screen brief is the source of truth.
+• When role, location, pay, and what-they'll-do are all set, say one warm line like "Perfect — I've got what I need. Let's build your hiring flow." and then call finish_brief.
+• Stay premium and human. No corporate filler, no robotic read-backs.`;
+      tools = [
+        {
+          type: "function",
+          name: "set_brief_fields",
+          description: "Update the job brief with details learned from the employer. Call this whenever you learn or correct any field. Include ONLY the fields learned or changed this turn.",
+          parameters: {
+            type: "object",
+            properties: {
+              role: { type: "string", description: "Job title, e.g. 'Line Cook', 'Barista', 'Frontend Developer'" },
+              location: { type: "string", description: "City and state, or 'Remote'" },
+              type: { type: "string", description: "Employment type + work mode, exactly one of: 'Full-time · On-site', 'Full-time · Hybrid', 'Full-time · Remote', 'Part-time · On-site', 'Part-time · Hybrid', 'Part-time · Remote', 'Contract · On-site', 'Contract · Hybrid', 'Contract · Remote'" },
+              pay: { type: "string", description: "Pay as stated, e.g. '$22/hr' or '$90k–$110k'; use 'Discuss at interview' if declined" },
+              start: { type: "string", description: "Exactly one of: 'ASAP', 'Within a few weeks', 'Flexible'" },
+              work: { type: "string", description: "2-3 sentences describing the day-to-day work" },
+              openings: { type: "number", description: "Number of openings (default 1)" },
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "finish_brief",
+          description: "Call ONLY when role, location, pay, and what-they'll-do are all captured (a 'Discuss at interview' value counts) and there is no further essential question. Hands off to build the hiring flow.",
+          parameters: { type: "object", properties: {} },
+        },
       ];
     }
 
