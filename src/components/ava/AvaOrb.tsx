@@ -205,7 +205,15 @@ export function AvaOrb({
     let cancelled = false;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    // Creating a WebGLRenderer throws if the browser can't grant a GL context
+    // (context blocked, GPU lost, or too many live contexts on the page). Guard
+    // it so a failed orb degrades to nothing instead of crashing the whole page.
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    } catch {
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const scene = new THREE.Scene();
@@ -283,6 +291,14 @@ export function AvaOrb({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
     resize();
+
+    // Render one frame immediately on mount. This avoids a blank-canvas flash
+    // before the first rAF tick, guarantees a visible orb even when
+    // requestAnimationFrame is throttled (background tab) or paused (screenshot
+    // tooling), and gives reduced-motion users the static frame right away.
+    coreU.uTime.value = 1.2;
+    haloU.uTime.value = 1.2;
+    renderer.render(scene, camera);
 
     const t0 = performance.now();
     let raf = 0;

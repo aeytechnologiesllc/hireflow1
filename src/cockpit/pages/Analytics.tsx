@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Clock, UserCheck, Star, MessageSquare, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
+import { Clock, UserCheck, Star, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
@@ -133,12 +133,12 @@ export default function CockpitAnalytics() {
         <div className="ck-card flex items-center gap-4 p-5 md:p-6">
           <AvaOrb size={150} reflection={false} amp={0.22} flow={0.5} />
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 font-display text-[20px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>
-              Ava's insight<Sparkles className="h-4 w-4" style={{ color: "hsl(38 64% 66%)" }} />
+            <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>
+              Ava's insight
             </div>
             <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "hsl(150 14% 66%)" }}>{analytics.insight}</p>
             <button className="ck-btn ck-btn-outline mt-4" onClick={() => navigate("/applicants")}>
-              <Sparkles className="h-4 w-4" style={{ color: "hsl(38 64% 66%)" }} />View recommendations
+              View recommendations
             </button>
           </div>
         </div>

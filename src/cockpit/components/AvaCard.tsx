@@ -1,4 +1,4 @@
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 
 interface AvaCardProps {
@@ -21,9 +21,8 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
           <AvaOrb size={orbSize ?? 56} reflection={false} glow={false} amp={0.22} flow={0.5} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 font-display text-[15px]" style={{ color: "hsl(150 30% 92%)" }}>
+          <div className="font-display text-[15px]" style={{ color: "hsl(150 30% 92%)" }}>
             {title}
-            <Sparkles className="h-3.5 w-3.5" style={{ color: "hsl(38 64% 66%)" }} />
           </div>
           <p className="mt-0.5 text-[12.5px] leading-snug" style={{ color: "hsl(150 10% 64%)" }}>
             {text}
@@ -42,9 +41,8 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
       <div className="flex justify-center py-1">
         <AvaOrb size={orbSize ?? 132} reflection={false} amp={0.22} flow={0.5} />
       </div>
-      <div className="mt-1 flex items-center gap-1.5 font-display text-[20px]" style={{ color: "hsl(150 30% 93%)" }}>
+      <div className="mt-1 font-display text-[20px]" style={{ color: "hsl(150 30% 93%)" }}>
         {title}
-        <Sparkles className="h-4 w-4" style={{ color: "hsl(38 64% 66%)" }} />
       </div>
       <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "hsl(150 10% 64%)" }}>
         {text}
