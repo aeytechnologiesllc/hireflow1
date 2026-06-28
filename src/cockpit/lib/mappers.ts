@@ -88,6 +88,7 @@ export function mapJobRow(job: JobWithApplicationCount, apps: ApplicationWithCan
     pay: formatPay(job),
     status,
     applicants: job.application_count,
+    roleCode: job.job_code ?? null,
     dateLabel,
     date,
     stats: { voice, shortlist, interview, hired },

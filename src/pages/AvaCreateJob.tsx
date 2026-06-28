@@ -157,7 +157,14 @@ export default function AvaCreateJob() {
   const [publishing, setPublishing] = useState(false);
   const [publishedCode, setPublishedCode] = useState<string | null>(null);
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
+  // True once the Review-plan cards have actually finished animating in (real render signal) —
+  // gates Ava's "here's your plan" so she never announces it while the build loader is still up.
+  const [planVisible, setPlanVisible] = useState(false);
   const advanceBuildRef = useRef(false);
+
+  useEffect(() => {
+    if (step !== 4) setPlanVisible(false);
+  }, [step]);
 
   const family = useMemo(() => detectFamily(briefFromForm({ ...briefFields, followUps: [] })), [briefFields]);
   const playbook = PLAYBOOKS[family];
@@ -335,6 +342,7 @@ export default function AvaCreateJob() {
           {voiceLed && (
             <TalkToAva
               step={step}
+              planVisible={planVisible}
               brief={briefFields}
               reviewCards={reviewCards}
               onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
@@ -357,7 +365,7 @@ export default function AvaCreateJob() {
             />
           )}
           <AnimatePresence mode="wait">
-            <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
+            <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }} onAnimationComplete={() => { if (step === 4) setPlanVisible(true); }}>
               {step === 0 && inputMode === "form" && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">

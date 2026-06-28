@@ -654,7 +654,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                       output: JSON.stringify({ ok: true }),
                     },
                   }));
-                  dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+                  // After create_job/finish_brief, do NOT auto-prompt a reply — Ava must stay SILENT
+                  // through the build animation. The client re-prompts her only once the plan is
+                  // actually on screen (TalkToAva review effect, driven by planVisible).
+                  if (event.name !== 'create_job' && event.name !== 'finish_brief') {
+                    dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+                  }
                 }
                 break;
               }

@@ -28,6 +28,8 @@ type Msg = { id: number; role: "user" | "ava"; text: string };
 interface TalkToAvaProps {
   /** Current wizard step. TalkToAva stays mounted across 0 (intake) → 3 (build) → 4 (review). */
   step: number;
+  /** True once the Review-plan cards have finished animating in — gates Ava's "it's ready" line. */
+  planVisible: boolean;
   brief: { role: string; location: string; type: string; pay: string; start: string; work: string; openings: number };
   /** The live plan (review step) — lets Ava resolve which step the employer means by voice. */
   reviewCards: { id: string; kind: string; title: string }[];
@@ -53,7 +55,7 @@ function matchCard(cards: { id: string; kind: string; title: string }[], name: u
   );
 }
 
-export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete, onPreferType, onEditPhase, onRemovePhase, onReorderPhases, onConfirmPublish }: TalkToAvaProps) {
+export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch, onComplete, onPreferType, onEditPhase, onRemovePhase, onReorderPhases, onConfirmPublish }: TalkToAvaProps) {
   const [jobBrief, setJobBrief] = useState<JobBrief>(emptyJobBrief);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [readback, setReadback] = useState(false);
@@ -172,22 +174,18 @@ export default function TalkToAva({ step, reviewCards, onBriefPatch, onComplete,
     if (step >= 4) setCreating(false);
   }, [step]);
 
-  // REVIEW: prompt Ava — ONCE — to present the plan and invite changes. She must NOT announce it
-  // before the employer can see it, so we (a) wait until she's quiet, then (b) hold a beat for the
-  // build→review transition to finish, so "it's ready" lands exactly when the plan is on screen.
+  // REVIEW: prompt Ava — ONCE — to present the plan and invite changes. Gated on planVisible (set
+  // by AvaCreateJob when the review cards have ACTUALLY finished animating in) so she never says
+  // "it's ready" while the build loader is still up — and on her being quiet so we don't cut her off.
   useEffect(() => {
-    if (step !== 4 || !isConnected || reviewPromptedRef.current) return;
-    if (isSpeaking || isProcessing) return; // wait until she's finished her build line
-    const t = window.setTimeout(() => {
-      if (reviewPromptedRef.current) return;
-      reviewPromptedRef.current = true;
-      const summary = reviewCardsRef.current.map((c, i) => `${i + 1}. ${c.kind} — ${c.title}`).join("; ");
-      voice.sendSystemInstruction(
-        `[The build animation has finished and the hiring plan is NOW VISIBLE on the employer's screen, with these steps: ${summary}. NOW (not before) tell them it's ready and ask if they'd like to change anything — you can rename or reword a step, remove one, reorder them, or publish. One or two sentences.]`,
-      );
-    }, 1300);
-    return () => window.clearTimeout(t);
-  }, [step, isConnected, isSpeaking, isProcessing, voice]);
+    if (step !== 4 || !planVisible || !isConnected || reviewPromptedRef.current) return;
+    if (isSpeaking || isProcessing) return;
+    reviewPromptedRef.current = true;
+    const summary = reviewCardsRef.current.map((c, i) => `${i + 1}. ${c.kind} — ${c.title}`).join("; ");
+    voice.sendSystemInstruction(
+      `[The hiring plan is now fully visible on the employer's screen, with these steps: ${summary}. NOW (not before) tell them it's ready and ask if they'd like to change anything — you can rename or reword a step, remove one, reorder them, or publish. One or two sentences.]`,
+    );
+  }, [step, planVisible, isConnected, isSpeaking, isProcessing, voice]);
 
   // Graceful handoff: when Ava hands the plan back, let her finish her sign-off line, then quietly
   // end the voice session so the employer can publish manually.
