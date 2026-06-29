@@ -89,7 +89,7 @@ function RowActions({
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 const PAGE_SIZE = 8;
-const STAGES: CandidateStage[] = ["Application", "Quiz", "Voice", "Shortlist", "Hired"];
+const STAGES: CandidateStage[] = ["Application", "Quiz", "Voice", "Shortlist", "Hired", "Rejected"];
 
 /** A candidate has real screening signal once any score exists; until then we don't fake strengths. */
 function isAnalyzed(c: Candidate): boolean {
@@ -97,6 +97,13 @@ function isAnalyzed(c: Candidate): boolean {
 }
 
 function StagePill({ stage }: { stage: CandidateStage }) {
+  if (stage === "Rejected") {
+    return (
+      <span className="ck-pill" style={{ color: "hsl(8 60% 66%)", background: "hsl(8 40% 40% / 0.12)", borderColor: "hsl(8 40% 45% / 0.25)" }}>
+        Passed
+      </span>
+    );
+  }
   const cls =
     stage === "Voice" ? "ck-pill-stage-voice" : stage === "Application" ? "ck-pill-stage-neutral" : "ck-pill-stage";
   return <span className={`ck-pill ${cls}`}>{stage}</span>;
@@ -563,6 +570,7 @@ export default function CockpitApplicants() {
           onOpenChange={(o) => { if (!o) setScheduleCand(null); }}
           applicationId={scheduleCand.id}
           candidateName={scheduleCand.name}
+          candidateEmail={scheduleCand.email ?? undefined}
           jobTitle={scheduleCand.role}
         />
       )}

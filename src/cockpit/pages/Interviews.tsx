@@ -40,10 +40,6 @@ function Calendar({ daysWithInterviews, selectedDay }: { daysWithInterviews: num
     <div className="ck-card p-5">
       <div className="flex items-center justify-between">
         <div className="font-display text-[17px]" style={{ color: "hsl(150 30% 91%)", fontWeight: 500 }}>{monthLabel}</div>
-        <div className="flex items-center gap-1.5" style={{ color: "hsl(150 12% 56%)" }}>
-          <button><ChevronLeft className="h-4 w-4" /></button>
-          <button><ChevronRight className="h-4 w-4" /></button>
-        </div>
       </div>
       <div className="mt-4 grid grid-cols-7 gap-y-2 text-center text-[11px]" style={{ color: "hsl(150 10% 48%)" }}>
         {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => <div key={d}>{d}</div>)}

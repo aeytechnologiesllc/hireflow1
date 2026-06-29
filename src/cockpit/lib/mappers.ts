@@ -112,6 +112,7 @@ function extractVoiceScore(app: ApplicationWithCandidate): number | null {
 }
 
 export function mapCandidateStage(app: ApplicationWithCandidate): CandidateStage {
+  if (app.status === "rejected") return "Rejected";
   if (app.status === "hired") return "Hired";
   if (["reviewing", "interview", "offered"].includes(app.status)) return "Shortlist";
   const phase = (app.phase ?? "").toLowerCase();
@@ -146,6 +147,7 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
     id: app.id,
     avatar: app.candidate_id,
     name,
+    email: profile?.email ?? null,
     appliedAgo: `Applied ${formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}`,
     appliedDate: format(new Date(app.created_at), "MMM d, yyyy"),
     role: job?.title ?? "Role",
@@ -296,6 +298,8 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     updated: formatDistanceToNow(new Date(doc.updated_at ?? doc.created_at), { addSuffix: true }),
     created: doc.created_at ? format(new Date(doc.created_at), "MMM d, yyyy") : null,
     expires: doc.expires_at ? format(new Date(doc.expires_at), "MMM d, yyyy") : null,
+    fileUrl: doc.file_url ?? null,
+    rawStatus: doc.status ?? null,
   };
 }
 

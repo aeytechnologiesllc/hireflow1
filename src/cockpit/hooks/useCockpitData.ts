@@ -296,7 +296,9 @@ export function useCockpitActions() {
           id: applicationId,
           status: "rejected" as never,
           rejected_by: user?.id ?? null,
-          rejected_by_type: "employer",
+          // DB CHECK constraint allows only 'user' | 'team_member' | 'ava'.
+          // The employer rejecting is the signed-in account user.
+          rejected_by_type: "user",
           ...(trimmed ? { employer_notes: trimmed } : {}),
         } as never);
         toast.success("Candidate passed");

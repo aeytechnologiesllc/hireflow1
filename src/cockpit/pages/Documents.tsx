@@ -8,9 +8,7 @@ import {
   FileText,
   FileCheck,
   ChevronRight,
-  ChevronLeft,
   X,
-  Send,
   Eye,
   CircleDot,
 } from "lucide-react";
@@ -122,8 +120,14 @@ function DetailPanel({
       </div>
 
       <div className="mt-auto flex gap-2 pt-5">
-        <button className="ck-btn ck-btn-brass flex-1"><Send className="h-4 w-4" />Send reminder</button>
-        <button className="ck-btn ck-btn-outline flex-1"><Eye className="h-4 w-4" />Review</button>
+        <button
+          className="ck-btn ck-btn-brass flex-1"
+          disabled={!row.fileUrl}
+          style={!row.fileUrl ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+          onClick={() => row.fileUrl && window.open(row.fileUrl, "_blank", "noopener")}
+        >
+          <Eye className="h-4 w-4" />{row.fileUrl ? "Open document" : "Not uploaded yet"}
+        </button>
       </div>
     </div>
   );
@@ -137,6 +141,14 @@ export default function CockpitDocuments() {
   const [selectedId, setSelectedId] = useState(documents.rows[0]?.id ?? "");
   const [wizard, setWizard] = useState<{ type?: string; appId?: string } | null>(null);
   const selected = documents.rows.find((r) => r.id === selectedId) ?? documents.rows[0];
+
+  // Tab filtering (was previously decorative — the list ignored the active tab).
+  const filteredRows = documents.rows.filter((r) => {
+    if (tab === "Pending") return r.status === "Pending";
+    if (tab === "Signed") return r.status === "Signed";
+    if (tab === "Requests") return r.status === "Submitted" || (r.type ?? "").toLowerCase().includes("request");
+    return true;
+  });
 
   // Opened from the hire prompt → /documents?applicant_id=…&action=create.
   useEffect(() => {
@@ -217,7 +229,13 @@ export default function CockpitDocuments() {
             <div>Document</div><div>Candidate</div><div>Status</div><div>Updated</div>
           </div>
 
-          {documents.rows.map((row) => {
+          {filteredRows.length === 0 && (
+            <div className="px-5 py-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+              No {tab === "All documents" ? "" : tab.toLowerCase() + " "}documents.
+            </div>
+          )}
+
+          {filteredRows.map((row) => {
             const Icon = docIcon(row.type);
             const isSel = row.id === selectedId;
             return (
@@ -252,14 +270,7 @@ export default function CockpitDocuments() {
           })}
 
           <div className="flex items-center justify-between px-5 py-3 text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>
-            <span>Showing {documents.rows.length} document{documents.rows.length === 1 ? "" : "s"}</span>
-            <div className="flex items-center gap-1">
-              <button className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "hsl(150 12% 56%)" }}><ChevronLeft className="h-4 w-4" /></button>
-              {["1", "2", "3"].map((p, i) => (
-                <button key={p} className="flex h-7 min-w-7 items-center justify-center rounded-md px-2" style={i === 0 ? { background: "hsl(152 30% 16%)", color: "hsl(150 30% 88%)" } : { color: "hsl(150 12% 56%)" }}>{p}</button>
-              ))}
-              <button className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "hsl(150 12% 56%)" }}><ChevronRight className="h-4 w-4" /></button>
-            </div>
+            <span>Showing {filteredRows.length} document{filteredRows.length === 1 ? "" : "s"}</span>
           </div>
         </div>
 

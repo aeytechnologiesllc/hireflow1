@@ -47,11 +47,13 @@ export interface JobRow {
   stats: { voice: number; shortlist: number; interview: number; hired: number };
 }
 
-export type CandidateStage = "Application" | "Quiz" | "Voice" | "Shortlist" | "Hired";
+export type CandidateStage = "Application" | "Quiz" | "Voice" | "Shortlist" | "Hired" | "Rejected";
 export interface Candidate {
   id: string;
   avatar: string;
   name: string;
+  /** Candidate's email — used for interview calendar invites. */
+  email?: string | null;
   appliedAgo: string;
   appliedDate: string;
   role: string;
@@ -105,6 +107,10 @@ export interface DocRow {
   /** Real document timestamps (absolute, formatted) — null when not set. */
   created?: string | null;
   expires?: string | null;
+  /** Stored file URL (for opening/reviewing the document). */
+  fileUrl?: string | null;
+  /** Raw status for tab filtering. */
+  rawStatus?: string | null;
 }
 
 export interface TeamMember {

@@ -22,7 +22,7 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { AvaCard } from "../components/AvaCard";
 import { AvaOrb } from "@/components/ava/AvaOrb";
-import { useCockpitJobsData, useCockpitAccount } from "../hooks/useCockpitData";
+import { useCockpitJobsData, useCockpitAccount, useCockpitCandidates } from "../hooks/useCockpitData";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import type { JobRow, JobStatus } from "../data";
@@ -214,6 +214,13 @@ export default function CockpitJobs() {
   const navigate = useNavigate();
   const { account } = useCockpitAccount();
   const { jobs, isLoading } = useCockpitJobsData();
+  const { pipeline } = useCockpitCandidates();
+
+  // Real, data-derived recommendation (never a hardcoded role).
+  const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
+  const avaText = bottleneck
+    ? `Ava sees your biggest drop-off at the ${bottleneck.label.toLowerCase()} stage — worth a look.`
+    : "Ava is screening your applicants and surfacing your strongest candidates.";
 
   return (
     <div className="space-y-5">
@@ -262,7 +269,7 @@ export default function CockpitJobs() {
         {jobs.length > 0 && (
           <div className="hidden lg:block">
             <AvaCard
-              text="Ava recommends closing the voice bottleneck for Barista."
+              text={avaText}
               ctaLabel="View insight"
               orbSize={132}
               onCta={() => navigate("/analytics")}
@@ -273,7 +280,7 @@ export default function CockpitJobs() {
 
       {jobs.length > 0 && (
         <div className="lg:hidden">
-          <AvaCard variant="wide" text="Ava recommends closing the voice bottleneck for Barista." onCta={() => navigate("/analytics")} />
+          <AvaCard variant="wide" text={avaText} onCta={() => navigate("/analytics")} />
         </div>
       )}
     </div>

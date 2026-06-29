@@ -14,9 +14,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { PageHeader } from "../components/PageHeader";
 import { CkAvatar } from "../components/Avatar";
+import { ActionDialog } from "../components/ActionDialog";
 import { useCockpitTeam } from "../hooks/useCockpitData";
+import { useDeleteTeamMember } from "@/hooks/useTeamMembers";
+import { useDeleteInvitation } from "@/hooks/useTeam";
 import { TeamInviteWizard } from "@/components/team/TeamInviteWizard";
 
 const ROW_ICONS = { briefcase: Briefcase, sparkle: Sparkles, calendar: CalendarDays, doc: FileText, users: Users };
@@ -44,6 +49,30 @@ function TeamKpi({ k }: { k: ReturnType<typeof useCockpitTeam>["team"]["kpis"][n
 export default function CockpitTeam() {
   const { team, isLoading } = useCockpitTeam();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "member" | "invite"; id: string; name: string } | null>(null);
+  const queryClient = useQueryClient();
+  const deleteMember = useDeleteTeamMember();
+  const deleteInvite = useDeleteInvitation();
+  const onInviteSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["team-invitations"] });
+    queryClient.invalidateQueries({ queryKey: ["team-members"] });
+  };
+  const confirmRemoval = async () => {
+    if (!confirm) return;
+    try {
+      if (confirm.kind === "member") {
+        await deleteMember.mutateAsync(confirm.id);
+        toast.success("Team member removed");
+      } else {
+        await deleteInvite.mutateAsync(confirm.id);
+        toast.success("Invite revoked");
+      }
+    } catch {
+      toast.error("Could not complete that action");
+    }
+    setConfirm(null);
+  };
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
@@ -56,7 +85,19 @@ export default function CockpitTeam() {
         subtitle="Manage who can help with hiring."
         actions={<button className="ck-btn ck-btn-brass max-md:w-full" onClick={() => setInviteOpen(true)}><UserPlus className="h-4 w-4" />Invite teammate</button>}
       />
-      <TeamInviteWizard open={inviteOpen} onOpenChange={setInviteOpen} />
+      <TeamInviteWizard open={inviteOpen} onOpenChange={setInviteOpen} onSuccess={onInviteSuccess} />
+      <ActionDialog
+        open={!!confirm}
+        title={confirm?.kind === "member" ? `Remove ${confirm?.name}?` : `Revoke invite to ${confirm?.name}?`}
+        description={confirm?.kind === "member"
+          ? "They will immediately lose access to your hiring workspace."
+          : "The invite link will stop working. You can always invite them again later."}
+        confirmLabel={confirm?.kind === "member" ? "Remove member" : "Revoke invite"}
+        tone="danger"
+        busy={deleteMember.isPending || deleteInvite.isPending}
+        onConfirm={() => void confirmRemoval()}
+        onClose={() => setConfirm(null)}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {team.kpis.map((k) => <TeamKpi key={k.label} k={k} />)}
@@ -82,9 +123,17 @@ export default function CockpitTeam() {
                   <div className="hidden md:block">
                     <span className="ck-pill" style={m.permissionTone === "jade" ? { color: "hsl(152 50% 62%)", background: "hsl(152 46% 40% / 0.14)", borderColor: "hsl(152 46% 45% / 0.25)" } : { color: "hsl(150 16% 72%)", background: "hsl(150 10% 30% / 0.2)", borderColor: "hsl(150 10% 40% / 0.25)" }}>{m.permission}</span>
                   </div>
-                  <div className="flex items-center justify-end gap-2 md:justify-between">
+                  <div className="relative flex items-center justify-end gap-2 md:justify-between">
                     <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(150 16% 72%)" }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: "hsl(152 50% 52%)" }} />Active</span>
-                    <button style={{ color: "hsl(150 10% 52%)" }}><MoreHorizontal className="h-4 w-4" /></button>
+                    <button style={{ color: "hsl(150 10% 52%)" }} onClick={() => setMenuId(menuId === `m-${m.id}` ? null : `m-${m.id}`)}><MoreHorizontal className="h-4 w-4" /></button>
+                    {menuId === `m-${m.id}` && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setMenuId(null)} />
+                        <div className="absolute right-0 top-8 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 18%)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                          <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(8 60% 64%)" }} onClick={() => { setMenuId(null); setConfirm({ kind: "member", id: m.id, name: m.name }); }}>Remove from team</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -113,7 +162,17 @@ export default function CockpitTeam() {
                   <div className="hidden text-[12.5px] md:block" style={{ color: "hsl(150 14% 66%)" }}>{inv.role}</div>
                   <div className="hidden md:block"><span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(38 60% 66%)" }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: "hsl(38 64% 62%)" }} />Invited</span></div>
                   <div className="hidden text-[12.5px] md:block" style={{ color: "hsl(150 14% 66%)" }}>{inv.expires}</div>
-                  <button className="justify-self-end" style={{ color: "hsl(150 10% 52%)" }}><MoreVertical className="h-4 w-4" /></button>
+                  <div className="relative justify-self-end">
+                    <button style={{ color: "hsl(150 10% 52%)" }} onClick={() => setMenuId(menuId === `i-${inv.id}` ? null : `i-${inv.id}`)}><MoreVertical className="h-4 w-4" /></button>
+                    {menuId === `i-${inv.id}` && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setMenuId(null)} />
+                        <div className="absolute right-0 top-8 z-50 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 18%)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                          <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(8 60% 64%)" }} onClick={() => { setMenuId(null); setConfirm({ kind: "invite", id: inv.id, name: inv.name }); }}>Revoke invite</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))
               )}
