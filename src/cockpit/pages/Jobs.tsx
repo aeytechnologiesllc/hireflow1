@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
   Mic,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../components/PageHeader";
@@ -71,6 +72,11 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
       icon: Eye,
       label: "View",
       onClick: () => navigate(`/applicants?roleId=${job.id}`),
+    },
+    {
+      icon: ExternalLink,
+      label: "See live",
+      onClick: () => window.open(`${window.location.origin}/candidate/job/${job.id}`, "_blank", "noopener"),
     },
     {
       icon: copied === "code" ? Check : Copy,

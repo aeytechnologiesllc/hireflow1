@@ -15,6 +15,7 @@ import {
   Code2,
   Copy,
   DollarSign,
+  ExternalLink,
   FileText,
   Loader2,
   MapPin,
@@ -547,6 +548,27 @@ export default function AvaCreateJob() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                  <div className="mt-4 flex w-full flex-col gap-2.5">
+                    {publishedRoleId && (
+                      <a
+                        href={`${typeof window !== "undefined" ? window.location.origin : ""}/candidate/job/${publishedRoleId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ck-btn ck-btn-outline w-full !text-[13px]"
+                      >
+                        See your job live <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                    <a
+                      href={`https://www.google.com/search?q=${encodeURIComponent(`${briefFields.role || "job"} ${briefFields.location || ""}`.trim())}&ibp=htl;jobs`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-center text-[12.5px] font-medium"
+                      style={{ color: "hsl(var(--ck-brass))" }}
+                    >
+                      Find it on Google for Jobs →
+                    </a>
                   </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
                     <CountUp value={reviewCards.length} /> screening steps · applicants can apply at <code className="text-[11px]">/candidate/apply?code={publishedCode}</code>
