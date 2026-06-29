@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -9,10 +10,14 @@ import {
   Target,
   BookOpen,
   ShieldCheck,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { CandidateMark } from "../components/CandidateMark";
-import { useCockpitCandidate, useCockpitActions, useCockpitAccount } from "../hooks/useCockpitData";
+import { ActionDialog } from "../components/ActionDialog";
+import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
+import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
@@ -21,8 +26,10 @@ export default function CockpitCandidateDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { candidate: c, application, isLoading } = useCockpitCandidate(id);
-  const { advance, pass } = useCockpitActions();
+  const { advance, hire, reject, isUpdating } = useCockpitActions();
   const { account } = useCockpitAccount();
+  const [dialog, setDialog] = useState<null | "hire" | "reject">(null);
+  const [hirePrompt, setHirePrompt] = useState(false);
 
   if (isLoading || !c) {
     return (
@@ -32,12 +39,24 @@ export default function CockpitCandidateDetail() {
     );
   }
 
+  const status = application?.status;
+  const isHired = status === "hired";
+  const isRejected = status === "rejected";
+  const isOffered = status === "offered";
+  const isTerminal = isHired || isRejected;
+  const canAdvance = !!nextAdvanceStatus(status);
+
   const handleAdvance = () => {
     if (application) void advance(c.id, application.status);
   };
-
-  const handlePass = () => {
-    void pass(c.id);
+  const doHire = async () => {
+    await hire(c.id);
+    setDialog(null);
+    setHirePrompt(true);
+  };
+  const doReject = async (reason?: string) => {
+    await reject(c.id, reason);
+    setDialog(null);
   };
 
   return (
@@ -125,10 +144,78 @@ export default function CockpitCandidateDetail() {
         className="fixed inset-x-0 z-30 flex items-center gap-2 px-4 py-3 md:absolute md:rounded-2xl"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)", background: "hsl(156 20% 5% / 0.96)", borderTop: "1px solid hsl(150 12% 13%)" }}
       >
-        <button className="ck-btn ck-btn-brass flex-1" onClick={handleAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>
-        <button className="ck-btn ck-btn-outline flex-1" onClick={handlePass}>Pass</button>
-        <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
+        {isTerminal ? (
+          <>
+            <div
+              className="flex flex-1 items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-[14px] font-semibold"
+              style={
+                isHired
+                  ? { background: "hsl(152 46% 40% / 0.16)", color: "hsl(152 52% 64%)", border: "1px solid hsl(152 46% 45% / 0.3)" }
+                  : { background: "hsl(8 40% 40% / 0.12)", color: "hsl(8 60% 66%)", border: "1px solid hsl(8 40% 45% / 0.25)" }
+              }
+            >
+              {isHired ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+              {isHired ? "Hired" : "Not moving forward"}
+            </div>
+            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
+          </>
+        ) : isOffered ? (
+          <>
+            <button className="ck-btn ck-btn-brass flex-1" onClick={() => setDialog("hire")}><CheckCircle2 className="h-4 w-4" />Hire</button>
+            <button
+              className="ck-btn ck-btn-outline flex-1"
+              style={{ color: "hsl(8 66% 66%)", borderColor: "hsl(8 50% 40% / 0.5)" }}
+              onClick={() => setDialog("reject")}
+            >
+              Decline Offer
+            </button>
+            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
+          </>
+        ) : (
+          <>
+            {canAdvance && (
+              <button className="ck-btn ck-btn-brass flex-1" onClick={handleAdvance} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
+            )}
+            <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("reject")}>Pass</button>
+            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
+          </>
+        )}
       </div>
+
+      <ActionDialog
+        open={dialog === "hire"}
+        title={`Hire ${c.name}?`}
+        description={`This marks ${c.name} as hired for ${c.role} and lets them know. You can send an offer letter next.`}
+        confirmLabel="Confirm hire"
+        tone="brass"
+        busy={isUpdating}
+        onConfirm={() => void doHire()}
+        onClose={() => setDialog(null)}
+      />
+      <ActionDialog
+        open={dialog === "reject"}
+        title={isOffered ? `Decline offer to ${c.name}?` : `Pass on ${c.name}?`}
+        description={isOffered
+          ? "This withdraws the offer and notifies the candidate. Add a short note for your records (optional)."
+          : "This removes the candidate from your active pipeline and notifies them. Add a short note for your records (optional)."}
+        confirmLabel={isOffered ? "Decline offer" : "Pass candidate"}
+        tone="danger"
+        busy={isUpdating}
+        withReason
+        reasonLabel="Reason (optional, private to you)"
+        reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
+        onConfirm={(reason) => void doReject(reason)}
+        onClose={() => setDialog(null)}
+      />
+
+      <HiringDocumentPromptDialog
+        open={hirePrompt}
+        onOpenChange={setHirePrompt}
+        candidateName={c.name}
+        jobTitle={c.role}
+        applicationId={c.id}
+        onSkip={() => setHirePrompt(false)}
+      />
     </div>
   );
 }

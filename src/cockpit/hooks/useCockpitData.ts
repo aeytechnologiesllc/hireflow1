@@ -188,10 +188,35 @@ export function useCockpitCandidate(id: string | undefined) {
   return { candidate, application, isLoading };
 }
 
+/** DB status progression for the "Advance" button. Caps at "offered" — moving
+ *  past offered is the explicit Hire action (so a candidate is never auto-hired
+ *  and an offered candidate can never be bumped backwards). */
+const NEXT_STATUS: Record<string, string> = {
+  pending: "reviewing",
+  in_progress: "reviewing",
+  reviewing: "interview",
+  interview: "offered",
+};
+
+/** A candidate at one of these statuses has reached a terminal/offer state — the
+ *  list/detail shows Hire + Decline Offer instead of Advance + Pass. */
+export function nextAdvanceStatus(currentStatus?: string): string | null {
+  if (!currentStatus) return "reviewing";
+  return NEXT_STATUS[currentStatus] ?? null;
+}
+
 export function useCockpitActions() {
   const { data: mode } = useSchemaMode();
+  const { user } = useAuth();
   const updateApplication = useUpdateApplication();
   const queryClient = useQueryClient();
+
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["applications"] });
+    queryClient.invalidateQueries({ queryKey: ["activity-feed"] });
+    queryClient.invalidateQueries({ queryKey: ["showcase-candidates"] });
+    queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
+  }, [queryClient]);
 
   const advance = useCallback(
     async (applicationId: string, currentStatus?: string) => {
@@ -199,8 +224,7 @@ export function useCockpitActions() {
         try {
           await updateShowcaseDecision(applicationId, "offer");
           toast.success("Candidate advanced");
-          queryClient.invalidateQueries({ queryKey: ["showcase-candidates"] });
-          queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
+          refresh();
         } catch (err) {
           console.error(err);
           toast.error("Could not advance candidate");
@@ -208,35 +232,57 @@ export function useCockpitActions() {
         return;
       }
 
-      const nextStatus =
-        currentStatus === "pending" || currentStatus === "in_progress"
-          ? "reviewing"
-          : currentStatus === "reviewing"
-            ? "interview"
-            : currentStatus === "interview"
-              ? "offered"
-              : "reviewing";
+      const nextStatus = nextAdvanceStatus(currentStatus);
+      if (!nextStatus) {
+        // Already at offered/hired/rejected — Advance is a no-op here.
+        return;
+      }
 
       try {
-        await updateApplication.mutateAsync({ id: applicationId, status: nextStatus });
-        toast.success("Candidate advanced");
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
-        queryClient.invalidateQueries({ queryKey: ["activity-feed"] });
+        await updateApplication.mutateAsync({ id: applicationId, status: nextStatus as never });
+        toast.success(nextStatus === "offered" ? "Moved to offer" : "Candidate advanced");
+        refresh();
       } catch (err) {
         console.error(err);
         toast.error("Could not advance candidate");
       }
     },
-    [updateApplication, queryClient, mode],
+    [updateApplication, refresh, mode],
   );
 
-  const pass = useCallback(
+  const hire = useCallback(
     async (applicationId: string) => {
+      if (mode === "showcase") {
+        try {
+          await updateShowcaseDecision(applicationId, "offer");
+          toast.success("Candidate hired 🎉");
+          refresh();
+        } catch (err) {
+          console.error(err);
+          toast.error("Could not hire candidate");
+        }
+        return;
+      }
+
+      try {
+        await updateApplication.mutateAsync({ id: applicationId, status: "hired" as never });
+        toast.success("Candidate hired 🎉");
+        refresh();
+      } catch (err) {
+        console.error(err);
+        toast.error("Could not hire candidate");
+      }
+    },
+    [updateApplication, refresh, mode],
+  );
+
+  const reject = useCallback(
+    async (applicationId: string, reason?: string) => {
       if (mode === "showcase") {
         try {
           await updateShowcaseDecision(applicationId, "passed");
           toast.success("Candidate passed");
-          queryClient.invalidateQueries({ queryKey: ["showcase-candidates"] });
+          refresh();
         } catch (err) {
           console.error(err);
           toast.error("Could not update candidate");
@@ -244,19 +290,29 @@ export function useCockpitActions() {
         return;
       }
 
+      const trimmed = reason?.trim();
       try {
-        await updateApplication.mutateAsync({ id: applicationId, status: "rejected" });
+        await updateApplication.mutateAsync({
+          id: applicationId,
+          status: "rejected" as never,
+          rejected_by: user?.id ?? null,
+          rejected_by_type: "employer",
+          ...(trimmed ? { employer_notes: trimmed } : {}),
+        } as never);
         toast.success("Candidate passed");
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
+        refresh();
       } catch (err) {
         console.error(err);
         toast.error("Could not update candidate");
       }
     },
-    [updateApplication, queryClient, mode],
+    [updateApplication, refresh, mode, user?.id],
   );
 
-  return { advance, pass, isUpdating: updateApplication.isPending };
+  // Back-compat alias — quick "Pass" with no reason.
+  const pass = useCallback((applicationId: string) => reject(applicationId), [reject]);
+
+  return { advance, hire, reject, pass, isUpdating: updateApplication.isPending };
 }
 
 export function useCockpitInterviews() {

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
+import { useUnreadCount } from "@/hooks/useNotifications";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
 
@@ -165,6 +166,34 @@ function Sidebar() {
   );
 }
 
+function NotificationBell({ compact }: { compact?: boolean }) {
+  const navigate = useNavigate();
+  const { data: unread = 0 } = useUnreadCount();
+  return (
+    <button
+      aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
+      onClick={() => navigate("/notifications")}
+      className="relative flex items-center justify-center rounded-lg"
+      style={{
+        width: 36,
+        height: 36,
+        background: compact ? "transparent" : "hsl(156 16% 9% / 0.7)",
+        border: compact ? "none" : "1px solid hsl(150 12% 15% / 0.9)",
+      }}
+    >
+      <Bell className="h-5 w-5" style={{ color: "hsl(38 60% 64%)" }} />
+      {unread > 0 && (
+        <span
+          className="absolute -right-1 -top-1 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
+          style={{ minWidth: 16, height: 16, background: "hsl(8 70% 55%)", color: "hsl(0 0% 100%)", border: "1.5px solid hsl(var(--ck-bg))" }}
+        >
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function TodayPill() {
   return (
     <button
@@ -199,12 +228,16 @@ function DesktopTopBar() {
               </button>
             </AccountMenu>
           </div>
-          <TodayPill />
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <TodayPill />
+          </div>
         </>
       ) : (
         <>
           <div />
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <AccountChip />
             <TodayPill />
           </div>
@@ -227,7 +260,7 @@ function MobileTopBar() {
       </h1>
       <div className="flex shrink-0 items-center gap-2">
         <AccountChip />
-        <Bell className="h-5 w-5" style={{ color: "hsl(38 60% 64%)" }} />
+        <NotificationBell compact />
       </div>
     </header>
   );

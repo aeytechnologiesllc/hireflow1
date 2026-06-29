@@ -12,15 +12,78 @@ import {
   MoreHorizontal,
   ExternalLink,
   Loader2,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { Pipeline } from "../components/Pipeline";
 import { CandidateMark } from "../components/CandidateMark";
+import { ActionDialog } from "../components/ActionDialog";
+import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
-import { useCockpitCandidates, useCockpitActions } from "../hooks/useCockpitData";
+import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 import type { Candidate, CandidateStage } from "../data";
+
+/** Stage-aware decision buttons shared by the detail panel, the table rows and the
+ *  mobile cards. Terminal states show a badge; an offered candidate gets Hire +
+ *  Decline; everyone else gets Advance + Pass. */
+function RowActions({
+  status,
+  variant,
+  onAdvance,
+  onHire,
+  onReject,
+}: {
+  status?: string;
+  variant: "panel" | "row" | "card";
+  onAdvance: () => void;
+  onHire: () => void;
+  onReject: () => void;
+}) {
+  const hired = status === "hired";
+  const rejected = status === "rejected";
+  const offered = status === "offered";
+  const canAdvance = !!nextAdvanceStatus(status);
+
+  if (hired || rejected) {
+    return (
+      <span
+        className="ck-pill"
+        style={
+          hired
+            ? { color: "hsl(152 52% 64%)", background: "hsl(152 46% 40% / 0.16)", borderColor: "hsl(152 46% 45% / 0.3)" }
+            : { color: "hsl(8 60% 66%)", background: "hsl(8 40% 40% / 0.12)", borderColor: "hsl(8 40% 45% / 0.25)" }
+        }
+      >
+        {hired ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+        {hired ? "Hired" : "Passed"}
+      </span>
+    );
+  }
+
+  if (variant === "panel") {
+    return offered ? (
+      <>
+        <button className="ck-btn ck-btn-brass w-full" onClick={onHire}><CheckCircle2 className="h-4 w-4" />Hire</button>
+        <button className="ck-btn ck-btn-outline w-full" style={{ color: "hsl(8 66% 66%)", borderColor: "hsl(8 50% 40% / 0.5)" }} onClick={onReject}>Decline Offer</button>
+      </>
+    ) : (
+      <>
+        {canAdvance && <button className="ck-btn ck-btn-brass w-full" onClick={onAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>}
+        <button className="ck-btn ck-btn-outline w-full" onClick={onReject}>Pass</button>
+      </>
+    );
+  }
+
+  const sm = "!px-3 !py-1.5 !text-[12px]";
+  return offered ? (
+    <button className={`ck-btn ck-btn-brass ${sm}`} onClick={onHire}><CheckCircle2 className="h-3.5 w-3.5" />Hire</button>
+  ) : canAdvance ? (
+    <button className={`ck-btn ck-btn-brass ${sm}`} onClick={onAdvance}>Advance<ChevronRight className="h-3.5 w-3.5" /></button>
+  ) : null;
+}
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 const PAGE_SIZE = 8;
@@ -42,7 +105,7 @@ function Score({ value }: { value: number | null }) {
   return <span className="ck-num text-[15px]" style={{ color: "hsl(150 28% 88%)" }}>{value}%</span>;
 }
 
-function DetailPanel({ c, onClose, onAdvance, onPass, onViewProfile }: { c: Candidate; onClose?: () => void; onAdvance: () => void; onPass: () => void; onViewProfile: () => void }) {
+function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onViewProfile }: { c: Candidate; status?: string; onClose?: () => void; onAdvance: () => void; onHire: () => void; onReject: () => void; onViewProfile: () => void }) {
   const analyzed = isAnalyzed(c);
   return (
     <div className="ck-card flex h-full flex-col p-5">
@@ -111,8 +174,7 @@ function DetailPanel({ c, onClose, onAdvance, onPass, onViewProfile }: { c: Cand
       )}
 
       <div className="mt-auto space-y-2 pt-5">
-        <button className="ck-btn ck-btn-brass w-full" onClick={onAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>
-        <button className="ck-btn ck-btn-outline w-full" onClick={onPass}>Pass</button>
+        <RowActions status={status} variant="panel" onAdvance={onAdvance} onHire={onHire} onReject={onReject} />
         <button className="ck-btn ck-btn-ghost mx-auto !text-[12.5px]" onClick={onViewProfile}>View full profile<ExternalLink className="h-3.5 w-3.5" /></button>
       </div>
     </div>
@@ -124,13 +186,22 @@ export default function CockpitApplicants() {
   const [searchParams, setSearchParams] = useSearchParams();
   const roleIdFilter = searchParams.get("roleId");
   const { candidates, pipeline, applications, isLoading } = useCockpitCandidates();
-  const { advance, pass } = useCockpitActions();
+  const { advance, hire, reject, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [scoreFilter, setScoreFilter] = useState("");
   const [page, setPage] = useState(1);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject"; cand: Candidate } | null>(null);
+  const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
+
+  // Map application id → live status (candidate.id === application.id in both schema modes).
+  const statusById = useMemo(() => {
+    const m: Record<string, string> = {};
+    applications.forEach((a) => { m[a.id] = (a as { status?: string }).status ?? ""; });
+    return m;
+  }, [applications]);
 
   // The role identifier differs by schema: showcase apps carry `role_id`, hireflow1 apps carry
   // `job_id`. Support both so the Role filter + the Jobs "View" deep-link (?roleId=<jobId>) work.
@@ -215,9 +286,22 @@ export default function CockpitApplicants() {
 
   const handleAdvance = (id: string) => {
     const app = applications.find((a) => a.id === id);
-    if (app) void advance(id, app.status);
+    if (app) void advance(id, (app as { status?: string }).status);
   };
-  const handlePass = (id: string) => { void pass(id); };
+  const openHire = (c: Candidate) => setActionDialog({ type: "hire", cand: c });
+  const openReject = (c: Candidate) => setActionDialog({ type: "reject", cand: c });
+  const confirmHire = async () => {
+    if (!actionDialog) return;
+    const c = actionDialog.cand;
+    await hire(c.id);
+    setActionDialog(null);
+    setHirePrompt(c);
+  };
+  const confirmReject = async (reason?: string) => {
+    if (!actionDialog) return;
+    await reject(actionDialog.cand.id, reason);
+    setActionDialog(null);
+  };
   const setRole = (value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("roleId", value); else next.delete("roleId");
@@ -303,10 +387,14 @@ export default function CockpitApplicants() {
                     <div><Score value={c.quiz} /></div>
                     <div><Score value={c.voice} /></div>
                     <div className="truncate pr-2 text-[12.5px]" style={{ color: "hsl(150 10% 58%)" }}>{analyzed ? c.read : "Screening in progress…"}</div>
-                    <div className="relative flex items-center gap-1.5">
-                      <button className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12.5px]" onClick={(e) => { e.stopPropagation(); handleAdvance(c.id); }}>
-                        Advance<ChevronRight className="h-3.5 w-3.5" />
-                      </button>
+                    <div className="relative flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <RowActions
+                        status={statusById[c.id]}
+                        variant="row"
+                        onAdvance={() => handleAdvance(c.id)}
+                        onHire={() => openHire(c)}
+                        onReject={() => openReject(c)}
+                      />
                       <button style={{ color: "hsl(150 10% 52%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(menuId === c.id ? null : c.id); }}>
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -316,7 +404,11 @@ export default function CockpitApplicants() {
                           <div className="absolute right-0 top-9 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 18%)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
                             <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(150 20% 80%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/applicants/${c.id}`); }}>View full profile</button>
                             <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(150 20% 80%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/messages?candidate=${c.id}`); }}>Message</button>
-                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(8 60% 64%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); handlePass(c.id); }}>Pass</button>
+                            {statusById[c.id] !== "hired" && statusById[c.id] !== "rejected" && (
+                              <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(8 60% 64%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); openReject(c); }}>
+                                {statusById[c.id] === "offered" ? "Decline offer" : "Pass"}
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
@@ -380,9 +472,19 @@ export default function CockpitApplicants() {
                       <div className="text-[11px]" style={{ color: "hsl(150 10% 56%)" }}>Ava's read</div>
                       <p className="text-[12px] leading-snug" style={{ color: "hsl(150 12% 62%)" }}>{analyzed ? c.read : "Screening in progress…"}</p>
                     </div>
-                    <div className="flex shrink-0 flex-col gap-1.5">
-                      <button className="ck-btn ck-btn-brass !px-3 !py-1.5 !text-[12px]" onClick={(e) => { e.stopPropagation(); handleAdvance(c.id); }}>Advance<ChevronRight className="h-3.5 w-3.5" /></button>
-                      <button className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12px]" onClick={(e) => { e.stopPropagation(); handlePass(c.id); }}>Pass</button>
+                    <div className="flex shrink-0 flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <RowActions
+                        status={statusById[c.id]}
+                        variant="card"
+                        onAdvance={() => handleAdvance(c.id)}
+                        onHire={() => openHire(c)}
+                        onReject={() => openReject(c)}
+                      />
+                      {statusById[c.id] !== "hired" && statusById[c.id] !== "rejected" && (
+                        <button className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12px]" onClick={(e) => { e.stopPropagation(); openReject(c); }}>
+                          {statusById[c.id] === "offered" ? "Decline" : "Pass"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -399,14 +501,54 @@ export default function CockpitApplicants() {
           {selected ? (
             <DetailPanel
               c={selected}
+              status={statusById[selected.id]}
               onClose={() => undefined}
               onAdvance={() => handleAdvance(selected.id)}
-              onPass={() => handlePass(selected.id)}
+              onHire={() => openHire(selected)}
+              onReject={() => openReject(selected)}
               onViewProfile={() => navigate(`/applicants/${selected.id}`)}
             />
           ) : null}
         </div>
       </div>
+
+      <ActionDialog
+        open={actionDialog?.type === "hire"}
+        title={actionDialog ? `Hire ${actionDialog.cand.name}?` : ""}
+        description={actionDialog ? `This marks ${actionDialog.cand.name} as hired for ${actionDialog.cand.role} and lets them know. You can send an offer letter next.` : ""}
+        confirmLabel="Confirm hire"
+        tone="brass"
+        busy={isUpdating}
+        onConfirm={() => void confirmHire()}
+        onClose={() => setActionDialog(null)}
+      />
+      <ActionDialog
+        open={actionDialog?.type === "reject"}
+        title={actionDialog ? (statusById[actionDialog.cand.id] === "offered" ? `Decline offer to ${actionDialog.cand.name}?` : `Pass on ${actionDialog.cand.name}?`) : ""}
+        description={
+          actionDialog && statusById[actionDialog.cand.id] === "offered"
+            ? "This withdraws the offer and notifies the candidate. Add a short note for your records (optional)."
+            : "This removes the candidate from your active pipeline and notifies them. Add a short note for your records (optional)."
+        }
+        confirmLabel={actionDialog && statusById[actionDialog.cand.id] === "offered" ? "Decline offer" : "Pass candidate"}
+        tone="danger"
+        busy={isUpdating}
+        withReason
+        reasonLabel="Reason (optional, private to you)"
+        reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
+        onConfirm={(reason) => void confirmReject(reason)}
+        onClose={() => setActionDialog(null)}
+      />
+      {hirePrompt && (
+        <HiringDocumentPromptDialog
+          open={!!hirePrompt}
+          onOpenChange={(o) => { if (!o) setHirePrompt(null); }}
+          candidateName={hirePrompt.name}
+          jobTitle={hirePrompt.role}
+          applicationId={hirePrompt.id}
+          onSkip={() => setHirePrompt(null)}
+        />
+      )}
     </div>
   );
 }
