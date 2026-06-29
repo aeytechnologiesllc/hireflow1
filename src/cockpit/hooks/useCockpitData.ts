@@ -475,42 +475,51 @@ export function useCockpitAnalytics() {
     }
 
     const pipeline = hfPipeline;
-    const timeToHire = data?.timeToHire?.avgDays ?? 0;
+    const timeToHire = data?.timeToHire?.avgDays ?? null;
     const totalApps = data?.applicationTrends?.reduce((s, t) => s + t.applications, 0) ?? 0;
     const hired = data?.applicationTrends?.reduce((s, t) => s + t.hired, 0) ?? 0;
     const hireRate = totalApps > 0 ? Math.round((hired / totalApps) * 100) : 0;
+
+    // Real average screening score — only meaningful once candidates are scored.
+    const scored = data?.aiScoreDistribution?.reduce((s, b) => s + b.count, 0) ?? 0;
     const avgScore =
-      data?.aiScoreDistribution?.length
+      scored > 0
         ? Math.round(
-            data.aiScoreDistribution.reduce((s, b, i) => {
+            (data!.aiScoreDistribution.reduce((s, b, i) => {
               const mid = [10, 30, 50, 70, 90][i] ?? 50;
               return s + mid * b.count;
-            }, 0) / Math.max(1, data.aiScoreDistribution.reduce((s, b) => s + b.count, 0)),
+            }, 0)) / scored,
           )
-        : 86;
+        : null;
 
-    const trend = data?.applicationTrends?.map((t) => t.applications) ?? pipeline.map((p) => p.count);
-    const trendLabels = ["Week 1", "Week 2", "Week 3", "Week 4", "Now"];
+    // Real daily application counts (last 30 days). Quality-over-time has no real
+    // time series yet, so we leave it empty rather than fabricate one.
+    const trend = data?.applicationTrends?.map((t) => t.applications) ?? [];
+    const trendLabels = ["30d ago", "23d", "15d", "7d", "Now"];
 
     const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
 
+    // Honest source breakdown: every application today arrives through the HireFlow
+    // apply link / code (incl. Google for Jobs → direct apply). No invented split.
+    const sources = totalApps > 0 ? [{ label: "Direct apply", value: totalApps, pct: "100%" }] : [];
+
     return {
       kpis: [
-        { label: "Time to hire", value: timeToHire.toFixed(1), unit: "days", delta: "vs last 30 days", trend: "down" as const, good: true, icon: "clock" as const },
-        { label: "Hire rate", value: String(hireRate), unit: "%", delta: "vs last 30 days", trend: "up" as const, good: true, icon: "userCheck" as const },
-        { label: "Applicant quality", value: String(avgScore), unit: "", delta: "avg screening score", trend: "up" as const, good: true, icon: "star" as const },
+        { label: "Time to hire", value: timeToHire != null ? timeToHire.toFixed(1) : "—", unit: timeToHire != null ? "days" : "", delta: "first hire onward", trend: "down" as const, good: true, icon: "clock" as const },
+        { label: "Hire rate", value: String(hireRate), unit: "%", delta: "hired / applicants", trend: "up" as const, good: true, icon: "userCheck" as const },
+        { label: "Applicant quality", value: avgScore != null ? String(avgScore) : "—", unit: "", delta: scored > 0 ? `${scored} scored` : "awaiting screening", trend: "up" as const, good: true, icon: "star" as const },
         { label: "Applications", value: String(totalApps), unit: "", delta: "last 30 days", trend: "up" as const, good: true, icon: "chat" as const },
       ],
-      trend: trend.length ? trend : [12, 18, 15, 22, 19],
+      trend,
       trendLabels,
-      sources: [
-        { label: "Direct apply", value: Math.round(totalApps * 0.4), pct: "40%" },
-        { label: "Job boards", value: Math.round(totalApps * 0.3), pct: "30%" },
-        { label: "Referrals", value: Math.round(totalApps * 0.2), pct: "20%" },
-        { label: "Other", value: Math.round(totalApps * 0.1), pct: "10%" },
-      ],
-      quality: trend.length ? trend.map((v) => Math.min(95, 60 + v)) : [62, 66, 70, 74, 78],
-      insight: bottleneck ? `${bottleneck.label} stage is the largest drop-off — review your flow settings.` : "Your pipeline is moving steadily.",
+      sources,
+      quality: [] as number[],
+      insight:
+        totalApps === 0
+          ? "Publish a role and share your apply link to start seeing funnel data."
+          : bottleneck
+            ? `${bottleneck.label} stage is the largest drop-off — review your flow settings.`
+            : "Your pipeline is moving steadily.",
     };
   }, [mode, showcaseQ.data, data, hfPipeline]);
 

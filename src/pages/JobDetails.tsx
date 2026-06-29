@@ -314,15 +314,19 @@ export default function JobDetails() {
               <div className="flex min-w-0 items-start justify-between gap-4">
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center">
-                      <Briefcase className="h-7 w-7 text-primary" />
+                    <div className="w-14 h-14 shrink-0 overflow-hidden rounded-xl bg-primary/20 flex items-center justify-center">
+                      {employerProfile?.company_logo ? (
+                        <img src={employerProfile.company_logo} alt={employerProfile.company_name ?? "Company logo"} className="h-full w-full object-contain" />
+                      ) : (
+                        <Briefcase className="h-7 w-7 text-primary" />
+                      )}
                     </div>
                     <div className="min-w-0">
                       <h1 className="break-words text-3xl font-bold text-foreground [overflow-wrap:anywhere]">{job.title}</h1>
-                      {job.department && (
+                      {(employerProfile?.company_name || job.department) && (
                         <p className="mt-1 flex min-w-0 items-center gap-1 text-muted-foreground">
                           <Building2 className="h-4 w-4 shrink-0" />
-                          <span className="break-words [overflow-wrap:anywhere]">{job.department}</span>
+                          <span className="break-words [overflow-wrap:anywhere]">{employerProfile?.company_name || job.department}</span>
                         </p>
                       )}
                     </div>

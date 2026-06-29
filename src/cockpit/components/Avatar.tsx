@@ -1,5 +1,4 @@
 import { type ReactElement } from "react";
-import { avatars } from "../data";
 
 interface AvatarProps {
   /** Person's name or a key into the avatars map. Drives initials + the deterministic accent. */
@@ -45,10 +44,9 @@ const FILLS: Array<[string, string]> = [
  * premium — never glassy, never a stock face or generic silhouette.
  */
 export function CkAvatar({ who, size = 40, initials, photo, className }: AvatarProps) {
-  const meta = who ? avatars[who] : undefined;
-  const realPhoto = photo ?? undefined; // default mock data → no photo
+  const realPhoto = photo ?? undefined;
   const name = who ?? initials ?? "?";
-  const label = initials ?? meta?.initials ?? deriveInitials(name);
+  const label = initials ?? deriveInitials(name);
 
   const ring = "inset 0 0 0 1px hsl(150 16% 20% / 0.85)";
 

@@ -24,6 +24,17 @@ function CardTitle({ title }: { title: string }) {
   );
 }
 
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div
+      className="mt-3 flex items-center justify-center rounded-md text-center text-[12px]"
+      style={{ height: 130, border: "1px dashed hsl(150 12% 18%)", color: "hsl(150 10% 52%)" }}
+    >
+      <span className="max-w-[220px] px-3">{message}</span>
+    </div>
+  );
+}
+
 function LineChart({ data, yMax, yTicks }: { data: number[]; yMax: number; yTicks: number[] }) {
   const W = 300, H = 120, padL = 22, padB = 18, padT = 6;
   const innerW = W - padL, innerH = H - padB - padT;
@@ -64,6 +75,8 @@ export default function CockpitAnalytics() {
   const { analytics, pipeline, isLoading } = useCockpitAnalytics();
   const { account } = useCockpitAccount();
   const maxSource = Math.max(...analytics.sources.map((s) => s.value), 1);
+  const hasTrend = analytics.trend.length >= 2 && analytics.trend.some((v) => v > 0);
+  const hasQuality = analytics.quality.length >= 2 && analytics.quality.some((v) => v > 0);
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
@@ -90,36 +103,49 @@ export default function CockpitAnalytics() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 md:gap-5">
         <div className="ck-card p-5">
           <CardTitle title="Application trend" />
-          <LineChart data={analytics.trend} yMax={60} yTicks={[0, 15, 30, 45, 60]} />
-          <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
-            {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
-          </div>
+          {hasTrend ? (
+            <>
+              <LineChart data={analytics.trend} yMax={Math.max(...analytics.trend, 5)} yTicks={[0, 15, 30, 45, 60]} />
+              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
+                {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
+              </div>
+            </>
+          ) : (
+            <EmptyChart message="No applications in the last 30 days yet. Share your apply link to start seeing trends." />
+          )}
         </div>
 
         <div className="ck-card p-5">
           <span className="text-[14px] font-semibold" style={{ color: "hsl(150 26% 86%)" }}>Applications by source</span>
-          <div className="mt-4 space-y-3">
-            {analytics.sources.map((s) => (
-              <div key={s.label} className="flex items-center gap-3">
-                <span className="w-[68px] shrink-0 text-[12px]" style={{ color: "hsl(150 12% 62%)" }}>{s.label}</span>
-                <div className="h-4 flex-1 overflow-hidden rounded-sm" style={{ background: "hsl(150 12% 12%)" }}>
-                  <div className="h-full rounded-sm" style={{ width: `${(s.value / maxSource) * 100}%`, background: "hsl(152 44% 52%)" }} />
+          {analytics.sources.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              {analytics.sources.map((s) => (
+                <div key={s.label} className="flex items-center gap-3">
+                  <span className="w-[78px] shrink-0 text-[12px]" style={{ color: "hsl(150 12% 62%)" }}>{s.label}</span>
+                  <div className="h-4 flex-1 overflow-hidden rounded-sm" style={{ background: "hsl(150 12% 12%)" }}>
+                    <div className="h-full rounded-sm" style={{ width: `${(s.value / maxSource) * 100}%`, background: "hsl(152 44% 52%)" }} />
+                  </div>
+                  <span className="w-[64px] shrink-0 text-right text-[11.5px]" style={{ color: "hsl(150 16% 70%)" }}>{s.value} ({s.pct})</span>
                 </div>
-                <span className="w-[58px] shrink-0 text-right text-[11.5px]" style={{ color: "hsl(150 16% 70%)" }}>{s.value} ({s.pct})</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex justify-between pl-[80px] pr-[58px] text-[10.5px]" style={{ color: "hsl(150 10% 48%)" }}>
-            <span>0</span><span>10</span><span>20</span>
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyChart message="No applications yet — your source breakdown appears here once candidates apply." />
+          )}
         </div>
 
         <div className="ck-card p-5">
           <CardTitle title="Applicant quality score over time" />
-          <LineChart data={analytics.quality} yMax={100} yTicks={[0, 25, 50, 75, 100]} />
-          <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
-            {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
-          </div>
+          {hasQuality ? (
+            <>
+              <LineChart data={analytics.quality} yMax={100} yTicks={[0, 25, 50, 75, 100]} />
+              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
+                {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
+              </div>
+            </>
+          ) : (
+            <EmptyChart message="Quality trends appear here as Ava screens and scores your candidates." />
+          )}
         </div>
       </div>
 

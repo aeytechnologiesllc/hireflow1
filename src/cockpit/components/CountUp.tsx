@@ -45,6 +45,7 @@ export function CountUp({
   const reduced = prefersReduced();
   const [display, setDisplay] = useState(reduced ? value : 0);
   const rafRef = useRef<number | null>(null);
+  const safetyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (reduced) {
@@ -69,8 +70,12 @@ export function CountUp({
       }
     };
     rafRef.current = requestAnimationFrame(tick);
+    // Safety net: rAF is paused on backgrounded/throttled tabs, which would
+    // otherwise freeze the number at 0. Guarantee the true value always lands.
+    safetyRef.current = setTimeout(() => setDisplay(value), delay + duration + 80);
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (safetyRef.current !== null) clearTimeout(safetyRef.current);
     };
   }, [value, duration, delay, reduced]);
 

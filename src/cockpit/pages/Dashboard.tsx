@@ -67,6 +67,8 @@ export default function CockpitDashboard() {
   const navigate = useNavigate();
   const { dashboard, pipeline, isLoading } = useCockpitDashboard();
   const { hero, kpis, activity } = dashboard;
+  const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
+  const hasApplicants = pipeline.some((p) => p.count > 0);
 
   if (isLoading) {
     return (
@@ -99,7 +101,7 @@ export default function CockpitDashboard() {
               {hero.headline}
             </h1>
             <p className="mt-2 text-[13px]" style={{ color: "hsl(150 12% 64%)" }}>
-              I screened 42 applicants for Maria's Café.
+              {hero.sub}
             </p>
           </div>
         </div>
@@ -170,11 +172,15 @@ export default function CockpitDashboard() {
           <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-[13.5px]" style={{ color: "hsl(150 28% 88%)" }}>
-                <span className="ck-dot ck-dot-closed" />
-                Voice is your bottleneck
+                <span className="ck-dot" style={{ background: bottleneck ? "hsl(8 60% 58%)" : "hsl(152 50% 50%)" }} />
+                {bottleneck ? `${bottleneck.label} is your bottleneck` : hasApplicants ? "Pipeline looks healthy" : "No applicants yet"}
               </div>
               <p className="mt-1 text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
-                Most drop-off happens at the voice interview stage.
+                {bottleneck
+                  ? `Most drop-off happens at the ${bottleneck.label.toLowerCase()} stage.`
+                  : hasApplicants
+                    ? "Candidates are moving through smoothly."
+                    : "Publish a role and share your apply link to start receiving applicants."}
               </p>
             </div>
             <button

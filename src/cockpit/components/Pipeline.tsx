@@ -1,4 +1,4 @@
-import { pipeline as defaultPipeline, type PipelineNode } from "../data";
+import { type PipelineNode } from "../data";
 import { CountUp } from "./CountUp";
 
 type Variant = "health" | "large" | "funnel";
@@ -20,7 +20,7 @@ function nodeColor(node: PipelineNode) {
 }
 
 /** Connected-circle pipeline motif (Deep Jade). */
-export function Pipeline({ variant = "health", nodes = defaultPipeline, className }: PipelineProps) {
+export function Pipeline({ variant = "health", nodes = [], className }: PipelineProps) {
   const bottleneckIdx = nodes.findIndex((n) => n.tone === "bottleneck");
 
   const circle = variant === "large" ? 56 : variant === "funnel" ? 30 : 22;

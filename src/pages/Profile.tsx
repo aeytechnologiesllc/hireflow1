@@ -23,10 +23,12 @@ export default function Profile() {
   // File input refs
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Upload states
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -36,6 +38,7 @@ export default function Profile() {
     bio: "",
     company_name: "",
     company_description: "",
+    company_logo: "",
     portfolio_url: "",
     linkedin_url: "",
     skills: "",
@@ -54,6 +57,7 @@ export default function Profile() {
         bio: profile.bio || "",
         company_name: profile.company_name || "",
         company_description: profile.company_description || "",
+        company_logo: profile.company_logo || "",
         portfolio_url: profile.portfolio_url || "",
         linkedin_url: profile.linkedin_url || "",
         skills: profile.skills?.join(", ") || "",
@@ -111,6 +115,56 @@ export default function Profile() {
       if (avatarInputRef.current) {
         avatarInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Logo must be less than 5MB");
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}/logo-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
+
+      await updateProfile.mutateAsync({ company_logo: urlData.publicUrl });
+      setFormData((prev) => ({ ...prev, company_logo: urlData.publicUrl }));
+      toast.success("Company logo updated!");
+    } catch (error) {
+      console.error("Logo upload error:", error);
+      toast.error("Failed to upload logo");
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
+      }
+    }
+  };
+
+  const removeLogo = async () => {
+    try {
+      await updateProfile.mutateAsync({ company_logo: null });
+      setFormData((prev) => ({ ...prev, company_logo: "" }));
+      toast.success("Company logo removed");
+    } catch (error) {
+      toast.error("Failed to remove logo");
     }
   };
 
@@ -436,14 +490,56 @@ export default function Profile() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-lg">Company Information</CardTitle>
-            <CardDescription>Details about your organization</CardDescription>
+            <CardDescription>This appears on your job posts, candidate applications, and Google for Jobs.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Company logo */}
+            <div className="space-y-2">
+              <Label>Company Logo</Label>
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-background flex items-center justify-center">
+                  {formData.company_logo ? (
+                    <img src={formData.company_logo} alt="Company logo" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-lg font-semibold text-muted-foreground">
+                      {(formData.company_name || "?").slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                  >
+                    {isUploadingLogo ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
+                    ) : (
+                      <><Upload className="mr-2 h-4 w-4" /> {formData.company_logo ? "Replace" : "Upload logo"}</>
+                    )}
+                  </Button>
+                  {formData.company_logo && (
+                    <Button variant="ghost" size="sm" onClick={removeLogo} disabled={isUploadingLogo}>
+                      <X className="mr-1 h-4 w-4" /> Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Square PNG or JPG works best, max 5MB.</p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="companyName">Company Name</Label>
-              <Input 
-                id="companyName" 
-                placeholder="Acme Inc." 
+              <Input
+                id="companyName"
+                placeholder="Acme Inc."
                 className="bg-background"
                 value={formData.company_name}
                 onChange={(e) => handleChange("company_name", e.target.value)}

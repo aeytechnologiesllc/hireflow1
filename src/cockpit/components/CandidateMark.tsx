@@ -1,5 +1,4 @@
 import { useId, useMemo } from "react";
-import { avatars, candidateSignals } from "../data";
 
 /**
  * Usage policy (founder):
@@ -146,10 +145,9 @@ export function CandidateMark({
 }: CandidateMarkProps) {
   const uid = useId().replace(/:/g, "");
   const seed = who ?? "candidate";
-  const resolved = who ? candidateSignals[who] : undefined;
-  const sc = Math.max(0, Math.min(100, score ?? resolved?.score ?? 0));
-  const isActive = active ?? resolved?.active ?? false;
-  const initials = initialsProp ?? ((who && avatars[who]?.initials) || "");
+  const sc = Math.max(0, Math.min(100, score ?? 0));
+  const isActive = active ?? false;
+  const initials = initialsProp ?? "";
 
   const showRing = variant === "signal";
   const showRoam = variant !== "quiet";

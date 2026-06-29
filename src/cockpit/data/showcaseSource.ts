@@ -146,8 +146,8 @@ export async function fetchShowcaseCandidates(): Promise<ShowcaseBundle> {
       overall,
       read: read.slice(0, 140),
       readFull: read,
-      strengths: ["Strong communication", "Customer focus", "Reliable", "Team player"],
-      risk: { level: "Low" as const, note: "No major concerns flagged." },
+      strengths: [],
+      risk: { level: "Pending" as const, note: "Screening signals pending." },
       source: "Application",
     };
   });
@@ -356,15 +356,10 @@ export async function fetchShowcaseAnalytics() {
       { label: "Applicant quality", value: String(avgScore || "—"), unit: avgScore ? "" : "", delta: "avg screening score", trend: "up" as const, good: true, icon: "star" as const },
       { label: "Applications", value: String(totalApps), unit: "", delta: "in pipeline", trend: "up" as const, good: true, icon: "chat" as const },
     ],
-    trend: trend.length ? trend : [12, 18, 15, 22, 19],
+    trend: trend.length ? trend : [],
     trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4", "Now"],
-    sources: [
-      { label: "Direct apply", value: Math.round(totalApps * 0.55), pct: "55%" },
-      { label: "Job boards", value: Math.round(totalApps * 0.25), pct: "25%" },
-      { label: "Referrals", value: Math.round(totalApps * 0.15), pct: "15%" },
-      { label: "Other", value: Math.max(0, totalApps - Math.round(totalApps * 0.95)), pct: "5%" },
-    ],
-    quality: trend.length ? trend.map((v) => Math.min(95, 55 + v * 3)) : [62, 66, 70, 74, 78],
+    sources: totalApps > 0 ? [{ label: "Direct apply", value: totalApps, pct: "100%" }] : [],
+    quality: [] as number[],
     insight: bottleneck
       ? `${bottleneck.label} is your largest drop-off — review voice-stage completion.`
       : totalApps === 0

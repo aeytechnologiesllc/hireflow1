@@ -127,8 +127,8 @@ function extractStrengths(app: ApplicationWithCandidate): string[] {
     .map((s) => s.trim())
     .filter((s) => s.length > 12 && s.length < 80)
     .slice(0, 4);
-  if (bullets.length >= 2) return bullets;
-  return ["Strong communication", "Customer-focused mindset", "Reliable and punctual", "Eager to learn"];
+  // No fabrication: if Ava hasn't produced real analysis, return none (UI shows "screening in progress").
+  return bullets.length >= 2 ? bullets : [];
 }
 
 export function mapCandidate(app: ApplicationWithCandidate): Candidate {
@@ -138,7 +138,8 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
   const quiz = extractQuizScore(app);
   const voice = extractVoiceScore(app);
   const overall = app.ai_score != null ? Math.round(app.ai_score) : Math.max(quiz ?? 0, voice ?? 0);
-  const read = (app.ai_analysis ?? app.phase_ai_analysis ?? "Awaiting screening results.").split("\n")[0].slice(0, 140);
+  const analyzed = app.ai_score != null || quiz != null || voice != null;
+  const read = (app.ai_analysis ?? app.phase_ai_analysis ?? "Screening in progress…").split("\n")[0].slice(0, 140);
   const readFull = app.ai_analysis ?? app.phase_ai_analysis ?? read;
 
   return {
@@ -155,10 +156,12 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
     read,
     readFull,
     strengths: extractStrengths(app),
-    risk: {
-      level: overall >= 75 ? "Low" : overall >= 50 ? "Medium" : "High",
-      note: overall > 0 ? "Based on completed screening signals." : "Limited data — screening not complete.",
-    },
+    risk: analyzed
+      ? {
+          level: overall >= 75 ? "Low" : overall >= 50 ? "Medium" : "High",
+          note: "Based on completed screening signals.",
+        }
+      : { level: "Pending", note: "Ava is still screening this candidate." },
     source: "Application",
   };
 }
