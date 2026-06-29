@@ -1037,67 +1037,84 @@ Your skill match analysis should be based on what the candidate stated in their 
     }
 
     const structuredResponseInstruction = getStructuredResponseInstruction(type);
-    let analysis = "";
-    let structuredScore: StructuredScore | null = null;
+    const usedImages = hasResumeVisuals && (type === "resume" || type === "application");
 
-    if (structuredResponseInstruction) {
-      try {
-        const structuredResult = await callOpenAIJson<StructuredAnalyzeResponse>({
-          apiKey: OPENAI_API_KEY!,
-          model: OPENAI_MODEL,
-          messages: messages.length > 1
-            ? [
-                messages[0],
-                {
-                  role: "developer",
-                  content: structuredResponseInstruction,
-                },
-                ...messages.slice(1),
-              ]
-            : [
-                {
-                  role: "developer",
-                  content: structuredResponseInstruction,
-                },
-                ...messages,
-              ],
-          maxCompletionTokens: 4500,
-          temperature: 0,
-          timeoutMs: 90000,
-          retries: 2,
-          validator: (value) =>
-            requireNestedJsonPaths(value, [
-              "analysis",
-              "structuredScore.overallScore",
-              "structuredScore.directMatchScore",
-              "structuredScore.transferableFitScore",
-              "structuredScore.learningSignalScore",
-              "structuredScore.hardRequirementConflicts",
-              "structuredScore.transferableEvidence",
-              "structuredScore.confidence",
-              "structuredScore.summary",
-            ]),
-        });
+    // Text-only fallback (no images) so screening NEVER dies on an unreadable/invalid resume
+    // image — a candidate uploading a corrupt or unsupported scan must still get a real score.
+    const textOnlyMessages: OpenAIMessage[] = [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content:
+          userContent +
+          (usedImages
+            ? "\n\n--- NOTE ---\nResume image(s) were attached but could not be processed. Assess from the application answers and any extracted resume text only; mark the resume as RESUME_UNAVAILABLE."
+            : ""),
+      },
+    ];
 
-        analysis = structuredResult.data.analysis ?? "";
-        structuredScore = sanitizeStructuredScore(structuredResult.data.structuredScore);
-      } catch (structuredError) {
-        console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);
+    const withInstruction = (msgs: OpenAIMessage[]): OpenAIMessage[] =>
+      structuredResponseInstruction
+        ? msgs.length > 1
+          ? [msgs[0], { role: "developer", content: structuredResponseInstruction }, ...msgs.slice(1)]
+          : [{ role: "developer", content: structuredResponseInstruction }, ...msgs]
+        : msgs;
+
+    const runAnalysis = async (msgs: OpenAIMessage[]): Promise<{ analysis: string; structuredScore: StructuredScore | null }> => {
+      if (structuredResponseInstruction) {
+        try {
+          const structuredResult = await callOpenAIJson<StructuredAnalyzeResponse>({
+            apiKey: OPENAI_API_KEY!,
+            model: OPENAI_MODEL,
+            messages: withInstruction(msgs),
+            maxCompletionTokens: 4500,
+            temperature: 0,
+            timeoutMs: 90000,
+            retries: 2,
+            validator: (value) =>
+              requireNestedJsonPaths(value, [
+                "analysis",
+                "structuredScore.overallScore",
+                "structuredScore.directMatchScore",
+                "structuredScore.transferableFitScore",
+                "structuredScore.learningSignalScore",
+                "structuredScore.hardRequirementConflicts",
+                "structuredScore.transferableEvidence",
+                "structuredScore.confidence",
+                "structuredScore.summary",
+              ]),
+          });
+          return {
+            analysis: structuredResult.data.analysis ?? "",
+            structuredScore: sanitizeStructuredScore(structuredResult.data.structuredScore),
+          };
+        } catch (structuredError) {
+          console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);
+        }
       }
-    }
-
-    if (!analysis) {
       const openAIResult = await callOpenAIChat({
         apiKey: OPENAI_API_KEY!,
         model: OPENAI_MODEL,
-        messages,
+        messages: msgs,
         maxCompletionTokens: 4000,
         ...(type === "interview" ? { temperature: 0.95 } : { temperature: 0 }),
         timeoutMs: 90000,
         retries: 3,
       });
+      return { analysis: openAIResult.content ?? "", structuredScore: null };
+    };
 
-      analysis = openAIResult.content ?? "";
+    let analysis = "";
+    let structuredScore: StructuredScore | null = null;
+    try {
+      ({ analysis, structuredScore } = await runAnalysis(messages));
+    } catch (visionError) {
+      if (usedImages) {
+        console.warn(`[ai-analyze] vision analysis failed for ${type}, retrying text-only:`, visionError);
+        ({ analysis, structuredScore } = await runAnalysis(textOnlyMessages));
+      } else {
+        throw visionError;
+      }
     }
 
     const modelUsed = OPENAI_MODEL;
