@@ -102,6 +102,9 @@ export interface DocRow {
   status: DocStatus;
   statusNote: string;
   updated: string;
+  /** Real document timestamps (absolute, formatted) — null when not set. */
+  created?: string | null;
+  expires?: string | null;
 }
 
 export interface TeamMember {

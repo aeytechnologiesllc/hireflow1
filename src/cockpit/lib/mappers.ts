@@ -294,6 +294,8 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     status: mapDocStatus(doc.status),
     statusNote: doc.status === "pending" ? "Awaiting signature" : doc.status,
     updated: formatDistanceToNow(new Date(doc.updated_at ?? doc.created_at), { addSuffix: true }),
+    created: doc.created_at ? format(new Date(doc.created_at), "MMM d, yyyy") : null,
+    expires: doc.expires_at ? format(new Date(doc.expires_at), "MMM d, yyyy") : null,
   };
 }
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Clock,
   CheckCircle2,
@@ -17,6 +18,8 @@ import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { CandidateMark } from "../components/CandidateMark";
 import { useCockpitDocuments } from "../hooks/useCockpitData";
+import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
+import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import type { DocRow, DocStatus } from "../data";
 
 const KPI_ICONS = {
@@ -73,7 +76,7 @@ function DetailPanel({
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>Candidate</div>
-        <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>Applied</div>
+        <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>Updated</div>
       </div>
       <div className="mt-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -83,7 +86,7 @@ function DetailPanel({
             <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>{row.role}</div>
           </div>
         </div>
-        <div className="text-[13px]" style={{ color: "hsl(150 22% 80%)" }}>May 18, 2025</div>
+        <div className="text-[13px]" style={{ color: "hsl(150 22% 80%)" }}>{row.updated}</div>
       </div>
 
       <div className="mt-4 flex gap-4 text-[13px]" style={{ borderBottom: "1px solid hsl(150 12% 14%)" }}>
@@ -94,8 +97,8 @@ function DetailPanel({
 
       <div className="mt-4 grid grid-cols-2 gap-y-3 text-[12.5px]">
         <div><div style={{ color: "hsl(150 10% 54%)" }}>Created by</div><div style={{ color: "hsl(150 24% 84%)" }}>You</div></div>
-        <div><div style={{ color: "hsl(150 10% 54%)" }}>Created</div><div style={{ color: "hsl(150 24% 84%)" }}>May 19, 2025</div></div>
-        <div><div style={{ color: "hsl(150 10% 54%)" }}>Expires</div><div style={{ color: "hsl(150 24% 84%)" }}>May 26, 2025</div></div>
+        <div><div style={{ color: "hsl(150 10% 54%)" }}>Created</div><div style={{ color: "hsl(150 24% 84%)" }}>{row.created ?? "—"}</div></div>
+        <div><div style={{ color: "hsl(150 10% 54%)" }}>Expires</div><div style={{ color: "hsl(150 24% 84%)" }}>{row.expires ?? "—"}</div></div>
       </div>
 
       <div className="mt-5 text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Timeline</div>
@@ -128,9 +131,34 @@ function DetailPanel({
 
 export default function CockpitDocuments() {
   const { documents, isLoading } = useCockpitDocuments();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: appsForDocs = [] } = useApplicationsForDocuments();
   const [tab, setTab] = useState(documents.tabs[0]);
   const [selectedId, setSelectedId] = useState(documents.rows[0]?.id ?? "");
+  const [wizard, setWizard] = useState<{ type?: string; appId?: string } | null>(null);
   const selected = documents.rows.find((r) => r.id === selectedId) ?? documents.rows[0];
+
+  // Opened from the hire prompt → /documents?applicant_id=…&action=create.
+  useEffect(() => {
+    if (searchParams.get("action") === "create") {
+      setWizard({ type: "offer_letter", appId: searchParams.get("applicant_id") ?? undefined });
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      next.delete("applicant_id");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const wizardEl = wizard ? (
+    <DocumentWizard
+      open
+      onOpenChange={(o) => { if (!o) setWizard(null); }}
+      applications={appsForDocs}
+      preSelectedApplicationId={wizard.appId}
+      initialMode="generate"
+      preSelectedDocumentType={wizard.type}
+    />
+  ) : null;
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
@@ -139,8 +167,21 @@ export default function CockpitDocuments() {
   if (!selected) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Documents" subtitle="Offers, requests, and signed hiring paperwork." />
-        <div className="ck-card p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No documents yet.</div>
+        <PageHeader
+          title="Documents"
+          subtitle="Offers, requests, and signed hiring paperwork."
+          actions={
+            <button className="ck-btn ck-btn-brass" onClick={() => setWizard({ type: "offer_letter" })}>
+              <FileCheck className="h-4 w-4" />Create offer
+            </button>
+          }
+        />
+        <div className="ck-card p-10 text-center" style={{ color: "hsl(150 10% 56%)" }}>
+          <FileText className="mx-auto h-8 w-8" style={{ color: "hsl(150 14% 40%)" }} />
+          <p className="mt-3 text-[14px]">No documents yet.</p>
+          <p className="mt-1 text-[12.5px]">Create an offer letter or hiring document and send it for signature.</p>
+        </div>
+        {wizardEl}
       </div>
     );
   }
@@ -152,8 +193,8 @@ export default function CockpitDocuments() {
         subtitle="Offers, requests, and signed hiring paperwork."
         actions={
           <>
-            <button className="ck-btn ck-btn-brass"><FileText className="h-4 w-4" />Request document</button>
-            <button className="ck-btn ck-btn-outline"><FileCheck className="h-4 w-4" />Create offer</button>
+            <button className="ck-btn ck-btn-outline" onClick={() => setWizard({})}><FileText className="h-4 w-4" />New document</button>
+            <button className="ck-btn ck-btn-brass" onClick={() => setWizard({ type: "offer_letter" })}><FileCheck className="h-4 w-4" />Create offer</button>
           </>
         }
       />
@@ -226,6 +267,7 @@ export default function CockpitDocuments() {
           <DetailPanel row={selected} onClose={() => undefined} detailTimeline={documents.detailTimeline} />
         </div>
       </div>
+      {wizardEl}
     </div>
   );
 }
