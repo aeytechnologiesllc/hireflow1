@@ -304,21 +304,25 @@ export function useUpdateApplication() {
 
       if (error) throw error;
 
-      // Send email notifications for status/phase changes asynchronously
-      if (currentApp) {
+      // Send email + in-app notifications for status/phase changes asynchronously.
+      // Use the pre-update snapshot when available, but fall back to the freshly
+      // updated row (`data`) so a slow snapshot lookup can never silently drop a
+      // hire/reject notification — the candidate must always be told.
+      const snap = currentApp ?? data;
+      if (snap) {
         (async () => {
           try {
-            const job = await fetchJobNotificationContext(currentApp.job_id);
+            const job = await fetchJobNotificationContext(snap.job_id);
 
             if (job) {
-              // Status changed to rejected
-              if (updates.status === "rejected" && currentApp.status !== "rejected") {
-                notifyStatusRejected(currentApp.candidate_id, job.title, job.companyName);
+              // Status changed to rejected (prevStatus unknown if snapshot timed out → still notify).
+              if (updates.status === "rejected" && currentApp?.status !== "rejected") {
+                notifyStatusRejected(snap.candidate_id, job.title, job.companyName);
                 // In-app notification for the candidate (email alone is easy to miss).
                 supabase
                   .from("notifications")
                   .insert({
-                    user_id: currentApp.candidate_id,
+                    user_id: snap.candidate_id,
                     type: "status_update",
                     title: "Application update",
                     message: `${job.companyName} has decided not to move forward with your application for ${job.title}.`,
@@ -329,12 +333,12 @@ export function useUpdateApplication() {
               }
 
               // Status changed to hired
-              if (updates.status === "hired" && currentApp.status !== "hired") {
-                notifyStatusHired(currentApp.candidate_id, job.title, job.companyName);
+              if (updates.status === "hired" && currentApp?.status !== "hired") {
+                notifyStatusHired(snap.candidate_id, job.title, job.companyName);
                 supabase
                   .from("notifications")
                   .insert({
-                    user_id: currentApp.candidate_id,
+                    user_id: snap.candidate_id,
                     type: "status_update",
                     title: "You're hired! 🎉",
                     message: `${job.companyName} hired you for ${job.title}. Congratulations!`,
@@ -344,24 +348,26 @@ export function useUpdateApplication() {
                   .then(({ error: nErr }) => { if (nErr) console.warn("[useUpdateApplication] hire notification insert failed:", nErr.message); });
               }
 
-              // Phase advanced (only if phase actually changed)
-              if (updates.phase && updates.phase !== currentApp.phase) {
-                notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, job.companyName);
-              }
+              // Phase notifications need the previous phase, so they only run when
+              // the pre-update snapshot is available.
+              if (currentApp) {
+                // Phase advanced (only if phase actually changed)
+                if (updates.phase && updates.phase !== currentApp.phase) {
+                  notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, job.companyName);
+                }
 
-              // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)
-              // This signals candidate finished the current phase assessment
-              if (updates.phase_ai_analysis && updates.phase_ai_analysis !== currentApp.phase_ai_analysis) {
-                // Get candidate profile for name
-                const { data: candidateProfile } = await supabase
-                  .from("profiles")
-                  .select("full_name, email")
-                  .eq("user_id", currentApp.candidate_id)
-                  .single();
-                
-                const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
-                const phaseName = currentApp.phase || "a phase";
-                notifyPhaseCompleted(job.employer_id, candidateName, phaseName, job.title);
+                // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)
+                if (updates.phase_ai_analysis && updates.phase_ai_analysis !== currentApp.phase_ai_analysis) {
+                  const { data: candidateProfile } = await supabase
+                    .from("profiles")
+                    .select("full_name, email")
+                    .eq("user_id", currentApp.candidate_id)
+                    .single();
+
+                  const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
+                  const phaseName = currentApp.phase || "a phase";
+                  notifyPhaseCompleted(job.employer_id, candidateName, phaseName, job.title);
+                }
               }
             }
           } catch (err) {
