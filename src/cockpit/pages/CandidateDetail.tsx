@@ -12,12 +12,14 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
+  FileText,
+  ArrowLeft,
 } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { CandidateMark } from "../components/CandidateMark";
 import { ActionDialog } from "../components/ActionDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
-import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus } from "../hooks/useCockpitData";
+import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
@@ -28,7 +30,7 @@ export default function CockpitCandidateDetail() {
   const { candidate: c, application, isLoading } = useCockpitCandidate(id);
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const { account } = useCockpitAccount();
-  const [dialog, setDialog] = useState<null | "hire" | "reject">(null);
+  const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance">(null);
   const [hirePrompt, setHirePrompt] = useState(false);
 
   if (isLoading || !c) {
@@ -45,9 +47,14 @@ export default function CockpitCandidateDetail() {
   const isOffered = status === "offered";
   const isTerminal = isHired || isRejected;
   const canAdvance = !!nextAdvanceStatus(status);
+  const analyzed = (c.overall ?? 0) > 0 || c.quiz != null || c.voice != null;
+  const advanceLabel = advanceTargetLabel(status);
+  const rec = avaAdvanceRec(c.overall ?? 0, analyzed);
+  const resumeUrl = (application as { resume_url?: string | null } | null)?.resume_url ?? null;
 
-  const handleAdvance = () => {
-    if (application) void advance(c.id, application.status);
+  const doAdvance = async () => {
+    if (application) await advance(c.id, application.status);
+    setDialog(null);
   };
   const doHire = async () => {
     await hire(c.id);
@@ -61,6 +68,15 @@ export default function CockpitCandidateDetail() {
 
   return (
     <div className="mx-auto max-w-[640px] pb-28">
+      {/* desktop back */}
+      <button
+        onClick={() => navigate("/applicants")}
+        className="mb-4 hidden items-center gap-1.5 text-[13.5px] md:inline-flex"
+        style={{ color: "hsl(150 14% 64%)" }}
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to applicants
+      </button>
+
       <div className="mb-3 flex items-center gap-3 md:hidden">
         <button onClick={() => navigate(-1)} style={{ color: "hsl(150 22% 80%)" }}><ChevronLeft className="h-6 w-6" /></button>
         <span className="min-w-0 flex-1 truncate font-display text-[20px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</span>
@@ -103,12 +119,11 @@ export default function CockpitCandidateDetail() {
             {c.strengths.map((s, i) => {
               const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
               return (
-                <div key={s} className="flex items-center gap-2.5 py-1.5 text-[13px]" style={{ color: "hsl(150 20% 80%)" }}>
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
+                <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "hsl(150 20% 80%)" }}>
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <span className="flex-1">{s}</span>
-                  <ChevronRight className="h-4 w-4" style={{ color: "hsl(150 10% 44%)" }} />
                 </div>
               );
             })}
@@ -136,7 +151,22 @@ export default function CockpitCandidateDetail() {
             <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Risk factors</div>
             <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.risk.level} — {c.risk.note}</div>
           </div>
-          <ChevronRight className="h-4 w-4" style={{ color: "hsl(150 10% 44%)" }} />
+        </div>
+
+        {/* Resume — clear about whether one was provided */}
+        <div className="ck-card flex items-center gap-3 p-4">
+          <FileText className="h-5 w-5 shrink-0" style={{ color: resumeUrl ? "hsl(152 46% 58%)" : "hsl(150 10% 48%)" }} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Resume</div>
+            <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
+              {resumeUrl ? "Uploaded by the candidate." : "No resume provided — Ava scored this from the application answers."}
+            </div>
+          </div>
+          {resumeUrl && (
+            <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12.5px]">
+              View
+            </a>
+          )}
         </div>
       </div>
 
@@ -174,7 +204,7 @@ export default function CockpitCandidateDetail() {
         ) : (
           <>
             {canAdvance && (
-              <button className="ck-btn ck-btn-brass flex-1" onClick={handleAdvance} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
+              <button className="ck-btn ck-btn-brass flex-1" onClick={() => setDialog("advance")} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
             )}
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("reject")}>Pass</button>
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
@@ -182,6 +212,18 @@ export default function CockpitCandidateDetail() {
         )}
       </div>
 
+      <ActionDialog
+        open={dialog === "advance"}
+        title={`Advance ${c.name}?`}
+        description={advanceLabel ? `This moves ${c.name} into your ${advanceLabel} stage and notifies them of the progress.` : `This moves ${c.name} forward in your pipeline.`}
+        confirmLabel={advanceLabel ? `Move to ${advanceLabel}` : "Advance"}
+        tone="brass"
+        busy={isUpdating}
+        note={rec.text}
+        noteTone={rec.tone}
+        onConfirm={() => void doAdvance()}
+        onClose={() => setDialog(null)}
+      />
       <ActionDialog
         open={dialog === "hire"}
         title={`Hire ${c.name}?`}

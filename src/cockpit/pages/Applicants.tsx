@@ -24,7 +24,7 @@ import { ActionDialog } from "../components/ActionDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
-import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus } from "../hooks/useCockpitData";
+import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 import type { Candidate, CandidateStage } from "../data";
 
@@ -119,76 +119,86 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
   const canSchedule = status !== "rejected" && status !== "hired";
   return (
     <div className="ck-card flex h-full flex-col p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</div>
-          <div className="mt-0.5 text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.role} · {c.appliedAgo}</div>
-        </div>
-        {onClose && (
-          <button onClick={onClose} style={{ color: "hsl(150 10% 56%)" }}>
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      <div className="mt-4 flex items-start gap-3">
-        <AvaOrb size={72} reflection={false} glow={false} amp={0.22} flow={0.5} />
+      {/* compact header — name, stage, match all visible at a glance */}
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-display text-[15px]" style={{ color: "hsl(150 30% 90%)", fontWeight: 500 }}>Ava's read</div>
-          {analyzed ? (
-            <>
-              <p className="mt-1 text-[12.5px] leading-snug" style={{ color: "hsl(150 12% 64%)" }}>{c.readFull}</p>
-              <div className="mt-2 ck-num text-[18px]" style={{ color: "hsl(152 50% 56%)" }}>
-                {c.overall}% <span className="text-[12px] font-sans" style={{ color: "hsl(150 10% 56%)" }}>match</span>
-              </div>
-            </>
-          ) : (
-            <p className="mt-1 flex items-center gap-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(150 12% 60%)" }}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: "hsl(152 46% 58%)" }} />
-              Ava is screening this candidate. Scores and strengths appear here once screening completes.
-            </p>
+          <div className="truncate font-display text-[19px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</div>
+          <div className="mt-0.5 truncate text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>{c.role} · {c.appliedAgo}</div>
+          <div className="mt-1.5"><StagePill stage={c.stage} /></div>
+        </div>
+        <div className="flex shrink-0 items-start gap-2">
+          {analyzed && (
+            <div className="text-right">
+              <div className="ck-num leading-none text-[22px]" style={{ color: "hsl(152 52% 58%)" }}>{c.overall}<span className="text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>%</span></div>
+              <div className="text-[10.5px]" style={{ color: "hsl(150 10% 56%)" }}>match</div>
+            </div>
+          )}
+          {onClose && (
+            <button onClick={onClose} style={{ color: "hsl(150 10% 56%)" }}>
+              <X className="h-4 w-4" />
+            </button>
           )}
         </div>
       </div>
 
-      {analyzed && c.strengths.length > 0 && (
-        <div className="mt-5">
-          <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Top strengths</div>
-          <div className="mt-2.5 space-y-2.5">
-            {c.strengths.map((s, i) => {
-              const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
-              return (
-                <div key={s} className="flex items-center gap-2.5 text-[13px]" style={{ color: "hsl(150 20% 78%)" }}>
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  {s}
-                </div>
-              );
-            })}
-          </div>
+      {/* Ava's read — first content, no scrolling needed */}
+      <div className="ck-inset mt-3 p-3">
+        <div className="flex items-center gap-2">
+          <AvaOrb size={34} reflection={false} glow={false} amp={0.22} flow={0.5} />
+          <span className="font-display text-[14px]" style={{ color: "hsl(150 30% 90%)", fontWeight: 500 }}>Ava's read</span>
         </div>
-      )}
+        {analyzed ? (
+          <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "hsl(150 14% 66%)" }}>{c.readFull}</p>
+        ) : (
+          <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(150 12% 60%)" }}>
+            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: "hsl(152 46% 58%)" }} />
+            Ava is screening this candidate. Scores and strengths appear here once screening completes.
+          </p>
+        )}
+      </div>
 
-      {analyzed && (
-        <div className="mt-5">
-          <div className="flex items-center justify-between">
-            <span className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Risk factors</span>
-            <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(152 46% 58%)" }}>
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {c.risk.level}
-            </span>
-          </div>
-          <p className="mt-1 text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.risk.note}</p>
-        </div>
-      )}
-
-      <div className="mt-auto space-y-2 pt-5">
+      {/* primary actions — reachable without scrolling past the read */}
+      <div className="mt-3 space-y-2">
         <RowActions status={status} variant="panel" onAdvance={onAdvance} onHire={onHire} onReject={onReject} />
         {canSchedule && (
           <button className="ck-btn ck-btn-outline w-full" onClick={onSchedule}><CalendarPlus className="h-4 w-4" />Schedule interview</button>
         )}
         <button className="ck-btn ck-btn-ghost mx-auto !text-[12.5px]" onClick={onViewProfile}>View full profile<ExternalLink className="h-3.5 w-3.5" /></button>
+      </div>
+
+      {/* details (scroll for more) */}
+      <div className="ck-scroll mt-4 flex-1 space-y-4 overflow-y-auto">
+        {analyzed && c.strengths.length > 0 && (
+          <div>
+            <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Top strengths</div>
+            <div className="mt-2.5 space-y-2.5">
+              {c.strengths.map((s, i) => {
+                const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
+                return (
+                  <div key={s} className="flex items-start gap-2.5 text-[13px]" style={{ color: "hsl(150 20% 78%)" }}>
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="flex-1">{s}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {analyzed && (
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Risk factors</span>
+              <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(152 46% 58%)" }}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {c.risk.level}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.risk.note}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -206,7 +216,7 @@ export default function CockpitApplicants() {
   const [scoreFilter, setScoreFilter] = useState("");
   const [page, setPage] = useState(1);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject"; cand: Candidate } | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject" | "advance"; cand: Candidate } | null>(null);
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
   const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
 
@@ -295,15 +305,20 @@ export default function CockpitApplicants() {
     ];
   }, [roleScoped, pipeline, roleIdFilter]);
 
+  const pipelineTotal = filteredPipeline.reduce((s, n) => s + n.count, 0);
+
   const effectiveSelectedId = selectedId ?? paged[0]?.id ?? null;
   const selected = listCandidates.find((c) => c.id === effectiveSelectedId) ?? paged[0];
 
-  const handleAdvance = (id: string) => {
-    const app = applications.find((a) => a.id === id);
-    if (app) void advance(id, (app as { status?: string }).status);
-  };
+  const statusOf = (id: string) => (applications.find((a) => a.id === id) as { status?: string } | undefined)?.status;
+  const openAdvance = (c: Candidate) => setActionDialog({ type: "advance", cand: c });
   const openHire = (c: Candidate) => setActionDialog({ type: "hire", cand: c });
   const openReject = (c: Candidate) => setActionDialog({ type: "reject", cand: c });
+  const confirmAdvance = async () => {
+    if (!actionDialog) return;
+    await advance(actionDialog.cand.id, statusOf(actionDialog.cand.id));
+    setActionDialog(null);
+  };
   const confirmHire = async () => {
     if (!actionDialog) return;
     const c = actionDialog.cand;
@@ -346,7 +361,18 @@ export default function CockpitApplicants() {
       />
 
       <div className="ck-card p-5 md:p-6">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="font-display text-[16px]" style={{ color: "hsl(150 28% 88%)", fontWeight: 500 }}>
+            Where your applicants are
+          </h2>
+          <span className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
+            {pipelineTotal} {pipelineTotal === 1 ? "candidate" : "candidates"} in your pipeline · each number is how many sit at that stage
+          </span>
+        </div>
         <Pipeline variant="large" nodes={filteredPipeline} />
+        <p className="mt-4 text-[12px]" style={{ color: "hsl(150 10% 50%)" }}>
+          Quiz and Voice fill in only after a candidate completes those screening steps — that’s why their scores read “—” until then.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_316px]">
@@ -381,12 +407,12 @@ export default function CockpitApplicants() {
                     key={c.id}
                     onClick={() => setSelectedId(c.id)}
                     data-selected={isSel}
-                    className="grid cursor-pointer items-center gap-3 px-4 py-3"
+                    className="grid cursor-pointer items-center gap-3 px-4 py-3 transition-colors"
                     style={{
                       gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr",
                       borderBottom: "1px solid hsl(150 12% 13% / 0.6)",
-                      background: isSel ? "hsl(156 18% 10%)" : "transparent",
-                      boxShadow: isSel ? "inset 2px 0 0 hsl(38 60% 60%)" : "none",
+                      background: isSel ? "hsl(38 40% 14% / 0.5)" : "transparent",
+                      boxShadow: isSel ? "inset 4px 0 0 hsl(38 64% 60%)" : "none",
                     }}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -405,7 +431,7 @@ export default function CockpitApplicants() {
                       <RowActions
                         status={statusById[c.id]}
                         variant="row"
-                        onAdvance={() => handleAdvance(c.id)}
+                        onAdvance={() => openAdvance(c)}
                         onHire={() => openHire(c)}
                         onReject={() => openReject(c)}
                       />
@@ -490,7 +516,7 @@ export default function CockpitApplicants() {
                       <RowActions
                         status={statusById[c.id]}
                         variant="card"
-                        onAdvance={() => handleAdvance(c.id)}
+                        onAdvance={() => openAdvance(c)}
                         onHire={() => openHire(c)}
                         onReject={() => openReject(c)}
                       />
@@ -517,7 +543,7 @@ export default function CockpitApplicants() {
               c={selected}
               status={statusById[selected.id]}
               onClose={() => undefined}
-              onAdvance={() => handleAdvance(selected.id)}
+              onAdvance={() => openAdvance(selected)}
               onHire={() => openHire(selected)}
               onReject={() => openReject(selected)}
               onSchedule={() => setScheduleCand(selected)}
@@ -527,6 +553,26 @@ export default function CockpitApplicants() {
         </div>
       </div>
 
+      {actionDialog?.type === "advance" && (() => {
+        const cand = actionDialog.cand;
+        const st = statusById[cand.id];
+        const label = advanceTargetLabel(st);
+        const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand));
+        return (
+          <ActionDialog
+            open
+            title={`Advance ${cand.name}?`}
+            description={label ? `This moves ${cand.name} into your ${label} stage and notifies them of the progress.` : `This moves ${cand.name} forward in your pipeline.`}
+            confirmLabel={label ? `Move to ${label}` : "Advance"}
+            tone="brass"
+            busy={isUpdating}
+            note={rec.text}
+            noteTone={rec.tone}
+            onConfirm={() => void confirmAdvance()}
+            onClose={() => setActionDialog(null)}
+          />
+        );
+      })()}
       <ActionDialog
         open={actionDialog?.type === "hire"}
         title={actionDialog ? `Hire ${actionDialog.cand.name}?` : ""}

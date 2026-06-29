@@ -205,6 +205,26 @@ export function nextAdvanceStatus(currentStatus?: string): string | null {
   return NEXT_STATUS[currentStatus] ?? null;
 }
 
+/** Human label for the stage a candidate moves INTO when advanced (for the
+ *  confirm dialog, so "Advance" is never a mystery). */
+const STATUS_STAGE_LABEL: Record<string, string> = {
+  reviewing: "Shortlist",
+  interview: "Interview",
+  offered: "Offer",
+};
+export function advanceTargetLabel(currentStatus?: string): string | null {
+  const next = nextAdvanceStatus(currentStatus);
+  return next ? STATUS_STAGE_LABEL[next] ?? next : null;
+}
+
+/** Ava's recommendation on whether to advance, derived from the real match score. */
+export function avaAdvanceRec(overall: number, analyzed: boolean): { tone: "good" | "neutral" | "caution"; text: string } {
+  if (!analyzed) return { tone: "neutral", text: "Ava hasn't finished screening this candidate yet — advance at your discretion." };
+  if (overall >= 75) return { tone: "good", text: `Ava recommends advancing — ${overall}% is a strong match.` };
+  if (overall >= 50) return { tone: "neutral", text: `Ava leans toward advancing — ${overall}% match. Worth a closer look first.` };
+  return { tone: "caution", text: `Ava suggests caution — a ${overall}% match is below your stronger candidates.` };
+}
+
 export function useCockpitActions() {
   const { data: mode } = useSchemaMode();
   const { user } = useAuth();

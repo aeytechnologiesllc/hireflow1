@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 /**
@@ -20,6 +20,9 @@ interface ActionDialogProps {
   reasonLabel?: string;
   reasonPlaceholder?: string;
   reasonRequired?: boolean;
+  /** Optional highlighted callout (e.g. an Ava recommendation) shown above the buttons. */
+  note?: ReactNode;
+  noteTone?: "good" | "neutral" | "caution";
   onConfirm: (reason?: string) => void;
   onClose: () => void;
 }
@@ -35,6 +38,8 @@ export function ActionDialog({
   reasonLabel = "Reason (optional)",
   reasonPlaceholder = "",
   reasonRequired = false,
+  note,
+  noteTone = "neutral",
   onConfirm,
   onClose,
 }: ActionDialogProps) {
@@ -110,6 +115,21 @@ export function ActionDialog({
               className="ck-input mt-1.5 w-full resize-none px-3 py-2"
               style={{ minHeight: 76 }}
             />
+          </div>
+        )}
+
+        {note && (
+          <div
+            className="mt-4 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed"
+            style={
+              noteTone === "good"
+                ? { background: "hsl(152 46% 40% / 0.12)", border: "1px solid hsl(152 46% 45% / 0.25)", color: "hsl(152 40% 78%)" }
+                : noteTone === "caution"
+                  ? { background: "hsl(38 50% 40% / 0.12)", border: "1px solid hsl(38 55% 50% / 0.28)", color: "hsl(38 60% 76%)" }
+                  : { background: "hsl(150 16% 12% / 0.7)", border: "1px solid hsl(150 12% 18%)", color: "hsl(150 16% 72%)" }
+            }
+          >
+            {note}
           </div>
         )}
 

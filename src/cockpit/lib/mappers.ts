@@ -122,14 +122,28 @@ export function mapCandidateStage(app: ApplicationWithCandidate): CandidateStage
 }
 
 function extractStrengths(app: ApplicationWithCandidate): string[] {
-  const analysis = app.ai_analysis ?? "";
-  const bullets = analysis
-    .split(/[\n•\-]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 12 && s.length < 80)
-    .slice(0, 4);
+  const analysis = (app.ai_analysis ?? "").trim();
+  if (!analysis) return [];
+  // Split into clean, COMPLETE sentences. Never split on hyphens — that breaks
+  // words like "hands-on" / "double-checks" into garbage fragments. Sentence
+  // ends (. ! ?), newlines and bullets are the only delimiters. (No regex
+  // look-behind — older Safari can't run it.)
+  const parts = analysis
+    .replace(/([.!?])\s+/g, "$1\n")
+    .split(/[\n\n•]+/)
+    .map((s) => s.replace(/^[\s–—•*-]+/, "").trim())
+    .filter((s) => s.length >= 15 && s.length <= 160);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    const key = p.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+    if (out.length >= 4) break;
+  }
   // No fabrication: if Ava hasn't produced real analysis, return none (UI shows "screening in progress").
-  return bullets.length >= 2 ? bullets : [];
+  return out.length >= 2 ? out : [];
 }
 
 export function mapCandidate(app: ApplicationWithCandidate): Candidate {
