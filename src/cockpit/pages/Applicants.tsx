@@ -14,6 +14,7 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  CalendarPlus,
 } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
@@ -21,6 +22,7 @@ import { Pipeline } from "../components/Pipeline";
 import { CandidateMark } from "../components/CandidateMark";
 import { ActionDialog } from "../components/ActionDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
+import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
 import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
@@ -105,8 +107,9 @@ function Score({ value }: { value: number | null }) {
   return <span className="ck-num text-[15px]" style={{ color: "hsl(150 28% 88%)" }}>{value}%</span>;
 }
 
-function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onViewProfile }: { c: Candidate; status?: string; onClose?: () => void; onAdvance: () => void; onHire: () => void; onReject: () => void; onViewProfile: () => void }) {
+function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedule, onViewProfile }: { c: Candidate; status?: string; onClose?: () => void; onAdvance: () => void; onHire: () => void; onReject: () => void; onSchedule: () => void; onViewProfile: () => void }) {
   const analyzed = isAnalyzed(c);
+  const canSchedule = status !== "rejected" && status !== "hired";
   return (
     <div className="ck-card flex h-full flex-col p-5">
       <div className="flex items-start justify-between">
@@ -175,6 +178,9 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onViewPr
 
       <div className="mt-auto space-y-2 pt-5">
         <RowActions status={status} variant="panel" onAdvance={onAdvance} onHire={onHire} onReject={onReject} />
+        {canSchedule && (
+          <button className="ck-btn ck-btn-outline w-full" onClick={onSchedule}><CalendarPlus className="h-4 w-4" />Schedule interview</button>
+        )}
         <button className="ck-btn ck-btn-ghost mx-auto !text-[12.5px]" onClick={onViewProfile}>View full profile<ExternalLink className="h-3.5 w-3.5" /></button>
       </div>
     </div>
@@ -195,6 +201,7 @@ export default function CockpitApplicants() {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject"; cand: Candidate } | null>(null);
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
+  const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
 
   // Map application id → live status (candidate.id === application.id in both schema modes).
   const statusById = useMemo(() => {
@@ -506,6 +513,7 @@ export default function CockpitApplicants() {
               onAdvance={() => handleAdvance(selected.id)}
               onHire={() => openHire(selected)}
               onReject={() => openReject(selected)}
+              onSchedule={() => setScheduleCand(selected)}
               onViewProfile={() => navigate(`/applicants/${selected.id}`)}
             />
           ) : null}
@@ -547,6 +555,15 @@ export default function CockpitApplicants() {
           jobTitle={hirePrompt.role}
           applicationId={hirePrompt.id}
           onSkip={() => setHirePrompt(null)}
+        />
+      )}
+      {scheduleCand && (
+        <InterviewSchedulingWizard
+          open={!!scheduleCand}
+          onOpenChange={(o) => { if (!o) setScheduleCand(null); }}
+          applicationId={scheduleCand.id}
+          candidateName={scheduleCand.name}
+          jobTitle={scheduleCand.role}
         />
       )}
     </div>

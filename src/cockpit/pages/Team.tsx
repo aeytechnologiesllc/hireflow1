@@ -13,9 +13,11 @@ import {
   Minus,
   ShieldCheck,
 } from "lucide-react";
+import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { CkAvatar } from "../components/Avatar";
 import { useCockpitTeam } from "../hooks/useCockpitData";
+import { TeamInviteWizard } from "@/components/team/TeamInviteWizard";
 
 const ROW_ICONS = { briefcase: Briefcase, sparkle: Sparkles, calendar: CalendarDays, doc: FileText, users: Users };
 
@@ -41,6 +43,7 @@ function TeamKpi({ k }: { k: ReturnType<typeof useCockpitTeam>["team"]["kpis"][n
 
 export default function CockpitTeam() {
   const { team, isLoading } = useCockpitTeam();
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
@@ -51,8 +54,9 @@ export default function CockpitTeam() {
       <PageHeader
         title="Team"
         subtitle="Manage who can help with hiring."
-        actions={<button className="ck-btn ck-btn-brass max-md:w-full"><UserPlus className="h-4 w-4" />Invite teammate</button>}
+        actions={<button className="ck-btn ck-btn-brass max-md:w-full" onClick={() => setInviteOpen(true)}><UserPlus className="h-4 w-4" />Invite teammate</button>}
       />
+      <TeamInviteWizard open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {team.kpis.map((k) => <TeamKpi key={k.label} k={k} />)}

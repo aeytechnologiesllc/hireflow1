@@ -11,6 +11,7 @@ import {
   UserRound,
   Star,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
@@ -99,6 +100,7 @@ function UpcomingRow({ it }: { it: InterviewItem }) {
 
 export default function CockpitInterviews() {
   const { interviews, isLoading } = useCockpitInterviews();
+  const navigate = useNavigate();
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
@@ -111,8 +113,8 @@ export default function CockpitInterviews() {
         subtitle="Upcoming voice and in-person conversations"
         actions={
           <>
-            <button className="ck-btn ck-btn-brass"><CalendarCheck className="h-4 w-4" />Schedule interview</button>
-            <button className="ck-btn ck-btn-outline"><ClipboardCheck className="h-4 w-4" />Review completed</button>
+            <button className="ck-btn ck-btn-brass" onClick={() => navigate("/applicants")}><CalendarCheck className="h-4 w-4" />Schedule interview</button>
+            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/applicants")}><ClipboardCheck className="h-4 w-4" />Review completed</button>
           </>
         }
       />
@@ -137,7 +139,7 @@ export default function CockpitInterviews() {
               interviews.upcoming.map((it) => <UpcomingRow key={it.id} it={it} />)
             )}
           </div>
-          <button className="ck-btn ck-btn-ghost mt-2 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }}>View all interviews<ChevronRight className="h-4 w-4" /></button>
+          <button className="ck-btn ck-btn-ghost mt-2 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }} onClick={() => navigate("/applicants")}>View all interviews<ChevronRight className="h-4 w-4" /></button>
         </div>
 
         <div className="ck-card p-5">
@@ -165,7 +167,7 @@ export default function CockpitInterviews() {
             })
             )}
           </div>
-          <button className="ck-btn ck-btn-ghost mt-3 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }}>View all reads<ChevronRight className="h-4 w-4" /></button>
+          <button className="ck-btn ck-btn-ghost mt-3 !px-0 !text-[13px]" style={{ color: "hsl(38 60% 64%)" }} onClick={() => navigate("/applicants")}>View all reads<ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
     </div>
