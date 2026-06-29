@@ -38,6 +38,16 @@ function ConversationList({
   conversations: ReturnType<typeof useCockpitMessages>["conversations"];
   accountName: string;
 }) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const filtered = query
+    ? conversations.filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          (c.role ?? "").toLowerCase().includes(query) ||
+          (c.preview ?? "").toLowerCase().includes(query),
+      )
+    : conversations;
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 pt-3 md:hidden">
@@ -53,7 +63,7 @@ function ConversationList({
       <div className="flex items-center gap-2 p-3">
         <div className="ck-input flex h-9 flex-1 items-center gap-2 px-3">
           <Search className="h-4 w-4" style={{ color: "hsl(150 10% 55%)" }} />
-          <input placeholder="Search messages…" className="w-full bg-transparent text-[13px] outline-none" style={{ color: "hsl(150 28% 90%)" }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search messages…" className="w-full bg-transparent text-[13px] outline-none" style={{ color: "hsl(150 28% 90%)" }} />
         </div>
         <button className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ border: "1px solid hsl(150 12% 16%)", color: "hsl(150 12% 60%)" }}>
           <SlidersHorizontal className="h-4 w-4" />
@@ -62,8 +72,10 @@ function ConversationList({
       <div className="ck-scroll flex-1 overflow-y-auto px-2">
         {conversations.length === 0 ? (
           <p className="p-4 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No conversations yet.</p>
+        ) : filtered.length === 0 ? (
+          <p className="p-4 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No conversations match “{q}”.</p>
         ) : (
-          conversations.map((c) => {
+          filtered.map((c) => {
             const active = c.id === activeId;
             return (
               <button
