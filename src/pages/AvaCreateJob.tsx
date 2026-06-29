@@ -535,6 +535,19 @@ export default function AvaCreateJob() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-4 w-full rounded-2xl p-4 text-left" style={{ background: "hsl(var(--ck-jade) / 0.08)", border: "1px solid hsl(var(--ck-jade) / 0.28)" }}>
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Now discoverable on Google for Jobs</div>
+                        <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+                          When someone searches for “{briefFields.role || "this role"}”{briefFields.location ? ` near ${briefFields.location}` : ""} on Google, your posting can show up — automatically, no extra posting needed. Sit back; Ava handles the rest.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
                     <CountUp value={reviewCards.length} /> screening steps · applicants can apply at <code className="text-[11px]">/candidate/apply?code={publishedCode}</code>
                   </p>

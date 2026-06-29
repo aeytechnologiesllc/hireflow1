@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/sitemap" },
     { "source": "/landing.html", "destination": "/landing.html" },
     { "source": "/:path+", "destination": "/index.html" }
   ]

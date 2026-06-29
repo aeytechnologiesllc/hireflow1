@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
+import { JobPostingJsonLd } from "@/components/seo/JobPostingJsonLd";
 
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +73,20 @@ export default function JobDetails() {
     enabled: !!id && !isShowcase,
   });
   
+  // Employer company name/logo (for JobPosting structured data hiringOrganization).
+  const { data: employerProfile } = useQuery({
+    queryKey: ["job-employer-profile", job?.employer_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("company_name, company_logo")
+        .eq("id", job!.employer_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!job?.employer_id,
+  });
+
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
 
@@ -275,6 +290,9 @@ export default function JobDetails() {
 
   return (
     <>
+      {job && (
+        <JobPostingJsonLd job={job} company={employerProfile?.company_name} logo={employerProfile?.company_logo} />
+      )}
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Back Button */}
         <Button 
