@@ -135,7 +135,7 @@ export function useAdvancedAnalytics() {
       // Job performance
       const jobPerformance: JobPerformance[] = jobs?.map(job => {
         const jobApps = applications?.filter(a => a.job_id === job.id) || [];
-        const scores = jobApps.filter(a => a.ai_score !== null).map(a => a.ai_score!);
+        const scores = jobApps.filter(a => a.ai_score !== null).map(a => Number(a.ai_score)).filter(n => !isNaN(n));
         const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
         const hiredCount = jobApps.filter(a => a.status === "hired").length;
         
@@ -161,7 +161,8 @@ export function useAdvancedAnalytics() {
 
       applications?.forEach(app => {
         if (app.ai_score !== null) {
-          const score = app.ai_score;
+          const score = Number(app.ai_score);
+          if (isNaN(score)) return;
           if (score <= 20) aiScoreDistribution[0].count++;
           else if (score <= 40) aiScoreDistribution[1].count++;
           else if (score <= 60) aiScoreDistribution[2].count++;
@@ -236,7 +237,7 @@ export function useAdvancedAnalytics() {
         : thisWeekApps > 0 ? 100 : 0;
 
       // Candidate quality score (average AI score)
-      const allScores = applications?.filter(a => a.ai_score !== null).map(a => a.ai_score!) || [];
+      const allScores = (applications?.filter(a => a.ai_score !== null).map(a => Number(a.ai_score)).filter(n => !isNaN(n))) || [];
       const candidateQualityScore = allScores.length > 0
         ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
         : 0;

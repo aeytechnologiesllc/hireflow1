@@ -23,51 +23,70 @@ import More from "./cockpit/pages/More";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 
+// Recover from stale code-split chunks after a deploy: if a lazy import fails
+// because the hashed chunk 404s (the app was open in the browser while a new
+// version deployed), reload once to fetch fresh assets instead of white-screening
+// the whole app with "Something went wrong".
+function lazyWithReload(factory: Parameters<typeof lazy>[0]) {
+  return lazy(() =>
+    factory()
+      .then((m) => { sessionStorage.removeItem("hf-chunk-reload"); return m; })
+      .catch((err) => {
+        if (!sessionStorage.getItem("hf-chunk-reload")) {
+          sessionStorage.setItem("hf-chunk-reload", "1");
+          window.location.reload();
+          return new Promise<never>(() => {}); // hang while the page reloads
+        }
+        throw err;
+      }),
+  );
+}
+
 // All other pages lazy-loaded to reduce initial bundle
-const Interviews = lazy(() => import("./pages/Interviews"));
-const Team = lazy(() => import("./pages/Team"));
-const Analytics = lazy(() => import("./pages/Analytics"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Notifications = lazy(() => import("./pages/Notifications"));
-const TeamPortal = lazy(() => import("./pages/TeamPortal"));
-const JoinTeam = lazy(() => import("./pages/JoinTeam"));
-const ApplyWithCode = lazy(() => import("./pages/ApplyWithCode"));
-const JobDetails = lazy(() => import("./pages/JobDetails"));
-const Applications = lazy(() => import("./pages/Applications"));
-const CandidateApplicationDetail = lazy(() => import("./pages/CandidateApplicationDetail"));
-const ApplicationFormPhase = lazy(() => import("./pages/ApplicationFormPhase"));
-const TypingTestPhase = lazy(() => import("./pages/TypingTestPhase"));
-const QuizPhase = lazy(() => import("./pages/QuizPhase"));
-const VideoIntroPhase = lazy(() => import("./pages/VideoIntroPhase"));
-const ChatSimulationPhase = lazy(() => import("./pages/ChatSimulationPhase"));
-const ChatInterviewPhase = lazy(() => import("./pages/ChatInterviewPhase"));
-const SalesSimulationPhase = lazy(() => import("./pages/SalesSimulationPhase"));
-const VoiceInterviewPhase = lazy(() => import("./pages/VoiceInterviewPhase"));
-const PortfolioUploadPhase = lazy(() => import("./pages/PortfolioUploadPhase"));
-const CreateJob = lazy(() => import("./pages/AvaCreateJob"));
-const CreateJobLegacy = lazy(() => import("./pages/CreateJob"));
-const GuestJobCreator = lazy(() => import("./pages/GuestJobCreator"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const MarketingDemo = lazy(() => import("./pages/MarketingDemo"));
-const ShowcaseApplyForm = lazy(() => import("./pages/ShowcaseApplyForm"));
-const CandidateContinue = lazy(() => import("./pages/CandidateContinue"));
-const CandidatePortalLanding = lazy(() => import("./pages/CandidatePortalLanding"));
-const CandidateAuth = lazy(() => import("./pages/CandidateAuth"));
-const VerifyDocument = lazy(() => import("./pages/VerifyDocument"));
-const OAuthGoogleCallback = lazy(() => import("./pages/OAuthGoogleCallback"));
-const AuthCallback = lazy(() => import("./pages/AuthCallback"));
-const Privacy = lazy(() => import("./pages/Privacy"));
-const Terms = lazy(() => import("./pages/Terms"));
-const DeveloperDashboard = lazy(() => import("./pages/DeveloperDashboard"));
-const DeveloperUsers = lazy(() => import("./pages/DeveloperUsers"));
-const DeveloperSubscriptions = lazy(() => import("./pages/DeveloperSubscriptions"));
-const DeveloperJobs = lazy(() => import("./pages/DeveloperJobs"));
-const DeveloperActivity = lazy(() => import("./pages/DeveloperActivity"));
-const DeveloperSettings = lazy(() => import("./pages/DeveloperSettings"));
-const OrbPreview = lazy(() => import("./pages/OrbPreview"));
-const AvaFlowPreview = lazy(() => import("./pages/AvaFlowPreview"));
-const OrbAudit = lazy(() => import("./pages/OrbAudit"));
+const Interviews = lazyWithReload(() => import("./pages/Interviews"));
+const Team = lazyWithReload(() => import("./pages/Team"));
+const Analytics = lazyWithReload(() => import("./pages/Analytics"));
+const Settings = lazyWithReload(() => import("./pages/Settings"));
+const Profile = lazyWithReload(() => import("./pages/Profile"));
+const Notifications = lazyWithReload(() => import("./pages/Notifications"));
+const TeamPortal = lazyWithReload(() => import("./pages/TeamPortal"));
+const JoinTeam = lazyWithReload(() => import("./pages/JoinTeam"));
+const ApplyWithCode = lazyWithReload(() => import("./pages/ApplyWithCode"));
+const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
+const Applications = lazyWithReload(() => import("./pages/Applications"));
+const CandidateApplicationDetail = lazyWithReload(() => import("./pages/CandidateApplicationDetail"));
+const ApplicationFormPhase = lazyWithReload(() => import("./pages/ApplicationFormPhase"));
+const TypingTestPhase = lazyWithReload(() => import("./pages/TypingTestPhase"));
+const QuizPhase = lazyWithReload(() => import("./pages/QuizPhase"));
+const VideoIntroPhase = lazyWithReload(() => import("./pages/VideoIntroPhase"));
+const ChatSimulationPhase = lazyWithReload(() => import("./pages/ChatSimulationPhase"));
+const ChatInterviewPhase = lazyWithReload(() => import("./pages/ChatInterviewPhase"));
+const SalesSimulationPhase = lazyWithReload(() => import("./pages/SalesSimulationPhase"));
+const VoiceInterviewPhase = lazyWithReload(() => import("./pages/VoiceInterviewPhase"));
+const PortfolioUploadPhase = lazyWithReload(() => import("./pages/PortfolioUploadPhase"));
+const CreateJob = lazyWithReload(() => import("./pages/AvaCreateJob"));
+const CreateJobLegacy = lazyWithReload(() => import("./pages/CreateJob"));
+const GuestJobCreator = lazyWithReload(() => import("./pages/GuestJobCreator"));
+const NotFound = lazyWithReload(() => import("./pages/NotFound"));
+const MarketingDemo = lazyWithReload(() => import("./pages/MarketingDemo"));
+const ShowcaseApplyForm = lazyWithReload(() => import("./pages/ShowcaseApplyForm"));
+const CandidateContinue = lazyWithReload(() => import("./pages/CandidateContinue"));
+const CandidatePortalLanding = lazyWithReload(() => import("./pages/CandidatePortalLanding"));
+const CandidateAuth = lazyWithReload(() => import("./pages/CandidateAuth"));
+const VerifyDocument = lazyWithReload(() => import("./pages/VerifyDocument"));
+const OAuthGoogleCallback = lazyWithReload(() => import("./pages/OAuthGoogleCallback"));
+const AuthCallback = lazyWithReload(() => import("./pages/AuthCallback"));
+const Privacy = lazyWithReload(() => import("./pages/Privacy"));
+const Terms = lazyWithReload(() => import("./pages/Terms"));
+const DeveloperDashboard = lazyWithReload(() => import("./pages/DeveloperDashboard"));
+const DeveloperUsers = lazyWithReload(() => import("./pages/DeveloperUsers"));
+const DeveloperSubscriptions = lazyWithReload(() => import("./pages/DeveloperSubscriptions"));
+const DeveloperJobs = lazyWithReload(() => import("./pages/DeveloperJobs"));
+const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity"));
+const DeveloperSettings = lazyWithReload(() => import("./pages/DeveloperSettings"));
+const OrbPreview = lazyWithReload(() => import("./pages/OrbPreview"));
+const AvaFlowPreview = lazyWithReload(() => import("./pages/AvaFlowPreview"));
+const OrbAudit = lazyWithReload(() => import("./pages/OrbAudit"));
 
 // Standard premium loading state — a properly sized, centered Ava orb.
 function LazyFallback() {
