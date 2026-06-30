@@ -1,3 +1,4 @@
+// Build marker: applicants-ux ship (sticky back · inline resume dialog · candidate-aware funnel) 2026-06-30
 import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
