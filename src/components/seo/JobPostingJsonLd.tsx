@@ -5,6 +5,15 @@
  */
 import { useEffect } from "react";
 
+export interface JobLocationStruct {
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+}
+
 export interface JobPostingJob {
   id: string;
   title: string;
@@ -16,9 +25,34 @@ export interface JobPostingJob {
   salary_min?: number | null;
   salary_max?: number | null;
   salary_currency?: string | null;
+  salary_period?: string | null;
   created_at: string;
   application_deadline?: string | null;
   job_code?: string | null;
+  // Structured location (resolved by the geocode fn at create time).
+  location_city?: string | null;
+  location_region?: string | null;
+  location_country?: string | null;
+  location_country_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_remote?: boolean | null;
+  /** Extra structured locations for multi-city / multi-country postings. */
+  locations?: JobLocationStruct[] | null;
+}
+
+/** schema.org Place from a structured location (real country code + coords → precise geo-targeting). */
+function placeOf(p: JobLocationStruct) {
+  const address: Record<string, unknown> = { "@type": "PostalAddress" };
+  if (p.city) address.addressLocality = p.city;
+  if (p.region) address.addressRegion = p.region;
+  if (p.countryCode) address.addressCountry = p.countryCode;
+  else if (p.country) address.addressCountry = p.country;
+  const place: Record<string, unknown> = { "@type": "Place", address };
+  if (p.lat != null && p.lon != null) {
+    place.geo = { "@type": "GeoCoordinates", latitude: p.lat, longitude: p.lon };
+  }
+  return place;
 }
 
 const EMP_TYPE: Record<string, string> = {
@@ -43,7 +77,21 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
     const origin = typeof window !== "undefined" ? window.location.origin : "https://hireflownow.com";
     const url = `${origin}/candidate/job/${job.id}`;
     const loc = (job.location ?? "").trim();
-    const isRemote = /remote/i.test(loc) || /remote/i.test(job.job_type ?? "");
+    const isRemote = job.is_remote ?? (/remote/i.test(loc) || /remote/i.test(job.job_type ?? ""));
+
+    // Structured primary location (from the geocoder) + any extra multi-city locations.
+    const primary: JobLocationStruct = {
+      city: job.location_city,
+      region: job.location_region,
+      country: job.location_country,
+      countryCode: job.location_country_code,
+      lat: job.latitude,
+      lon: job.longitude,
+    };
+    const hasStructured = !!(primary.city || primary.countryCode || primary.country);
+    const allPlaces = [primary, ...((job.locations as JobLocationStruct[] | null) ?? [])].filter(
+      (p) => p && (p.city || p.countryCode || p.country),
+    );
 
     const descHtml =
       [
@@ -77,13 +125,27 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
 
     if (isRemote) {
       data.jobLocationType = "TELECOMMUTE";
-      data.applicantLocationRequirements = { "@type": "Country", name: "USA" };
+      // Where applicants may be located — the job's real country (never hard-coded US).
+      // Google requires applicantLocationRequirements for remote roles; omit only if truly unknown.
+      const reqName = primary.country || primary.countryCode;
+      if (reqName) {
+        data.applicantLocationRequirements = { "@type": "Country", name: reqName };
+      }
+      // A remote role can still carry its home base for context.
+      if (hasStructured) data.jobLocation = placeOf(primary);
+    } else if (allPlaces.length > 0) {
+      // Precise structured geo (one or many cities) — correct country, region, coords.
+      data.jobLocation = allPlaces.length === 1 ? placeOf(allPlaces[0]) : allPlaces.map(placeOf);
     } else if (loc) {
-      data.jobLocation = { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: loc, addressCountry: "US" } };
+      // Fallback: free-text only, country unknown — locality without a (possibly wrong) country.
+      data.jobLocation = { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: loc } };
     }
 
     if (job.salary_min != null || job.salary_max != null) {
-      const big = (job.salary_max ?? job.salary_min ?? 0) > 2000;
+      const period = (job.salary_period || "").toUpperCase();
+      const unitText = ["HOUR", "DAY", "WEEK", "MONTH", "YEAR"].includes(period)
+        ? period
+        : (job.salary_max ?? job.salary_min ?? 0) > 2000 ? "YEAR" : "HOUR";
       data.baseSalary = {
         "@type": "MonetaryAmount",
         currency: job.salary_currency || "USD",
@@ -91,7 +153,7 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
           "@type": "QuantitativeValue",
           ...(job.salary_min != null ? { minValue: job.salary_min } : {}),
           ...(job.salary_max != null ? { maxValue: job.salary_max } : {}),
-          unitText: big ? "YEAR" : "HOUR",
+          unitText,
         },
       };
     }

@@ -16,6 +16,8 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
+import { geocodePlace } from "@/lib/geocode";
+import { parseSalary } from "@/lib/salaryParse";
 import type {
   JobFlow,
   JobBrief,
@@ -255,13 +257,40 @@ export async function createJobFromFlow(
   const quizQuestions = buildQuizQuestions(flow.phases);
   const workflowSteps = buildWorkflowSteps(flow.phases, opts.voiceInterview ?? false);
 
+  // Resolve the free-text location into a real city/region/country (+coords) so the job
+  // posts to the right place and Google for Jobs geo-targets it correctly. Best-effort:
+  // if it fails, we just store the raw text and leave the structured fields null.
+  const isRemote = brief.workMode === "remote" || /\bremote\b/i.test(brief.location ?? "");
+  const geo = brief.location ? await geocodePlace(brief.location) : { ok: false as const };
+
+  // Structured salary (currency- + period-aware), parsed from what the employer typed,
+  // falling back to the brief's semi-structured pay. Country hints the currency (PKR, etc.).
+  const payText = brief.pay?.rawText
+    || (brief.pay?.min != null ? `${brief.pay.min}${brief.pay.max != null ? `-${brief.pay.max}` : ""} ${brief.pay.unit ?? ""}` : "");
+  const sal = parseSalary(payText, geo.ok ? geo.countryCode : undefined);
+  const salaryMin = sal.min ?? brief.pay?.min ?? brief.pay?.amount ?? null;
+  const salaryMax = sal.max ?? brief.pay?.max ?? null;
+  const salaryCurrency = sal.currency ?? brief.pay?.currency ?? (geo.ok && geo.countryCode === "US" ? "USD" : null);
+  const salaryPeriod = sal.period ?? (brief.pay?.unit ? brief.pay.unit.toUpperCase() : null);
+
   const row = {
     employer_id: employerId,
     title,
     description,
     requirements,
     responsibilities,
-    location: brief.location || null,
+    location: brief.location || (geo.ok ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : null),
+    location_city: geo.ok ? geo.city ?? null : null,
+    location_region: geo.ok ? geo.region ?? null : null,
+    location_country: geo.ok ? geo.country ?? null : null,
+    location_country_code: geo.ok ? geo.countryCode ?? null : null,
+    latitude: geo.ok ? geo.lat ?? null : null,
+    longitude: geo.ok ? geo.lon ?? null : null,
+    is_remote: isRemote,
+    salary_min: salaryMin,
+    salary_max: salaryMax,
+    salary_currency: salaryCurrency,
+    salary_period: salaryPeriod,
     job_type: mapEmploymentType(brief.employmentType),
     skills_required: [] as string[],
     status: (opts.status ?? "published") as "published" | "draft",

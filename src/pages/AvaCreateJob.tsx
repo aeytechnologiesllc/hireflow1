@@ -63,6 +63,7 @@ import {
 } from "@/lib/avaEngine";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow } from "@/lib/jobFromFlow";
+import { geocodePlace, formatPlace } from "@/lib/geocode";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 
@@ -151,6 +152,8 @@ export default function AvaCreateJob() {
       openings: 1,
     },
   );
+  const [geoPreview, setGeoPreview] = useState<import("@/lib/geocode").GeoPlace | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [flow, setFlow] = useState<JobFlow | null>(saved?.flow ?? null);
   const [reviewCards, setReviewCards] = useState<ReviewPhaseCard[]>(() => (saved?.flow ? flowToReviewCards(saved.flow) : []));
   const [generating, setGenerating] = useState(false);
@@ -174,6 +177,14 @@ export default function AvaCreateJob() {
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
+  const resolveLocation = useCallback(async () => {
+    const q = (briefFields.location ?? "").trim();
+    if (q.length < 2 || /^remote$/i.test(q)) { setGeoPreview(null); return; }
+    setGeoLoading(true);
+    const p = await geocodePlace(q);
+    setGeoLoading(false);
+    setGeoPreview(p);
+  }, [briefFields.location]);
 
   useEffect(() => {
     if (!rigorTouched) setRigor(playbook.rigor.recommended);
@@ -390,7 +401,22 @@ export default function AvaCreateJob() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
-                        <input value={briefFields.location} onChange={(e) => setBrief("location", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="City, State — or 'Remote'" />
+                        <input value={briefFields.location} onChange={(e) => { setBrief("location", e.target.value); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Islamabad, Austin, or 'Remote'" />
+                        {geoLoading && (
+                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                            <Loader2 className="h-3 w-3 animate-spin" /> Finding that place…
+                          </div>
+                        )}
+                        {!geoLoading && geoPreview?.ok && (
+                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--ck-mint))" }}>
+                            <Check className="h-3.5 w-3.5" /> Ava found <span style={{ color: "hsl(var(--foreground))" }}>{formatPlace(geoPreview)}</span> — she’ll target this on Google for Jobs.
+                          </div>
+                        )}
+                        {!geoLoading && geoPreview && !geoPreview.ok && briefFields.location.trim() && !/^remote$/i.test(briefFields.location.trim()) && (
+                          <div className="mt-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                            Couldn’t pinpoint that exactly — it’ll still post as “{briefFields.location.trim()}”.
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
@@ -555,9 +581,9 @@ export default function AvaCreateJob() {
                         href={`${typeof window !== "undefined" ? window.location.origin : ""}/candidate/job/${publishedRoleId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="ck-btn ck-btn-outline w-full !text-[13px]"
+                        className="ck-btn ck-btn-brass w-full !text-[13px]"
                       >
-                        See your job live <ExternalLink className="h-3.5 w-3.5" />
+                        See your job in action <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     )}
                     <a
