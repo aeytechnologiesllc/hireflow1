@@ -102,18 +102,48 @@
     --input: 150 12% 16%;
     --ring: 38 58% 60%;
 
-    /* ── Cockpit brand tokens ── */
-    --ck-bg: 156 22% 5%;
-    --ck-sidebar: 156 20% 4%;
-    --ck-surface: 156 17% 8%;
-    --ck-surface-2: 156 16% 10%;
-    --ck-line: 150 12% 16%;
-    --ck-cream: 150 33% 95%;
-    --ck-sub: 150 10% 62%;
-    --ck-jade: 152 46% 46%;
+    /* ── Cockpit brand tokens — neutralized 2026-06-30: deep charcoal base,
+       WARM cream text, green + gold used as ACCENTS only (not the whole UI). ── */
+    --ck-bg: 150 14% 4%;
+    --ck-sidebar: 150 16% 3%;
+    --ck-surface: 150 12% 7%;
+    --ck-surface-2: 150 11% 10%;
+    --ck-line: 150 8% 16%;          /* neutral dark hairline (legacy inline borders) */
+    --ck-cream: 43 40% 92%;         /* warm off-white text (was green-tinted) */
+    --ck-sub: 42 14% 70%;           /* warm soft secondary text */
+    --ck-jade: 154 64% 53%;         /* green ACCENT */
     --ck-mint: 156 55% 72%;
-    --ck-brass: 38 58% 60%;
-    --ck-brass-bright: 38 64% 71%;
+    --ck-brass: 42 72% 66%;         /* champagne/gold — primary action accent */
+    --ck-brass-bright: 42 78% 74%;
+
+    /* ── Premium token system (--hf-*): charcoal base · green accent · gold action · real depth.
+       Dark values here; the light theme overrides live in :root. ── */
+    --hf-bg: #070a08;
+    --hf-bg-soft: #0b100d;
+    --hf-surface: #101612;
+    --hf-surface-raised: #151d18;
+    --hf-surface-strong: #1a241e;
+    --hf-border: rgba(229, 221, 196, 0.10);
+    --hf-border-strong: rgba(229, 221, 196, 0.18);
+    --hf-text: #f3efe4;
+    --hf-text-soft: #c9c1ad;
+    --hf-text-muted: #8f998e;
+    --hf-green: #39d98a;
+    --hf-green-soft: rgba(57, 217, 138, 0.14);
+    --hf-green-border: rgba(57, 217, 138, 0.32);
+    --hf-gold: #e7c36a;
+    --hf-gold-hover: #f0d483;
+    --hf-gold-soft: rgba(231, 195, 106, 0.16);
+    --hf-gold-border: rgba(231, 195, 106, 0.34);
+    --hf-danger: #ff6b6b;
+    --hf-warning: #f6b94b;
+    --hf-shadow-soft: 0 14px 40px rgba(0, 0, 0, 0.32);
+    --hf-shadow-raised: 0 22px 70px rgba(0, 0, 0, 0.45);
+    --hf-shadow-gold: 0 10px 26px rgba(231, 195, 106, 0.22);
+    --hf-radius-sm: 10px;
+    --hf-radius-md: 14px;
+    --hf-radius-lg: 20px;
+    --hf-radius-xl: 28px;
 
     --gradient-primary: linear-gradient(135deg, hsl(38 64% 71%) 0%, hsl(38 56% 58%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, hsl(152 40% 18% / 0.55) 0%, transparent 60%), hsl(156 22% 5%);

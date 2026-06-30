@@ -38,8 +38,8 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
 
   return (
     <div className={`ck-card flex flex-col p-5 ${className ?? ""}`}>
-      <div className="flex justify-center py-1">
-        <AvaOrb size={orbSize ?? 132} reflection={false} amp={0.22} flow={0.5} />
+      <div className="-mt-1 flex justify-center">
+        <AvaOrb size={orbSize ?? 168} reflection={false} amp={0.22} flow={0.5} />
       </div>
       <div className="mt-1 font-display text-[20px]" style={{ color: "hsl(150 30% 93%)" }}>
         {title}

@@ -118,7 +118,7 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
   const analyzed = isAnalyzed(c);
   const canSchedule = status !== "rejected" && status !== "hired";
   return (
-    <div className="ck-card flex h-full flex-col p-5">
+    <div className="ck-card flex max-h-[calc(100dvh-104px)] flex-col p-5">
       {/* compact header — name, stage, match all visible at a glance */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -384,7 +384,10 @@ export default function CockpitApplicants() {
         subtitle={roleName ? `${roleName} pipeline` : roleIdFilter ? "Filtered to one role" : "Your hiring pipeline"}
       />
 
-      <div className="ck-card p-5 md:p-6">
+      {/* Two-column command center: left = pipeline + filters + table · right = sticky candidate inspector */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="min-w-0 space-y-5">
+          <div className="ck-card p-5 md:p-6">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="font-display text-[16px]" style={{ color: "hsl(150 28% 88%)", fontWeight: 500 }}>
             {candidateFocused && selected ? `Where ${selected.name.split(" ")[0]} is` : "Where your applicants are"}
@@ -413,8 +416,7 @@ export default function CockpitApplicants() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_316px]">
-        <div className="space-y-3">
+          <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <SearchInput placeholder="Search candidates…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
             <FilterSelect label="Role" value={roleIdFilter ?? ""} options={roleOptions} onChange={setRole} />
@@ -573,22 +575,25 @@ export default function CockpitApplicants() {
             )}
           </div>
         </div>
+        </section>
 
-        {/* right detail panel (desktop) */}
-        <div className="hidden lg:block">
+        {/* right column — sticky candidate inspector, aligned high with the pipeline */}
+        <aside className="hidden min-w-0 lg:block">
           {selected ? (
-            <DetailPanel
-              c={selected}
-              status={statusById[selected.id]}
-              onClose={() => setSelectedId(null)}
-              onAdvance={() => openAdvance(selected)}
-              onHire={() => openHire(selected)}
-              onReject={() => openReject(selected)}
-              onSchedule={() => setScheduleCand(selected)}
-              onViewProfile={() => navigate(`/applicants/${selected.id}`)}
-            />
+            <div className="hf-inspector-enter sticky top-4">
+              <DetailPanel
+                c={selected}
+                status={statusById[selected.id]}
+                onClose={() => setSelectedId(null)}
+                onAdvance={() => openAdvance(selected)}
+                onHire={() => openHire(selected)}
+                onReject={() => openReject(selected)}
+                onSchedule={() => setScheduleCand(selected)}
+                onViewProfile={() => navigate(`/applicants/${selected.id}`)}
+              />
+            </div>
           ) : null}
-        </div>
+        </aside>
       </div>
 
       {actionDialog?.type === "advance" && (() => {
