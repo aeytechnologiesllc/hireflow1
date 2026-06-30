@@ -103,8 +103,8 @@ const SWIRL_FRAG = `
     col = mix(col, cBrass, vBrass*0.55 + vStream*0.22);
     col = mix(col, cDeep, (1.0-vB)*(1.0-vStream)*0.18);
     float fall = uEdge + (1.0-uEdge)*vFace;
-    float bright = (0.14 + 0.75*vB + 0.78*vStream + 0.22*vVel) * fall * uBright;
-    float glow = a * a * (0.28 + vStream*0.72);
+    float bright = (0.17 + 0.82*vB + 0.86*vStream + 0.24*vVel) * fall * uBright;
+    float glow = a * a * (0.34 + vStream*0.78);
     gl_FragColor = vec4(col*bright + glow*vec3(0.35,0.95,0.62), a*fall*uAlpha);
   }
 `;
@@ -261,8 +261,8 @@ export function AvaOrb({
       uFlow: { value: flow },
       uAmp: { value: amp },
       uSize: { value: resolvedDot },
-      uBright: { value: 1.15 },
-      uAlpha: { value: 0.88 },
+      uBright: { value: 1.5 },
+      uAlpha: { value: 0.92 },
       uEdge: { value: 0.10 },
       cJade: { value: new THREE.Color(0x1a9e6e) },
       cMint: { value: new THREE.Color(0x7fe3c2) },
@@ -275,8 +275,8 @@ export function AvaOrb({
       uFlow: { value: flow * 0.65 },
       uAmp: { value: amp * 0.55 },
       uSize: { value: resolvedDot * 0.62 },
-      uBright: { value: 0.65 },
-      uAlpha: { value: 0.42 },
+      uBright: { value: 0.88 },
+      uAlpha: { value: 0.5 },
       uEdge: { value: 0.0 },
       cJade: { value: new THREE.Color(0x1f9e77) },
       cMint: { value: new THREE.Color(0x9fe7c9) },
@@ -350,9 +350,9 @@ export function AvaOrb({
       const k = smoothK;
       coreU.uAmp.value = amp * (1 + k * 0.04);
       coreU.uFlow.value = flow * (1 + k * 0.06);
-      coreU.uBright.value = 1.15 + k * 0.28;
+      coreU.uBright.value = 1.5 + k * 0.3;
       haloU.uAmp.value = amp * 0.55 * (1 + k * 0.04);
-      haloU.uBright.value = 0.65 + k * 0.22;
+      haloU.uBright.value = 0.88 + k * 0.24;
       grp.rotation.y += spin * 0.02;
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);
