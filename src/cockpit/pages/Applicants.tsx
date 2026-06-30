@@ -26,7 +26,7 @@ import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
 import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
-import type { Candidate, CandidateStage } from "../data";
+import type { Candidate, CandidateStage, PipelineNode, StageKey } from "../data";
 
 /** Stage-aware decision buttons shared by the detail panel, the table rows and the
  *  mobile cards. Terminal states show a badge; an offered candidate gets Hire +
@@ -310,6 +310,30 @@ export default function CockpitApplicants() {
   const effectiveSelectedId = selectedId ?? paged[0]?.id ?? null;
   const selected = listCandidates.find((c) => c.id === effectiveSelectedId) ?? paged[0];
 
+  // Funnel focus: the aggregate overview is the default. Only when the employer
+  // *actively* clicks a row (selectedId set — not the auto-highlighted first row)
+  // does the funnel switch to that one candidate's progress.
+  const candidateFocused = selectedId !== null && !!selected;
+  const candidateNodes = useMemo<PipelineNode[]>(() => {
+    if (!candidateFocused || !selected) return [];
+    const order: { key: StageKey; label: string; stage: CandidateStage }[] = [
+      { key: "application", label: "Application", stage: "Application" },
+      { key: "quiz", label: "Quiz", stage: "Quiz" },
+      { key: "voice", label: "Voice", stage: "Voice" },
+      { key: "shortlist", label: "Shortlist", stage: "Shortlist" },
+      { key: "hired", label: "Hired", stage: "Hired" },
+    ];
+    const rejected = selected.stage === "Rejected";
+    const curIdx = order.findIndex((o) => o.stage === selected.stage);
+    return order.map((o, i) => {
+      let state: PipelineNode["state"];
+      if (rejected || curIdx < 0 || i > curIdx) state = "upcoming";
+      else if (i === curIdx) state = "current";
+      else state = "done";
+      return { key: o.key, label: o.label, count: 0, pct: "", tone: "muted" as const, state };
+    });
+  }, [candidateFocused, selected]);
+
   const statusOf = (id: string) => (applications.find((a) => a.id === id) as { status?: string } | undefined)?.status;
   const openAdvance = (c: Candidate) => setActionDialog({ type: "advance", cand: c });
   const openHire = (c: Candidate) => setActionDialog({ type: "hire", cand: c });
@@ -363,15 +387,29 @@ export default function CockpitApplicants() {
       <div className="ck-card p-5 md:p-6">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="font-display text-[16px]" style={{ color: "hsl(150 28% 88%)", fontWeight: 500 }}>
-            Where your applicants are
+            {candidateFocused && selected ? `Where ${selected.name.split(" ")[0]} is` : "Where your applicants are"}
           </h2>
-          <span className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
-            {pipelineTotal} {pipelineTotal === 1 ? "candidate" : "candidates"} in your pipeline · each number is how many sit at that stage
-          </span>
+          {candidateFocused && selected ? (
+            <button
+              onClick={() => setSelectedId(null)}
+              className="inline-flex items-center gap-1.5 text-[12.5px] transition-opacity hover:opacity-80"
+              style={{ color: "hsl(38 64% 66%)" }}
+            >
+              <X className="h-3.5 w-3.5" /> View whole pipeline
+            </button>
+          ) : (
+            <span className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
+              {pipelineTotal} {pipelineTotal === 1 ? "candidate" : "candidates"} in your pipeline · each number is how many sit at that stage
+            </span>
+          )}
         </div>
-        <Pipeline variant="large" nodes={filteredPipeline} />
+        <Pipeline variant="large" nodes={candidateFocused ? candidateNodes : filteredPipeline} />
         <p className="mt-4 text-[12px]" style={{ color: "hsl(150 10% 50%)" }}>
-          Quiz and Voice fill in only after a candidate completes those screening steps — that’s why their scores read “—” until then.
+          {candidateFocused && selected
+            ? selected.stage === "Rejected"
+              ? `${selected.name} was passed and is no longer active in this pipeline.`
+              : `${selected.name} is at the ${selected.stage} stage right now — amber marks where they are. Click any other row to switch, or “View whole pipeline” to see everyone.`
+            : "Quiz and Voice fill in only after a candidate completes those screening steps — that’s why their scores read “—” until then."}
         </p>
       </div>
 
@@ -542,7 +580,7 @@ export default function CockpitApplicants() {
             <DetailPanel
               c={selected}
               status={statusById[selected.id]}
-              onClose={() => undefined}
+              onClose={() => setSelectedId(null)}
               onAdvance={() => openAdvance(selected)}
               onHire={() => openHire(selected)}
               onReject={() => openReject(selected)}

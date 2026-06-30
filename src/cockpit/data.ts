@@ -14,6 +14,13 @@ export interface PipelineNode {
   pct: string;
   tone: "green" | "bottleneck" | "muted";
   dropOff?: number;
+  /**
+   * When set, the funnel renders in single-candidate progress mode (used when an
+   * employer selects one applicant): stages they've cleared show "done", their
+   * current stage is highlighted amber ("current"), later stages are "upcoming".
+   * Absent on the default aggregate funnel.
+   */
+  state?: "done" | "current" | "upcoming" | "passed";
 }
 
 export interface Avatar {

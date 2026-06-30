@@ -21,6 +21,7 @@ import { ActionDialog } from "../components/ActionDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
+import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -32,6 +33,14 @@ export default function CockpitCandidateDetail() {
   const { account } = useCockpitAccount();
   const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance">(null);
   const [hirePrompt, setHirePrompt] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+
+  // Go back to where they came from (the applicants list, with its filter +
+  // selection intact); fall back to the list if this was a deep link.
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/applicants");
+  };
 
   if (isLoading || !c) {
     return (
@@ -68,25 +77,32 @@ export default function CockpitCandidateDetail() {
 
   return (
     <div className="mx-auto max-w-[640px] pb-28">
-      {/* desktop back */}
-      <button
-        onClick={() => navigate("/applicants")}
-        className="mb-4 hidden items-center gap-1.5 text-[13.5px] md:inline-flex"
-        style={{ color: "hsl(150 14% 64%)" }}
+      {/* Sticky back — stays pinned to the top of the profile while scrolling, so
+          there's always a clear way back to the list (it used to scroll away). */}
+      <div
+        className="sticky top-0 z-20 mb-3 py-2.5"
+        style={{ background: "hsl(var(--ck-bg) / 0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       >
-        <ArrowLeft className="h-4 w-4" /> Back to applicants
-      </button>
-
-      <div className="mb-3 flex items-center gap-3 md:hidden">
-        <button onClick={() => navigate(-1)} style={{ color: "hsl(150 22% 80%)" }}><ChevronLeft className="h-6 w-6" /></button>
-        <span className="min-w-0 flex-1 truncate font-display text-[20px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</span>
+        {/* desktop */}
         <button
-          className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5"
-          style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)", color: "hsl(150 28% 88%)" }}
+          onClick={goBack}
+          className="hidden items-center gap-1.5 text-[13.5px] transition-opacity hover:opacity-80 md:inline-flex"
+          style={{ color: "hsl(150 14% 70%)" }}
         >
-          <span className="text-[13px] font-medium">{account.name}</span>
-          <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+          <ArrowLeft className="h-4 w-4" /> Back to applicants
         </button>
+        {/* mobile */}
+        <div className="flex items-center gap-3 md:hidden">
+          <button onClick={goBack} aria-label="Back to applicants" style={{ color: "hsl(150 22% 80%)" }}><ChevronLeft className="h-6 w-6" /></button>
+          <span className="min-w-0 flex-1 truncate font-display text-[18px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</span>
+          <button
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)", color: "hsl(150 28% 88%)" }}
+          >
+            <span className="text-[13px] font-medium">{account.name}</span>
+            <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -163,9 +179,9 @@ export default function CockpitCandidateDetail() {
             </div>
           </div>
           {resumeUrl && (
-            <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12.5px]">
+            <button onClick={() => setResumeOpen(true)} className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12.5px]">
               View
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -257,6 +273,14 @@ export default function CockpitCandidateDetail() {
         jobTitle={c.role}
         applicationId={c.id}
         onSkip={() => setHirePrompt(false)}
+      />
+
+      <ResumeViewerDialog
+        open={resumeOpen}
+        url={resumeUrl}
+        candidateName={c.name}
+        avaRead={analyzed ? c.read : undefined}
+        onClose={() => setResumeOpen(false)}
       />
     </div>
   );
