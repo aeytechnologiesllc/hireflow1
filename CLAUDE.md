@@ -43,6 +43,10 @@
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_GOOGLE_CLIENT_ID`
 
+## Branding / App Icon
+
+The app icon is **"Direction 4" — an ivory tile with the jade Ava orb**. Master + full docs in [`BRANDING.md`](BRANDING.md). All web/Apple/PWA/Android-maskable assets live in `public/` and are derived from `branding/app-icon-master.png`. **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
+
 ## Local Development
 
 ```bash
