@@ -9,7 +9,6 @@ import {
   MapPin,
   Clock,
   Plus,
-  Eye,
   Share2,
   Pencil,
   Copy,
@@ -50,16 +49,47 @@ function SubStat({ label, value, max }: { label: string; value: number; max: num
   );
 }
 
+// The amber job code on the card — now itself a copy button (no separate
+// "copy code" action needed in the action rail). Stops propagation so it never
+// triggers the whole-tile navigation.
+function JobCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Job code copied");
+    } catch {
+      toast.error("Could not copy");
+    }
+  }, [code]);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); void copy(); }}
+      title="Copy job code"
+      className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] transition-opacity hover:opacity-75"
+      style={{ color: "hsl(38 60% 62%)" }}
+    >
+      {code}
+      {copied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
+    </button>
+  );
+}
+
 function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
   const navigate = useNavigate();
-  const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const copy = useCallback(async (text: string, kind: "code" | "link") => {
+  const copyLink = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(kind);
-      setTimeout(() => setCopied(null), 2000);
-      toast.success(kind === "code" ? "Job code copied" : "Apply link copied");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Apply link copied");
     } catch {
       toast.error("Could not copy");
     }
@@ -69,31 +99,22 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
 
   const items = [
     {
-      icon: Eye,
-      label: "View",
-      onClick: () => navigate(`/applicants?roleId=${job.id}`),
-    },
-    {
       icon: ExternalLink,
       label: "See live",
       onClick: () => window.open(`${window.location.origin}/candidate/job/${job.id}`, "_blank", "noopener"),
+      disabled: false,
     },
     {
-      icon: copied === "code" ? Check : Copy,
-      label: job.roleCode ? job.roleCode : "No code",
-      onClick: () => job.roleCode && void copy(job.roleCode, "code"),
-      disabled: !job.roleCode,
-    },
-    {
-      icon: copied === "link" ? Check : Share2,
+      icon: copied ? Check : Share2,
       label: "Share link",
-      onClick: () => applyLink && void copy(applyLink, "link"),
+      onClick: () => applyLink && void copyLink(applyLink),
       disabled: !applyLink,
     },
     {
       icon: Pencil,
       label: "Edit",
       onClick: () => navigate(`/jobs/edit/${job.id}`),
+      disabled: false,
     },
   ] as const;
 
@@ -104,12 +125,12 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
           key={label}
           type="button"
           disabled={disabled}
-          onClick={onClick}
-          className="flex items-center gap-2 transition-colors disabled:opacity-40"
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          className="flex items-center gap-2 transition-colors hover:opacity-80 disabled:opacity-40"
           style={{ color: "hsl(150 12% 62%)" }}
         >
           <Icon className="h-4 w-4 shrink-0" />
-          <span className={label.startsWith("ROLE-") ? "font-mono text-[12px]" : undefined}>{label}</span>
+          <span>{label}</span>
         </button>
       ))}
     </div>
@@ -141,9 +162,21 @@ function RoleIcon({ job }: { job: JobRow }) {
 }
 
 function JobCard({ job }: { job: JobRow }) {
+  const navigate = useNavigate();
+  // The whole tile is the primary "open" affordance — clicking it goes to the
+  // role's applicants (what the old "View" action did). Inner buttons stop
+  // propagation so they don't trigger this.
+  const open = () => navigate(`/applicants?roleId=${job.id}`);
   return (
     <>
-      <div className="ck-row hidden items-center gap-4 p-4 md:flex">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={open}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
+        aria-label={`View applicants for ${job.title}`}
+        className="ck-row hidden cursor-pointer items-center gap-4 p-4 md:flex"
+      >
         <RoleIcon job={job} />
         <div className="w-[180px] shrink-0">
           <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{job.title}</div>
@@ -155,9 +188,7 @@ function JobCard({ job }: { job: JobRow }) {
             <Clock className="h-3 w-3 shrink-0" />
             <span className="truncate">{job.pay}</span>
           </div>
-          {job.roleCode && (
-            <div className="mt-1 font-mono text-[11px]" style={{ color: "hsl(38 60% 62%)" }}>{job.roleCode}</div>
-          )}
+          {job.roleCode && <JobCodeButton code={job.roleCode} />}
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
           <div className="flex items-center gap-6">
@@ -173,7 +204,14 @@ function JobCard({ job }: { job: JobRow }) {
         <JobActions job={job} />
       </div>
 
-      <div className="ck-row p-4 md:hidden">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={open}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
+        aria-label={`View applicants for ${job.title}`}
+        className="ck-row cursor-pointer p-4 md:hidden"
+      >
         <div className="flex items-start gap-3">
           <RoleIcon job={job} />
           <div className="min-w-0 flex-1">
@@ -187,9 +225,7 @@ function JobCard({ job }: { job: JobRow }) {
               <span className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{job.location}</span>
               <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{job.pay}</span>
             </div>
-            {job.roleCode && (
-              <div className="mt-1 font-mono text-[11px]" style={{ color: "hsl(38 60% 62%)" }}>{job.roleCode}</div>
-            )}
+            {job.roleCode && <JobCodeButton code={job.roleCode} />}
           </div>
           <div className="flex shrink-0 flex-col items-end">
             <span className="ck-num text-[18px]" style={{ color: "hsl(150 30% 92%)" }}>{job.applicants}</span>
