@@ -3,15 +3,32 @@
 // `--no-verify-jwt` so search engines can fetch it without auth.
 const SITE = Deno.env.get("PUBLIC_SITE_URL") || "https://hireflownow.com";
 
+function xmlEscape(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 Deno.serve(async () => {
   const cors = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/xml; charset=utf-8" };
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY")!;
-    const res = await fetch(`${url}/rest/v1/jobs?status=eq.published&select=id,created_at&order=created_at.desc&limit=5000`, {
+    const now = new Date().toISOString();
+    const params = new URLSearchParams({
+      status: "eq.published",
+      select: "id,created_at,updated_at,application_deadline",
+      order: "updated_at.desc",
+      limit: "5000",
+      or: `(application_deadline.is.null,application_deadline.gt.${now})`,
+    });
+    const res = await fetch(`${url}/rest/v1/jobs?${params.toString()}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
-    const jobs: Array<{ id: string; created_at: string }> = res.ok ? await res.json() : [];
+    const jobs: Array<{ id: string; created_at: string; updated_at?: string | null }> = res.ok ? await res.json() : [];
 
     const staticUrls = [
       { loc: `${SITE}/`, pri: "1.0" },
@@ -19,10 +36,12 @@ Deno.serve(async () => {
     ];
 
     const urls = [
-      ...staticUrls.map((u) => `<url><loc>${u.loc}</loc><priority>${u.pri}</priority></url>`),
+      ...staticUrls.map((u) => `<url><loc>${xmlEscape(u.loc)}</loc><priority>${u.pri}</priority></url>`),
       ...jobs.map((j) => {
-        const lastmod = new Date(j.created_at).toISOString().slice(0, 10);
-        return `<url><loc>${SITE}/candidate/job/${j.id}</loc><lastmod>${lastmod}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`;
+        const changedAt = j.updated_at || j.created_at;
+        const lastmod = new Date(changedAt).toISOString();
+        const loc = `${SITE}/candidate/job/${j.id}`;
+        return `<url><loc>${xmlEscape(loc)}</loc><lastmod>${lastmod}</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>`;
       }),
     ].join("");
 

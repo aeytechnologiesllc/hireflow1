@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Loader2, PlugZap, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Loader2, PlugZap, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -87,7 +87,7 @@ export default function JoinIntegrationSettings() {
                 </span>
                 <div>
                   <CardTitle className="text-lg">JOIN multiposting</CardTitle>
-                  <CardDescription>Connect a customer-owned JOIN account for future Ava posting.</CardDescription>
+                  <CardDescription>Connect an API-enabled JOIN account for approved posting workflows.</CardDescription>
                 </div>
               </div>
             </div>
@@ -107,9 +107,9 @@ export default function JoinIntegrationSettings() {
         <CardContent className="space-y-5">
           <Alert className="border-primary/20 bg-primary/5">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            <AlertTitle>Bring your own JOIN account</AlertTitle>
+            <AlertTitle>API-enabled JOIN account required</AlertTitle>
             <AlertDescription>
-              Customers keep ownership of their JOIN plan, billing, job-board access, and API token. HireFlow stores the token encrypted and only uses it to power Ava multiposting once posting is enabled.
+              Use the company JOIN account that owns billing, job slots, board access, and API credentials. Some channels, including Indeed and premium boards, may require a higher JOIN plan, board approval, or paid board products.
             </AlertDescription>
           </Alert>
 
@@ -117,18 +117,18 @@ export default function JoinIntegrationSettings() {
             <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">1</span>
               <div>
-                <p className="font-medium text-foreground">Sign in to the company JOIN account</p>
-                <p className="text-muted-foreground">Use the account that owns the job slots, billing, and API access.</p>
+                <p className="font-medium text-foreground">Use the company/admin JOIN account</p>
+                <p className="text-muted-foreground">Choose the account that owns billing, job slots, board access, and API credentials.</p>
               </div>
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</span>
               <div>
-                <p className="font-medium text-foreground">Create or copy a JOIN API token</p>
-                <p className="text-muted-foreground">Open JOIN API credentials, create a token if needed, then copy the full key.</p>
+                <p className="font-medium text-foreground">Confirm API access, then copy a token</p>
+                <p className="text-muted-foreground">If API credentials are missing in JOIN, upgrade or ask JOIN support before connecting.</p>
               </div>
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">3</span>
               <div>
-                <p className="font-medium text-foreground">Paste it into HireFlow</p>
-                <p className="text-muted-foreground">Ava will use this connection for future JOIN drafts and multiposting controls.</p>
+                <p className="font-medium text-foreground">Save the token in HireFlow</p>
+                <p className="text-muted-foreground">Saving connects the account; jobs still go through your review and approval.</p>
               </div>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function JoinIntegrationSettings() {
               </Button>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              In JOIN, go to your user settings, open API credentials, create/copy a token, then paste it here. HireFlow only shows a masked preview after saving.
+              If JOIN does not show API credentials, confirm the customer is on an API-enabled JOIN plan before saving anything here. HireFlow only shows a masked preview after saving.
             </p>
           </div>
 
@@ -208,28 +208,28 @@ export default function JoinIntegrationSettings() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Connection service unavailable</AlertTitle>
               <AlertDescription>
-                The settings UI is ready, but the JOIN integration function needs to be deployed before saving tokens works in this environment.
+                We could not reach the JOIN connection service. Try again in a moment or contact support if this keeps happening.
               </AlertDescription>
             </Alert>
           )}
 
           <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-medium text-foreground">Coming next in Ava</p>
+                <p className="text-sm font-medium text-foreground">What this connection does</p>
                 <p className="text-sm text-muted-foreground">
-                  Connected posting controls will let Ava create the JOIN job draft first, review it with you, then push it live when you approve.
+                  Saving a key does not publish jobs by itself. It lets HireFlow use that JOIN account from the job or Ava flow, where you review the role before anything goes live.
                 </p>
               </div>
             </div>
             <a
-              href="https://join.com"
+              href="https://join.com/pricing"
               target="_blank"
               rel="noreferrer"
               className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
-              Open JOIN <ExternalLink className="h-3.5 w-3.5" />
+              Open JOIN pricing <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </CardContent>

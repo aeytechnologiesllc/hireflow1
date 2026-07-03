@@ -17,6 +17,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { geocodePlace } from "@/lib/geocode";
+import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 import { parseSalary } from "@/lib/salaryParse";
 import type {
   JobFlow,
@@ -258,10 +259,21 @@ export async function createJobFromFlow(
   const workflowSteps = buildWorkflowSteps(flow.phases, opts.voiceInterview ?? false);
 
   // Resolve the free-text location into a real city/region/country (+coords) so the job
-  // posts to the right place and Google for Jobs geo-targets it correctly. Best-effort:
-  // if it fails, we just store the raw text and leave the structured fields null.
-  const isRemote = brief.workMode === "remote" || /\bremote\b/i.test(brief.location ?? "");
-  const geo = brief.location ? await geocodePlace(brief.location) : { ok: false as const };
+  // posts to the right place and Google for Jobs geo-targets it correctly.
+  const locationText = (brief.location ?? "").trim();
+  const isRemote = brief.workMode === "remote" || isFullyRemoteText(brief.location, brief.employmentType, description);
+  if ((opts.status ?? "published") === "published" && !locationText) {
+    throw new Error("Add a location or remote country before publishing so Google can place the job correctly.");
+  }
+  const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
+  const hasCountry = !!(geo.ok ? geo.countryCode || geo.country : inferCountryCode(locationText));
+  if ((opts.status ?? "published") === "published" && !hasCountry) {
+    throw new Error(
+      isRemote
+        ? "Add the eligible remote country, like \"Remote - United States\", so Google can place the job correctly."
+        : "Add a clearer location with country, like \"London, United Kingdom\", so Google can place the job correctly.",
+    );
+  }
 
   // Structured salary (currency- + period-aware), parsed from what the employer typed,
   // falling back to the brief's semi-structured pay. Country hints the currency (PKR, etc.).

@@ -116,6 +116,8 @@ import { RefreshCw } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
 import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
+import { geocodePlace } from "@/lib/geocode";
+import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 
 interface ApplicationQuestion {
   id: string;
@@ -429,6 +431,14 @@ const parseCommaSeparatedList = (value: unknown): string[] =>
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+
+const toGoogleSalaryPeriod = (period: string | null | undefined): string | null => {
+  const normalized = (period ?? "").toLowerCase();
+  if (normalized.startsWith("hour")) return "HOUR";
+  if (normalized.startsWith("month")) return "MONTH";
+  if (normalized.startsWith("year") || normalized.startsWith("annual")) return "YEAR";
+  return null;
+};
 
 export default function CreateJob() {
   const navigate = useNavigate();
@@ -1026,12 +1036,35 @@ export default function CreateJob() {
 
     setIsSubmitting(true);
     try {
+      const locationText = formData.location.trim();
+      const isRemote = isFullyRemoteText(locationText, formData.job_type, formData.description);
+      if (status === "published" && !locationText) {
+        toast.error("For Google Jobs, add a location or remote country before publishing.");
+        return;
+      }
+      const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
+      const hasCountry = !!(geo.ok ? geo.countryCode || geo.country : inferCountryCode(locationText));
+      if (status === "published" && !hasCountry) {
+        toast.error(
+          isRemote
+            ? "For Google Jobs, add the eligible remote country, like \"Remote - United States\"."
+            : "For Google Jobs, add a clearer location with country, like \"London, United Kingdom\".",
+        );
+        return;
+      }
       const jobData = {
         title: formData.title,
         description: formData.description,
         requirements: formData.requirements || null,
         responsibilities: formData.responsibilities || null,
         location: formData.location || null,
+        location_city: geo.ok ? geo.city ?? null : null,
+        location_region: geo.ok ? geo.region ?? null : null,
+        location_country: geo.ok ? geo.country ?? null : null,
+        location_country_code: geo.ok ? geo.countryCode ?? null : null,
+        latitude: geo.ok ? geo.lat ?? null : null,
+        longitude: geo.ok ? geo.lon ?? null : null,
+        is_remote: isRemote,
         job_type: formData.job_type,
         experience_level: formData.experience_level || null,
         department: formData.department || null,
@@ -1042,6 +1075,7 @@ export default function CreateJob() {
           ? (formData.salary_fixed ? parseInt(formData.salary_fixed) : null)
           : (formData.salary_max ? parseInt(formData.salary_max) : null),
         salary_currency: formData.salary_currency,
+        salary_period: toGoogleSalaryPeriod(formData.salary_period),
         skills_required: parseCommaSeparatedList(formData.skills_required),
         benefits: parseCommaSeparatedList(formData.benefits),
         application_deadline: formData.application_deadline ? formData.application_deadline.toISOString() : null,

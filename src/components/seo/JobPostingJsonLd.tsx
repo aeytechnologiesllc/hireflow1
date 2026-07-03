@@ -1,9 +1,11 @@
 /**
  * JobPostingJsonLd — injects schema.org/JobPosting structured data (JSON-LD) into <head> for a
- * public job page so the role is eligible for Google for Jobs + Indeed organic ingestion.
- * Renders nothing visually. Googlebot renders client JS, so client injection is sufficient.
+ * public job page so the role is eligible for Google for Jobs discovery.
+ * Renders nothing visually. Google can render client-generated structured data, and the sitemap
+ * points crawlers at these leaf job pages.
  */
 import { useEffect } from "react";
+import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 
 export interface JobLocationStruct {
   city?: string | null;
@@ -67,17 +69,90 @@ const EMP_TYPE: Record<string, string> = {
   internship: "INTERN",
 };
 
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+const CANONICAL_ORIGIN = "https://hireflownow.com";
+
+function isAbsoluteUrl(value?: string | null): value is string {
+  return !!value && /^https?:\/\//i.test(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toParagraphs(value?: string | null): string {
+  const text = (value ?? "").trim();
+  if (!text) return "";
+  return text
+    .split(/\n{2,}/)
+    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function textSummary(job: JobPostingJob, company?: string | null): string {
+  const pieces = [job.description, job.responsibilities, job.requirements]
+    .map((part) => (part ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const summary = pieces.join(" ").slice(0, 155);
+  if (summary) return summary;
+  return `Apply for ${job.title}${company ? ` at ${company}` : ""} on HireFlow.`;
+}
+
+function setNamedMeta(name: string, content: string) {
+  let tag = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute("name", name);
+    document.head.appendChild(tag);
+  }
+  const previous = tag.getAttribute("content");
+  tag.setAttribute("content", content);
+  return () => {
+    if (previous == null) tag.remove();
+    else tag.setAttribute("content", previous);
+  };
+}
+
+function setPropertyMeta(property: string, content: string) {
+  let tag = document.head.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute("property", property);
+    document.head.appendChild(tag);
+  }
+  const previous = tag.getAttribute("content");
+  tag.setAttribute("content", content);
+  return () => {
+    if (previous == null) tag.remove();
+    else tag.setAttribute("content", previous);
+  };
+}
+
+function setCanonical(href: string) {
+  let tag = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!tag) {
+    tag = document.createElement("link");
+    tag.setAttribute("rel", "canonical");
+    document.head.appendChild(tag);
+  }
+  const previous = tag.getAttribute("href");
+  tag.setAttribute("href", href);
+  return () => {
+    if (previous == null) tag.remove();
+    else tag.setAttribute("href", previous);
+  };
 }
 
 export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; company?: string | null; logo?: string | null }) {
   useEffect(() => {
     if (!job) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://hireflownow.com";
-    const url = `${origin}/candidate/job/${job.id}`;
+    const url = `${CANONICAL_ORIGIN}/candidate/job/${job.id}`;
     const loc = (job.location ?? "").trim();
-    const isRemote = job.is_remote ?? (/remote/i.test(loc) || /remote/i.test(job.job_type ?? ""));
+    const isRemote = job.is_remote === true || isFullyRemoteText(loc, job.job_type, job.description);
 
     // Structured primary location (from the geocoder) + any extra multi-city locations.
     const primary: JobLocationStruct = {
@@ -88,46 +163,49 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
       lat: job.latitude,
       lon: job.longitude,
     };
-    const hasStructured = !!(primary.city || primary.countryCode || primary.country);
+    const hasStructured = !!(primary.countryCode || primary.country);
     const allPlaces = [primary, ...((job.locations as JobLocationStruct[] | null) ?? [])].filter(
-      (p) => p && (p.city || p.countryCode || p.country),
+      (p) => p && (p.countryCode || p.country),
     );
+    const fallbackCountryCode = inferCountryCode(loc);
 
     const descHtml =
       [
-        job.description ? `<p>${job.description}</p>` : "",
-        job.responsibilities ? `<h3>What you'll do</h3><p>${job.responsibilities}</p>` : "",
-        job.requirements ? `<h3>What we're looking for</h3><p>${job.requirements}</p>` : "",
+        toParagraphs(job.description),
+        job.responsibilities ? `<p>Responsibilities:</p>${toParagraphs(job.responsibilities)}` : "",
+        job.requirements ? `<p>Requirements:</p>${toParagraphs(job.requirements)}` : "",
       ]
         .filter(Boolean)
-        .join("") || `<p>${job.title}</p>`;
+        .join("") || `<p>${escapeHtml(job.title)}</p>`;
 
     const empType = EMP_TYPE[(job.job_type ?? "").toLowerCase()] ?? "FULL_TIME";
-    const validThrough = job.application_deadline ? new Date(job.application_deadline) : new Date(Date.now() + 60 * 86400000);
 
     const data: Record<string, unknown> = {
       "@context": "https://schema.org/",
       "@type": "JobPosting",
       title: job.title,
       description: descHtml,
-      datePosted: isoDate(new Date(job.created_at)),
-      validThrough: isoDate(validThrough),
+      datePosted: new Date(job.created_at).toISOString(),
       employmentType: empType,
       directApply: true,
       url,
       identifier: { "@type": "PropertyValue", name: company || "HireFlow", value: job.job_code || job.id },
       hiringOrganization: {
         "@type": "Organization",
-        name: company || "Confidential",
-        ...(logo ? { logo } : {}),
+        name: company || "confidential",
+        ...(isAbsoluteUrl(logo) ? { logo } : {}),
       },
     };
+
+    if (job.application_deadline) {
+      data.validThrough = new Date(job.application_deadline).toISOString();
+    }
 
     if (isRemote) {
       data.jobLocationType = "TELECOMMUTE";
       // Where applicants may be located — the job's real country (never hard-coded US).
       // Google requires applicantLocationRequirements for remote roles; omit only if truly unknown.
-      const reqName = primary.country || primary.countryCode;
+      const reqName = primary.country || primary.countryCode || fallbackCountryCode;
       if (reqName) {
         data.applicantLocationRequirements = { "@type": "Country", name: reqName };
       }
@@ -136,9 +214,11 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
     } else if (allPlaces.length > 0) {
       // Precise structured geo (one or many cities) — correct country, region, coords.
       data.jobLocation = allPlaces.length === 1 ? placeOf(allPlaces[0]) : allPlaces.map(placeOf);
-    } else if (loc) {
-      // Fallback: free-text only, country unknown — locality without a (possibly wrong) country.
-      data.jobLocation = { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: loc } };
+    } else if (loc && fallbackCountryCode) {
+      data.jobLocation = {
+        "@type": "Place",
+        address: { "@type": "PostalAddress", addressLocality: loc, addressCountry: fallbackCountryCode },
+      };
     }
 
     if (job.salary_min != null || job.salary_max != null) {
@@ -146,13 +226,16 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
       const unitText = ["HOUR", "DAY", "WEEK", "MONTH", "YEAR"].includes(period)
         ? period
         : (job.salary_max ?? job.salary_min ?? 0) > 2000 ? "YEAR" : "HOUR";
+      const salaryValue =
+        job.salary_min != null && job.salary_max != null && job.salary_min !== job.salary_max
+          ? { minValue: job.salary_min, maxValue: job.salary_max }
+          : { value: job.salary_min ?? job.salary_max };
       data.baseSalary = {
         "@type": "MonetaryAmount",
         currency: job.salary_currency || "USD",
         value: {
           "@type": "QuantitativeValue",
-          ...(job.salary_min != null ? { minValue: job.salary_min } : {}),
-          ...(job.salary_max != null ? { maxValue: job.salary_max } : {}),
+          ...salaryValue,
           unitText,
         },
       };
@@ -164,7 +247,28 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
     script.text = JSON.stringify(data);
     document.head.appendChild(script);
 
-    return () => { script.remove(); };
+    const title = `${job.title}${company ? ` at ${company}` : ""} | HireFlow`;
+    const description = textSummary(job, company);
+    const previousTitle = document.title;
+    document.title = title;
+    const cleanups = [
+      setCanonical(url),
+      setNamedMeta("description", description),
+      setNamedMeta("robots", "index, follow"),
+      setPropertyMeta("og:type", "article"),
+      setPropertyMeta("og:title", title),
+      setPropertyMeta("og:description", description),
+      setPropertyMeta("og:url", url),
+      setPropertyMeta("og:site_name", "HireFlow"),
+      setNamedMeta("twitter:title", title),
+      setNamedMeta("twitter:description", description),
+    ];
+
+    return () => {
+      script.remove();
+      document.title = previousTitle;
+      cleanups.forEach((cleanup) => cleanup());
+    };
   }, [job, company, logo]);
 
   return null;
