@@ -17,6 +17,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { geocodePlace } from "@/lib/geocode";
+import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
 import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 import { parseSalary } from "@/lib/salaryParse";
 import type {
@@ -329,6 +330,14 @@ export async function createJobFromFlow(
       .update({ job_code: jobCode })
       .eq("id", jobId);
     if (updErr) throw new Error(updErr.message);
+  }
+
+  if ((opts.status ?? "published") === "published") {
+    notifyGoogleJobIndexingInBackground({
+      jobId,
+      notificationType: "URL_UPDATED",
+      reason: "ava_job_created_published",
+    });
   }
 
   return { id: jobId, job_code: jobCode, title };

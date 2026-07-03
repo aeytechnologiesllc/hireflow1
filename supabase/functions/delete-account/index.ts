@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { notifyGoogleIndexing } from "../_shared/googleIndexing.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -81,6 +82,24 @@ async function fetchIdsIn(
   return (data ?? [])
     .map((row: { id?: string | null }) => row.id)
     .filter((id: string | null | undefined): id is string => Boolean(id));
+}
+
+async function fetchPublishedJobsForEmployer(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  employerId: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from('jobs')
+    .select('id, employer_id, status')
+    .eq('employer_id', employerId)
+    .eq('status', 'published');
+
+  if (error) {
+    console.log('Note: Could not load published jobs for Google Indexing cleanup:', error.message);
+    return [];
+  }
+
+  return data ?? [];
 }
 
 async function deleteRowsByIds(
@@ -207,10 +226,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
+    const publishedOwnedJobs = await fetchPublishedJobsForEmployer(supabaseAdmin, user.id);
     const ownedJobIds = await fetchIds(supabaseAdmin, 'jobs', 'employer_id', user.id);
     const candidateApplicationIds = await fetchIds(supabaseAdmin, 'applications', 'candidate_id', user.id);
     const employerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', ownedJobIds);
     const relatedApplicationIds = [...new Set([...candidateApplicationIds, ...employerApplicationIds])];
+
+    for (const job of publishedOwnedJobs) {
+      const indexingResult = await notifyGoogleIndexing({
+        supabaseAdmin,
+        job,
+        notificationType: 'URL_DELETED',
+        requestedBy: user.id,
+        reason: 'account_deleted',
+      });
+      if (!indexingResult.ok) {
+        console.log('Note: Google Indexing cleanup failed:', indexingResult.error);
+      }
+    }
 
     await deleteRowsByIds(supabaseAdmin, 'blueprint_purchases', 'application_id', relatedApplicationIds);
     await deleteRowsByIds(supabaseAdmin, 'interviews', 'application_id', relatedApplicationIds);
