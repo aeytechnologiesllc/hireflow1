@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, CreditCard, Loader2, Bell, AlertTriangle } from "lucide-react";
+import { User, CreditCard, Loader2, Bell, AlertTriangle, PlugZap } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,7 @@ import {
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
 import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
+import JoinIntegrationSettings from "@/components/integrations/JoinIntegrationSettings";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -281,23 +282,30 @@ export default function Settings() {
     );
   }
 
-  // Employer Settings - Tabbed view with Account and Subscription
+  // Employer Settings - Tabbed view with Account, Integrations, and Subscription
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-foreground">Settings</h2>
-        <p className="text-muted-foreground mt-1">Manage your account and subscription</p>
+        <p className="text-muted-foreground mt-1">Manage your account, integrations, and subscription</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="bg-muted/50 border border-border">
+        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-muted/50 border border-border p-1">
           <TabsTrigger 
             value="account" 
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             <User className="h-4 w-4 mr-2" />
             Account
+          </TabsTrigger>
+          <TabsTrigger
+            value="integrations"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
+            <PlugZap className="h-4 w-4 mr-2" />
+            Integrations
           </TabsTrigger>
           <TabsTrigger 
             value="subscription"
@@ -533,6 +541,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="mt-6">
+          <JoinIntegrationSettings />
         </TabsContent>
 
         {/* Subscription Tab */}

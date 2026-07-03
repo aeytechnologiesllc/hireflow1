@@ -948,7 +948,7 @@ function ReviewStep({
 function PublishStep({ count }: { count: number }) {
   const reduce = useReducedMotion();
   const code = "7F3K9Q";
-  const link = "hireflow.app/a/7F3K9Q";
+  const link = "hireflow.app/candidate/job/cafe-manager";
   return (
     <div className="mx-auto flex max-w-md flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.9, type: "spring", bounce: 0.4 }}>
@@ -969,7 +969,7 @@ function PublishStep({ count }: { count: number }) {
         Share your role.
       </motion.h2>
       <motion.p initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-        Post it anywhere. Everyone who applies gets screened automatically — your ranked shortlist builds itself.
+        Start with the free HireFlow link. If you need more volume later, boost it on Indeed, LinkedIn, Monster, or ZipRecruiter.
       </motion.p>
 
       <motion.div
@@ -981,7 +981,7 @@ function PublishStep({ count }: { count: number }) {
       >
         {/* prominent share link */}
         <span className="flex items-center gap-1.5 text-left text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--muted-foreground))" }}>
-          <Share2 className="h-3 w-3" style={{ color: "hsl(var(--ck-brass))" }} /> Apply link
+          <Share2 className="h-3 w-3" style={{ color: "hsl(var(--ck-brass))" }} /> Job page link
         </span>
         <div className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3.5 py-3" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
           <span className="truncate text-base font-medium" style={{ color: "hsl(var(--foreground))" }}>

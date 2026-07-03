@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HireFlow">
+  <defs>
+    <radialGradient id="bg" cx="18%" cy="10%" r="90%">
+      <stop offset="0%" stop-color="#fffaf0" />
+      <stop offset="62%" stop-color="#f4efe4" />
+      <stop offset="100%" stop-color="#ece3d2" />
+    </radialGradient>
+    <radialGradient id="orb" cx="34%" cy="26%" r="72%">
+      <stop offset="0%" stop-color="#dff9ef" />
+      <stop offset="18%" stop-color="#8de6c6" />
+      <stop offset="46%" stop-color="#1f9e77" />
+      <stop offset="100%" stop-color="#08291f" />
+    </radialGradient>
+    <linearGradient id="brass" x1="10" y1="8" x2="42" y2="58">
+      <stop offset="0%" stop-color="#f0d196" />
+      <stop offset="50%" stop-color="#c79b59" />
+      <stop offset="100%" stop-color="#9f7338" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)" />
+  <circle cx="34" cy="34" r="18" fill="url(#orb)" />
+  <path d="M42 10a26 26 0 0 0 0 48" fill="none" stroke="url(#brass)" stroke-width="4.4" stroke-linecap="round" />
+  <circle cx="27" cy="25" r="2.4" fill="#dffff3" opacity="0.8" />
+</svg>

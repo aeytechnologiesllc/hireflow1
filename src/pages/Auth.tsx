@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { AvaOrb } from "@/components/ava/AvaOrb";
+import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Authoritative check (against auth.users via a SECURITY DEFINER RPC) used to
@@ -552,18 +553,7 @@ export default function Auth() {
         href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400;500;600;700&display=swap"
       />
 
-      {/* Background grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.035] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
-          backgroundSize: "64px 64px",
-        }}
-      />
-
-      {/* Jade + brass glow blooms */}
-      <div className="absolute top-0 left-1/4 w-[320px] h-[320px] sm:w-[560px] sm:h-[560px] bg-accent/20 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[260px] h-[260px] sm:w-[440px] sm:h-[440px] bg-primary/15 rounded-full blur-[140px] pointer-events-none" />
+      <HeroBackground />
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         <Link
@@ -586,7 +576,7 @@ export default function Auth() {
                 Density scales by area, so the larger sizes still read as a
                 crisp, well-separated dotted mesh. Mobile size is viewport-capped
                 so it grows without ever overflowing the sign-in card. */}
-            <AvaOrb size={orbSize} />
+            <AvaOrb size={orbSize} variant="landing" reflection={false} />
             <span
               className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{

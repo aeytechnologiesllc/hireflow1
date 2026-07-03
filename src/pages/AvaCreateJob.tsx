@@ -17,6 +17,7 @@ import {
   DollarSign,
   ExternalLink,
   FileText,
+  KeyRound,
   Loader2,
   MapPin,
   MessageSquare,
@@ -323,7 +324,11 @@ export default function AvaCreateJob() {
 
   if (authLoading || !user) return <AuthLoadingScreen variant="employer" />;
 
-  const applyLink = publishedCode ? candidateApplyUrl(publishedCode) : "";
+  const applyLink = publishedCode
+    ? publishedRoleId && typeof window !== "undefined"
+      ? `${window.location.origin}/candidate/job/${publishedRoleId}`
+      : candidateApplyUrl(publishedCode)
+    : "";
 
   return (
     <div
@@ -545,7 +550,7 @@ export default function AvaCreateJob() {
                   </span>
                   <h2 className="mt-4 text-3xl sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Share your role.</h2>
                   <div className="mt-6 w-full rounded-2xl p-5" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
-                    <span className="flex items-center gap-1.5 text-left text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--muted-foreground))" }}><Share2 className="h-3 w-3" /> Apply link</span>
+                    <span className="flex items-center gap-1.5 text-left text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--muted-foreground))" }}><Share2 className="h-3 w-3" /> Job page link</span>
                     <div className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3.5 py-3" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
                       <span className="truncate text-sm font-medium">{applyLink.replace(/^https?:\/\//, "")}</span>
                       <button type="button" onClick={() => void navigator.clipboard.writeText(applyLink).then(() => toast.success("Link copied"))} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
@@ -568,17 +573,17 @@ export default function AvaCreateJob() {
                         <MapPin className="h-4 w-4" />
                       </span>
                       <div>
-                        <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Now discoverable on Google for Jobs</div>
+                        <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Eligible for Google Jobs</div>
                         <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                          When someone searches for “{briefFields.role || "this role"}”{briefFields.location ? ` near ${briefFields.location}` : ""} on Google, your posting can show up — automatically, no extra posting needed. Sit back; Ava handles the rest.
+                          Your HireFlow page includes the structured job data Google uses for job results. It can show when people search for “{briefFields.role || "this role"}”{briefFields.location ? ` near ${briefFields.location}` : ""}, but visibility depends on Google, the market, and the role.
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="mt-4 w-full rounded-2xl p-4 text-left" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
-                    <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Want more applicants? Post it everywhere</div>
+                    <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Need more reach? Boost when you are ready</div>
                     <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      Copy your post and add it to the big boards — applicants still flow straight into HireFlow's screening.
+                      No extra subscription needed today. Copy the post or open a board to finish posting there; keep the HireFlow apply link in the listing so screening stays here.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
@@ -605,13 +610,21 @@ export default function AvaCreateJob() {
                       <a href="https://employers.indeed.com/p/post-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">Indeed <ExternalLink className="h-3.5 w-3.5" /></a>
                       <a href="https://www.linkedin.com/talent/post-a-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">LinkedIn <ExternalLink className="h-3.5 w-3.5" /></a>
                       <a href="https://www.ziprecruiter.com/post-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">ZipRecruiter <ExternalLink className="h-3.5 w-3.5" /></a>
+                      <a href="https://hiring.monster.com/employer/post-jobs" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">Monster <ExternalLink className="h-3.5 w-3.5" /></a>
                     </div>
                     <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px]" style={{ color: "hsl(var(--ck-mint))" }}>
-                      <Check className="h-3.5 w-3.5" /> Already live on Google for Jobs — no action needed.
+                      <Check className="h-3.5 w-3.5" /> Free HireFlow page is live — boosts are optional.
                     </p>
-                    <p className="mt-1 text-[11px]" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      One-click auto-posting to every board (Indeed, LinkedIn, Monster…) is coming via a paid distribution add-on.
+                    <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      Later: connect your own JOIN account, paste the JOIN API token/key into HireFlow, and Ava can handle multiposting from here.
                     </p>
+                    <Link
+                      to="/settings?tab=integrations"
+                      className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold"
+                      style={{ color: "hsl(var(--ck-brass))" }}
+                    >
+                      <KeyRound className="h-3.5 w-3.5" /> Set up JOIN connection
+                    </Link>
                   </div>
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
@@ -631,7 +644,7 @@ export default function AvaCreateJob() {
                       className="text-center text-[12.5px] font-medium"
                       style={{ color: "hsl(var(--ck-brass))" }}
                     >
-                      Find it on Google for Jobs →
+                      Check Google Jobs search →
                     </a>
                   </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>

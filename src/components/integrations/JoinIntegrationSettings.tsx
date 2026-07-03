@@ -1,0 +1,239 @@
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Loader2, PlugZap, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useDisconnectJoinIntegration, useJoinIntegration, useSaveJoinIntegration } from "@/hooks/useJoinIntegration";
+
+function formatDate(value: string | null) {
+  if (!value) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+export default function JoinIntegrationSettings() {
+  const [apiToken, setApiToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const statusQuery = useJoinIntegration();
+  const saveConnection = useSaveJoinIntegration();
+  const disconnectConnection = useDisconnectJoinIntegration();
+
+  const connection = statusQuery.data;
+  const isConnected = connection?.connected ?? false;
+  const savedDate = useMemo(() => formatDate(connection?.connectedAt ?? null), [connection?.connectedAt]);
+  const canSubmit = apiToken.trim().length >= 12 && !saveConnection.isPending;
+
+  useEffect(() => {
+    if (saveConnection.isSuccess) {
+      setApiToken("");
+      setShowToken(false);
+      toast.success("JOIN connection saved");
+    }
+  }, [saveConnection.isSuccess]);
+
+  useEffect(() => {
+    if (disconnectConnection.isSuccess) {
+      toast.success("JOIN connection removed");
+    }
+  }, [disconnectConnection.isSuccess]);
+
+  const handleSave = async () => {
+    if (!canSubmit) return;
+    try {
+      await saveConnection.mutateAsync(apiToken.trim());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save JOIN connection";
+      toast.error(message);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectConnection.mutateAsync();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not remove JOIN connection";
+      toast.error(message);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-card border-border overflow-hidden">
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <PlugZap className="h-5 w-5" />
+                </span>
+                <div>
+                  <CardTitle className="text-lg">JOIN multiposting</CardTitle>
+                  <CardDescription>Connect a customer-owned JOIN account for future Ava posting.</CardDescription>
+                </div>
+              </div>
+            </div>
+            <Badge variant="outline" className={isConnected ? "w-fit border-emerald-500/30 text-emerald-500" : "w-fit border-border text-muted-foreground"}>
+              {statusQuery.isFetching ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : isConnected ? (
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {isConnected ? "Connected" : "Not connected"}
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-5">
+          <Alert className="border-primary/20 bg-primary/5">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <AlertTitle>Bring your own JOIN account</AlertTitle>
+            <AlertDescription>
+              Customers keep ownership of their JOIN plan, billing, job-board access, and API token. HireFlow stores the token encrypted and only uses it to power Ava multiposting once posting is enabled.
+            </AlertDescription>
+          </Alert>
+
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
+            <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">1</span>
+              <div>
+                <p className="font-medium text-foreground">Sign in to the company JOIN account</p>
+                <p className="text-muted-foreground">Use the account that owns the job slots, billing, and API access.</p>
+              </div>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</span>
+              <div>
+                <p className="font-medium text-foreground">Create or copy a JOIN API token</p>
+                <p className="text-muted-foreground">Open JOIN API credentials, create a token if needed, then copy the full key.</p>
+              </div>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">3</span>
+              <div>
+                <p className="font-medium text-foreground">Paste it into HireFlow</p>
+                <p className="text-muted-foreground">Ava will use this connection for future JOIN drafts and multiposting controls.</p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {isConnected && (
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Saved JOIN token</p>
+                <p className="text-sm text-muted-foreground">
+                  {connection?.tokenPreview ?? "Token saved"}{savedDate ? ` · connected ${savedDate}` : ""}
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove JOIN connection?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Ava will stop using this JOIN account for future multiposting. You can reconnect with a new API token any time.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDisconnect} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Remove connection
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Label htmlFor="join-api-token">JOIN API token/key</Label>
+                <div className="relative">
+                  <Input
+                    id="join-api-token"
+                    type={showToken ? "text" : "password"}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={isConnected ? "Paste a new token to replace the saved one" : "Paste your JOIN API token/key"}
+                    value={apiToken}
+                    onChange={(event) => setApiToken(event.target.value)}
+                    className="bg-background pr-11 font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showToken ? "Hide JOIN API token" : "Show JOIN API token"}
+                    className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => setShowToken((value) => !value)}
+                  >
+                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <Button className="gap-2 sm:w-auto" disabled={!canSubmit} onClick={handleSave}>
+                {saveConnection.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {isConnected ? "Update token" : "Save connection"}
+              </Button>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              In JOIN, go to your user settings, open API credentials, create/copy a token, then paste it here. HireFlow only shows a masked preview after saving.
+            </p>
+          </div>
+
+          {statusQuery.error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Connection service unavailable</AlertTitle>
+              <AlertDescription>
+                The settings UI is ready, but the JOIN integration function needs to be deployed before saving tokens works in this environment.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Coming next in Ava</p>
+                <p className="text-sm text-muted-foreground">
+                  Connected posting controls will let Ava create the JOIN job draft first, review it with you, then push it live when you approve.
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://join.com"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Open JOIN <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -14,6 +14,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
+import { HeroBackground } from "@/components/ava/HeroBackground";
 import { StatCard } from "../components/StatCard";
 import { Pipeline } from "../components/Pipeline";
 import { CandidateMark } from "../components/CandidateMark";
@@ -94,8 +95,9 @@ export default function CockpitDashboard() {
         className="ck-rise relative overflow-hidden rounded-2xl border p-4 md:hidden"
         style={{ background: "var(--gradient-hero)", borderColor: "hsl(150 12% 15% / 0.6)" }}
       >
-        <div className="flex items-center gap-3">
-          <AvaOrb size={132} reflection={false} amp={0.24} flow={0.55} />
+        <HeroBackground contained className="opacity-70" />
+        <div className="relative z-10 flex items-center gap-3">
+          <AvaOrb size={132} variant="landing" reflection={false} />
           <div className="min-w-0">
             <h1 className="font-display" style={{ fontSize: 22, lineHeight: 1.08, color: "hsl(150 33% 95%)", fontWeight: 500 }}>
               {hero.headline}
@@ -105,7 +107,7 @@ export default function CockpitDashboard() {
             </p>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-2">
+        <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2">
           <button className="ck-btn ck-btn-brass !px-3" onClick={() => navigate("/applicants")}>
             Review shortlist
             <ChevronRight className="h-4 w-4" />
@@ -126,10 +128,11 @@ export default function CockpitDashboard() {
         className="ck-rise relative hidden overflow-hidden md:grid"
         style={{ gridTemplateColumns: "minmax(260px,360px) 1fr", alignItems: "center", columnGap: 32, background: "var(--gradient-hero)" }}
       >
-        <div className="flex justify-center">
-          <AvaOrb size={320} reflection={false} amp={0.24} flow={0.55} />
+        <HeroBackground contained className="opacity-70" />
+        <div className="relative z-10 flex justify-center">
+          <AvaOrb size={320} variant="landing" reflection={false} />
         </div>
-        <div className="min-w-0">
+        <div className="relative z-10 min-w-0">
           <h1 className="font-display" style={{ fontSize: "clamp(34px, 3.6vw, 52px)", lineHeight: 1.05, color: "hsl(150 33% 95%)", fontWeight: 500 }}>
             {hero.headline}
           </h1>

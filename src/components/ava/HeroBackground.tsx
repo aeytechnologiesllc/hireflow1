@@ -23,6 +23,7 @@ import { useEffect, useRef } from "react";
 
 const STYLE = `
   .hf-hero-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .hf-hero-bg--contained { position: absolute; }
   .hf-hero-bg__aurora { position: absolute; inset: 0; }
   .hf-hero-bg__aurora::before,
   .hf-hero-bg__aurora::after { content: ""; position: absolute; border-radius: 50%; }
@@ -73,7 +74,7 @@ const STYLE = `
   }
 `;
 
-export function HeroBackground({ className }: { className?: string }) {
+export function HeroBackground({ className, contained = false }: { className?: string; contained?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -108,12 +109,26 @@ export function HeroBackground({ className }: { className?: string }) {
     };
 
     const resize = () => {
-      W = canvas.width = Math.max(1, Math.floor(window.innerWidth * SCALE));
-      H = canvas.height = Math.max(1, Math.floor(window.innerHeight * SCALE));
-      if (particles.length === 0) seed();
+      const rect = contained ? rootRef.current?.getBoundingClientRect() : null;
+      const nextW = Math.max(1, Math.floor((rect?.width || window.innerWidth) * SCALE));
+      const nextH = Math.max(1, Math.floor((rect?.height || window.innerHeight) * SCALE));
+      const prevW = W;
+      const prevH = H;
+      W = canvas.width = nextW;
+      H = canvas.height = nextH;
+      if (particles.length === 0 || prevW <= 2 || prevH <= 2) {
+        seed();
+      } else if (prevW !== W || prevH !== H) {
+        for (const p of particles) {
+          p.x = (p.x / prevW) * W;
+          p.y = (p.y / prevH) * H;
+        }
+      }
     };
     resize();
     window.addEventListener("resize", resize);
+    const ro = new ResizeObserver(resize);
+    if (contained && rootRef.current) ro.observe(rootRef.current);
 
     let raf = 0;
     let last = 0;
@@ -173,13 +188,18 @@ export function HeroBackground({ className }: { className?: string }) {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      ro.disconnect();
       document.removeEventListener("visibilitychange", onVis);
       io.disconnect();
     };
-  }, []);
+  }, [contained]);
 
   return (
-    <div ref={rootRef} className={`hf-hero-bg${className ? ` ${className}` : ""}`} aria-hidden>
+    <div
+      ref={rootRef}
+      className={`hf-hero-bg${contained ? " hf-hero-bg--contained" : ""}${className ? ` ${className}` : ""}`}
+      aria-hidden
+    >
       <style>{STYLE}</style>
       <div className="hf-hero-bg__glow" />
       <div className="hf-hero-bg__aurora" />

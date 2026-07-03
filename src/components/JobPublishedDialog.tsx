@@ -29,9 +29,9 @@ import {
   Facebook,
   Globe,
   Download,
+  KeyRound,
   Megaphone,
-  Users,
-  BarChart3
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -54,9 +54,11 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const applyLink = job?.job_code 
+  const publicJobLink = job ? `${window.location.origin}/candidate/job/${job.id}` : "";
+  const directApplyLink = job?.job_code
     ? `${window.location.origin}/candidate/apply?code=${job.job_code}` 
-    : "";
+    : publicJobLink;
+  const shareLink = publicJobLink || directApplyLink;
 
   const copyToClipboard = async (text: string, type: "code" | "link") => {
     try {
@@ -76,12 +78,12 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
 
   const shareToJobBoard = (platform: string) => {
     const encodedTitle = encodeURIComponent(job?.title || "");
-    const encodedUrl = encodeURIComponent(applyLink);
-    const encodedDescription = encodeURIComponent(`Apply for ${job?.title || "this position"} - ${applyLink}`);
+    const encodedUrl = encodeURIComponent(shareLink);
+    const encodedDescription = encodeURIComponent(`Apply for ${job?.title || "this position"} - ${shareLink}`);
     
     const urls: Record<string, string> = {
       indeed: `https://www.indeed.com/hire/post-a-job?title=${encodedTitle}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      linkedin: `https://www.linkedin.com/talent/post-a-job`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedDescription}`,
       monster: `https://hiring.monster.com/employer/post-jobs`,
       ziprecruiter: `https://www.ziprecruiter.com/post-a-job`,
@@ -89,6 +91,22 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
 
     window.open(urls[platform], "_blank", "noopener,noreferrer");
     toast.success(`Opening ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`);
+  };
+
+  const copyJobPost = async () => {
+    const post = [
+      job.title,
+      [job.location, job.job_type].filter(Boolean).join(" · "),
+      "",
+      shareLink ? `Apply here: ${shareLink}` : "",
+    ].filter(Boolean).join("\n").trim();
+
+    try {
+      await navigator.clipboard.writeText(post);
+      toast.success("Job post copied — paste it on any board");
+    } catch {
+      toast.error("Failed to copy job post");
+    }
   };
 
   const downloadQRCode = () => {
@@ -119,7 +137,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-lg border-border/50 bg-card p-0 overflow-hidden">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden border-border/50 bg-card p-0 sm:max-w-lg">
         {/* Success Header */}
         <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-6 pt-6 pb-4">
           <DialogHeader className="text-center space-y-3">
@@ -137,16 +155,16 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               transition={{ delay: 0.2 }}
             >
               <DialogTitle className="text-xl font-semibold text-foreground">
-                Your Job is Live!
+                Your job is live
               </DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Start attracting candidates now
+                Your HireFlow apply page is ready.
               </p>
             </motion.div>
           </DialogHeader>
         </div>
 
-        <div className="px-6 pb-6 space-y-5">
+        <div className="max-h-[calc(100dvh-9rem)] space-y-5 overflow-y-auto px-6 pb-6">
           {/* Job Info */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -193,7 +211,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             </button>
           </motion.div>
 
-          {/* Share to Job Boards */}
+          {/* Boost on Job Boards */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -202,14 +220,20 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
           >
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <Megaphone className="h-4 w-4 text-primary" />
-              Share to Job Boards
+              Boost only when you need more applicants
             </label>
-            <div className="flex gap-2">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              HireFlow is live first. Open a board or copy the post when you want extra reach; keep the HireFlow apply link in the listing.
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Later, connect your own JOIN account by pasting its API token/key into HireFlow, and Ava can handle multiposting for you.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="default" className="flex-1 gap-2">
                     <Share2 className="h-4 w-4" />
-                    Post to Job Boards
+                    Open a Job Board
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-56">
@@ -245,21 +269,36 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                     <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => copyToClipboard(applyLink, "link")} className="gap-3 cursor-pointer">
+                  <DropdownMenuItem onClick={copyJobPost} className="gap-3 cursor-pointer">
+                    <Briefcase className="h-5 w-5 text-muted-foreground" />
+                    <span>Copy Job Post</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => copyToClipboard(shareLink, "link")} className="gap-3 cursor-pointer">
                     {copiedLink ? (
                       <Check className="h-5 w-5 text-emerald-500" />
                     ) : (
                       <Copy className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <span>Copy Link</span>
+                    <span>Copy Job Page Link</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  onClose();
+                  navigate("/settings?tab=integrations");
+                }}
+              >
+                <KeyRound className="h-4 w-4" />
+                Set up JOIN
+              </Button>
             </div>
           </motion.div>
 
           {/* QR Code Section */}
-          {applyLink && (
+          {shareLink && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -269,7 +308,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               <div className="bg-white rounded-lg p-2 shrink-0">
                 <QRCodeSVG
                   id="job-qr-code"
-                  value={applyLink}
+                  value={shareLink}
                   size={72}
                   bgColor="#ffffff"
                   fgColor="#000000"
@@ -305,21 +344,21 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             <div className="grid gap-2 text-sm">
               <div className="flex items-start gap-2.5 text-muted-foreground">
                 <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Globe className="h-3 w-3 text-primary" />
+                </div>
+                <span>Google Jobs can pick up your public job page when it is indexed, but traffic is never guaranteed</span>
+              </div>
+              <div className="flex items-start gap-2.5 text-muted-foreground">
+                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                   <Megaphone className="h-3 w-3 text-primary" />
                 </div>
-                <span>Share to job boards like Indeed or LinkedIn to reach more candidates</span>
+                <span>Boost manually on Indeed, LinkedIn, ZipRecruiter, or Monster when you need more reach</span>
               </div>
               <div className="flex items-start gap-2.5 text-muted-foreground">
                 <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                   <Users className="h-3 w-3 text-primary" />
                 </div>
                 <span>Review incoming applications from your Applicants dashboard</span>
-              </div>
-              <div className="flex items-start gap-2.5 text-muted-foreground">
-                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <BarChart3 className="h-3 w-3 text-primary" />
-                </div>
-                <span>Track your hiring pipeline and candidate progress</span>
               </div>
             </div>
           </motion.div>

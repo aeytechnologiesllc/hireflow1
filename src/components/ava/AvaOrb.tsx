@@ -1,6 +1,5 @@
 /**
- * AvaOrb — Deep Jade dotted-mesh sphere with optional "swirl" variant
- * tuned to match the premium auth-mockup look (flowing streamlines, rim glow, halo).
+ * AvaOrb - Deep Jade dotted-mesh sphere tuned to match the marketing landing hero.
  */
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
@@ -11,7 +10,6 @@ const SWIRL_VERT = `
   varying float vB;
   varying float vBrass;
   varying float vFace;
-  varying float vStream;
   varying float vVel;
 
   vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}
@@ -61,25 +59,17 @@ const SWIRL_VERT = `
     float n1 = snoise(nrm*2.4 + vec3(0.0,0.0,uTime*uFlow));
     float n2 = snoise(nrm*5.2 - vec3(uTime*uFlow*0.6,0.0,0.0));
     float n3 = snoise(nrm*8.0 + vec3(uTime*uFlow*0.3,0.0,0.0));
-    float disp = n1*0.50 + n2*0.32 + n3*0.18;
+    float disp = n1*0.55 + n2*0.30 + n3*0.15;
     vec3 p = nrm * (1.0 + disp*uAmp);
-
-    float theta = atan(nrm.z, nrm.x);
-    float flowA = sin(theta * 3.8 + n1 * 5.2 + uTime * uFlow * 0.75);
-    float flowB = sin(nrm.y * 5.5 + n2 * 4.0 - uTime * uFlow * 0.45);
-    float stream = flowA * flowA * 0.62 + flowB * flowB * 0.38;
-    vStream = smoothstep(0.08, 0.88, stream);
-    vVel = smoothstep(0.25, 0.92, abs(n3));
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vec3 vn = normalize((modelViewMatrix*vec4(nrm,0.0)).xyz);
     vFace = clamp(vn.z, 0.0, 1.0);
-    vB = smoothstep(-0.35, 0.92, disp);
-    vBrass = smoothstep(0.35, 0.94, n2*0.5+0.5 + stream*0.25);
+    vB = smoothstep(-0.4, 0.9, disp);
+    vBrass = smoothstep(0.4, 0.92, n2*0.5+0.5);
+    vVel = smoothstep(0.3, 0.9, abs(n3));
 
-    float sizeBoost = 0.40 + 0.95*vB + 0.50*vStream;
-    float faceBoost = 0.40 + 0.75*vFace + 0.35*vStream;
-    gl_PointSize = uSize * (4.4 / -mv.z) * sizeBoost * faceBoost * (0.75 + 0.55*vVel);
+    gl_PointSize = uSize * (4.2 / -mv.z) * (0.40 + 0.95*vB) * (0.45 + 0.7*vFace) * (0.7 + 0.6*vVel);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -89,7 +79,6 @@ const SWIRL_FRAG = `
   varying float vB;
   varying float vBrass;
   varying float vFace;
-  varying float vStream;
   varying float vVel;
   uniform vec3 cJade, cMint, cBrass, cDeep;
   uniform float uBright, uAlpha, uEdge;
@@ -98,14 +87,14 @@ const SWIRL_FRAG = `
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
     if(d > 0.5) discard;
-    float a = smoothstep(0.5, 0.06, d);
-    vec3 col = mix(cJade, cMint, vB + vStream*0.45);
-    col = mix(col, cBrass, vBrass*0.55 + vStream*0.22);
-    col = mix(col, cDeep, (1.0-vB)*(1.0-vStream)*0.18);
+    float a = smoothstep(0.5, 0.08, d);
+    vec3 col = mix(cJade, cMint, vB);
+    col = mix(col, cBrass, vBrass*0.65);
+    col = mix(col, cDeep, (1.0-vB)*0.15);
     float fall = uEdge + (1.0-uEdge)*vFace;
-    float bright = (0.17 + 0.82*vB + 0.86*vStream + 0.24*vVel) * fall * uBright;
-    float glow = a * a * (0.34 + vStream*0.78);
-    gl_FragColor = vec4(col*bright + glow*vec3(0.35,0.95,0.62), a*fall*uAlpha);
+    float bright = (0.22 + 0.95*vB + 0.3*vVel) * fall * uBright;
+    float glow = a*a*0.5;
+    gl_FragColor = vec4(col*bright + glow*vec3(0.6,0.9,0.75), a*fall*uAlpha);
   }
 `;
 
@@ -126,18 +115,18 @@ const INNER_FRAG = `
   varying vec3 vView;
   void main(){
     float f = clamp(dot(normalize(vN), normalize(vView)), 0.0, 1.0);
-    vec3 col = mix(vec3(0.012,0.04,0.03), vec3(0.09,0.24,0.17), pow(f, 1.15));
+    vec3 col = mix(vec3(0.015,0.05,0.035), vec3(0.08,0.22,0.16), pow(f, 1.25));
     gl_FragColor = vec4(col, 1.0);
   }
 `;
 
-function fibonacciSphere(count: number, radius = 1): Float32Array {
+function fibonacciSphere(count: number, radius = 1, angleOffset = 0): Float32Array {
   const arr = new Float32Array(count * 3);
   const ga = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < count; i++) {
     const y = 1 - (i / (count - 1)) * 2;
     const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const th = ga * i;
+    const th = ga * i + angleOffset;
     arr[i * 3] = Math.cos(th) * r * radius;
     arr[i * 3 + 1] = y * radius;
     arr[i * 3 + 2] = Math.sin(th) * r * radius;
@@ -148,6 +137,8 @@ function fibonacciSphere(count: number, radius = 1): Float32Array {
 export interface AvaOrbProps {
   /** Pixel width/height of the canvas. Default 380. */
   size?: number;
+  /** Landing uses the exact marketing hero particle recipe instead of adaptive density. */
+  variant?: "adaptive" | "landing";
   /** Core particle count. Defaults to auto-scale with `size` (smaller orb = fewer dots). */
   coreCount?: number;
   /** Outer halo particle count. Defaults to auto-scale with `size`. */
@@ -173,6 +164,7 @@ export interface AvaOrbProps {
 
 export function AvaOrb({
   size = 380,
+  variant = "adaptive",
   coreCount,
   haloCount,
   amp = 0.22,
@@ -190,15 +182,19 @@ export function AvaOrb({
   // (120–200px) thin out to a clean, well-separated mesh. The old linear
   // `size * 16` crammed near-hero dot counts into a fraction of the area, which
   // made small orbs look cluttered/messy.
-  const DENSITY = 0.04; // core dots per px² of canvas, calibrated to the hero
+  const DENSITY = 8000 / (420 * 420); // matches the landing hero density
+  const minCore = size < 80 ? 160 : size < 140 ? 360 : 560;
   const resolvedCore =
-    coreCount ?? Math.round(Math.min(6200, Math.max(520, DENSITY * size * size)));
-  const resolvedHalo = haloCount ?? Math.round(resolvedCore * 0.18);
+    coreCount ??
+    (variant === "landing"
+      ? 8000
+      : Math.round(Math.min(8000, Math.max(minCore, DENSITY * size * size))));
+  const resolvedHalo = haloCount ?? (variant === "landing" ? 2000 : Math.round(resolvedCore * 0.25));
   // gl_PointSize is in absolute framebuffer pixels, so it must track the canvas
   // size — otherwise dots stay the same pixel size and look chunky on a small
   // orb. Scale sub-linearly so dots grow modestly *relative* to the sphere as
   // it shrinks, keeping the surface readable with fewer points.
-  const resolvedDot = dotSize ?? 2.8 + 2.5 * Math.min(1, size / 380);
+  const resolvedDot = dotSize ?? (variant === "landing" ? 5 : Math.max(2, Math.min(5, (size / 420) * 5)));
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // Live intensity getter kept in a ref so updating it never re-runs the scene effect
@@ -261,11 +257,11 @@ export function AvaOrb({
       uFlow: { value: flow },
       uAmp: { value: amp },
       uSize: { value: resolvedDot },
-      uBright: { value: 1.5 },
-      uAlpha: { value: 0.92 },
-      uEdge: { value: 0.10 },
-      cJade: { value: new THREE.Color(0x1a9e6e) },
-      cMint: { value: new THREE.Color(0x7fe3c2) },
+      uBright: { value: 1.0 },
+      uAlpha: { value: 0.95 },
+      uEdge: { value: 0.15 },
+      cJade: { value: new THREE.Color(0x1f9e77) },
+      cMint: { value: new THREE.Color(0x9fe7c9) },
       cBrass: { value: new THREE.Color(0xe6c184) },
       cDeep: { value: new THREE.Color(0x0a2019) },
     };
@@ -274,9 +270,9 @@ export function AvaOrb({
       uTime: { value: 0 },
       uFlow: { value: flow * 0.65 },
       uAmp: { value: amp * 0.55 },
-      uSize: { value: resolvedDot * 0.62 },
-      uBright: { value: 0.88 },
-      uAlpha: { value: 0.5 },
+      uSize: { value: resolvedDot * 0.6 },
+      uBright: { value: 0.6 },
+      uAlpha: { value: 0.45 },
       uEdge: { value: 0.0 },
       cJade: { value: new THREE.Color(0x1f9e77) },
       cMint: { value: new THREE.Color(0x9fe7c9) },
@@ -285,7 +281,11 @@ export function AvaOrb({
     };
 
     const core = makePoints(fibonacciSphere(resolvedCore), coreU, THREE.AdditiveBlending);
-    const halo = makePoints(fibonacciSphere(resolvedHalo, 1.1), haloU, THREE.AdditiveBlending);
+    const halo = makePoints(
+      fibonacciSphere(resolvedHalo, variant === "landing" ? 1.08 : 1.1, variant === "landing" ? 0.5 : 0),
+      haloU,
+      THREE.AdditiveBlending,
+    );
     grp.add(core.points);
     grp.add(halo.points);
 
@@ -350,9 +350,9 @@ export function AvaOrb({
       const k = smoothK;
       coreU.uAmp.value = amp * (1 + k * 0.04);
       coreU.uFlow.value = flow * (1 + k * 0.06);
-      coreU.uBright.value = 1.5 + k * 0.3;
+      coreU.uBright.value = 1.0 + k * 0.24;
       haloU.uAmp.value = amp * 0.55 * (1 + k * 0.04);
-      haloU.uBright.value = 0.88 + k * 0.24;
+      haloU.uBright.value = 0.6 + k * 0.18;
       grp.rotation.y += spin * 0.02;
       grp.rotation.x = Math.sin(t * 0.25) * 0.1;
       renderer.render(scene, camera);
@@ -373,12 +373,12 @@ export function AvaOrb({
       halo.mat.dispose();
       renderer.dispose();
     };
-  }, [size, resolvedCore, resolvedHalo, amp, flow, resolvedDot, spin]);
+  }, [size, variant, resolvedCore, resolvedHalo, amp, flow, resolvedDot, spin]);
 
   const glowStyle: CSSProperties = glow
     ? {
         filter:
-          "drop-shadow(0 0 80px rgba(31,158,119,0.55)) drop-shadow(0 0 30px rgba(203,163,106,0.12))",
+          "drop-shadow(0 0 140px rgba(31,158,119,0.5)) drop-shadow(0 0 50px rgba(203,163,106,0.15))",
       }
     : {};
 
