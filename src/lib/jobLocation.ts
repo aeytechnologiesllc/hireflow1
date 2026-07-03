@@ -15,6 +15,7 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
 ];
 
 const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/i;
+const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
 const NOT_FULLY_REMOTE_HINT = /\b(hybrid|remote[-\s]?friendly|remote optional|occasional(?:ly)? remote|some remote|partly remote|partial(?:ly)? remote|negotiable|office|on[-\s]?site|onsite)\b/i;
 const DEFINITIVE_REMOTE_HINT = /\b(fully remote|100% remote|remote only|work from home|wfh|telecommute)\b/i;
 const REMOTE_PREFIX = /^remote(?:\b|[\s—–\-,:|])/i;
@@ -25,7 +26,7 @@ export function inferCountryCode(locationText?: string | null): string | null {
   for (const [pattern, code] of COUNTRY_TEXT_HINTS) {
     if (pattern.test(text)) return code;
   }
-  if (US_STATE_HINT.test(text)) return "US";
+  if (US_STATE_HINT.test(text) || US_STATE_NAME_HINT.test(text)) return "US";
   return null;
 }
 
