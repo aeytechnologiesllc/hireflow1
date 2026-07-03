@@ -109,7 +109,7 @@ export default function JoinIntegrationSettings() {
             <ShieldCheck className="h-4 w-4 text-primary" />
             <AlertTitle>API-enabled JOIN account required</AlertTitle>
             <AlertDescription>
-              Use the company JOIN account that owns billing, job slots, board access, and API credentials. Some channels, including Indeed and premium boards, may require a higher JOIN plan, board approval, or paid board products.
+              Use a company JOIN account on Advanced or Enterprise with System Admin access to generate API credentials. Some channels, including Indeed and premium boards, may still require board approval or paid board products.
             </AlertDescription>
           </Alert>
 
@@ -122,8 +122,8 @@ export default function JoinIntegrationSettings() {
               </div>
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</span>
               <div>
-                <p className="font-medium text-foreground">Confirm API access, then copy a token</p>
-                <p className="text-muted-foreground">If API credentials are missing in JOIN, upgrade or ask JOIN support before connecting.</p>
+                <p className="font-medium text-foreground">Confirm Advanced/Enterprise API access</p>
+                <p className="text-muted-foreground">The JOIN user generating the token should be a System Admin with API Credentials visible in settings.</p>
               </div>
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">3</span>
               <div>
@@ -199,7 +199,7 @@ export default function JoinIntegrationSettings() {
               </Button>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              If JOIN does not show API credentials, confirm the customer is on an API-enabled JOIN plan before saving anything here. HireFlow only shows a masked preview after saving.
+              If JOIN does not show API Credentials, the account likely is not on an API-enabled plan or the user is not a System Admin. HireFlow only shows a masked preview after saving.
             </p>
           </div>
 
@@ -224,12 +224,12 @@ export default function JoinIntegrationSettings() {
               </div>
             </div>
             <a
-              href="https://join.com/pricing"
+              href="https://help.join.com/integrations/automation-tools"
               target="_blank"
               rel="noreferrer"
               className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
-              Open JOIN pricing <ExternalLink className="h-3.5 w-3.5" />
+              JOIN API requirements <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
         </CardContent>

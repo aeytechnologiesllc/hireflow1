@@ -226,7 +226,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               HireFlow is live first. Open a board or copy the post when you want extra reach; keep the HireFlow apply link in the listing.
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Later, connect your own JOIN account by pasting its API token/key into HireFlow, and Ava can handle multiposting for you.
+              Later, connect an API-enabled JOIN Advanced or Enterprise account by pasting its token into HireFlow, and Ava can handle multiposting for you.
             </p>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <DropdownMenu>

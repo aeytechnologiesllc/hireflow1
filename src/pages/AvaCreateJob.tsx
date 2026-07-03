@@ -616,7 +616,7 @@ export default function AvaCreateJob() {
                       <Check className="h-3.5 w-3.5" /> Free HireFlow page is live — boosts are optional.
                     </p>
                     <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      Later: connect your own JOIN account, paste the JOIN API token/key into HireFlow, and Ava can handle multiposting from here.
+                      Later: connect an API-enabled JOIN Advanced or Enterprise account, paste the token into HireFlow, and Ava can handle multiposting from here.
                     </p>
                     <Link
                       to="/settings?tab=integrations"
