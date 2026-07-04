@@ -229,7 +229,12 @@ export default async function handler(req, res) {
 
     let out = shell
       .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`)
-      .replace(/<meta\s+name="description"[^>]*>/i, `<meta name="description" content="${esc(desc)}" />`);
+      .replace(/<meta\s+name="description"[^>]*>/i, `<meta name="description" content="${esc(desc)}" />`)
+      // Drop the shell's default canonical (and any og:title/description) so the
+      // job page carries EXACTLY ONE canonical — conflicting canonicals can make
+      // Google index the homepage instead of the job.
+      .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
+      .replace(/<meta\s+property="og:(title|description|url)"[^>]*>\s*/gi, "");
     out = out.includes("</head>") ? out.replace("</head>", injected + "</head>") : out + injected;
 
     res.statusCode = 200;
