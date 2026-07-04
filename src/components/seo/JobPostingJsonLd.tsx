@@ -150,6 +150,11 @@ function setCanonical(href: string) {
 export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; company?: string | null; logo?: string | null }) {
   useEffect(() => {
     if (!job) return;
+    // The initial page load is now prerendered server-side (api/job-prerender.ts) with
+    // the same JobPosting schema + meta. Skip client injection when that server tag is
+    // present so we don't emit duplicate structured data. (On SPA client-side navigation
+    // between jobs there is no server tag, so this still runs.)
+    if (document.querySelector('script[data-jobposting="server"]')) return;
     const url = `${CANONICAL_ORIGIN}/candidate/job/${job.id}`;
     const loc = (job.location ?? "").trim();
     const isRemote = job.is_remote === true || isFullyRemoteText(loc, job.job_type, job.description);

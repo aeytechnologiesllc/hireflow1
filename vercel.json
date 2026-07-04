@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/sitemap" },
     { "source": "/landing.html", "destination": "/landing.html" },
+    { "source": "/candidate/job/:id", "destination": "/api/job-prerender?id=:id" },
     { "source": "/:path+", "destination": "/index.html" }
   ]
 }
