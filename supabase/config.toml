@@ -122,3 +122,12 @@ verify_jwt = false
 
 [functions.send-test-push]
 verify_jwt = true
+
+[functions.join-publish-job]
+verify_jwt = true
+
+[functions.join-sync-applications]
+verify_jwt = true
+
+[functions.join-archive-job]
+verify_jwt = true
