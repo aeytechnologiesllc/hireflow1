@@ -71,7 +71,8 @@ export default async function handler(req, res) {
     const companies = new Map();
     if (employerIds.length > 0) {
       const list = employerIds.map((id) => `"${id}"`).join(",");
-      const profiles = await sb(`profiles?user_id=in.(${encodeURIComponent(list)})&select=user_id,company_name`);
+      // employer_public_branding = safe public view (name+logo only); raw profiles are RLS-locked.
+      const profiles = await sb(`employer_public_branding?user_id=in.(${encodeURIComponent(list)})&select=user_id,company_name`);
       for (const p of profiles ?? []) {
         if (p.company_name) companies.set(p.user_id, p.company_name);
       }

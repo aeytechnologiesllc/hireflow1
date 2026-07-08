@@ -199,7 +199,9 @@ export default async function handler(req, res) {
     let logo = null;
     if (job.employer_id) {
       try {
-        const pr = await sb(`profiles?user_id=eq.${encodeURIComponent(job.employer_id)}&select=company_name,company_logo&limit=1`);
+        // employer_public_branding = safe public view (name+logo only); raw profiles are RLS-locked,
+        // so querying profiles directly always came back empty → "Confidential" on Google.
+        const pr = await sb(`employer_public_branding?user_id=eq.${encodeURIComponent(job.employer_id)}&select=company_name,company_logo&limit=1`);
         if (pr.ok) {
           const p = (await pr.json())[0];
           if (p) {
