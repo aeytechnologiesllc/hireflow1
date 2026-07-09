@@ -22,6 +22,7 @@ import { SearchInput, FilterSelect } from "../components/controls";
 import { AvaCard } from "../components/AvaCard";
 import { AvaOrb } from "@/components/ava/AvaOrb";
 import { useCockpitJobsData, useCockpitAccount, useCockpitCandidates } from "../hooks/useCockpitData";
+import { ShareKitDialog } from "../components/ShareKitDialog";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import type { JobRow, JobStatus } from "../data";
@@ -82,20 +83,13 @@ function JobCodeButton({ code }: { code: string }) {
 
 function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
   const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
+  const [kitOpen, setKitOpen] = useState(false);
 
-  const copyLink = useCallback(async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success("Apply link copied");
-    } catch {
-      toast.error("Could not copy");
-    }
-  }, []);
-
-  const applyLink = job.roleCode ? candidateApplyUrl(job.roleCode) : "";
+  // Mode-aware public apply URL: showcase roles share by role code; real
+  // (hireflow1) jobs share the public job page, which works for any deployment.
+  const applyLink = job.roleCode
+    ? candidateApplyUrl(job.roleCode)
+    : `${window.location.origin}/candidate/job/${job.id}`;
 
   const items = [
     {
@@ -105,10 +99,10 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
       disabled: false,
     },
     {
-      icon: copied ? Check : Share2,
-      label: "Share link",
-      onClick: () => applyLink && void copyLink(applyLink),
-      disabled: !applyLink,
+      icon: Share2,
+      label: "Share kit",
+      onClick: () => setKitOpen(true),
+      disabled: false,
     },
     {
       icon: Pencil,
@@ -133,6 +127,7 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
           <span>{label}</span>
         </button>
       ))}
+      <ShareKitDialog open={kitOpen} job={job} applyUrl={applyLink} onClose={() => setKitOpen(false)} />
     </div>
   );
 }
