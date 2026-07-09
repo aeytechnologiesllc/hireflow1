@@ -103,15 +103,26 @@ export default function CockpitDashboard() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 78% 96% at 34% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.24) 44%, transparent 72%)",
-            maskImage: "radial-gradient(ellipse 88% 92% at 46% 50%, #000 22%, transparent 70%)",
-            WebkitMaskImage: "radial-gradient(ellipse 88% 92% at 46% 50%, #000 22%, transparent 70%)",
+              "radial-gradient(ellipse 64% 84% at 36% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.22) 42%, transparent 66%)",
+            maskImage: "radial-gradient(ellipse 78% 82% at 42% 50%, #000 8%, transparent 52%)",
+            WebkitMaskImage: "radial-gradient(ellipse 78% 82% at 42% 50%, #000 8%, transparent 52%)",
           }}
         >
           <HeroBackground contained className="opacity-90" />
         </div>
         <div className="relative z-10 flex items-center gap-3">
-          <AvaOrb size={132} variant="landing" reflection={false} />
+          {/* Circular mask: the orb's WebGL canvas is square and its glow doesn't
+              fade at the canvas edges — mask fades it to a soft circle so it melts
+              into the page instead of showing a rectangular box. */}
+          <div
+            className="shrink-0"
+            style={{
+              maskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
+              WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
+            }}
+          >
+            <AvaOrb size={132} variant="landing" reflection={false} />
+          </div>
           <div className="min-w-0">
             <h1 className="font-display" style={{ fontSize: 22, lineHeight: 1.08, color: "hsl(150 33% 95%)", fontWeight: 500 }}>
               {hero.headline}
@@ -155,15 +166,24 @@ export default function CockpitDashboard() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 66% 96% at 38% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.24) 44%, transparent 70%)",
-            maskImage: "radial-gradient(ellipse 82% 88% at 48% 50%, #000 22%, transparent 66%)",
-            WebkitMaskImage: "radial-gradient(ellipse 82% 88% at 48% 50%, #000 22%, transparent 66%)",
+              "radial-gradient(ellipse 54% 86% at 38% 50%, hsl(152 48% 22% / 0.52) 0%, hsl(152 42% 16% / 0.2) 42%, transparent 64%)",
+            maskImage: "radial-gradient(ellipse 70% 78% at 43% 50%, #000 8%, transparent 50%)",
+            WebkitMaskImage: "radial-gradient(ellipse 70% 78% at 43% 50%, #000 8%, transparent 50%)",
           }}
         >
           <HeroBackground contained className="opacity-90" />
         </div>
         <div className="relative z-10 flex justify-center">
-          <AvaOrb size={320} variant="landing" reflection={false} />
+          {/* Circular mask (see mobile note) — fades the orb's square canvas glow
+              into a soft circle so the hero has no rectangular edge. */}
+          <div
+            style={{
+              maskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
+              WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
+            }}
+          >
+            <AvaOrb size={320} variant="landing" reflection={false} />
+          </div>
         </div>
         <div className="relative z-10 min-w-0">
           <h1 className="font-display" style={{ fontSize: "clamp(34px, 3.6vw, 52px)", lineHeight: 1.05, color: "hsl(150 33% 95%)", fontWeight: 500 }}>
