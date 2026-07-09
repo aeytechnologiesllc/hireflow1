@@ -103,9 +103,16 @@ export default function CockpitDashboard() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 64% 84% at 36% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.22) 42%, transparent 66%)",
-            maskImage: "radial-gradient(ellipse 78% 82% at 42% 50%, #000 8%, transparent 52%)",
-            WebkitMaskImage: "radial-gradient(ellipse 78% 82% at 42% 50%, #000 8%, transparent 52%)",
+              "radial-gradient(ellipse 100% 110% at 40% 50%, hsl(152 46% 20% / 0.40) 0%, hsl(152 40% 15% / 0.16) 46%, transparent 80%)",
+            // Feathered-rectangle mask: the ambient animation fills the hero
+            // edge-to-edge but the outer sliver of each side fades to nothing —
+            // full-bleed motion, no hard box.
+            maskImage:
+              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+            maskComposite: "intersect",
+            WebkitMaskComposite: "source-in",
           }}
         >
           <HeroBackground contained className="opacity-90" />
@@ -166,9 +173,16 @@ export default function CockpitDashboard() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 54% 86% at 38% 50%, hsl(152 48% 22% / 0.52) 0%, hsl(152 42% 16% / 0.2) 42%, transparent 64%)",
-            maskImage: "radial-gradient(ellipse 70% 78% at 43% 50%, #000 8%, transparent 50%)",
-            WebkitMaskImage: "radial-gradient(ellipse 70% 78% at 43% 50%, #000 8%, transparent 50%)",
+              "radial-gradient(ellipse 92% 105% at 42% 50%, hsl(152 46% 20% / 0.40) 0%, hsl(152 40% 15% / 0.16) 46%, transparent 78%)",
+            // Feathered-rectangle mask: full-bleed ambient animation (particles
+            // top-to-bottom, edge-to-edge) that fades only in the outer sliver of
+            // each side — restores the subtle motion without a hard rectangle.
+            maskImage:
+              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+            maskComposite: "intersect",
+            WebkitMaskComposite: "source-in",
           }}
         >
           <HeroBackground contained className="opacity-90" />
