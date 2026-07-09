@@ -93,18 +93,22 @@ export default function CockpitDashboard() {
       {/* ── Hero (mobile) ────────────────────────────────── */}
       <section
         className="ck-rise relative overflow-hidden rounded-2xl p-4 md:hidden"
-        // No border, no opaque fill — a glow that fades out before the edges so
-        // the hero melts into the page background instead of sitting in a box.
-        style={{ background: "radial-gradient(ellipse 120% 95% at 30% 22%, hsl(152 40% 18% / 0.42) 0%, hsl(152 36% 12% / 0.16) 48%, transparent 76%)" }}
+        // Transparent section — the ONLY thing painted is the glow layer below,
+        // which is radially masked to fade to nothing before every edge. No
+        // rectangle, no hard border: the orb + glow melt into the page.
+        style={{ background: "transparent" }}
       >
         <div
-          className="absolute inset-0"
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
           style={{
-            maskImage: "radial-gradient(ellipse 100% 100% at 50% 45%, black 52%, transparent 97%)",
-            WebkitMaskImage: "radial-gradient(ellipse 100% 100% at 50% 45%, black 52%, transparent 97%)",
+            background:
+              "radial-gradient(ellipse 78% 96% at 34% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.24) 44%, transparent 72%)",
+            maskImage: "radial-gradient(ellipse 88% 92% at 46% 50%, #000 22%, transparent 70%)",
+            WebkitMaskImage: "radial-gradient(ellipse 88% 92% at 46% 50%, #000 22%, transparent 70%)",
           }}
         >
-          <HeroBackground contained className="opacity-70" />
+          <HeroBackground contained className="opacity-90" />
         </div>
         <div className="relative z-10 flex items-center gap-3">
           <AvaOrb size={132} variant="landing" reflection={false} />
@@ -136,23 +140,27 @@ export default function CockpitDashboard() {
       {/* ── Hero (desktop) ───────────────────────────────── */}
       <section
         className="ck-rise relative hidden overflow-hidden md:grid"
-        // Same blend treatment as mobile: soft glow fading to transparent, so the
-        // orb + animation float on the page background with no hard panel edges.
+        // Transparent section — no painted rectangle. All ambient light lives in
+        // the glow layer below, radially masked so it fades to pure page-black
+        // before reaching any edge. The clip lands in empty space = no hard box.
         style={{
           gridTemplateColumns: "minmax(260px,360px) 1fr",
           alignItems: "center",
           columnGap: 32,
-          background: "radial-gradient(ellipse 95% 85% at 26% 32%, hsl(152 40% 18% / 0.45) 0%, hsl(152 36% 12% / 0.18) 46%, transparent 74%)",
+          background: "transparent",
         }}
       >
         <div
-          className="absolute inset-0"
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
           style={{
-            maskImage: "radial-gradient(ellipse 98% 100% at 50% 45%, black 50%, transparent 96%)",
-            WebkitMaskImage: "radial-gradient(ellipse 98% 100% at 50% 45%, black 50%, transparent 96%)",
+            background:
+              "radial-gradient(ellipse 66% 96% at 38% 50%, hsl(152 48% 22% / 0.55) 0%, hsl(152 42% 16% / 0.24) 44%, transparent 70%)",
+            maskImage: "radial-gradient(ellipse 82% 88% at 48% 50%, #000 22%, transparent 66%)",
+            WebkitMaskImage: "radial-gradient(ellipse 82% 88% at 48% 50%, #000 22%, transparent 66%)",
           }}
         >
-          <HeroBackground contained className="opacity-70" />
+          <HeroBackground contained className="opacity-90" />
         </div>
         <div className="relative z-10 flex justify-center">
           <AvaOrb size={320} variant="landing" reflection={false} />
