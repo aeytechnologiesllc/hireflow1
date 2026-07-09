@@ -118,23 +118,27 @@
 
     /* ── Premium token system (--hf-*): charcoal base · green accent · gold action · real depth.
        Dark values here; the light theme overrides live in :root. ── */
-    --hf-bg: #070a08;
-    --hf-bg-soft: #0b100d;
-    --hf-surface: #101612;
-    --hf-surface-raised: #151d18;
-    --hf-surface-strong: #1a241e;
-    --hf-border: rgba(229, 221, 196, 0.10);
-    --hf-border-strong: rgba(229, 221, 196, 0.18);
-    --hf-text: #f3efe4;
-    --hf-text-soft: #c9c1ad;
-    --hf-text-muted: #8f998e;
-    --hf-green: #39d98a;
-    --hf-green-soft: rgba(57, 217, 138, 0.14);
-    --hf-green-border: rgba(57, 217, 138, 0.32);
-    --hf-gold: #e7c36a;
-    --hf-gold-hover: #f0d483;
-    --hf-gold-soft: rgba(231, 195, 106, 0.16);
-    --hf-gold-border: rgba(231, 195, 106, 0.34);
+    /* Direction A — luminance lift (2026-07-09): surfaces raised off pure black,
+       borders + secondary/muted text brightened for contrast, accents a touch
+       brighter. Kills the "dull" feel while keeping the Deep Jade identity.
+       (True sunlight readability is the ivory light-mode toggle — roadmapped.) */
+    --hf-bg: #0c110e;
+    --hf-bg-soft: #121915;
+    --hf-surface: #18211c;
+    --hf-surface-raised: #1e2823;
+    --hf-surface-strong: #26312a;
+    --hf-border: rgba(229, 221, 196, 0.15);
+    --hf-border-strong: rgba(229, 221, 196, 0.26);
+    --hf-text: #f6f2e8;
+    --hf-text-soft: #d9d2c1;
+    --hf-text-muted: #a7b0a3;
+    --hf-green: #46e096;
+    --hf-green-soft: rgba(70, 224, 150, 0.16);
+    --hf-green-border: rgba(70, 224, 150, 0.36);
+    --hf-gold: #edca74;
+    --hf-gold-hover: #f4d78d;
+    --hf-gold-soft: rgba(237, 202, 116, 0.18);
+    --hf-gold-border: rgba(237, 202, 116, 0.38);
     --hf-danger: #ff6b6b;
     --hf-warning: #f6b94b;
     --hf-shadow-soft: 0 14px 40px rgba(0, 0, 0, 0.32);
