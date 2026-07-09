@@ -505,7 +505,7 @@ export default function VoiceInterviewPhase() {
   const downloadTranscript = () => {
     const lines = messages.map(m => {
       const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return `[${time}] ${m.role === 'user' ? 'Candidate' : 'Ava'}: ${m.content}`;
+      return `[${time}] ${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`;
     }).join('\n\n');
 
     const header = `Video Interview Transcript

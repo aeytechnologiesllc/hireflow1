@@ -199,11 +199,11 @@ function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boolean): 
       steps.push({
         id: uid("step"),
         type: voiceInterview ? "voice_interview" : "chat_interview",
-        title: phase.title || (voiceInterview ? "Voice interview with Ava" : "Interview with Ava"),
+        title: phase.title || (voiceInterview ? "Voice interview" : "Interview"),
         description:
           phase.candidateDescription ||
           (voiceInterview
-            ? "A short spoken conversation with Ava about your experience."
+            ? "A short set of questions you answer out loud about your experience."
             : "A short conversation about your experience."),
         required: true,
         config: {
