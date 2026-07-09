@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,11 +178,16 @@ export default function ApplicantDetailsDialog({
                   </Button>
                 )}
                 {application.resume_url && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={application.resume_url} target="_blank" rel="noopener noreferrer">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Resume
-                    </a>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const signed = await resolveResumeUrl(application.resume_url);
+                      if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Resume
                   </Button>
                 )}
               </div>

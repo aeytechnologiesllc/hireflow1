@@ -41,6 +41,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedResumeUrl } from "@/utils/resumeFiles";
+import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
 interface AntiCheatViolation {
   type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
@@ -775,7 +776,7 @@ export default function ApplicationFormPhase() {
           if (isImageResumeUrl(profile.resume_url)) {
             finalResumeImageUrls = [profile.resume_url];
           } else if (isPdfResumeUrl(profile.resume_url)) {
-            const response = await fetch(profile.resume_url);
+            const response = await fetch((await resolveResumeUrl(profile.resume_url)) || profile.resume_url);
             if (!response.ok) throw new Error("Failed to fetch profile resume");
             const blob = await response.blob();
             const file = new File([blob], "profile-resume.pdf", { type: "application/pdf" });
@@ -1540,7 +1541,7 @@ export default function ApplicationFormPhase() {
                             className="h-6 w-6"
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(profile.resume_url, '_blank');
+                              void resolveResumeUrl(profile.resume_url).then((s) => { if (s) window.open(s, '_blank'); });
                             }}
                           >
                             <Eye className="h-4 w-4" />

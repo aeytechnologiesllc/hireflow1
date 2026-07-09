@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, FileText } from "lucide-react";
 import AvaOrb from "@/components/ava/AvaOrb";
 import { isImageResumeUrl, isPdfResumeUrl } from "@/utils/resumeFiles";
+import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
 /**
  * ResumeViewerDialog — a premium, theme-locked (Deep Jade) inline viewer for a
@@ -36,8 +37,20 @@ function IconBtn({ onClick, label, children }: { onClick?: () => void; label: st
 
 export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose }: ResumeViewerDialogProps) {
   const [zoom, setZoom] = useState(1);
+  // `url` is the stored value (legacy public URL or bare path). Resolve it to a
+  // short-lived signed URL on open so the private bucket stays private.
+  const [displayUrl, setDisplayUrl] = useState<string | null>(null);
 
   useEffect(() => { if (open) setZoom(1); }, [open, url]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (open && url) {
+      setDisplayUrl(null);
+      resolveResumeUrl(url).then((signed) => { if (!cancelled) setDisplayUrl(signed); });
+    }
+    return () => { cancelled = true; };
+  }, [open, url]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +61,8 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
 
   if (!open || !url) return null;
 
+  // Format detection uses the ORIGINAL stored url (stable extension); the signed
+  // url carries a ?token but the path extension still resolves correctly too.
   const isImage = isImageResumeUrl(url);
   const isPdf = isPdfResumeUrl(url);
   const clamp = (z: number) => Math.min(3, Math.max(0.5, +z.toFixed(2)));
@@ -91,15 +106,20 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
 
         {/* body */}
         <div className="ck-scroll relative flex-1 overflow-auto" style={{ background: "hsl(156 24% 7%)" }}>
-          {isImage ? (
+          {!displayUrl ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <AvaOrb size={40} reflection={false} glow={false} amp={0.22} flow={0.5} />
+              <p className="text-[13px]" style={{ color: "hsl(150 12% 62%)" }}>Loading resume…</p>
+            </div>
+          ) : isImage ? (
             <img
-              src={url}
+              src={displayUrl}
               alt={`${candidateName}'s resume`}
               style={{ display: "block", margin: "16px auto", width: `${zoom * 100}%`, maxWidth: zoom <= 1 ? 760 : "none", borderRadius: 8 }}
             />
           ) : isPdf ? (
             <iframe
-              src={`${url}#view=FitH`}
+              src={`${displayUrl}#view=FitH`}
               title={`${candidateName}'s resume`}
               className="h-full w-full"
               style={{ border: "none", background: "hsl(156 24% 7%)" }}

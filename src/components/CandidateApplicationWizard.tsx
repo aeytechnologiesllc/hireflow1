@@ -42,6 +42,7 @@ import { convertPdfToImage } from "@/utils/pdfToImage";
 import { extractPdfTextFromUrl } from "@/utils/pdfText";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile } from "@/utils/resumeFiles";
+import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import type { Tables, Json } from "@/integrations/supabase/types";
 
 interface CandidateApplicationWizardProps {
@@ -301,7 +302,7 @@ export default function CandidateApplicationWizard({
             return;
           }
 
-          const response = await fetch(profile.resume_url);
+          const response = await fetch((await resolveResumeUrl(profile.resume_url)) || profile.resume_url);
           const blob = await response.blob();
           const file = new globalThis.File([blob], "profile-resume.pdf", { type: "application/pdf" });
           

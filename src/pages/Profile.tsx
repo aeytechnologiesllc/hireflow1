@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileCompleteness } from "@/components/ProfileCompleteness";
 import { isSupportedResumeFile } from "@/utils/resumeFiles";
+import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
 export default function Profile() {
   const { user, role } = useAuth();
@@ -378,7 +379,10 @@ export default function Profile() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => window.open(formData.resume_url, "_blank")}
+                    onClick={async () => {
+                      const signed = await resolveResumeUrl(formData.resume_url);
+                      if (signed) window.open(signed, "_blank");
+                    }}
                   >
                     View
                   </Button>
