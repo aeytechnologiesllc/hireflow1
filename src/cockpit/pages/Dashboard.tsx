@@ -92,10 +92,20 @@ export default function CockpitDashboard() {
     <div className="space-y-6 md:space-y-7">
       {/* ── Hero (mobile) ────────────────────────────────── */}
       <section
-        className="ck-rise relative overflow-hidden rounded-2xl border p-4 md:hidden"
-        style={{ background: "var(--gradient-hero)", borderColor: "hsl(150 12% 15% / 0.6)" }}
+        className="ck-rise relative overflow-hidden rounded-2xl p-4 md:hidden"
+        // No border, no opaque fill — a glow that fades out before the edges so
+        // the hero melts into the page background instead of sitting in a box.
+        style={{ background: "radial-gradient(ellipse 120% 95% at 30% 22%, hsl(152 40% 18% / 0.42) 0%, hsl(152 36% 12% / 0.16) 48%, transparent 76%)" }}
       >
-        <HeroBackground contained className="opacity-70" />
+        <div
+          className="absolute inset-0"
+          style={{
+            maskImage: "radial-gradient(ellipse 100% 100% at 50% 45%, black 52%, transparent 97%)",
+            WebkitMaskImage: "radial-gradient(ellipse 100% 100% at 50% 45%, black 52%, transparent 97%)",
+          }}
+        >
+          <HeroBackground contained className="opacity-70" />
+        </div>
         <div className="relative z-10 flex items-center gap-3">
           <AvaOrb size={132} variant="landing" reflection={false} />
           <div className="min-w-0">
@@ -126,9 +136,24 @@ export default function CockpitDashboard() {
       {/* ── Hero (desktop) ───────────────────────────────── */}
       <section
         className="ck-rise relative hidden overflow-hidden md:grid"
-        style={{ gridTemplateColumns: "minmax(260px,360px) 1fr", alignItems: "center", columnGap: 32, background: "var(--gradient-hero)" }}
+        // Same blend treatment as mobile: soft glow fading to transparent, so the
+        // orb + animation float on the page background with no hard panel edges.
+        style={{
+          gridTemplateColumns: "minmax(260px,360px) 1fr",
+          alignItems: "center",
+          columnGap: 32,
+          background: "radial-gradient(ellipse 95% 85% at 26% 32%, hsl(152 40% 18% / 0.45) 0%, hsl(152 36% 12% / 0.18) 46%, transparent 74%)",
+        }}
       >
-        <HeroBackground contained className="opacity-70" />
+        <div
+          className="absolute inset-0"
+          style={{
+            maskImage: "radial-gradient(ellipse 98% 100% at 50% 45%, black 50%, transparent 96%)",
+            WebkitMaskImage: "radial-gradient(ellipse 98% 100% at 50% 45%, black 50%, transparent 96%)",
+          }}
+        >
+          <HeroBackground contained className="opacity-70" />
+        </div>
         <div className="relative z-10 flex justify-center">
           <AvaOrb size={320} variant="landing" reflection={false} />
         </div>
