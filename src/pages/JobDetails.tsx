@@ -86,11 +86,11 @@ export default function JobDetails() {
       const { data } = await supabase
         .from("profiles")
         .select("company_name, company_logo")
-        .eq("id", job!.employer_id)
+        .eq("user_id", job!.employer_id)
         .maybeSingle();
       return data;
     },
-    enabled: !!job?.employer_id,
+    enabled: !!job?.employer_id && !shouldRestrictToPublished,
   });
 
   // Check if application deadline has passed

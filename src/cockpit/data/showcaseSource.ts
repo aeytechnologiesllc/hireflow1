@@ -18,7 +18,10 @@ let schemaMode: "hireflow1" | "showcase" | null = null;
 
 export async function detectSchemaMode(): Promise<"hireflow1" | "showcase"> {
   if (schemaMode) return schemaMode;
-  const { error } = await supabase.from("jobs").select("id").limit(1);
+  // Probe the public-safe jobs view instead of the private jobs table. A
+  // candidate session can trip recursive jobs/applications RLS when reading the
+  // raw table before they have applied.
+  const { error } = await supabase.from("published_jobs_public").select("id").limit(1);
   if (error && (error.message.includes("Could not find") || error.code === "PGRST205")) {
     schemaMode = "showcase";
   } else {
