@@ -45,7 +45,10 @@ export function isImageResumeUrl(url: string | null | undefined) {
 export function isSupportedResumeUrl(url: string | null | undefined) {
   if (!url) return false;
   const pathname = getPathname(url);
-  return pathname.includes("/resumes/") && SUPPORTED_RESUME_EXTENSIONS.some((extension) => pathname.endsWith(extension));
+  const isResumeStoragePath =
+    pathname.includes("/resumes/") ||
+    (!/^https?:\/\//i.test(url) && !url.startsWith("blob:") && !url.startsWith("data:"));
+  return isResumeStoragePath && SUPPORTED_RESUME_EXTENSIONS.some((extension) => pathname.endsWith(extension));
 }
 
 export function getResumeAssetLabel(url: string | null | undefined) {

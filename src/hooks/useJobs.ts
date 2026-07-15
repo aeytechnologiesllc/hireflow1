@@ -6,7 +6,6 @@ import { detectSchemaMode, updateShowcaseRole } from "@/cockpit/data/showcaseSou
 import { createShowcaseRole, SHOWCASE_EMPLOYER_ID } from "@/lib/showcaseApply";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
-import { archiveJoinJobInBackground } from "@/hooks/useJobDistribution";
 
 export type Job = Tables<"jobs">;
 export type JobInsert = TablesInsert<"jobs">;
@@ -283,11 +282,6 @@ export function useUpdateJob() {
           notificationType: "URL_DELETED",
           reason: `job_status_${updates.status}`,
         });
-      }
-      if (updates.status === "closed" || updates.status === "archived") {
-        // Stop board distribution too: archives the JOIN posting so it stops
-        // being multiposted AND stops counting as a billable active job.
-        archiveJoinJobInBackground(data.id);
       }
       return data;
     },

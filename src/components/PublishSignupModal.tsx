@@ -107,7 +107,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationName, setCelebrationName] = useState("");
-  const [postAuthRoute, setPostAuthRoute] = useState("/jobs/create?guestDraft=1");
+  const [postAuthRoute, setPostAuthRoute] = useState("/jobs/create-legacy?guestDraft=1");
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -128,7 +128,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return "/jobs/create?guestDraft=1";
+      return "/jobs/create-legacy?guestDraft=1";
     }
 
     const { route } = await resolvePostAuthDestination({
@@ -137,7 +137,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       redirectTo: "createJob",
     });
 
-    return route === "/jobs/create" ? "/jobs/create?guestDraft=1" : route;
+    return route === "/jobs/create" ? "/jobs/create-legacy?guestDraft=1" : route;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -195,7 +195,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       }
     }
 
-    const { error } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
@@ -203,6 +203,13 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
         : error.message;
       
       toast({ variant: "warning", title: "Sign Up Failed", description: errorMessage });
+      setIsLoading(false);
+    } else if (needsConfirmation) {
+      toast({
+        title: "Check your email",
+        description: "Confirm your account, then sign in here. Your draft is saved.",
+      });
+      setActiveTab("signin");
       setIsLoading(false);
     } else {
       const resolvedRoute = await preparePostAuthRoute();

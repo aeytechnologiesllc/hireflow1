@@ -195,13 +195,9 @@ export default function Profile() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(fileName);
-
-      // Update profile with new resume URL
-      await updateProfile.mutateAsync({ resume_url: urlData.publicUrl });
-      setFormData((prev) => ({ ...prev, resume_url: urlData.publicUrl }));
+      // Store the private storage path. Viewers mint short-lived signed URLs.
+      await updateProfile.mutateAsync({ resume_url: fileName });
+      setFormData((prev) => ({ ...prev, resume_url: fileName }));
       toast.success("Resume uploaded!");
     } catch (error) {
       console.error("Resume upload error:", error);

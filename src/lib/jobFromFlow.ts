@@ -229,6 +229,23 @@ function generateJobCode(): string {
   return code;
 }
 
+async function resolveEffectiveEmployerId(userId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("employer_id, can_create_jobs")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return userId;
+  if (!data.can_create_jobs) {
+    throw new Error("Your team role does not include permission to create jobs.");
+  }
+
+  return data.employer_id;
+}
+
 /**
  * Persist a generated JobFlow to the real `jobs` table and return the identifiers the
  * AvaCreateJob success screen needs.
@@ -240,10 +257,11 @@ export async function createJobFromFlow(
 ): Promise<CreateJobFromFlowResult> {
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr) throw new Error(userErr.message);
-  const employerId = userData.user?.id;
-  if (!employerId) {
+  const userId = userData.user?.id;
+  if (!userId) {
     throw new Error("You must be signed in to publish a role.");
   }
+  const employerId = await resolveEffectiveEmployerId(userId);
 
   const title = (flow.jobPost.title || brief.roleTitle || "Untitled role").trim();
   const description = composeDescription(flow, brief);

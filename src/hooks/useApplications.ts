@@ -215,7 +215,7 @@ export function useCreateApplication() {
     mutationFn: async (application: Omit<ApplicationInsert, "candidate_id">) => {
       // Check if employer has reached applicant limit before creating application
       const { data: job, error: jobError } = await supabase
-        .from("jobs")
+        .from("published_jobs_public")
         .select("employer_id")
         .eq("id", application.job_id)
         .single();
@@ -226,7 +226,7 @@ export function useCreateApplication() {
 
       // Check employer's subscription limit
       const { data: limitCheck, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
-        body: { employerId: job.employer_id, jobId: application.job_id },
+        body: { jobId: application.job_id },
       });
 
       if (limitError) {

@@ -326,10 +326,7 @@ export default function CandidateApplicationWizard({
                 .upload(imagePath, imgBlob, { upsert: true });
               
               if (!uploadError) {
-                const { data: urlData } = supabase.storage
-                  .from("resumes")
-                  .getPublicUrl(imagePath);
-                imageUrls.push(urlData.publicUrl);
+                imageUrls.push(imagePath);
               }
             }
             
@@ -463,15 +460,11 @@ export default function CandidateApplicationWizard({
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${questionId}-${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("resumes")
         .upload(fileName, file);
 
       if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(fileName);
 
       const isPdf = file.type === "application/pdf";
       const isImage = file.type.startsWith("image/");
@@ -492,20 +485,17 @@ export default function CandidateApplicationWizard({
               .upload(imagePath, blob, { upsert: true });
             
             if (!imageUploadError) {
-              const { data: imageUrlData } = supabase.storage
-                .from("resumes")
-                .getPublicUrl(imagePath);
-              imageUrls.push(imageUrlData.publicUrl);
+              imageUrls.push(imagePath);
             }
           }
         }
       } else if (isImage) {
         // For images, the uploaded file IS the image for AI analysis
-        imageUrls = [urlData.publicUrl];
+        imageUrls = [fileName];
       }
 
-      setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
-      setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      setQuestionFileUrls(prev => ({ ...prev, [questionId]: fileName }));
+      setAnswers(prev => ({ ...prev, [questionId]: fileName }));
       
       // Save the image URLs for AI analysis
       if (imageUrls.length > 0) {
@@ -517,7 +507,7 @@ export default function CandidateApplicationWizard({
       const questionText = (question?.question || questionId).toLowerCase();
       const isResumeQuestion = ['resume', 'cv', 'curriculum'].some(kw => questionText.includes(kw));
       if (normalizeQuestionType(question?.type) === "file" && isResumeQuestion) {
-        setResumeUrl(urlData.publicUrl);
+        setResumeUrl(fileName);
         if (imageUrls.length > 0) {
           setResumeImageUrls(imageUrls);
         }
@@ -601,15 +591,11 @@ export default function CandidateApplicationWizard({
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("resumes")
         .upload(fileName, file);
 
       if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(fileName);
 
       const imageUrls: string[] = [];
       const isPdf = file.type === "application/pdf";
@@ -628,18 +614,15 @@ export default function CandidateApplicationWizard({
               .upload(imagePath, blob, { upsert: true });
             
             if (!imageUploadError) {
-              const { data: imageUrlData } = supabase.storage
-                .from("resumes")
-                .getPublicUrl(imagePath);
-              imageUrls.push(imageUrlData.publicUrl);
+              imageUrls.push(imagePath);
             }
           }
         }
       } else {
-        imageUrls.push(urlData.publicUrl);
+        imageUrls.push(fileName);
       }
 
-      setResumeUrl(urlData.publicUrl);
+      setResumeUrl(fileName);
       // CRITICAL: Save the image URLs so backend can use them for resume vision analysis
       if (imageUrls.length > 0) {
         setResumeImageUrls(imageUrls);

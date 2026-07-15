@@ -12,21 +12,42 @@ serve(async (req) => {
   }
 
   try {
-    const { employerId, jobId } = await req.json();
+    const { jobId } = await req.json();
 
-    if (!employerId) {
+    if (!jobId) {
       return new Response(
-        JSON.stringify({ error: "employerId is required" }),
+        JSON.stringify({ error: "jobId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    console.log("[check-applicant-limit] Checking limit for employer:", employerId);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from("jobs")
+      .select("id, employer_id, status, application_deadline")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (jobError || !job || job.status !== "published") {
+      return new Response(
+        JSON.stringify({ limitReached: true, message: "This job is not currently accepting applications." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (job.application_deadline && new Date(job.application_deadline) < new Date()) {
+      return new Response(
+        JSON.stringify({ limitReached: true, message: "This job is no longer accepting applications." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const employerId = job.employer_id;
+    console.log("[check-applicant-limit] Checking limit for job:", jobId);
 
     // Get employer's subscription
     const { data: subscription } = await supabaseAdmin

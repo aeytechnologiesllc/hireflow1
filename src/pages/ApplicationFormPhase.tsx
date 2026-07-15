@@ -513,10 +513,6 @@ export default function ApplicationFormPhase() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(fileName);
-
       const imageUrls: string[] = [];
       const isPdf = file.type === "application/pdf";
 
@@ -532,15 +528,12 @@ export default function ApplicationFormPhase() {
               .upload(imagePath, blob, { upsert: true });
             
             if (!imageUploadError) {
-              const { data: imageUrlData } = supabase.storage
-                .from("resumes")
-                .getPublicUrl(imagePath);
-              imageUrls.push(imageUrlData.publicUrl);
+              imageUrls.push(imagePath);
             }
           }
         }
       } else {
-        imageUrls.push(urlData.publicUrl);
+        imageUrls.push(fileName);
       }
       
       // Update application with resume URL and image URLs in notes
@@ -552,7 +545,7 @@ export default function ApplicationFormPhase() {
       
       await updateApplication.mutateAsync({
         id: id!,
-        resume_url: urlData.publicUrl,
+        resume_url: fileName,
         notes: JSON.stringify(updatedNotes),
       });
 
@@ -612,10 +605,6 @@ export default function ApplicationFormPhase() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(fileName);
-
       const isPdf = file.type === "application/pdf";
       const isImage = file.type.startsWith("image/");
       let imageUrls: string[] = [];
@@ -634,23 +623,20 @@ export default function ApplicationFormPhase() {
               .upload(imagePath, blob, { upsert: true });
             
             if (!imageUploadError) {
-              const { data: imageUrlData } = supabase.storage
-                .from("resumes")
-                .getPublicUrl(imagePath);
-              imageUrls.push(imageUrlData.publicUrl);
+              imageUrls.push(imagePath);
             }
           }
         }
       } else if (isImage) {
         // For images, the uploaded file IS the image for AI analysis
-        imageUrls = [urlData.publicUrl];
+        imageUrls = [fileName];
       }
 
       // Store image URLs for this question in notes
       const currentNotes = await getLatestStoredNotes();
       const fileUploads = currentNotes.fileUploads || {};
       fileUploads[questionId] = {
-        url: urlData.publicUrl,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
+        url: fileName,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
         imageUrls: imageUrls,
         isResume: isResumeUpload,
       };
@@ -667,8 +653,8 @@ export default function ApplicationFormPhase() {
         notes: JSON.stringify(updatedNotes),
       });
 
-      setQuestionFileUrls(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
-      setAnswers(prev => ({ ...prev, [questionId]: urlData.publicUrl }));
+      setQuestionFileUrls(prev => ({ ...prev, [questionId]: fileName }));
+      setAnswers(prev => ({ ...prev, [questionId]: fileName }));
       toast.success("File uploaded successfully");
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -796,10 +782,7 @@ export default function ApplicationFormPhase() {
                 .upload(imagePath, imageBlob, { upsert: true });
               
               if (!uploadError) {
-                const { data: imageUrlData } = supabase.storage
-                  .from("resumes")
-                  .getPublicUrl(imagePath);
-                finalResumeImageUrls.push(imageUrlData.publicUrl);
+                finalResumeImageUrls.push(imagePath);
               }
             }
           } else {

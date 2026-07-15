@@ -158,10 +158,9 @@ export default function ApplyWithCode() {
       }
 
       const { data, error: fetchError } = await supabase
-        .from("jobs")
+        .from("published_jobs_public")
         .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", normalizedCode)
-        .eq("status", "published")
         .single();
 
       if (fetchError || !data) {
@@ -177,7 +176,7 @@ export default function ApplyWithCode() {
       }
 
       const { data: limitData, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
-        body: { employerId: data.employer_id, jobId: data.id },
+        body: { jobId: data.id },
       });
 
       if (limitError) {

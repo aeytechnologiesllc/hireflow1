@@ -554,6 +554,10 @@ export default function GuestJobCreator() {
       createdAt: Date.now(),
     };
     localStorage.setItem("guestJobData", JSON.stringify(guestJobData));
+    if (user) {
+      navigate("/jobs/create-legacy?guestDraft=1");
+      return;
+    }
     setShowSignupModal(true);
   };
 

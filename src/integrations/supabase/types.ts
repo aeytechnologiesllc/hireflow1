@@ -1197,7 +1197,41 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      published_jobs_public: {
+        Row: {
+          application_deadline: string | null
+          application_questions: Json | null
+          created_at: string
+          department: string | null
+          description: string
+          employer_id: string
+          experience_level: string | null
+          id: string
+          is_remote: boolean | null
+          job_code: string | null
+          job_type: string | null
+          latitude: number | null
+          location: string | null
+          location_city: string | null
+          location_country: string | null
+          location_country_code: string | null
+          location_region: string | null
+          locations: Json | null
+          longitude: number | null
+          quiz_questions: Json | null
+          require_resume: boolean | null
+          requirements: string | null
+          responsibilities: string | null
+          salary_currency: string | null
+          salary_max: number | null
+          salary_min: number | null
+          salary_period: string | null
+          skills_required: string[] | null
+          title: string
+          workflow_steps: Json | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       assign_user_role: { Args: { p_role: string }; Returns: undefined }

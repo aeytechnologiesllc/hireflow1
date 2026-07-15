@@ -18,7 +18,7 @@ const SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
 const ORIGIN = "https://hireflownow.com";
 
 const JOB_FIELDS =
-  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,job_code,location_city,location_region,location_country,location_country_code,is_remote,employer_id";
+  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,is_remote,employer_id";
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -63,8 +63,10 @@ function jobTypeText(t) {
 
 export default async function handler(req, res) {
   try {
-    const jobs =
-      (await sb(`jobs?status=eq.published&select=${encodeURIComponent(JOB_FIELDS)}&order=created_at.desc&limit=1000`)) ?? [];
+    const now = Date.now();
+    const jobs = (
+      (await sb(`published_jobs_public?select=${encodeURIComponent(JOB_FIELDS)}&order=created_at.desc&limit=1000`)) ?? []
+    ).filter((job) => !job.application_deadline || new Date(job.application_deadline).getTime() >= now);
 
     // Company names per employer (one query for all).
     const employerIds = [...new Set(jobs.map((j) => j.employer_id).filter(Boolean))];

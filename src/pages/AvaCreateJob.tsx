@@ -17,7 +17,6 @@ import {
   DollarSign,
   ExternalLink,
   FileText,
-  KeyRound,
   Loader2,
   MapPin,
   MessageSquare,
@@ -38,6 +37,7 @@ import { CountUp } from "@/cockpit/components/CountUp";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import {
   BuildStep,
   DISPLAY,
@@ -65,8 +65,6 @@ import {
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow } from "@/lib/jobFromFlow";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
-import { supabase } from "@/integrations/supabase/client";
-import type { DistributionResult } from "@/hooks/useJobDistribution";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 
@@ -130,7 +128,8 @@ export default function AvaCreateJob() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
-  const { limits } = useSubscription();
+  const { limits, isLoading: subscriptionLoading, isExpired, isWithinLimit } = useSubscription();
+  const { data: teamPermissions, isLoading: teamPermissionsLoading } = useTeamMemberPermissions();
   const hasVoiceInterviews = limits?.hasVoiceInterviews ?? false;
   const wide = useWide();
   const reduceMotion = useReducedMotion();
@@ -164,8 +163,6 @@ export default function AvaCreateJob() {
   const [publishing, setPublishing] = useState(false);
   const [publishedCode, setPublishedCode] = useState<string | null>(null);
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
-  // JOIN board-distribution progress on the success screen: null = not configured/off.
-  const [distStatus, setDistStatus] = useState<null | "sending" | "live" | "offline" | "needs_attention">(null);
   // True once the Review-plan cards have actually finished animating in (real render signal) —
   // gates Ava's "here's your plan" so she never announces it while the build loader is still up.
   const [planVisible, setPlanVisible] = useState(false);
@@ -204,7 +201,7 @@ export default function AvaCreateJob() {
   }, [briefFields, chipAnswers, rigor, rigorTouched, flow]);
 
   useEffect(() => {
-    if (!authLoading && !user) navigate("/auth", { replace: true, state: { from: "/jobs/create" } });
+    if (!authLoading && !user) navigate("/auth?redirect=createJob", { replace: true });
   }, [authLoading, user, navigate]);
 
   const runGeneration = useCallback(async () => {
@@ -252,18 +249,6 @@ export default function AvaCreateJob() {
       sessionStorage.removeItem(DRAFT_SESSION_KEY);
       setPublishedCode(created.job_code);
       setPublishedRoleId(created.id);
-      // Distribute through JOIN's board network in the background (server-side).
-      // Safe when unconfigured (returns configured:false) and offline-first — the
-      // server never sets a job live on boards unless distribution is enabled.
-      setDistStatus("sending");
-      void supabase.functions
-        .invoke("join-publish-job", { body: { jobId: created.id, goLive: true } })
-        .then(({ data, error }) => {
-          const res = data as DistributionResult | null;
-          if (error || !res || res.configured === false) { setDistStatus(null); return; }
-          setDistStatus(res.status === "live" ? "live" : res.status === "needs_attention" ? "needs_attention" : "offline");
-        })
-        .catch(() => setDistStatus(null));
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
@@ -298,6 +283,15 @@ export default function AvaCreateJob() {
   const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || step === 3 || step === 4);
 
   const canContinueBrief = briefFields.role.trim().length > 1 && briefFields.location.trim() && briefFields.pay.trim() && briefFields.work.trim();
+  const teamCreateBlocked = teamPermissions?.isTeamMember && !teamPermissions.canCreateJobs;
+  const jobLimitBlocked = !isWithinLimit("jobs");
+  const createBlockedReason = teamCreateBlocked
+    ? "Your team role does not include permission to create jobs."
+    : isExpired
+      ? "Your HireFlow access is expired. Renew your plan before publishing another job."
+      : jobLimitBlocked
+        ? "Your current plan has reached its active job limit."
+        : null;
 
   const handleNext = () => {
     if (step === 0 && !canContinueBrief) {
@@ -338,7 +332,34 @@ export default function AvaCreateJob() {
     return "Continue";
   }, [step, fuIndex, followUps.length, publishing]);
 
-  if (authLoading || !user) return <AuthLoadingScreen variant="employer" />;
+  if (authLoading || !user || subscriptionLoading || teamPermissionsLoading) return <AuthLoadingScreen variant="employer" />;
+
+  if (createBlockedReason) {
+    return (
+      <div className="min-h-screen overflow-hidden" style={{ background: "hsl(var(--ck-bg))", color: "hsl(var(--ck-text))" }}>
+        <HeroBackground />
+        <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center px-5 py-10 text-center">
+          <div className="rounded-3xl p-8 shadow-2xl" style={{ background: "hsl(var(--ck-surface))", border: "1px solid hsl(var(--border))" }}>
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl" style={{ background: "hsl(var(--ck-brass) / 0.14)", color: "hsl(var(--ck-brass-bright))" }}>
+              <ShieldCheck className="h-7 w-7" />
+            </span>
+            <h1 className="mt-5 text-2xl font-semibold" style={{ color: "hsl(var(--foreground))" }}>Job creation is locked</h1>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+              {createBlockedReason}
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Link to="/jobs" className="ck-btn ck-btn-brass">
+                Back to Jobs
+              </Link>
+              <Link to="/settings?tab=subscription" className="ck-btn ck-btn-outline">
+                View plan
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const applyLink = publishedCode
     ? publishedRoleId && typeof window !== "undefined"
@@ -597,9 +618,9 @@ export default function AvaCreateJob() {
                     </div>
                   </div>
                   <div className="mt-4 w-full rounded-2xl p-4 text-left" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
-                    <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Need more reach? Boost when you are ready</div>
+                    <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Need more reach? Post it on boards when you are ready</div>
                     <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      No extra subscription needed today. Copy the post or open a board to finish posting there; keep the HireFlow apply link in the listing so screening stays here.
+                      Copy the post or open a board to finish posting there yourself. Keep the HireFlow apply link in the listing so screening stays here.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
@@ -629,51 +650,8 @@ export default function AvaCreateJob() {
                       <a href="https://hiring.monster.com/employer/post-jobs" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">Monster <ExternalLink className="h-3.5 w-3.5" /></a>
                     </div>
                     <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px]" style={{ color: "hsl(var(--ck-mint))" }}>
-                      <Check className="h-3.5 w-3.5" /> Free HireFlow page is live — boosts are optional.
+                      <Check className="h-3.5 w-3.5" /> HireFlow page is live - outside board posts are manual.
                     </p>
-                    {distStatus === null ? (
-                      <>
-                        <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                          Later: connect an API-enabled JOIN Advanced or Enterprise account, paste the token into HireFlow, and Ava can handle multiposting from here.
-                        </p>
-                        <Link
-                          to="/settings?tab=integrations"
-                          className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold"
-                          style={{ color: "hsl(var(--ck-brass))" }}
-                        >
-                          <KeyRound className="h-3.5 w-3.5" /> Set up JOIN connection
-                        </Link>
-                      </>
-                    ) : (
-                      <div
-                        className="mt-2 rounded-xl px-3.5 py-3 text-left text-[12px] leading-relaxed"
-                        style={
-                          distStatus === "needs_attention"
-                            ? { background: "var(--hf-gold-soft)", border: "1px solid var(--hf-gold-border)", color: "var(--hf-gold)" }
-                            : { background: "var(--hf-green-soft)", border: "1px solid var(--hf-green-border)", color: "var(--hf-text-soft)" }
-                        }
-                      >
-                        {distStatus === "sending" && "Ava is sending this job through JOIN’s job-board network…"}
-                        {distStatus === "live" && (
-                          <>
-                            <span style={{ color: "var(--hf-green)", fontWeight: 600 }}>Live via JOIN’s job-board network.</span>{" "}
-                            Free boards are included; premium boards may require a separate campaign budget. Applications will sync back into HireFlow.
-                          </>
-                        )}
-                        {distStatus === "offline" && (
-                          <>
-                            <span style={{ fontWeight: 600 }}>Sent to JOIN — in review mode.</span>{" "}
-                            It will go out to the board network once live distribution is switched on. Applications will sync back into HireFlow.
-                          </>
-                        )}
-                        {distStatus === "needs_attention" && (
-                          <>
-                            <span style={{ fontWeight: 600 }}>Board distribution needs attention.</span>{" "}
-                            Your HireFlow page is live; check the job’s details or the JOIN connection in Settings.
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (

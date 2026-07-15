@@ -19,6 +19,7 @@
 
 const SUPABASE_URL = "https://yqklrkpptnhubsnijqze.supabase.co";
 const SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
+const ORIGIN = "https://hireflownow.com";
 const JOB_FIELDS =
   "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,latitude,longitude,is_remote,locations,employer_id";
 
@@ -164,8 +165,7 @@ function sb(path) {
 
 export default async function handler(req, res) {
   const id = String((req.query && req.query.id) || "").trim();
-  const host = (req.headers && req.headers.host) || "hireflownow.com";
-  const origin = `https://${host}`;
+  const origin = ORIGIN;
 
   let shell = "";
   try {
@@ -180,10 +180,13 @@ export default async function handler(req, res) {
 
     let job = null;
     if (id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id)) {
-      const jr = await sb(`jobs?id=eq.${encodeURIComponent(id)}&status=eq.published&select=${JOB_FIELDS}&limit=1`);
+      const jr = await sb(`published_jobs_public?id=eq.${encodeURIComponent(id)}&select=${JOB_FIELDS}&limit=1`);
       if (jr.ok) {
         const rows = await jr.json();
         job = Array.isArray(rows) && rows[0] ? rows[0] : null;
+        if (job?.application_deadline && new Date(job.application_deadline).getTime() < Date.now()) {
+          job = null;
+        }
       }
     }
 

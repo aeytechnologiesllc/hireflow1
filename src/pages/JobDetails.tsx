@@ -56,16 +56,22 @@ export default function JobDetails() {
   const { data: job, isLoading: hireflowLoading, error: hireflowError } = useQuery({
     queryKey: ["job-details", id, shouldRestrictToPublished],
     queryFn: async () => {
-      let query = supabase
-        .from("jobs")
-        .select("*")
-        .eq("id", id!);
-
       if (shouldRestrictToPublished) {
-        query = query.eq("status", "published");
+        const { data, error } = await supabase
+          .from("published_jobs_public")
+          .select("*")
+          .eq("id", id!)
+          .single();
+
+        if (error) throw error;
+        return data;
       }
 
-      const { data, error } = await query.single();
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("id", id!)
+        .single();
 
       if (error) throw error;
       return data;
@@ -98,7 +104,7 @@ export default function JobDetails() {
       setIsCheckingLimit(true);
       try {
         const { data, error } = await supabase.functions.invoke("check-applicant-limit", {
-          body: { employerId: job.employer_id, jobId: job.id },
+          body: { jobId: job.id },
         });
         
         if (error) {

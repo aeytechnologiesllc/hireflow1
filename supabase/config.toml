@@ -1,12 +1,9 @@
 project_id = "yqklrkpptnhubsnijqze"
 
 [functions.ai-analyze]
-verify_jwt = false
-
-[functions.generate-flow]
 verify_jwt = true
 
-[functions.join-integration]
+[functions.generate-flow]
 verify_jwt = true
 
 [functions.google-indexing]
@@ -118,16 +115,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.send-push-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-test-push]
-verify_jwt = true
-
-[functions.join-publish-job]
-verify_jwt = true
-
-[functions.join-sync-applications]
-verify_jwt = true
-
-[functions.join-archive-job]
 verify_jwt = true

@@ -148,6 +148,7 @@ const App = () => (
                   <Route element={<AppLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/jobs" element={<Jobs />} />
+                    <Route path="/jobs/create" element={<CreateJob />} />
                     <Route path="/jobs/create-legacy" element={<CreateJobLegacy />} />
                     <Route path="/jobs/edit/:id" element={<CreateJobLegacy />} />
                     <Route path="/applicants" element={<Applicants />} />
@@ -186,7 +187,6 @@ const App = () => (
                   <Route path="/ava-preview" element={<AvaFlowPreview />} />
                   <Route path="/orb-audit" element={<OrbAudit />} />
                   <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
-                  <Route path="/jobs/create" element={<CreateJob />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

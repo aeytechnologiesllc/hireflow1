@@ -57,23 +57,30 @@ export function detectResumeUrl(
 }
 
 export function parseStorageUrl(url: string): { bucket: string; path: string } | null {
-  const match = url.match(/\/storage\/v1\/object\/(?:public\/)?([^/]+)\/(.+)/);
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return { bucket: "resumes", path: trimmed.replace(/^\/+/, "") };
+  }
+
+  const match = trimmed.match(/\/storage\/v1\/object\/(?:public\/)?([^/]+)\/(.+)/);
   if (!match) return null;
   return { bucket: match[1], path: decodeURIComponent(match[2]) };
 }
 
 async function fetchWithSignedFallback(url: string, adminClient?: any): Promise<Response | null> {
-  const directResponse = await fetch(url);
-  if (directResponse.ok) {
-    return directResponse;
-  }
-
-  if (!adminClient) {
-    return null;
-  }
-
   const storageInfo = parseStorageUrl(url);
-  if (!storageInfo) {
+
+  if (/^https?:\/\//i.test(url)) {
+    const directResponse = await fetch(url);
+    if (directResponse.ok) {
+      return directResponse;
+    }
+  }
+
+  if (!adminClient || !storageInfo) {
     return null;
   }
 

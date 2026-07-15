@@ -25,7 +25,6 @@ import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDia
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
 import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
-import { useJobDistributionPosts, useSyncJoinApplications } from "@/hooks/useJobDistribution";
 import { toast } from "sonner";
 import { getInitials } from "../lib/mappers";
 import type { Candidate, CandidateStage, PipelineNode, StageKey } from "../data";
@@ -219,19 +218,6 @@ export default function CockpitApplicants() {
   const [page, setPage] = useState(1);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject" | "advance"; cand: Candidate } | null>(null);
-  // Board distribution (JOIN): show a manual sync action only when in use.
-  const { data: distributionPosts = [] } = useJobDistributionPosts();
-  const syncJoin = useSyncJoinApplications();
-  const hasDistribution = distributionPosts.some((p) => p.provider_job_id);
-  const handleSyncBoards = async () => {
-    try {
-      const res = await syncJoin.mutateAsync(undefined);
-      if (res.configured === false) { toast.info("Board distribution isn't set up yet."); return; }
-      toast.success(res.imported > 0 ? `Imported ${res.imported} new applicant${res.imported === 1 ? "" : "s"} from the board network` : "No new board applications");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Board sync failed");
-    }
-  };
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
   const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
 
@@ -437,17 +423,6 @@ export default function CockpitApplicants() {
             <FilterSelect label="Role" value={roleIdFilter ?? ""} options={roleOptions} onChange={setRole} />
             <FilterSelect label="Stage" value={stageFilter} options={stageOptions} onChange={setStageFilter} />
             <FilterSelect label="Score" value={scoreFilter} options={scoreOptions} onChange={setScoreFilter} />
-            {hasDistribution && (
-              <button
-                className="ck-btn ck-btn-outline !px-3 !py-2 !text-[12.5px]"
-                onClick={() => void handleSyncBoards()}
-                disabled={syncJoin.isPending}
-                title="Pull new applications from the job-board network"
-              >
-                <Loader2 className={`h-3.5 w-3.5 ${syncJoin.isPending ? "animate-spin" : "hidden"}`} />
-                {syncJoin.isPending ? "Syncing…" : "Sync board applications"}
-              </button>
-            )}
           </div>
 
           {/* desktop table */}

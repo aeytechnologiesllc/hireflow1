@@ -29,7 +29,6 @@ import {
   Facebook,
   Globe,
   Download,
-  KeyRound,
   Megaphone,
   Users
 } from "lucide-react";
@@ -225,10 +224,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             <p className="text-xs leading-relaxed text-muted-foreground">
               HireFlow is live first. Open a board or copy the post when you want extra reach; keep the HireFlow apply link in the listing.
             </p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Later, connect an API-enabled JOIN Advanced or Enterprise account by pasting its token into HireFlow, and Ava can handle multiposting for you.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <div className="grid gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="default" className="flex-1 gap-2">
@@ -283,17 +279,6 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  onClose();
-                  navigate("/settings?tab=integrations");
-                }}
-              >
-                <KeyRound className="h-4 w-4" />
-                Set up JOIN
-              </Button>
             </div>
           </motion.div>
 

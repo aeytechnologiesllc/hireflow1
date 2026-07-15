@@ -222,7 +222,7 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
             ))}
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(152 40% 62%)" }}>
-            <Check className="h-3.5 w-3.5" /> Already live on Google for Jobs and partner feeds.
+            <Check className="h-3.5 w-3.5" /> Your HireFlow page is live; Google may index it. Post to outside boards manually.
           </div>
         </div>
       </div>

@@ -12,6 +12,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const internalSecret = Deno.env.get("INTERNAL_FUNCTION_SECRET");
+    const providedSecret = req.headers.get("x-hireflow-internal-secret");
+    if (!internalSecret || providedSecret !== internalSecret) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { user_id, title, message, url, notification_type } = await req.json();
 
     if (!user_id || !title || !message) {
