@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,14 @@ serve(async (req) => {
 
     const employerId = job.employer_id;
     console.log("[check-applicant-limit] Checking limit for job:", jobId);
+
+    if (await hasSubscriptionBypassForUser(supabaseAdmin, employerId)) {
+      console.log("[check-applicant-limit] Internal test account bypass active", { employerId });
+      return new Response(
+        JSON.stringify({ limitReached: false, subscriptionBypass: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get employer's subscription
     const { data: subscription } = await supabaseAdmin

@@ -3,6 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // Import unpdf for proper PDF text extraction
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
+import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -331,6 +332,26 @@ serve(async (req) => {
       }
 
       voiceOwnerUserId = (interviewApplication.jobs as { employer_id?: string } | null)?.employer_id || user.id;
+    } else {
+      const { data: employerRole } = await adminClient
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .eq("role", "employer")
+        .maybeSingle();
+
+      if (!employerRole) {
+        const { data: activeMembership } = await adminClient
+          .from("team_members")
+          .select("employer_id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (activeMembership?.employer_id) {
+          voiceOwnerUserId = activeMembership.employer_id;
+        }
+      }
     }
 
     console.log("[ava-voice-session] Voice entitlement owner:", {
@@ -339,6 +360,11 @@ serve(async (req) => {
       mode,
       applicationId: applicationId || null,
     });
+
+    const subscriptionBypass = await hasSubscriptionBypassForUser(
+      adminClient,
+      voiceOwnerUserId,
+    );
 
     // Check subscription for voice access
     const { data: subscription } = await adminClient
@@ -349,15 +375,15 @@ serve(async (req) => {
 
     // Check access - only Enterprise and Trial can use voice
     const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
-    const isTrial = subscription?.status === 'trialing';
+    const isTrial = !subscriptionBypass && subscription?.status === 'trialing';
 
     // Voice access is Enterprise/Trial only — EXCEPT 'intake' (employer Talk-to-Ava job creation),
     // which is relaxed during the build phase. Restore gating + server-side metering when billing lands.
     if (mode !== 'intake') {
-      if (!subscription) {
+      if (!subscription && !subscriptionBypass) {
         throw new Error("No subscription found");
       }
-      if (!isEnterprise && !isTrial) {
+      if (!subscriptionBypass && !isEnterprise && !isTrial) {
         throw new Error("Voice features require Enterprise plan");
       }
     }
@@ -378,7 +404,7 @@ serve(async (req) => {
     );
 
     // AUTO-PROVISION: If Enterprise user has no active credits, provision monthly allocation
-    if (isEnterprise && totalMinutesAvailable <= 0) {
+    if (!subscriptionBypass && isEnterprise && totalMinutesAvailable <= 0) {
       console.log("Enterprise user has no active voice credits - auto-provisioning monthly allocation");
       
       // Mark any expired credits as expired (cleanup)
@@ -430,7 +456,7 @@ serve(async (req) => {
       );
     }
 
-    if (mode !== 'intake' && totalMinutesAvailable <= 0) {
+    if (mode !== 'intake' && !subscriptionBypass && totalMinutesAvailable <= 0) {
       if (isTrial) {
         throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 150 minutes/month.");
       }
@@ -438,7 +464,9 @@ serve(async (req) => {
     }
 
     console.log(`User has ${totalMinutesAvailable.toFixed(1)} voice minutes available`);
-    if (isEnterprise) {
+    if (subscriptionBypass) {
+      console.log("Internal test account bypass active for voice session", { voiceOwnerUserId });
+    } else if (isEnterprise) {
       console.log("Enterprise user with voice credits");
     } else if (isTrial) {
       console.log("Trial user with voice credits");

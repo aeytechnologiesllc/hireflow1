@@ -38,6 +38,7 @@ export default function SubscriptionSettings() {
     createBillingPortal,
     syncSubscription,
     refetch,
+    subscriptionBypass,
   } = useSubscription();
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
@@ -133,7 +134,15 @@ export default function SubscriptionSettings() {
   }
 
   const trialTime = getTrialTimeRemaining();
-  const planName = subscription?.plan_type === "enterprise" ? "Enterprise" : subscription?.plan_type === "business" ? "Business" : subscription?.plan_type === "growth" ? "Growth" : "Trial";
+  const planName = subscriptionBypass
+    ? "Internal Test"
+    : subscription?.plan_type === "enterprise"
+      ? "Enterprise"
+      : subscription?.plan_type === "business"
+        ? "Business"
+        : subscription?.plan_type === "growth"
+          ? "Growth"
+          : "Trial";
 
   return (
     <div className="space-y-6">
@@ -324,7 +333,7 @@ export default function SubscriptionSettings() {
                         : "bg-destructive/20 text-destructive border-destructive/30"
                   }
                 >
-                  {subscription?.status}
+                  {subscriptionBypass ? "Test access" : subscription?.status}
                 </Badge>
               </div>
               {isTrialing && trialTime && (
@@ -356,20 +365,22 @@ export default function SubscriptionSettings() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="text-muted-foreground hover:bg-muted"
-              onClick={handleRefreshSubscription} 
-              disabled={loading === "refresh"}
-            >
-              {loading === "refresh" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-            {isPaid && (
+            {!subscriptionBypass && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:bg-muted"
+                onClick={handleRefreshSubscription}
+                disabled={loading === "refresh"}
+              >
+                {loading === "refresh" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            {isPaid && !subscriptionBypass && (
               <Button 
                 variant="outline" 
                 className="border-border text-muted-foreground hover:bg-muted"

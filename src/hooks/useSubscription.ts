@@ -73,6 +73,7 @@ export interface SubscriptionState {
   limits: PlanLimits;
   voiceCredits: VoiceCreditsData;
   teamAccess: TeamAccessState;
+  subscriptionBypass: boolean;
 }
 
 const defaultTeamAccess: TeamAccessState = {
@@ -114,6 +115,7 @@ function buildFallbackSubscriptionState(userId: string | undefined): Subscriptio
     limits: { jobs: 1, applicants: 15, documents: 10, teamMembers: 1, aiAnalyses: 15, voiceMinutes: 15, hasAdvancedAnalytics: false, hasTeamPortal: true, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: true },
     voiceCredits: { totalMinutesAvailable: 0, credits: [] },
     teamAccess: defaultTeamAccess,
+    subscriptionBypass: false,
   };
 }
 
@@ -289,6 +291,7 @@ export function useSubscription() {
 
   // Calculate trial time remaining
   const getTrialTimeRemaining = () => {
+    if (data?.subscriptionBypass) return null;
     if (!data?.subscription?.trial_end || data.subscription.status !== 'trialing') {
       return null;
     }
@@ -307,12 +310,14 @@ export function useSubscription() {
 
   // Check if a feature is available
   const hasFeature = (feature: keyof PlanLimits) => {
+    if (data?.subscriptionBypass) return true;
     if (!data?.limits) return false;
     return data.limits[feature] === true || data.limits[feature] === -1 || (typeof data.limits[feature] === 'number' && data.limits[feature] > 0);
   };
 
   // Check if usage is within limits
   const isWithinLimit = (limitKey: 'jobs' | 'applicants' | 'documents' | 'teamMembers', currentCount?: number) => {
+    if (data?.subscriptionBypass) return true;
     if (!data?.limits) return true;
     const limit = data.limits[limitKey];
     if (limit === -1) return true; // Unlimited
@@ -326,6 +331,7 @@ export function useSubscription() {
   };
 
   const hasVoiceAccess = () => {
+    if (data?.subscriptionBypass) return true;
     if (!data?.subscription) return false;
     const hasVoicePlan = ['business', 'enterprise'].includes(data.subscription.plan_type) && data.subscription.status === 'active';
     const isTrial = data.subscription.status === 'trialing';
@@ -334,6 +340,7 @@ export function useSubscription() {
   };
 
   const getVoiceAccessState = (): 'full' | 'trial' | 'trial_exhausted' | 'exhausted' | 'locked' | 'expired' => {
+    if (data?.subscriptionBypass) return 'full';
     if (!data?.subscription) return 'locked';
     if (data.subscription.status === 'expired') return 'expired';
     
@@ -353,6 +360,7 @@ export function useSubscription() {
 
   // Low balance warning (show when <= 15 minutes)
   const showLowBalanceWarning = () => {
+    if (data?.subscriptionBypass) return false;
     const state = getVoiceAccessState();
     if (state === 'locked' || state === 'expired') return false;
     return getVoiceMinutesRemaining() <= 15 && getVoiceMinutesRemaining() > 0;
@@ -364,6 +372,7 @@ export function useSubscription() {
     limits: data?.limits ?? { jobs: 1, applicants: 10, documents: 5, teamMembers: 0, aiAnalyses: 20, voiceMinutes: 0, hasAdvancedAnalytics: false, hasTeamPortal: false, hasDocuments: true, hasPrioritySupport: false, hasVoiceAssistant: false, hasVoiceInterviews: false },
     voiceCredits: data?.voiceCredits ?? { totalMinutesAvailable: 0, credits: [] },
     teamAccess: data?.teamAccess ?? defaultTeamAccess,
+    subscriptionBypass: data?.subscriptionBypass ?? false,
     isLoading,
     error,
     refetch,
@@ -375,9 +384,9 @@ export function useSubscription() {
     getTrialTimeRemaining,
     hasFeature,
     isWithinLimit,
-    isPaid: data?.subscription?.status === 'active',
-    isTrialing: data?.subscription?.status === 'trialing',
-    isExpired: data?.subscription?.status === 'expired',
+    isPaid: data?.subscriptionBypass || data?.subscription?.status === 'active',
+    isTrialing: !data?.subscriptionBypass && data?.subscription?.status === 'trialing',
+    isExpired: !data?.subscriptionBypass && data?.subscription?.status === 'expired',
     needsOnboarding: data?.subscription && !data.subscription.onboarding_completed,
     // Voice helpers
     hasVoiceAccess,

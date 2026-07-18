@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -111,9 +112,47 @@ Deno.serve(async (req) => {
 
       targetUserId = job.employer_id;
       console.log(`[deduct-voice-minutes] Resolved employer: ${targetUserId} for candidate interview`);
+    } else {
+      const { data: employerRole } = await supabaseAdmin
+        .from('user_roles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .eq('role', 'employer')
+        .maybeSingle();
+
+      if (!employerRole) {
+        const { data: activeMembership } = await supabaseAdmin
+          .from('team_members')
+          .select('employer_id')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (activeMembership?.employer_id) {
+          targetUserId = activeMembership.employer_id;
+        }
+      }
     }
 
     console.log(`[deduct-voice-minutes] Mode: ${mode}, Deducting ${sessionDurationMinutes} minutes from user ${targetUserId}`);
+
+    if (await hasSubscriptionBypassForUser(supabaseAdmin, targetUserId)) {
+      console.log('[deduct-voice-minutes] Internal test account bypass active; skipping deduction', {
+        targetUserId,
+        mode,
+      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          subscriptionBypass: true,
+          minutesDeducted: 0,
+          remainingBalance: null,
+          targetUserId,
+          mode,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fetch active voice credits ordered by expiration (FIFO - earliest expiring first)
     const { data: credits, error: creditsError } = await supabaseAdmin

@@ -16,6 +16,7 @@ import {
   type AvaScorecard,
   type AutopilotAction,
 } from "../_shared/autopilot.ts";
+import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 
 const ANALYSIS_VERSION = 4;
 
@@ -125,7 +126,7 @@ function applyExpectedApplicationStateFilter(
 }
 
 async function notifyEmployerInterviewReady(params: {
-  supabaseAdmin: ReturnType<typeof createClient>;
+  supabaseAdmin: any;
   employerId: string | null | undefined;
   job: any;
   profile: any;
@@ -165,7 +166,7 @@ async function notifyEmployerInterviewReady(params: {
 }
 
 async function handleAutopilotDecision(params: {
-  supabaseAdmin: ReturnType<typeof createClient>;
+  supabaseAdmin: any;
   application: any;
   applicationId: string;
   currentPhaseId: string | null;
@@ -213,8 +214,12 @@ async function handleAutopilotDecision(params: {
     }, 500);
   }
 
-  const latestStatus = latestApplication?.status ?? null;
-  const latestPhase = latestApplication?.phase ?? null;
+  const latestStatus = typeof latestApplication?.status === "string"
+    ? latestApplication.status
+    : null;
+  const latestPhase = typeof latestApplication?.phase === "string"
+    ? latestApplication.phase
+    : null;
   const staleApplicationState =
     latestStatus !== application.status ||
     latestPhase !== application.phase ||
@@ -777,58 +782,64 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
 
     // ========== AI ANALYSES LIMIT CHECK ==========
     if (employerId) {
-      const { data: subscription } = await supabaseAdmin
-        .from("subscriptions")
-        .select("plan_type, status, trial_end")
-        .eq("user_id", employerId)
-        .maybeSingle();
+      const subscriptionBypass = await hasSubscriptionBypassForUser(supabaseAdmin, employerId);
 
-      const hasActiveSubscriptionAccess =
-        !subscription ||
-        subscription.status === "active" ||
-        (subscription.status === "trialing" &&
-          (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
+      if (subscriptionBypass) {
+        console.log("[trigger-ava-analysis] Internal test account bypass active", { employerId });
+      } else {
+        const { data: subscription } = await supabaseAdmin
+          .from("subscriptions")
+          .select("plan_type, status, trial_end")
+          .eq("user_id", employerId)
+          .maybeSingle();
 
-      if (!hasActiveSubscriptionAccess) {
-        return jsonResponse({
-          error: "Subscription inactive",
-          message: "This employer's subscription is not active, so Ava analysis is unavailable.",
-        }, 403);
-      }
+        const hasActiveSubscriptionAccess =
+          !subscription ||
+          subscription.status === "active" ||
+          (subscription.status === "trialing" &&
+            (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
 
-      const planType = subscription?.plan_type || "trial";
-      const aiAnalysesLimits: Record<string, number> = {
-        trial: 15,
-        growth: 100,
-        business: -1,
-        enterprise: -1,
-      };
-      const aiLimit = aiAnalysesLimits[planType] ?? 15;
+        if (!hasActiveSubscriptionAccess) {
+          return jsonResponse({
+            error: "Subscription inactive",
+            message: "This employer's subscription is not active, so Ava analysis is unavailable.",
+          }, 403);
+        }
 
-      if (aiLimit !== -1) {
-        const { data: employerJobs } = await supabaseAdmin
-          .from("jobs")
-          .select("id")
-          .eq("employer_id", employerId);
+        const planType = subscription?.plan_type || "trial";
+        const aiAnalysesLimits: Record<string, number> = {
+          trial: 15,
+          growth: 100,
+          business: -1,
+          enterprise: -1,
+        };
+        const aiLimit = aiAnalysesLimits[planType] ?? 15;
 
-        const jobIds = (employerJobs || []).map((entry: any) => entry.id);
-        if (jobIds.length > 0) {
-          const { count: analysisCount } = await supabaseAdmin
-            .from("applications")
-            .select("*", { count: "exact", head: true })
-            .in("job_id", jobIds)
-            .not("ai_score", "is", null);
+        if (aiLimit !== -1) {
+          const { data: employerJobs } = await supabaseAdmin
+            .from("jobs")
+            .select("id")
+            .eq("employer_id", employerId);
 
-          const currentCount = analysisCount || 0;
-          if (currentCount >= aiLimit) {
-            console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
-            return jsonResponse({
-              error: "AI analysis limit reached",
-              message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
-              limitReached: true,
-            }, 403);
+          const jobIds = (employerJobs || []).map((entry: any) => entry.id);
+          if (jobIds.length > 0) {
+            const { count: analysisCount } = await supabaseAdmin
+              .from("applications")
+              .select("*", { count: "exact", head: true })
+              .in("job_id", jobIds)
+              .not("ai_score", "is", null);
+
+            const currentCount = analysisCount || 0;
+            if (currentCount >= aiLimit) {
+              console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
+              return jsonResponse({
+                error: "AI analysis limit reached",
+                message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
+                limitReached: true,
+              }, 403);
+            }
+            console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
           }
-          console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
         }
       }
     }

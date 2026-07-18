@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function VoiceCreditsSection() {
-  const { subscription, voiceCredits, purchaseVoiceCredits, showLowBalanceWarning } = useSubscription();
+  const { subscription, voiceCredits, purchaseVoiceCredits, showLowBalanceWarning, subscriptionBypass } = useSubscription();
   const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -86,6 +86,25 @@ export default function VoiceCreditsSection() {
     
     verifyPurchase();
   }, [queryClient, verifying]);
+
+  if (subscriptionBypass) {
+    return (
+      <div className="p-6 rounded-xl border border-primary/30 bg-primary/5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/15 border border-primary/30">
+              <Mic className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Voice Access</h3>
+              <p className="text-sm text-muted-foreground">Internal test account</p>
+            </div>
+          </div>
+          <p className="font-semibold text-primary">Unlimited</p>
+        </div>
+      </div>
+    );
+  }
 
   const hasVoicePlan = ['business', 'enterprise'].includes(subscription?.plan_type || '') && subscription?.status === 'active';
   const isTrialing = subscription?.status === 'trialing';

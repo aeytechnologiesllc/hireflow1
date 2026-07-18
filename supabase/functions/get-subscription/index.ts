@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +92,7 @@ serve(async (req) => {
         },
         voiceCredits: { totalMinutesAvailable: 0, credits: [] },
         teamAccess,
+        subscriptionBypass: false,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -142,11 +144,17 @@ serve(async (req) => {
           limits: getNoAccessLimits(),
           voiceCredits: { totalMinutesAvailable: 0, credits: [] },
           teamAccess,
+          subscriptionBypass: false,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
+
+    const subscriptionBypass = await hasSubscriptionBypassForUser(
+      supabaseAdmin,
+      effectiveOwnerId,
+    );
 
     // Get subscription — use admin client for consistent reads after sync writes
     const { data: subscription, error: subError } = await supabaseAdmin
@@ -270,8 +278,8 @@ serve(async (req) => {
     );
 
     // AUTO-PROVISION: If user has no active credits, check if they should have some
-    const isTrial = subscription?.status === 'trialing';
-    const isPaidVoicePlan = (subscription?.plan_type === 'business' || subscription?.plan_type === 'enterprise') && subscription?.status === 'active';
+    const isTrial = !subscriptionBypass && subscription?.status === 'trialing';
+    const isPaidVoicePlan = !subscriptionBypass && (subscription?.plan_type === 'business' || subscription?.plan_type === 'enterprise') && subscription?.status === 'active';
     
     // Self-healing: Provision monthly credits for paid plans if balance is unexpectedly 0
     if (isPaidVoicePlan && totalVoiceMinutes <= 0) {
@@ -388,7 +396,7 @@ serve(async (req) => {
     }
 
     // If no subscription exists, create trial
-    if (!subscription) {
+    if (!subscription && !subscriptionBypass) {
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + 7);
 
@@ -429,13 +437,14 @@ serve(async (req) => {
           }],
         },
         teamAccess,
+        subscriptionBypass: false,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Check if trial expired
-    if (subscription.status === 'trialing' && subscription.trial_end) {
+    if (!subscriptionBypass && subscription?.status === 'trialing' && subscription.trial_end) {
       const trialEnd = new Date(subscription.trial_end);
       if (trialEnd < new Date()) {
         await supabaseAdmin.from("subscriptions").update({
@@ -451,10 +460,34 @@ serve(async (req) => {
       }
     }
 
+    const effectiveSubscription = subscriptionBypass
+      ? {
+          ...(subscription || {}),
+          id: subscription?.id || `internal_test_${effectiveOwnerId}`,
+          user_id: effectiveOwnerId,
+          stripe_customer_id: subscription?.stripe_customer_id ?? null,
+          stripe_subscription_id: subscription?.stripe_subscription_id ?? null,
+          plan_type: 'business',
+          status: 'active',
+          trial_start: null,
+          trial_end: null,
+          current_period_start: subscription?.current_period_start ?? null,
+          current_period_end: subscription?.current_period_end ?? null,
+          cancel_at_period_end: false,
+          currency: subscription?.currency ?? 'usd',
+          amount: subscription?.amount ?? null,
+          onboarding_completed: subscription?.onboarding_completed ?? true,
+          created_at: subscription?.created_at ?? new Date().toISOString(),
+          updated_at: subscription?.updated_at ?? new Date().toISOString(),
+        }
+      : subscription;
+
     return new Response(JSON.stringify({
-      subscription,
+      subscription: effectiveSubscription,
       usage: usage || { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
-      limits: getPlanLimits(subscription.plan_type),
+      limits: subscriptionBypass
+        ? getSubscriptionBypassLimits()
+        : getPlanLimits(effectiveSubscription!.plan_type),
       voiceCredits: {
         totalMinutesAvailable: totalVoiceMinutes,
         credits: (voiceCredits || []).map(c => ({
@@ -468,6 +501,7 @@ serve(async (req) => {
         })),
       },
       teamAccess,
+      subscriptionBypass,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -552,5 +586,22 @@ function getNoAccessLimits() {
     hasPrioritySupport: false,
     hasVoiceAssistant: false,
     hasVoiceInterviews: false,
+  };
+}
+
+function getSubscriptionBypassLimits() {
+  return {
+    jobs: -1,
+    applicants: -1,
+    documents: -1,
+    teamMembers: -1,
+    aiAnalyses: -1,
+    voiceMinutes: -1,
+    hasAdvancedAnalytics: true,
+    hasTeamPortal: true,
+    hasDocuments: true,
+    hasPrioritySupport: true,
+    hasVoiceAssistant: true,
+    hasVoiceInterviews: true,
   };
 }
