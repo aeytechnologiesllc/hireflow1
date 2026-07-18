@@ -50,7 +50,7 @@ export { useSchemaMode };
 export function useCockpitAccount() {
   const { data: mode } = useSchemaMode();
   const { data: profile, isLoading: profileLoading } = useProfile();
-  const { getTrialTimeRemaining } = useSubscription();
+  const { getTrialTimeRemaining, isTrialing, subscriptionBypass } = useSubscription();
   const trial = getTrialTimeRemaining();
 
   const showcaseQ = useQuery({
@@ -64,7 +64,13 @@ export function useCockpitAccount() {
     return buildAccountFromProfile(profile, trial?.expired ? 0 : trial?.days ?? null);
   }, [mode, showcaseQ.data, profile, trial]);
 
-  return { account, profile, isLoading: profileLoading || showcaseQ.isLoading };
+  return {
+    account,
+    profile,
+    isLoading: profileLoading || showcaseQ.isLoading,
+    showTrialAccess: mode === "showcase" || isTrialing,
+    subscriptionBypass: mode === "showcase" ? false : subscriptionBypass,
+  };
 }
 
 export function useCockpitJobsData() {

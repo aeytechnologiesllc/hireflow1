@@ -30,7 +30,7 @@ const ITEMS = [
 
 export default function CockpitMore() {
   const navigate = useNavigate();
-  const { account } = useCockpitAccount();
+  const { account, showTrialAccess } = useCockpitAccount();
   const { signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -53,9 +53,11 @@ export default function CockpitMore() {
           <div className="text-[16px] font-semibold" style={{ color: "hsl(150 30% 92%)" }}>{account.name}</div>
           <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>Owner workspace</div>
         </div>
-        <span className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ background: "hsl(38 40% 14% / 0.5)", border: "1px solid hsl(38 50% 45% / 0.3)", color: "hsl(38 64% 70%)" }}>
-          <Clock className="h-3.5 w-3.5" />{account.trialDaysLeft} days left
-        </span>
+        {showTrialAccess && (
+          <span className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ background: "hsl(38 40% 14% / 0.5)", border: "1px solid hsl(38 50% 45% / 0.3)", color: "hsl(38 64% 70%)" }}>
+            <Clock className="h-3.5 w-3.5" />{account.trialDaysLeft} days left
+          </span>
+        )}
       </div>
 
       {/* list */}
@@ -84,11 +86,13 @@ export default function CockpitMore() {
       </div>
 
       {/* trial */}
-      <div className="ck-card flex items-center gap-3 p-4">
-        <Clock className="h-5 w-5" style={{ color: "hsl(38 64% 66%)" }} />
-        <span className="flex-1 text-[14px]" style={{ color: "hsl(150 22% 82%)" }}>Trial ends {account.trialEnds}</span>
-        <button className="ck-btn ck-btn-brass !px-4 !py-2 !text-[13px]" onClick={() => navigate("/settings?tab=subscription")}>Manage plan</button>
-      </div>
+      {showTrialAccess && (
+        <div className="ck-card flex items-center gap-3 p-4">
+          <Clock className="h-5 w-5" style={{ color: "hsl(38 64% 66%)" }} />
+          <span className="flex-1 text-[14px]" style={{ color: "hsl(150 22% 82%)" }}>Trial ends {account.trialEnds}</span>
+          <button className="ck-btn ck-btn-brass !px-4 !py-2 !text-[13px]" onClick={() => navigate("/settings?tab=subscription")}>Manage plan</button>
+        </div>
+      )}
 
       {/* log out */}
       <button

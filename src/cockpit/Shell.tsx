@@ -89,7 +89,10 @@ function AccountChip({ compact }: { compact?: boolean }) {
 }
 
 function TrialBadge() {
-  const { account } = useCockpitAccount();
+  const { account, showTrialAccess } = useCockpitAccount();
+
+  if (!showTrialAccess) return null;
+
   return (
     <div
       className="rounded-xl px-3.5 py-3"
