@@ -2,6 +2,11 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
+// change, not a code change. Set GEMINI_REPORT_MODEL to the replacement model when swapping.
+const GEMINI_REPORT_MODEL = Deno.env.get("GEMINI_REPORT_MODEL") || "google/gemini-2.5-flash";
+
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -303,7 +308,7 @@ Return ONLY valid JSON, no markdown.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_REPORT_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

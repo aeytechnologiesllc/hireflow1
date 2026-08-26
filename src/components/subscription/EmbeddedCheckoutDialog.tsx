@@ -14,10 +14,21 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import SubscriptionSuccessModal from "./SubscriptionSuccessModal";
 
-const stripePromise = loadStripe(
-  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
-    "pk_test_51SYwD8JoMc2msNl4N5h2xsl4PudL7EfI4IaTkYXkQ5xvRyJgL8Ysafhgi0Hyi3HXW2yHvWHXwoayQlkndkkchGY300VdwdmLq3"
-);
+/**
+ * NEVER fall back to a hardcoded key. A missing VITE_STRIPE_PUBLISHABLE_KEY used to
+ * silently drop production into Stripe TEST mode: checkout opened, looked correct,
+ * and could not take a real payment. Now the failure is loud and visible.
+ */
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+
+if (!STRIPE_PUBLISHABLE_KEY) {
+  console.error(
+    "[HireFlow] VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout is disabled. " +
+      "Set the LIVE key in the hosting environment."
+  );
+}
+
+const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
 
 interface EmbeddedCheckoutDialogProps {
   clientSecret: string | null;
@@ -142,6 +153,14 @@ export default function EmbeddedCheckoutDialog({
           Complete your HireFlow subscription securely with Stripe.
         </DialogDescription>
         <div className="relative min-h-[400px] max-h-[92vh] overflow-y-auto">
+          {!stripePromise ? (
+            <div className="p-8 text-center">
+              <p className="text-base font-semibold text-foreground">Checkout isn&apos;t available right now</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Payments aren&apos;t configured on this deployment. Nothing has been charged &mdash; please try again shortly.
+              </p>
+            </div>
+          ) : (
           <>
             <EmbeddedCheckoutProvider
               key={clientSecret}
@@ -162,6 +181,7 @@ export default function EmbeddedCheckoutDialog({
               </div>
             )}
           </>
+          )}
           {isSyncing && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

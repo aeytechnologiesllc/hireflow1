@@ -102,10 +102,10 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
     employmentType: empType,
     directApply: true,
     url,
-    identifier: { "@type": "PropertyValue", name: company || "HireFlow", value: job.job_code || job.id },
+    identifier: { "@type": "PropertyValue", name: company, value: job.job_code || job.id },
     hiringOrganization: {
       "@type": "Organization",
-      name: company || "Confidential",
+      name: company,
       ...(logo ? { logo } : {}),
     },
   };
@@ -221,6 +221,19 @@ export default async function handler(req, res) {
     const title = jobPageTitle(job, company);
     const desc = jobMetaDescription(job);
     const url = `${origin}/candidate/job/${job.id}`;
+    /**
+     * Only publish JobPosting structured data when the listing satisfies Google's
+     * requirements. An anonymous ("Confidential") or expired posting is not merely
+     * ignored — it is a spam signal against the whole domain, so we emit the page
+     * with normal meta tags and NO JobPosting block instead.
+     */
+    const indexable =
+      Boolean(schema.hiringOrganization && schema.hiringOrganization.name) &&
+      Boolean(schema.title) &&
+      Boolean(schema.datePosted) &&
+      Boolean(schema.jobLocation || schema.applicantLocationRequirements) &&
+      (!schema.validThrough || new Date(schema.validThrough).getTime() >= Date.now());
+
     const jsonLd = JSON.stringify(schema).replace(/</g, "\\u003c");
 
     const injected =
@@ -230,7 +243,9 @@ export default async function handler(req, res) {
       `<meta property="og:url" content="${esc(url)}" />` +
       `<meta name="twitter:card" content="summary" />` +
       `<link rel="canonical" href="${esc(url)}" />` +
-      `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>`;
+      (indexable
+        ? `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>`
+        : `<meta name="robots" content="noindex,follow" />`);
 
     let out = shell
       .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`)

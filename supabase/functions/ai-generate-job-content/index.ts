@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
+import { guardPublicAiCall } from "../_shared/rateLimit.ts";
   callOpenAIChat,
   callOpenAIJson,
   requireJsonKeys,
@@ -305,6 +306,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Public endpoint that spends money per call — cap how fast one caller can spend it.
+  const limited = await guardPublicAiCall(req, "ai-job-content", corsHeaders, 15, 3600);
+  if (limited) return limited;
 
   let body: JobContentRequest | null = null;
 

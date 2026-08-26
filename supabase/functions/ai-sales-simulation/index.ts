@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
+import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,6 +35,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Public endpoint that spends money per call — cap how fast one caller can spend it.
+  const limited = await guardPublicAiCall(req, "ai-sales-simulation", corsHeaders, 60, 3600);
+  if (limited) return limited;
 
   try {
     const request: SalesSimulationRequest = await req.json();

@@ -285,26 +285,10 @@ export default function CandidateAuth() {
       }
     }
 
-    // Check if email exists
-    try {
-      const response = await supabase.functions.invoke('check-email-exists', {
-        body: { email: forgotPasswordEmail }
-      });
-
-      if (response.error) {
-        console.error('Error checking email:', response.error);
-      } else if (!response.data?.exists) {
-        toast({
-          variant: "warning",
-          title: "Email Not Found",
-          description: "No account found with this email address.",
-        });
-        setIsLoading(false);
-        return;
-      }
-    } catch (checkError) {
-      console.error('Error checking email existence:', checkError);
-    }
+    // NOTE: we deliberately do NOT check whether the address has an account.
+    // Telling a stranger "no account found" turns password reset into an account
+    // enumeration tool — anyone could test a list of emails against us. The reply
+    // below is identical whether or not the account exists.
 
     const redirectUrl = `${window.location.origin}/candidate/auth?reset=true`;
     
@@ -313,18 +297,15 @@ export default function CandidateAuth() {
     });
 
     if (error) {
-      toast({
-        variant: "warning",
-        title: "Reset Failed",
-        description: error.message,
-      });
-    } else {
-      setResetEmailSent(true);
-      toast({
-        title: "Check your email",
-        description: "We've sent you a password reset link.",
-      });
+      console.error('Password reset request failed:', error);
     }
+
+    // Same response either way — never reveal whether the address is registered.
+    setResetEmailSent(true);
+    toast({
+      title: "Check your email",
+      description: "If that address has an account, a reset link is on its way.",
+    });
 
     setIsLoading(false);
   };

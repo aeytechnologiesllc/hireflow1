@@ -18,7 +18,7 @@ const SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
 const ORIGIN = "https://hireflownow.com";
 
 const JOB_FIELDS =
-  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,is_remote,employer_id";
+  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,is_remote,employer_id,exclude_from_feed";
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -64,12 +64,11 @@ function jobTypeText(t) {
 export default async function handler(req, res) {
   try {
     const now = Date.now();
-    const jobs = (
-      (await sb(`published_jobs_public?select=${encodeURIComponent(JOB_FIELDS)}&order=created_at.desc&limit=1000`)) ?? []
-    ).filter((job) => !job.application_deadline || new Date(job.application_deadline).getTime() >= now);
+    const raw =
+      (await sb(`published_jobs_public?select=${encodeURIComponent(JOB_FIELDS)}&order=created_at.desc&limit=1000`)) ?? [];
 
     // Company names per employer (one query for all).
-    const employerIds = [...new Set(jobs.map((j) => j.employer_id).filter(Boolean))];
+    const employerIds = [...new Set(raw.map((j) => j.employer_id).filter(Boolean))];
     const companies = new Map();
     if (employerIds.length > 0) {
       const list = employerIds.map((id) => `"${id}"`).join(",");
@@ -80,17 +79,41 @@ export default async function handler(req, res) {
       }
     }
 
+    /**
+     * QUALITY GATE. Aggregators (and Google for Jobs) reject — and can blacklist a
+     * whole source over — listings with no employer, no real location, or an
+     * expired date. A job only reaches the feed when it can stand on its own:
+     *   - not explicitly excluded (QA/demo jobs)
+     *   - deadline not passed
+     *   - a REAL company name (never the "Private employer" placeholder)
+     *   - a city and a country
+     * Anything failing is silently held back rather than poisoning the source.
+     */
+    const jobs = raw.filter((job) => {
+      if (job.exclude_from_feed) return false;
+      if (job.application_deadline && new Date(job.application_deadline).getTime() < now) return false;
+      const company = companies.get(job.employer_id);
+      if (!company || !String(company).trim()) return false;
+      const city = job.location_city || (job.location ? job.location.split(",")[0].trim() : "");
+      if (!city) return false;
+      if (!(job.location_country_code || job.location_country)) return false;
+      return true;
+    });
+
     const items = jobs.map((job) => {
       const city = job.location_city || (job.location ? job.location.split(",")[0].trim() : "");
       const state = job.location_region || "";
       const country = job.location_country_code || job.location_country || "US";
-      const company = companies.get(job.employer_id) || "Private employer";
+      const company = companies.get(job.employer_id);
       const url = `${ORIGIN}/candidate/job/${job.id}?utm_source=jobfeed&utm_medium=organic`;
       const salary = salaryText(job);
       return [
         "  <job>",
         `    <title>${cdata(job.title)}</title>`,
+        // Both spellings: <date> (Indeed-style RFC-1123) and <dateposted> (ISO-8601,
+        // required by Talent.com and others). Emitting one only fails validation.
         `    <date>${cdata(new Date(job.created_at).toUTCString())}</date>`,
+        `    <dateposted>${cdata(new Date(job.created_at).toISOString())}</dateposted>`,
         `    <referencenumber>${cdata(job.job_code || job.id)}</referencenumber>`,
         `    <url>${cdata(url)}</url>`,
         `    <company>${cdata(company)}</company>`,

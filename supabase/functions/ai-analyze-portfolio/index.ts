@@ -2,6 +2,11 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
+// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
+// change, not a code change. Set GEMINI_PORTFOLIO_MODEL to the replacement model when swapping.
+const GEMINI_PORTFOLIO_MODEL = Deno.env.get("GEMINI_PORTFOLIO_MODEL") || "google/gemini-2.5-flash";
+
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -246,7 +251,7 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_PORTFOLIO_MODEL,
         messages: [
           {
             role: "user",

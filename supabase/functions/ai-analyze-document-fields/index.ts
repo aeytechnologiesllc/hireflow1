@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
+// change, not a code change. Set GEMINI_DOC_FIELDS_MODEL to the replacement model when swapping.
+const GEMINI_DOC_FIELDS_MODEL = Deno.env.get("GEMINI_DOC_FIELDS_MODEL") || "google/gemini-2.5-flash";
+
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -45,7 +50,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_DOC_FIELDS_MODEL,
         messages: [
           {
             role: "system",
