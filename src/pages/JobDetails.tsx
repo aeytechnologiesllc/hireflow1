@@ -15,7 +15,6 @@ import {
   Users,
   CheckCircle2,
   ArrowLeft,
-  Sparkles,
   XCircle,
   Loader2,
   AlertTriangle
@@ -473,42 +472,29 @@ export default function JobDetails() {
                   ) : (
                     <>
                       <div className="text-center">
-                        <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
                         <h3 className="text-lg font-semibold text-foreground">Ready to Apply?</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           Start your application and take the first step
                         </p>
                       </div>
-                      
-                      {/* Premium Glowing Apply Button */}
+
+                      {/* One solid action. The shimmer gradient ran through --accent,
+                          which is a pale tint in the light theme, so the label used to
+                          disappear across the middle of the button. */}
                       <Button
                         onClick={handleStartApplication}
                         disabled={isStartingApplication}
                         size="lg"
-                        className="w-full h-14 text-lg font-semibold relative overflow-hidden group"
-                        style={{
-                          boxShadow: "0 0 20px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.2)",
-                        }}
+                        className="w-full h-14 text-lg font-semibold"
                       >
-                        <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]" />
-                        <span className="relative flex items-center gap-2">
-                          {isStartingApplication ? (
-                            <>
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              Apply Now
-                              <motion.span
-                                animate={{ scale: [1, 1.2, 1] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                              >
-                                <Sparkles className="h-5 w-5" />
-                              </motion.span>
-                            </>
-                          )}
-                        </span>
+                        {isStartingApplication ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Starting...
+                          </span>
+                        ) : (
+                          "Apply Now"
+                        )}
                       </Button>
 
                       <p className="text-xs text-center text-muted-foreground">

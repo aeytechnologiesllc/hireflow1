@@ -51,6 +51,8 @@ const PUBLIC = [
   ["auth", "/auth"],
   ["candidate-auth", "/candidate/auth"],
   ["candidate-portal", "/candidate"],
+  // A real published job — what a stranger who clicks the link actually sees.
+  ["job-public", "/job/00b1d2ca-c78f-4a54-bbd5-539f53aa3de3"],
 ];
 
 async function loadEnv() {
@@ -117,29 +119,43 @@ async function main() {
       await context.addInitScript((t) => localStorage.setItem("theme", t), theme);
       const signedIn = await signIn(context);
 
-      const page = await context.newPage();
+      const signedInPage = await context.newPage();
       const errors = [];
       // Locally there is no Stripe key, and the app is meant to say so loudly.
       // That is the fix working, not a fault — do not count it.
       const expected = /VITE_STRIPE_PUBLISHABLE_KEY is not set/;
       const note = (t) => !expected.test(t) && errors.push(t.slice(0, 200));
-      page.on("console", (m) => m.type() === "error" && note(m.text()));
-      page.on("pageerror", (e) => note(`pageerror: ${String(e)}`));
+      signedInPage.on("console", (m) => m.type() === "error" && note(m.text()));
+      signedInPage.on("pageerror", (e) => note(`pageerror: ${String(e)}`));
 
       // A brand-new employer lands on the first-run welcome, which stands in front
       // of every cockpit route. Step through it the way a real person would.
       if (signedIn) {
-        await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" }).catch(() => {});
-        await page.waitForTimeout(1500);
-        const skip = page.getByText(/take me to my dashboard/i).first();
+        await signedInPage.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" }).catch(() => {});
+        await signedInPage.waitForTimeout(1500);
+        const skip = signedInPage.getByText(/take me to my dashboard/i).first();
         if (await skip.isVisible().catch(() => false)) {
           await skip.click().catch(() => {});
-          await page.waitForTimeout(2500);
+          await signedInPage.waitForTimeout(2500);
         }
       }
 
-      const surfaces = signedIn ? [...COCKPIT, ...PUBLIC] : PUBLIC;
+      // Public pages must be seen the way a stranger sees them, so they get their
+      // own signed-out page. A signed-in employer on /job/:id hits the
+      // candidate-only guard instead of the listing.
+      const guest = await context.browser().newContext({
+        viewport: { width: vp.width, height: vp.height },
+        deviceScaleFactor: 2,
+      });
+      await guest.addInitScript((t) => localStorage.setItem("theme", t), theme);
+      const guestPage = await guest.newPage();
+      guestPage.on("console", (m) => m.type() === "error" && note(m.text()));
+      guestPage.on("pageerror", (e) => note(`pageerror: ${String(e)}`));
+
+      const surfaces = [...(signedIn ? COCKPIT : []), ...PUBLIC];
       for (const [name, route] of surfaces) {
+        const isPublic = PUBLIC.some(([n]) => n === name);
+        const page = isPublic ? guestPage : signedInPage;
         const before = errors.length;
         try {
           await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 30000 });
@@ -174,6 +190,7 @@ async function main() {
       }
 
       if (!signedIn) console.log(`  (not signed in — cockpit skipped for ${theme}/${vp.width})`);
+      await guest.close();
       await context.close();
     }
   }
