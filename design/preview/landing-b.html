@@ -144,9 +144,50 @@
   .sub b{color:var(--ink)}
   .dim{font-size:12px;color:var(--ink-3)}
 
-  /* ── Hero (Night) — one column; the night's work now plays out below, scrubbed by scroll ── */
-  .hero{padding:clamp(56px,8vw,96px) 0 clamp(40px,6vw,64px);min-height:calc(72svh - 62px);display:flex;align-items:center}
-  .hero-in{width:100%;max-width:820px;margin-inline:auto}
+  /* ── Hero (Night) — copy left, the 11:47 application floating right; on a
+     phone the card fills the lower half. It hands off to story scene 1. ── */
+  .hero{padding:clamp(56px,8vw,96px) 0 clamp(40px,6vw,64px);min-height:calc(92svh - 62px);display:flex;align-items:center}
+  .hero-in{width:100%;max-width:1080px;margin-inline:auto;display:grid;align-items:center;
+    grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:clamp(28px,5vw,64px)}
+  /* the hook — nested wrappers so JS (parallax/hand-off), bob and tilt never fight */
+  .hook{display:flex;align-items:center;justify-content:center;perspective:900px}
+  .hook-par{will-change:transform,opacity}
+  .hook-bob{animation:hookbob 6.5s ease-in-out infinite alternate}
+  .hook-tilt{position:relative;animation:hooktilt 9.7s ease-in-out infinite alternate}
+  @keyframes hookbob{from{transform:translate3d(0,-6px,0)}to{transform:translate3d(0,6px,0)}}
+  @keyframes hooktilt{from{transform:rotateX(2.2deg) rotateY(-2.5deg)}to{transform:rotateX(-2.2deg) rotateY(2.5deg)}}
+  .hook-card{position:relative;width:min(100%,380px);background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:14px;box-shadow:var(--shadow-md);padding:18px 20px 20px;text-align:left}
+  .hk-top{display:flex;align-items:center;gap:12px}
+  .hk-av{position:relative;width:42px;height:42px;border-radius:50%;background:var(--surface-2);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink-2)}
+  .hk-av i{position:absolute;top:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:var(--jade-bright);
+    box-shadow:0 0 0 3px var(--jade-soft);animation:pulse 2.4s ease-in-out infinite}
+  .hk-name{font-size:15px;font-weight:600;color:var(--ink)}
+  .hk-time{font-family:Fraunces,Georgia,serif;font-size:13px;color:var(--brass);font-variant-numeric:tabular-nums;margin-top:2px}
+  .hk-meta{font-size:12.5px;color:var(--ink-3);margin-top:12px;padding:12px 30px 0 0;border-top:1px solid var(--line-soft)}
+  .hk-seal{position:absolute;right:-13px;bottom:-13px;width:46px;height:46px;pointer-events:none}
+  .hk-seal svg{width:46px;height:46px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow));
+    transform:rotate(-6deg);
+    animation:hookseal .5s var(--press) 1.4s backwards,sealbreathe 5.2s ease-in-out 2.1s infinite alternate}
+  @keyframes hookseal{0%{opacity:0;transform:scale(1.9) rotate(-16deg)}55%{opacity:1;transform:scale(.9) rotate(-3deg)}
+    100%{opacity:1;transform:scale(1) rotate(-6deg)}}
+  @keyframes sealbreathe{from{transform:scale(1) rotate(-6deg)}to{transform:scale(1.045) rotate(-5deg)}}
+  .hk-sheen{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none}
+  .hk-sheen::before{content:"";position:absolute;inset:-30%;transform:translate3d(-70%,0,0);
+    background:linear-gradient(115deg,transparent 42%,var(--bm1) 50%,transparent 58%);
+    animation:hksheen 7s ease-in-out infinite}
+  @keyframes hksheen{0%{transform:translate3d(-70%,0,0)}55%,100%{transform:translate3d(70%,0,0)}}
+  .mote{position:absolute;width:3px;height:3px;border-radius:50%;background:var(--jade-bright);
+    filter:blur(.5px);box-shadow:0 0 7px var(--jade-soft);pointer-events:none}
+  .mote.m1{left:-16px;top:24%;animation:mote1 11s ease-in-out infinite alternate}
+  .mote.m2{right:-12px;top:6%;width:2px;height:2px;animation:mote2 14s ease-in-out -5s infinite alternate}
+  .mote.m3{left:14%;bottom:-14px;width:2px;height:2px;animation:mote2 12.5s ease-in-out -2s infinite alternate-reverse}
+  .mote.m4{right:20%;top:-15px;animation:mote1 9.5s ease-in-out -7s infinite alternate-reverse}
+  @keyframes mote1{0%{transform:translate3d(0,0,0);opacity:.45}35%{transform:translate3d(10px,-16px,0);opacity:.9}
+    70%{transform:translate3d(-7px,-27px,0);opacity:.55}100%{transform:translate3d(4px,-9px,0);opacity:.8}}
+  @keyframes mote2{0%{transform:translate3d(0,0,0);opacity:.35}40%{transform:translate3d(-11px,10px,0);opacity:.85}
+    75%{transform:translate3d(8px,19px,0);opacity:.5}100%{transform:translate3d(-4px,7px,0);opacity:.7}}
   .sub-mob{display:none}
   .watch-link{display:none}
   .scroll-cue{display:none}
@@ -201,19 +242,36 @@
   .story-seal{position:absolute;top:-18px;right:-10px;width:52px;height:52px;transform:rotate(-5deg)}
   .story-seal svg{width:52px;height:52px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
   .story-sign .ava-line{margin:0;justify-content:center}
-  @media(min-width:701px){.scene.story-sign{display:none!important}}
+  @media(min-width:701px){
+    .scene.story-sign{display:none!important}
+    .hero h1{font-size:clamp(34px,4.3vw,52px)}
+  }
+  /* the night's progress rail — three tiny timestamps, lit from p (JS).
+     Statically a quiet row under the kick (no-JS / reduced motion). */
+  .story-rail{display:flex;justify-content:center;gap:16px;margin:12px 0 0;font-size:10px;font-weight:600;
+    letter-spacing:.08em;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .story-rail .sr{opacity:.7;transition:color var(--dur-base) var(--ease),opacity var(--dur-base) var(--ease)}
+  .story-rail .sr.on{opacity:1;color:var(--brass)}
+  .story-rail .sr.j.on{color:var(--jade-bright)}
+  /* the one-time ring ripple off the seal — scale/opacity are pure f(p) */
+  .seal-rip{position:absolute;top:-18px;right:-10px;width:52px;height:52px;border-radius:50%;
+    border:2px solid var(--seal-ring);opacity:0;pointer-events:none}
   /* pinned mode: the tall scroller + the sticky 100svh stage */
   .story.scrub{height:280vh;height:280svh}
   @media(max-width:700px){.story.scrub{height:320vh;height:320svh}}
   .story.scrub .story-pin{position:sticky;top:0;height:100vh;height:100svh;padding:0;overflow:hidden}
   .story.scrub .story-kick{position:absolute;top:76px;left:0;right:0}
+  .story.scrub .story-rail{position:absolute;left:clamp(14px,3.5vw,38px);top:50%;transform:translateY(-50%);
+    flex-direction:column;gap:16px;margin:0;text-align:left}
+  @media(max-width:700px){.story.scrub .story-rail{left:0;right:0;top:auto;bottom:18px;transform:none;
+    flex-direction:row;justify-content:center;gap:18px}}
   .story.scrub .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     padding:70px 18px 20px;opacity:0;visibility:hidden;pointer-events:none}
   .story.scrub .sc-in{will-change:transform}
 
   /* ── Dawn strip — the theme crossfades across this scroll. The copy sits
      at the TOP so the ink-flip moment happens over empty, lightening sky. ── */
-  .dawn{min-height:150svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px);position:relative}
+  .dawn{min-height:128svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px);position:relative}
   .dawn-in{max-width:640px;margin-inline:auto}
   .dawn h2{font-size:clamp(30px,4.6vw,46px)}
   .dawn .sub{margin-inline:auto}
@@ -224,12 +282,12 @@
     transform:translate3d(-50%,20vh,0) scale(.85);opacity:0}
   /* the night's work ticks by in the empty sky — bands of the same scroll progress (JS) */
   .beat{position:absolute;left:50%;z-index:1;width:min(88%,560px);margin:0;pointer-events:none;
-    font-family:Fraunces,Georgia,serif;font-style:italic;font-size:clamp(15px,2vw,17px);
+    font-family:Fraunces,Georgia,serif;font-style:italic;font-size:clamp(16px,1.5vw,19px);
     line-height:1.55;color:var(--ink-2);opacity:0;transform:translate3d(-50%,12px,0)}
   .beat .bt{font-style:normal;font-weight:600;color:var(--brass);font-variant-numeric:tabular-nums}
   /* on a phone the dawn is shorter and each beat owns the eye */
   @media(max-width:700px){
-    .dawn{min-height:92svh;padding-top:40px}
+    .dawn{min-height:84svh;padding-top:40px}
     .beat{font-size:18px;line-height:1.45;width:min(90%,420px)}
     .beat .bt{display:block;font-size:27px;letter-spacing:-.02em;margin-bottom:6px}
   }
@@ -403,7 +461,10 @@
   @media(max-width:700px){
     section{padding:52px 0}
     .sub{font-size:15px}
-    .hero{min-height:0;padding:clamp(32px,9vw,44px) 0 10px}
+    .hero{min-height:calc(100svh - 62px);align-items:stretch;padding:clamp(26px,7vw,40px) 0 16px}
+    .hero-in{display:flex;flex-direction:column;max-width:none;gap:0}
+    .hook{flex:1;margin-top:20px;min-height:190px}
+    .hook-card{width:min(100%,332px)}
     .sub-desk{display:none}
     .sub-mob{display:block;font-size:18px;line-height:1.55;margin-top:14px}
     .hero .ava-line{display:none}
@@ -434,6 +495,10 @@
     .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
     .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
     .step:hover .stseal svg{transform:rotate(5deg)}
+    /* the hook holds still — seal pressed, motes gone, card readable */
+    .hook-bob,.hook-tilt,.hk-seal svg,.hk-sheen::before,.hk-av i{animation:none!important}
+    .mote{display:none}
+    .hook-par{transform:none!important;opacity:1!important}
     /* the story never pins or scrubs — scenes stack, finished */
     .story.scrub{height:auto}
     .story.scrub .story-pin{position:static;height:auto;padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px);overflow:visible}
@@ -486,24 +551,46 @@
 <main id="top">
 
   <!-- ── NIGHT · the hero ── -->
-  <section class="hero" aria-label="While you slept">
+  <section class="hero" id="hero" aria-label="While you slept">
     <div class="wrap hero-in">
-      <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
-      <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
-      <p class="sub sub-desk hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
-        not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
-        <b>You were asleep the whole time.</b></p>
-      <p class="sub sub-mob hi" style="--d:.3s">Interviewed by 11:51. Sealed by midnight. <b>You were asleep.</b></p>
-      <div class="ava-line hi" style="--d:.42s">
-        <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
-        <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
+      <div class="hero-copy">
+        <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
+        <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
+        <p class="sub sub-desk hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
+          not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
+          <b>You were asleep the whole time.</b></p>
+        <p class="sub sub-mob hi" style="--d:.3s">Interviewed by 11:51. Sealed by midnight. <b>You were asleep.</b></p>
+        <div class="ava-line hi" style="--d:.42s">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+          <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
+        </div>
+        <div class="ctas hi" style="--d:.52s">
+          <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
+          <a class="btn lg alt-cta" href="#morning">Watch how it works</a>
+          <a class="watch-link" href="#morning">Watch how it works</a>
+        </div>
+        <p class="scroll-cue hi" style="--d:.6s" aria-hidden="true">scroll — she&#8217;s working &darr;</p>
       </div>
-      <div class="ctas hi" style="--d:.52s">
-        <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
-        <a class="btn lg alt-cta" href="#morning">Watch how it works</a>
-        <a class="watch-link" href="#morning">Watch how it works</a>
+      <!-- the hook: her application, physically here, floating in the night.
+           It rises away on scroll and hands off to scene 1 below. -->
+      <div class="hook hi" style="--d:.55s" aria-hidden="true">
+        <div class="hook-par" id="hook-par">
+          <div class="hook-bob"><div class="hook-tilt">
+            <div class="hook-card">
+              <span class="hk-sheen"></span>
+              <div class="hk-top">
+                <span class="hk-av">DO<i></i></span>
+                <div><div class="hk-name">Danielle Okafor</div>
+                  <div class="hk-time">applied &middot; 11:47&#8202;pm</div></div>
+              </div>
+              <div class="hk-meta">Part-Time Mechanic &middot; from her phone</div>
+              <span class="hk-seal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+            </div>
+            <span class="mote m1"></span><span class="mote m2"></span>
+            <span class="mote m3"></span><span class="mote m4"></span>
+          </div></div>
+        </div>
       </div>
-      <p class="scroll-cue hi" style="--d:.6s" aria-hidden="true">scroll — she&#8217;s working &darr;</p>
     </div>
   </section>
 
@@ -511,6 +598,8 @@
   <section class="story" id="story" aria-label="Tonight, at your shop — the night shift, scene by scene">
     <div class="story-pin" id="story-pin">
       <p class="story-kick lbl"><i></i>Tonight, at your shop</p>
+      <div class="story-rail" id="story-rail" aria-hidden="true"><span class="sr on">11:47</span><span
+        class="sr">11:51</span><span class="sr j">11:59</span></div>
       <div class="scene sc1" id="sc1">
         <div class="sc-in">
           <p class="sc-t">11:47&#8202;pm</p>
@@ -540,6 +629,7 @@
               <div class="scr-why">Named the right torque sequence unprompted.</div></div>
             <div class="scr-score"><span id="story-score" data-count="92">92</span><span class="lbl">Sealed</span></div>
             <span class="story-seal" id="story-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+            <span class="seal-rip" id="seal-rip" aria-hidden="true"></span>
           </div>
         </div>
       </div>
@@ -565,7 +655,7 @@
     </div>
     <p class="beat" data-c="0.37" style="top:36%"><span class="bt">1:20 am</span> — two more applied. Both interviewed within minutes.</p>
     <p class="beat" data-c="0.57" style="top:55%"><span class="bt">3:47 am</span> — Marisol asked about the scanner. Good question.</p>
-    <p class="beat" data-c="0.77" style="top:74%"><span class="bt">5:36 am</span> — a third sealed for your morning.</p>
+    <p class="beat" data-c="0.80" style="top:78%"><span class="bt">5:36 am</span> — a third sealed for your morning.</p>
   </section>
 
   <!-- ── DAY · the morning read (live demo) ── -->
@@ -842,7 +932,9 @@
       rows:[].slice.call(story.querySelectorAll(".ac-row")),
       bars:[].slice.call(story.querySelectorAll(".wave i")),
       words:[].slice.call(story.querySelectorAll(".script .w")),
-      score:d.getElementById("story-score"),seal:d.getElementById("story-seal"),lastN:-1};
+      score:d.getElementById("story-score"),seal:d.getElementById("story-seal"),
+      rip:d.getElementById("seal-rip"),railEl:d.getElementById("story-rail"),
+      rail:[].slice.call(story.querySelectorAll(".story-rail .sr")),lastN:-1,lastIdx:-1};
   }
   function scene(pair,o,ty){
     pair[0].style.opacity=o.toFixed(3);
@@ -851,37 +943,71 @@
   }
   function applyStory(p){
     var i;
-    /* 11:47 — she applies: the card rises, its lines land one by one */
-    var o1=sm(seg(p,0,0.05))*(1-sm(seg(p,0.26,0.32)));
-    scene(SC.s1,o1,(1-sm(seg(p,0.02,0.15)))*36-sm(seg(p,0.26,0.32))*30);
-    for(i=0;i<SC.rows.length;i++){
-      var ro=sm(seg(p,0.05+i*0.03,0.14+i*0.03));
-      SC.rows[i].style.opacity=ro.toFixed(3);
-      SC.rows[i].style.transform="translate3d(0,"+((1-ro)*12).toFixed(1)+"px,0)";
+    /* 11:47 — live from the first pixel: the hero's floating card hands off
+       here, so the stage is never empty on entry. Lines land in the first 10%. */
+    var o1=1-sm(seg(p,0.24,0.32));
+    scene(SC.s1,o1,(1-sm(seg(p,0,0.10)))*18-sm(seg(p,0.24,0.32))*10);
+    for(i=0;i<SC.rows.length;i++){ /* born full — the hook card hands off here;
+      the lines just settle into place over the first few percent */
+      var ro=sm(seg(p,i*0.012,0.05+i*0.012));
+      SC.rows[i].style.opacity=(0.55+0.45*ro).toFixed(3);
+      SC.rows[i].style.transform="translate3d(0,"+((1-ro)*10).toFixed(1)+"px,0)";
     }
-    /* 11:51 — the interview: bars wake left to right, words arrive with the scroll */
-    var o2=sm(seg(p,0.30,0.36))*(1-sm(seg(p,0.575,0.635)));
-    scene(SC.s2,o2,(1-sm(seg(p,0.30,0.38)))*26-sm(seg(p,0.575,0.635))*26);
-    var w=seg(p,0.31,0.60);
+    /* 11:51 — the interview: overlapping the outgoing scene, never a blank stage */
+    var o2=sm(seg(p,0.26,0.34))*(1-sm(seg(p,0.56,0.64)));
+    scene(SC.s2,o2,(1-sm(seg(p,0.26,0.34)))*26-sm(seg(p,0.56,0.64))*10);
+    var w=seg(p,0.30,0.575);
     for(i=0;i<SC.bars.length;i++){
       var gi=sm(seg(w,i*0.018,0.22+i*0.018));           /* staggered wake */
-      var rip=0.5+0.5*Math.sin(w*14+i*0.9);             /* deterministic ripple */
-      SC.bars[i].style.transform="scaleY("+(0.12+gi*(0.28+0.72*rip)).toFixed(3)+")";
+      var rw=0.5+0.5*Math.sin(w*14+i*0.9);              /* deterministic ripple */
+      SC.bars[i].style.transform="scaleY("+(0.12+gi*(0.28+0.72*rw)).toFixed(3)+")";
     }
-    var wr=seg(p,0.35,0.545)*SC.words.length;
+    var wr=seg(p,0.33,0.525)*SC.words.length;
     for(i=0;i<SC.words.length;i++)SC.words[i].style.opacity=cl(wr-i).toFixed(2);
     /* 11:59 — sealed: the score counts with the scroll, the seal presses past and settles */
-    var o3=sm(seg(p,0.62,0.675))*(1-sm(seg(p,0.90,0.985)));
-    scene(SC.s3,o3,(1-sm(seg(p,0.62,0.70)))*28-sm(seg(p,0.88,1))*0.32*vh);
-    var n=Math.round(92*(1-Math.pow(1-seg(p,0.64,0.80),3)));
+    var o3=sm(seg(p,0.58,0.65))*(1-sm(seg(p,0.90,0.985)));
+    scene(SC.s3,o3,(1-sm(seg(p,0.58,0.66)))*28-sm(seg(p,0.88,1))*0.32*vh);
+    var n=Math.round(92*(1-Math.pow(1-seg(p,0.60,0.76),3)));
     if(n!==SC.lastN){SC.lastN=n;SC.score.textContent=n;}
-    var sl=seg(p,0.78,0.88),sb=back(sl);
+    var sl=seg(p,0.74,0.85),sb=back(sl);
     SC.seal.style.opacity=cl(sl*2.5).toFixed(3);
     SC.seal.style.transform="scale("+(1.9-0.9*sb).toFixed(3)+") rotate("+(-14+9*sb).toFixed(1)+"deg)";
+    /* the landing rings once — pure f(p), so scrolling up rewinds it cleanly */
+    var rp=seg(p,0.845,0.945);
+    SC.rip.style.opacity=(sm(seg(rp,0,0.10))*(1-sm(seg(rp,0.10,1)))*0.85).toFixed(3);
+    SC.rip.style.transform="scale("+(0.55+rp*1.5).toFixed(3)+")";
     /* hand-off: Ava signs off (phone), the header lets go, and the dawn is already rising */
     var o4=sm(seg(p,0.90,0.97));
     scene(SC.s4,o4,(1-o4)*14);
     SC.kick.style.opacity=(1-sm(seg(p,0.86,0.94))).toFixed(2);
+    /* the rail: current timestamp lit, the others waiting their turn */
+    var idx=p<0.28?0:p<0.605?1:2;
+    if(idx!==SC.lastIdx){SC.lastIdx=idx;
+      for(i=0;i<SC.rail.length;i++)SC.rail[i].className="sr"+(i===2?" j":"")+(i===idx?" on":"");}
+    SC.railEl.style.opacity=(1-sm(seg(p,0.88,0.96))).toFixed(2);
+  }
+
+  /* ── The hook card: floats in the hero, leans to the pointer (desktop),
+     and rises away with the scroll to hand off to scene 1. Its wrappers are
+     nested so this transform never fights the bob/tilt keyframes. ── */
+  var hookPar=d.getElementById("hook-par"),hero=d.getElementById("hero");
+  var hkEnd=1,hpx=0,hpy=0,lastHook="";
+  function applyHook(y){
+    var k=sm(cl(y/hkEnd));
+    var st="translate3d("+hpx.toFixed(1)+"px,"+(hpy-k*46).toFixed(1)+"px,0)|"+(1-k).toFixed(3);
+    if(st===lastHook)return;lastHook=st;
+    hookPar.style.transform=st.slice(0,st.indexOf("|"));
+    hookPar.style.opacity=(1-k).toFixed(3);
+  }
+  if(hookPar&&hero&&!RM&&matchMedia("(pointer:fine)").matches){
+    hero.addEventListener("pointermove",function(e){
+      if(innerWidth<=700)return;
+      var r=hero.getBoundingClientRect();
+      var qx=(e.clientX-(r.left+r.width/2))/r.width,qy=(e.clientY-(r.top+r.height/2))/r.height;
+      hpx=(qx<-.5?-.5:qx>.5?.5:qx)*14;hpy=(qy<-.5?-.5:qy>.5?.5:qy)*10;
+      onScroll();
+    },{passive:true});
+    hero.addEventListener("pointerleave",function(){hpx=0;hpy=0;onScroll();},{passive:true});
   }
 
   function measure(){
@@ -892,6 +1018,7 @@
     dTop=r.top+y0;dH=r.height;
     mTop=morning.getBoundingClientRect().top+y0;
     if(story){var s=story.getBoundingClientRect();sTop=s.top+y0;sH=s.height;pinH=pin.offsetHeight||vh;}
+    hkEnd=Math.max(140,sTop-vh*0.35);
   }
   function applyT(t){
     var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
@@ -911,7 +1038,9 @@
     }
     /* the night's work ticks by — each beat owns a band of the same progress */
     for(var j=0;j<BEATS.length;j++){
-      var bd=(t-BEATS[j][1])/BW,bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
+      var bd=(t-BEATS[j][1])/BW;
+      if(j===BEATS.length-1&&bd>0)bd*=0.35; /* the last beat lingers — no empty sky before morning */
+      var bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
       BEATS[j][0].style.opacity=bo.toFixed(3);
       BEATS[j][0].style.transform="translate3d(-50%,"+(-bd*12).toFixed(1)+"px,0)";
     }
@@ -924,6 +1053,7 @@
       p=cl((y-sTop)/Math.max(1,sH-pinH));
       if(Math.abs(p-lastP)>0.0012||lastP<0){lastP=p;applyStory(p);}
     }
+    if(hookPar&&!RM)applyHook(y);
     /* the dawn starts inside the story's hand-off band — no dead sky after the seal */
     var start=SCRUB?sTop+(sH-pinH)*0.94:dTop-vh*0.5;
     var end=dTop+dH-vh*0.55;
@@ -932,12 +1062,12 @@
     /* the clock rides the scroll — 11:47 pm → 7:02 am, agreeing with the story's timestamps */
     if(clock){
       var m1;
-      if(SCRUB){m1=p<0.30?4*(p/0.30):p<0.62?4+8*((p-0.30)/0.32):12;}
+      if(SCRUB){m1=p<0.26?4*(p/0.26):p<0.60?4+8*((p-0.26)/0.34):12;}
       else{var p1=start>0?cl(y/start):1;m1=12*p1;}
       var ce=Math.max(end+1,mTop-vh*0.42);
       var p3=cl((y-end)/(ce-end));
       /* shaped so the chip agrees with each sky beat as it passes (1:20 / 3:47 / 5:36) */
-      var ts=t<0.37?t*0.546:t<0.57?0.202+(t-0.37)*1.833:t<0.77?0.569+(t-0.57)*1.359:0.840+(t-0.77)*0.696;
+      var ts=t<0.37?t*0.546:t<0.57?0.202+(t-0.37)*1.833:t<0.80?0.569+(t-0.57)*1.178:0.840+(t-0.80)*0.8;
       var total=(23*60+47+Math.round(m1+401*ts+22*p3))%1440;
       var h=Math.floor(total/60)%12||12,m=total%60;
       var label=h+":"+(m<10?"0":"")+m+" "+(total>=720?"pm":"am");
