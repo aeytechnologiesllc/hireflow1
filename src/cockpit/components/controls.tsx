@@ -14,13 +14,13 @@ export function SearchInput({
 }) {
   return (
     <div className={`ck-input flex items-center gap-2 px-3 ${className ?? ""}`} style={{ height: 42 }}>
-      <Search className="h-4 w-4 shrink-0" style={{ color: "hsl(150 10% 55%)" }} />
+      <Search className="h-4 w-4 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
       <input
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         className="w-full bg-transparent text-[14px] outline-none"
-        style={{ color: "hsl(150 28% 90%)" }}
+        style={{ color: "var(--hf-text)" }}
       />
     </div>
   );
@@ -67,19 +67,19 @@ export function FilterSelect({
         type="button"
         onClick={() => options && setOpen((o) => !o)}
         className="ck-input flex items-center gap-2 px-3 text-[13.5px]"
-        style={{ height: 42, color: "hsl(150 20% 82%)" }}
+        style={{ height: 42, color: "var(--hf-text)" }}
       >
         {icon}
         <span>
-          {label ? <span style={{ color: "hsl(150 10% 56%)" }}>{label} </span> : null}
+          {label ? <span style={{ color: "var(--hf-text-muted)" }}>{label} </span> : null}
           {current}
         </span>
-        <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 55%)", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+        <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
       </button>
       {open && options && (
         <div
           className="absolute left-0 z-50 mt-1.5 min-w-[180px] overflow-hidden rounded-xl py-1"
-          style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 18%)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}
+          style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}
         >
           {options.map((o) => {
             const active = o.value === value;
@@ -89,7 +89,7 @@ export function FilterSelect({
                 type="button"
                 onClick={() => { onChange?.(o.value); setOpen(false); }}
                 className="flex w-full items-center px-3.5 py-2 text-left text-[13px] transition-colors"
-                style={{ color: active ? "hsl(152 50% 62%)" : "hsl(150 20% 80%)", background: active ? "hsl(152 30% 13%)" : "transparent" }}
+                style={{ color: active ? "var(--hf-text-soft)" : "var(--hf-text)", background: active ? "var(--hf-surface-raised)" : "transparent" }}
               >
                 {o.label}
               </button>

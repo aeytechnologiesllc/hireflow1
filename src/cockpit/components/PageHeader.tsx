@@ -18,11 +18,11 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
       {/* Desktop: title + subtitle + right-aligned actions */}
       <div className="hidden md:flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display leading-[1.05]" style={{ fontSize: "clamp(30px, 4vw, 44px)", color: "hsl(150 32% 95%)", fontWeight: 500 }}>
+          <h1 className="font-display leading-[1.05]" style={{ fontSize: "clamp(30px, 4vw, 44px)", color: "var(--hf-text)", fontWeight: 500 }}>
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-1.5 text-[14px]" style={{ color: "hsl(150 10% 60%)" }}>
+            <p className="mt-1.5 text-[14px]" style={{ color: "var(--hf-text-muted)" }}>
               {subtitle}
             </p>
           )}
@@ -33,7 +33,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
       {/* Mobile: subtitle sits under the top-bar title; actions go full width */}
       <div className="md:hidden">
         {subtitle && (
-          <p className="text-[13.5px]" style={{ color: "hsl(150 10% 60%)" }}>
+          <p className="text-[13.5px]" style={{ color: "var(--hf-text-muted)" }}>
             {subtitle}
           </p>
         )}

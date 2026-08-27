@@ -51,39 +51,39 @@ export function AccountMenu({
         sideOffset={8}
         className="w-60 border-0 p-1.5 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.7)]"
         style={{
-          background: "hsl(156 22% 7%)",
-          border: "1px solid hsl(150 12% 16%)",
-          color: "hsl(150 24% 88%)",
+          background: "var(--hf-bg)",
+          border: "1px solid var(--hf-border-strong)",
+          color: "var(--hf-text)",
         }}
       >
         <DropdownMenuLabel className="px-2.5 py-2">
-          <div className="text-[14px] font-semibold" style={{ color: "hsl(150 30% 92%)" }}>
+          <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
             {account.name}
           </div>
-          <div className="text-[12px] font-normal" style={{ color: "hsl(150 10% 56%)" }}>
+          <div className="text-[12px] font-normal" style={{ color: "var(--hf-text-muted)" }}>
             Owner workspace
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator style={{ background: "hsl(150 12% 14%)" }} />
+        <DropdownMenuSeparator style={{ background: "var(--hf-border-strong)" }} />
         <DropdownMenuItem
           onSelect={() => navigate("/settings")}
-          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[hsl(152_28%_13%)]"
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--hf-surface-raised)]"
         >
-          <SettingsIcon className="h-[18px] w-[18px]" style={{ color: "hsl(150 14% 60%)" }} />
+          <SettingsIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
           Settings
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => navigate("/profile")}
-          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[hsl(152_28%_13%)]"
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--hf-surface-raised)]"
         >
-          <UserIcon className="h-[18px] w-[18px]" style={{ color: "hsl(150 14% 60%)" }} />
+          <UserIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
           Profile
         </DropdownMenuItem>
-        <DropdownMenuSeparator style={{ background: "hsl(150 12% 14%)" }} />
+        <DropdownMenuSeparator style={{ background: "var(--hf-border-strong)" }} />
         <DropdownMenuItem
           onSelect={handleLogout}
-          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[hsl(0_40%_16%)]"
-          style={{ color: "hsl(6 70% 72%)" }}
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[color-mix(in_srgb,var(--hf-danger)_18%,transparent)]"
+          style={{ color: "var(--hf-danger)" }}
         >
           <LogOut className="h-[18px] w-[18px]" />
           Log out

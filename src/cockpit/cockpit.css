@@ -183,12 +183,22 @@
 }
 .ck-btn:active { transform: translateY(0.5px); }
 
-.ck-btn-brass {
-  background: linear-gradient(180deg, #f1d889 0%, #d9aa4f 100%);
-  color: #171107;
-  box-shadow: var(--hf-shadow-gold);
+/* The action colour is jade — it is what Ava vouches for. Brass is reserved for
+   things that cost money, and those are outlined, never filled. */
+.ck-btn-primary {
+  background: var(--jade);
+  color: var(--btn-fg);
+  box-shadow: var(--hf-shadow-soft);
 }
-.ck-btn-brass:hover { filter: brightness(1.04); box-shadow: 0 14px 34px rgba(231, 195, 106, 0.28); }
+.ck-btn-primary:hover { filter: brightness(1.06); box-shadow: var(--hf-shadow-raised); }
+
+.ck-btn-paid {
+  background: transparent;
+  color: var(--brass);
+  border: 1px solid var(--brass-line);
+  box-shadow: none;
+}
+.ck-btn-paid:hover { background: var(--hf-gold-soft); }
 
 .ck-btn-outline {
   background: var(--hf-surface-raised);

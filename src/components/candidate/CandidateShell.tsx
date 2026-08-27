@@ -14,7 +14,7 @@ export function CandidateShell({ children, className = "" }: CandidateShellProps
         aria-hidden
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 50% -10%, hsl(152 40% 18% / 0.35), transparent 60%), radial-gradient(ellipse 60% 40% at 100% 100%, hsl(38 50% 20% / 0.12), transparent 50%)",
+            "radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 35%, transparent), transparent 60%), radial-gradient(ellipse 60% 40% at 100% 100%, color-mix(in srgb, var(--hf-gold-hover) 12%, transparent), transparent 50%)",
         }}
       />
       {children}

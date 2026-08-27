@@ -21,10 +21,10 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
           <AvaOrb size={orbSize ?? 56} reflection={false} glow={false} amp={0.22} flow={0.5} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-[15px]" style={{ color: "hsl(150 30% 92%)" }}>
+          <div className="font-display text-[15px]" style={{ color: "var(--hf-text)" }}>
             {title}
           </div>
-          <p className="mt-0.5 text-[12.5px] leading-snug" style={{ color: "hsl(150 10% 64%)" }}>
+          <p className="mt-0.5 text-[12.5px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>
             {text}
           </p>
         </div>
@@ -41,10 +41,10 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
       <div className="-mt-1 flex justify-center">
         <AvaOrb size={orbSize ?? 168} reflection={false} amp={0.22} flow={0.5} />
       </div>
-      <div className="mt-1 font-display text-[20px]" style={{ color: "hsl(150 30% 93%)" }}>
+      <div className="mt-1 font-display text-[20px]" style={{ color: "var(--hf-text)" }}>
         {title}
       </div>
-      <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "hsl(150 10% 64%)" }}>
+      <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
         {text}
       </p>
       <button className="ck-btn ck-btn-outline mt-4 self-start" onClick={onCta}>

@@ -16,8 +16,8 @@ const KPI_ICONS = {
 function CardTitle({ title }: { title: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[14px] font-semibold" style={{ color: "hsl(150 26% 86%)" }}>{title}</span>
-      <button className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px]" style={{ border: "1px solid hsl(150 12% 16%)", color: "hsl(150 12% 60%)" }}>
+      <span className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>{title}</span>
+      <button className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px]" style={{ border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-muted)" }}>
         Last 30 days<ChevronDown className="h-3 w-3" />
       </button>
     </div>
@@ -28,7 +28,7 @@ function EmptyChart({ message }: { message: string }) {
   return (
     <div
       className="mt-3 flex items-center justify-center rounded-md text-center text-[12px]"
-      style={{ height: 130, border: "1px dashed hsl(150 12% 18%)", color: "hsl(150 10% 52%)" }}
+      style={{ height: 130, border: "1px dashed var(--hf-border-strong)", color: "var(--hf-text-muted)" }}
     >
       <span className="max-w-[220px] px-3">{message}</span>
     </div>
@@ -52,20 +52,20 @@ function LineChart({ data, yMax, yTicks }: { data: number[]; yMax: number; yTick
         const y = padT + innerH - (t / yMax) * innerH;
         return (
           <g key={t}>
-            <text x={0} y={y + 3} fontSize="8" fill="hsl(150 10% 48%)">{t}</text>
-            <line x1={padL} y1={y} x2={W} y2={y} stroke="hsl(150 12% 16%)" strokeWidth="0.5" />
+            <text x={0} y={y + 3} fontSize="8" fill="var(--hf-text-muted)">{t}</text>
+            <line x1={padL} y1={y} x2={W} y2={y} stroke="var(--hf-border-strong)" strokeWidth="0.5" />
           </g>
         );
       })}
       <defs>
         <linearGradient id="lcArea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="hsl(152 50% 50%)" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="hsl(152 50% 50%)" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--hf-green)" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="var(--hf-green)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#lcArea)" />
-      <path d={line} fill="none" stroke="hsl(152 52% 54%)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={last[0]} cy={last[1]} r="2.6" fill="hsl(152 60% 60%)" />
+      <path d={line} fill="none" stroke="var(--hf-green)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={last[0]} cy={last[1]} r="2.6" fill="var(--hf-green)" />
     </svg>
   );
 }
@@ -79,7 +79,7 @@ export default function CockpitAnalytics() {
   const hasQuality = analytics.quality.length >= 2 && analytics.quality.some((v) => v > 0);
 
   if (isLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
+    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
   }
 
   return (
@@ -106,7 +106,7 @@ export default function CockpitAnalytics() {
           {hasTrend ? (
             <>
               <LineChart data={analytics.trend} yMax={Math.max(...analytics.trend, 5)} yTicks={[0, 15, 30, 45, 60]} />
-              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
+              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>
                 {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
               </div>
             </>
@@ -116,16 +116,16 @@ export default function CockpitAnalytics() {
         </div>
 
         <div className="ck-card p-5">
-          <span className="text-[14px] font-semibold" style={{ color: "hsl(150 26% 86%)" }}>Applications by source</span>
+          <span className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Applications by source</span>
           {analytics.sources.length > 0 ? (
             <div className="mt-4 space-y-3">
               {analytics.sources.map((s) => (
                 <div key={s.label} className="flex items-center gap-3">
-                  <span className="w-[78px] shrink-0 text-[12px]" style={{ color: "hsl(150 12% 62%)" }}>{s.label}</span>
-                  <div className="h-4 flex-1 overflow-hidden rounded-sm" style={{ background: "hsl(150 12% 12%)" }}>
-                    <div className="h-full rounded-sm" style={{ width: `${(s.value / maxSource) * 100}%`, background: "hsl(152 44% 52%)" }} />
+                  <span className="w-[78px] shrink-0 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>{s.label}</span>
+                  <div className="h-4 flex-1 overflow-hidden rounded-sm" style={{ background: "var(--hf-surface-raised)" }}>
+                    <div className="h-full rounded-sm" style={{ width: `${(s.value / maxSource) * 100}%`, background: "var(--hf-green)" }} />
                   </div>
-                  <span className="w-[64px] shrink-0 text-right text-[11.5px]" style={{ color: "hsl(150 16% 70%)" }}>{s.value} ({s.pct})</span>
+                  <span className="w-[64px] shrink-0 text-right text-[11.5px]" style={{ color: "var(--hf-text-soft)" }}>{s.value} ({s.pct})</span>
                 </div>
               ))}
             </div>
@@ -139,7 +139,7 @@ export default function CockpitAnalytics() {
           {hasQuality ? (
             <>
               <LineChart data={analytics.quality} yMax={100} yTicks={[0, 25, 50, 75, 100]} />
-              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "hsl(150 10% 50%)" }}>
+              <div className="mt-1 flex justify-between px-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>
                 {analytics.trendLabels.map((l) => <span key={l}>{l}</span>)}
               </div>
             </>
@@ -151,18 +151,18 @@ export default function CockpitAnalytics() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
         <div className="ck-card p-5 md:p-6">
-          <span className="font-display text-[18px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>Funnel conversion</span>
+          <span className="font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Funnel conversion</span>
           <div className="mt-5"><Pipeline variant="funnel" nodes={pipeline} /></div>
-          <div className="mt-4 text-center text-[12px]" style={{ color: "hsl(150 10% 52%)" }}>Conversion rate from previous stage</div>
+          <div className="mt-4 text-center text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Conversion rate from previous stage</div>
         </div>
 
         <div className="ck-card flex items-center gap-4 p-5 md:p-6">
           <AvaOrb size={150} reflection={false} amp={0.22} flow={0.5} />
           <div className="min-w-0">
-            <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>
+            <div className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
               Ava's insight
             </div>
-            <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "hsl(150 14% 66%)" }}>{analytics.insight}</p>
+            <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>{analytics.insight}</p>
             <button className="ck-btn ck-btn-outline mt-4" onClick={() => navigate("/applicants")}>
               View recommendations
             </button>

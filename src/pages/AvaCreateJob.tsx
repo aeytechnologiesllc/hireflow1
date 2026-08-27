@@ -348,7 +348,7 @@ export default function AvaCreateJob() {
               {createBlockedReason}
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <Link to="/jobs" className="ck-btn ck-btn-brass">
+              <Link to="/jobs" className="ck-btn ck-btn-primary">
                 Back to Jobs
               </Link>
               <Link to="/settings?tab=subscription" className="ck-btn ck-btn-outline">
@@ -370,7 +370,7 @@ export default function AvaCreateJob() {
   return (
     <div
       className="ava-flow scroll-perf relative flex h-[100dvh] flex-col overflow-hidden"
-      style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, hsl(152 40% 14% / 0.5) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
+      style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
     >
       <style>{FOCUS_CSS}</style>
       <HeroBackground />
@@ -497,7 +497,7 @@ export default function AvaCreateJob() {
                       {fu.chips.map((chip, ci) => {
                         const on = picked === ci;
                         return (
-                          <button key={chip} type="button" onClick={() => setChipAnswers((a) => ({ ...a, [fu.id]: ci }))} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "linear-gradient(180deg, hsl(38 56% 58% / 0.22) 0%, hsl(38 56% 50% / 0.10) 100%), hsl(var(--ck-surface-2))", color: "hsl(var(--ck-brass-bright))", border: "1px solid hsl(var(--primary) / 0.7)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
+                          <button key={chip} type="button" onClick={() => setChipAnswers((a) => ({ ...a, [fu.id]: ci }))} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "linear-gradient(180deg, color-mix(in srgb, var(--hf-gold) 22%, transparent) 0%, color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 100%), hsl(var(--ck-surface-2))", color: "hsl(var(--ck-brass-bright))", border: "1px solid hsl(var(--primary) / 0.7)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
                             {on && <Check className="mr-2 h-4 w-4" />}{chip}
                           </button>
                         );
@@ -659,7 +659,7 @@ export default function AvaCreateJob() {
                         href={`${typeof window !== "undefined" ? window.location.origin : ""}/candidate/job/${publishedRoleId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="ck-btn ck-btn-brass w-full !text-[13px]"
+                        className="ck-btn ck-btn-primary w-full !text-[13px]"
                       >
                         See your job in action <ExternalLink className="h-3.5 w-3.5" />
                       </a>

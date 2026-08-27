@@ -226,7 +226,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       case "speaking": return { scale: 1.03, glow: `drop-shadow(0 0 86px hsl(${GREEN} / 0.46)) drop-shadow(0 0 44px hsl(${GOLD} / 0.22))` };
       case "listening": return { scale: 1.02, glow: `drop-shadow(0 0 76px hsl(${GREEN} / 0.42))` };
       case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 62px hsl(${GREEN} / 0.34))` };
-      case "error": return { scale: 1.0, glow: "drop-shadow(0 0 40px hsl(0 50% 50% / 0.3))" };
+      case "error": return { scale: 1.0, glow: "drop-shadow(0 0 40px color-mix(in srgb, var(--hf-danger) 30%, transparent))" };
       default: return { scale: 1.0, glow: `drop-shadow(0 0 56px hsl(${GREEN} / 0.3))` };
     }
   })();
@@ -412,7 +412,7 @@ function ReadbackCard({ brief, canCreate, onCreate, onAddDetail, onPreferType }:
         </p>
       )}
       <div className="mt-5 flex flex-col gap-2.5">
-        <button type="button" onClick={onCreate} disabled={!canCreate} className="ck-btn ck-btn-brass inline-flex items-center justify-center gap-2 !py-3 !text-[15px] disabled:opacity-50">
+        <button type="button" onClick={onCreate} disabled={!canCreate} className="ck-btn ck-btn-primary inline-flex items-center justify-center gap-2 !py-3 !text-[15px] disabled:opacity-50">
           <Check className="h-4 w-4" /> Create hiring flow
         </button>
         <div className="flex items-center justify-center gap-4">
@@ -451,9 +451,9 @@ const LiveCaption = forwardRef<HTMLDivElement, { messages: Msg[]; status: string
 function ErrorCard({ message, onPreferType }: { message: string; onPreferType: () => void }) {
   const denied = message?.toLowerCase().includes("permission") || message?.toLowerCase().includes("denied");
   return (
-    <div className="rounded-2xl p-6" style={{ ...PANEL, border: "1px solid hsl(0 50% 50% / 0.35)" }}>
+    <div className="rounded-2xl p-6" style={{ ...PANEL, border: "1px solid color-mix(in srgb, var(--hf-danger) 35%, transparent)" }}>
       <div className="flex items-start gap-3">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "hsl(0 60% 60%)" }} />
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--hf-danger)" }} />
         <div>
           <div className="text-[15px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>I couldn't reach your microphone</div>
           <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>

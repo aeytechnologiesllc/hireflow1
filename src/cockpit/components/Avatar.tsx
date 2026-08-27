@@ -28,13 +28,13 @@ function deriveInitials(name: string) {
 }
 
 // Controlled accent palette — mint, brass, jade (no other hues).
-const ACCENTS = ["hsl(156 58% 70%)", "hsl(38 66% 66%)", "hsl(150 48% 54%)"];
+const ACCENTS = ["var(--hf-text-soft)", "var(--hf-gold)", "var(--hf-green)"];
 // Muted jade medallion fills (subtle per-person variation, all near-black jade).
 const FILLS: Array<[string, string]> = [
-  ["hsl(156 24% 15%)", "hsl(156 28% 8%)"],
-  ["hsl(158 22% 14%)", "hsl(158 26% 8%)"],
-  ["hsl(152 24% 16%)", "hsl(154 28% 9%)"],
-  ["hsl(160 20% 13%)", "hsl(160 26% 8%)"],
+  ["var(--hf-border-strong)", "var(--hf-surface-raised)"],
+  ["var(--hf-border-strong)", "var(--hf-surface-raised)"],
+  ["var(--hf-border-strong)", "var(--hf-surface-raised)"],
+  ["var(--hf-surface-raised)", "var(--hf-surface-raised)"],
 ];
 
 /**
@@ -48,7 +48,7 @@ export function CkAvatar({ who, size = 40, initials, photo, className }: AvatarP
   const name = who ?? initials ?? "?";
   const label = initials ?? deriveInitials(name);
 
-  const ring = "inset 0 0 0 1px hsl(150 16% 20% / 0.85)";
+  const ring = "inset 0 0 0 1px color-mix(in srgb, var(--hf-border-strong) 85%, transparent)";
 
   if (realPhoto) {
     return (
@@ -139,7 +139,7 @@ export function CkAvatar({ who, size = 40, initials, photo, className }: AvatarP
       >
         <span
           style={{
-            color: "hsl(150 30% 90%)",
+            color: "var(--hf-text)",
             fontWeight: 600,
             fontSize,
             letterSpacing: "0.01em",

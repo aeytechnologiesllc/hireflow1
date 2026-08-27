@@ -263,7 +263,7 @@ export default function PremiumCelebration({
             animate={{ 
               opacity: phase === "anticipation" ? 0.8 : 0.95,
               background: phase === "climax" 
-                ? "radial-gradient(circle at center, hsl(var(--background)) 0%, hsl(45 30% 5%) 100%)"
+                ? "radial-gradient(circle at center, hsl(var(--background)) 0%, var(--hf-gold-hover) 100%)"
                 : "hsl(var(--background))"
             }}
             transition={{ duration: 0.5 }}

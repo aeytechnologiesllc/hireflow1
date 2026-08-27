@@ -40,11 +40,11 @@ function SubStat({ label, value, max }: { label: string; value: number; max: num
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5">
-        <span className="text-[11px]" style={{ color: "hsl(150 10% 52%)" }}>{label}</span>
-        <span className="ck-num text-[13px]" style={{ color: "hsl(150 26% 84%)" }}>{value}</span>
+        <span className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>{label}</span>
+        <span className="ck-num text-[13px]" style={{ color: "var(--hf-text)" }}>{value}</span>
       </div>
-      <div className="mt-1 h-[3px] w-full overflow-hidden rounded-full" style={{ background: "hsl(150 12% 16%)" }}>
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "hsl(152 46% 46%)" }} />
+      <div className="mt-1 h-[3px] w-full overflow-hidden rounded-full" style={{ background: "var(--hf-border-strong)" }}>
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--hf-green)" }} />
       </div>
     </div>
   );
@@ -73,7 +73,7 @@ function JobCodeButton({ code }: { code: string }) {
       onClick={(e) => { e.stopPropagation(); void copy(); }}
       title="Copy job code"
       className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] transition-opacity hover:opacity-75"
-      style={{ color: "hsl(38 60% 62%)" }}
+      style={{ color: "var(--hf-gold)" }}
     >
       {code}
       {copied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
@@ -121,7 +121,7 @@ function JobActions({ job, row }: { job: JobRow; row?: boolean }) {
           disabled={disabled}
           onClick={(e) => { e.stopPropagation(); onClick(); }}
           className="flex items-center gap-2 transition-colors hover:opacity-80 disabled:opacity-40"
-          style={{ color: "hsl(150 12% 62%)" }}
+          style={{ color: "var(--hf-text-soft)" }}
         >
           <Icon className="h-4 w-4 shrink-0" />
           <span>{label}</span>
@@ -149,7 +149,7 @@ function RoleIcon({ job }: { job: JobRow }) {
   return (
     <div
       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full md:h-12 md:w-12"
-      style={{ border: "1px solid hsl(150 16% 22% / 0.7)", color: "hsl(150 20% 70%)", background: "hsl(156 18% 9%)" }}
+      style={{ border: "1px solid color-mix(in srgb, var(--hf-border-strong) 70%, transparent)", color: "var(--hf-text-soft)", background: "var(--hf-surface-raised)" }}
     >
       <Icon className="h-5 w-5" />
     </div>
@@ -174,12 +174,12 @@ function JobCard({ job }: { job: JobRow }) {
       >
         <RoleIcon job={job} />
         <div className="w-[180px] shrink-0">
-          <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{job.title}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>
+          <div className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{job.title}</div>
+          <div className="mt-0.5 flex items-center gap-1 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
             <MapPin className="h-3 w-3 shrink-0" />
             <span className="truncate">{job.location}</span>
           </div>
-          <div className="mt-0.5 flex items-center gap-1 text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>
+          <div className="mt-0.5 flex items-center gap-1 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
             <Clock className="h-3 w-3 shrink-0" />
             <span className="truncate">{job.pay}</span>
           </div>
@@ -189,10 +189,10 @@ function JobCard({ job }: { job: JobRow }) {
           <div className="flex items-center gap-6">
             <StatusPill status={job.status} />
             <div className="flex items-baseline gap-1.5">
-              <span className="ck-num text-[20px]" style={{ color: "hsl(150 30% 92%)" }}>{job.applicants}</span>
-              <span className="text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>applicants</span>
+              <span className="ck-num text-[20px]" style={{ color: "var(--hf-text)" }}>{job.applicants}</span>
+              <span className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>applicants</span>
             </div>
-            <div className="text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>{job.dateLabel} {job.date}</div>
+            <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{job.dateLabel} {job.date}</div>
           </div>
           <SubStats job={job} />
         </div>
@@ -211,20 +211,20 @@ function JobCard({ job }: { job: JobRow }) {
           <RoleIcon job={job} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-display text-[18px] leading-tight" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>
+              <span className="font-display text-[18px] leading-tight" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
                 {job.title}
               </span>
               <StatusPill status={job.status} />
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
               <span className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{job.location}</span>
               <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{job.pay}</span>
             </div>
             {job.roleCode && <JobCodeButton code={job.roleCode} />}
           </div>
           <div className="flex shrink-0 flex-col items-end">
-            <span className="ck-num text-[18px]" style={{ color: "hsl(150 30% 92%)" }}>{job.applicants}</span>
-            <span className="text-[11px]" style={{ color: "hsl(150 10% 56%)" }}>applicants</span>
+            <span className="ck-num text-[18px]" style={{ color: "var(--hf-text)" }}>{job.applicants}</span>
+            <span className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>applicants</span>
           </div>
         </div>
 
@@ -232,8 +232,8 @@ function JobCard({ job }: { job: JobRow }) {
           <SubStats job={job} />
         </div>
 
-        <div className="mt-3.5 flex items-center justify-between border-t pt-3" style={{ borderColor: "hsl(150 12% 14% / 0.8)" }}>
-          <span className="text-[11.5px]" style={{ color: "hsl(150 10% 50%)" }}>{job.dateLabel} {job.date}</span>
+        <div className="mt-3.5 flex items-center justify-between border-t pt-3" style={{ borderColor: "color-mix(in srgb, var(--hf-border-strong) 80%, transparent)" }}>
+          <span className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{job.dateLabel} {job.date}</span>
           <JobActions job={job} row />
         </div>
       </div>
@@ -259,7 +259,7 @@ export default function CockpitJobs() {
         title="Jobs"
         subtitle={`Open roles at ${account.name}`}
         actions={
-          <button className="ck-btn ck-btn-brass max-md:w-full" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
+          <button className="ck-btn ck-btn-primary max-md:w-full" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
             <Plus className="h-4 w-4" />
             New role
           </button>
@@ -277,17 +277,17 @@ export default function CockpitJobs() {
 
           <div className="space-y-3">
             {isLoading ? (
-              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>Loading roles…</div>
+              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>Loading roles…</div>
             ) : jobs.length === 0 ? (
               <div className="ck-card flex flex-col items-center gap-4 p-10 text-center">
                 <AvaOrb size={132} reflection={false} />
                 <div>
-                  <div className="font-display text-[20px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>Create your first role with Ava</div>
-                  <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed" style={{ color: "hsl(150 10% 60%)" }}>
+                  <div className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Create your first role with Ava</div>
+                  <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed" style={{ color: "var(--hf-text-muted)" }}>
                     Just tell her who you need to hire — she'll shape it into a complete hiring flow.
                   </p>
                 </div>
-                <button className="ck-btn ck-btn-brass inline-flex items-center gap-2" onClick={() => { clearDraft(); navigate("/jobs/create"); }}>
+                <button className="ck-btn ck-btn-primary inline-flex items-center gap-2" onClick={() => { clearDraft(); navigate("/jobs/create"); }}>
                   <Mic className="h-4 w-4" /> Talk to Ava
                 </button>
               </div>

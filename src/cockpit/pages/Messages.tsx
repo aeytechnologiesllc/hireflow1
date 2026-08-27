@@ -51,29 +51,29 @@ function ConversationList({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 pt-3 md:hidden">
-        <h1 className="font-display text-[24px]" style={{ color: "hsl(150 32% 95%)", fontWeight: 500 }}>Messages</h1>
+        <h1 className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Messages</h1>
         <button
           className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-          style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)", color: "hsl(150 28% 88%)" }}
+          style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 80%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text)" }}
         >
           <span className="text-[12.5px] font-medium">{accountName}</span>
-          <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+          <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />
         </button>
       </div>
       <div className="flex items-center gap-2 p-3">
         <div className="ck-input flex h-9 flex-1 items-center gap-2 px-3">
-          <Search className="h-4 w-4" style={{ color: "hsl(150 10% 55%)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search messages…" className="w-full bg-transparent text-[13px] outline-none" style={{ color: "hsl(150 28% 90%)" }} />
+          <Search className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search messages…" className="w-full bg-transparent text-[13px] outline-none" style={{ color: "var(--hf-text)" }} />
         </div>
-        <button className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ border: "1px solid hsl(150 12% 16%)", color: "hsl(150 12% 60%)" }}>
+        <button className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-muted)" }}>
           <SlidersHorizontal className="h-4 w-4" />
         </button>
       </div>
       <div className="ck-scroll flex-1 overflow-y-auto px-2">
         {conversations.length === 0 ? (
-          <p className="p-4 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No conversations yet.</p>
+          <p className="p-4 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No conversations yet.</p>
         ) : filtered.length === 0 ? (
-          <p className="p-4 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No conversations match “{q}”.</p>
+          <p className="p-4 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No conversations match “{q}”.</p>
         ) : (
           filtered.map((c) => {
             const active = c.id === activeId;
@@ -82,19 +82,19 @@ function ConversationList({
                 key={c.id}
                 onClick={() => onPick(c.id)}
                 className="mb-1 flex w-full items-start gap-3 rounded-xl p-3 text-left"
-                style={active ? { background: "hsl(156 18% 11%)", boxShadow: "inset 2px 0 0 hsl(152 46% 50%)" } : undefined}
+                style={active ? { background: "var(--hf-surface-raised)", boxShadow: "inset 2px 0 0 var(--hf-green)" } : undefined}
               >
                 <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={42} variant="calm" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[14px] font-semibold" style={{ color: "hsl(150 30% 91%)" }}>{c.name}</span>
-                    <span className="shrink-0 text-[11px]" style={{ color: "hsl(150 10% 50%)" }}>{c.time}</span>
+                    <span className="truncate text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</span>
+                    <span className="shrink-0 text-[11px]" style={{ color: "var(--hf-text-muted)" }}>{c.time}</span>
                   </div>
-                  <div className="text-[12px]" style={{ color: "hsl(150 10% 54%)" }}>{c.role}</div>
+                  <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role}</div>
                   <div className="mt-0.5 flex items-center gap-2">
-                    <span className="truncate text-[12.5px]" style={{ color: "hsl(150 12% 60%)" }}>{c.preview}</span>
+                    <span className="truncate text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.preview}</span>
                     {c.unread ? (
-                      <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: "hsl(152 46% 42%)", color: "hsl(150 30% 96%)" }}>{c.unread}</span>
+                      <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: "var(--hf-green)", color: "var(--hf-text)" }}>{c.unread}</span>
                     ) : null}
                   </div>
                 </div>
@@ -135,49 +135,49 @@ function Thread({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5 p-3" style={{ borderBottom: "1px solid hsl(150 12% 13%)" }}>
+      <div className="flex items-center gap-2.5 p-3" style={{ borderBottom: "1px solid var(--hf-surface-raised)" }}>
         {onBack && (
           <>
-            <button className="md:hidden" onClick={onBack} style={{ color: "hsl(150 20% 78%)" }}><ChevronLeft className="h-5 w-5" /></button>
-            <button className="md:hidden" onClick={onBack} style={{ color: "hsl(150 14% 60%)" }}><ListFilter className="h-[18px] w-[18px]" /></button>
+            <button className="md:hidden" onClick={onBack} style={{ color: "var(--hf-text)" }}><ChevronLeft className="h-5 w-5" /></button>
+            <button className="md:hidden" onClick={onBack} style={{ color: "var(--hf-text-muted)" }}><ListFilter className="h-[18px] w-[18px]" /></button>
           </>
         )}
         <CandidateMark who={contactId} initials={getInitials(contactName)} size={38} variant="quiet" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px]">
-            <span className="font-semibold" style={{ color: "hsl(150 30% 92%)" }}>{contactName}</span>
-            <span className="hidden md:inline" style={{ color: "hsl(150 12% 62%)" }}> · {contactRole}</span>
+            <span className="font-semibold" style={{ color: "var(--hf-text)" }}>{contactName}</span>
+            <span className="hidden md:inline" style={{ color: "var(--hf-text-soft)" }}> · {contactRole}</span>
           </div>
         </div>
-        <button className="hidden md:block" style={{ color: "hsl(150 10% 56%)" }}><MoreVertical className="h-4 w-4" /></button>
+        <button className="hidden md:block" style={{ color: "var(--hf-text-muted)" }}><MoreVertical className="h-4 w-4" /></button>
       </div>
 
       <div className="ck-scroll flex-1 space-y-4 overflow-y-auto p-4">
-        <div className="text-center text-[12px]" style={{ color: "hsl(150 10% 48%)" }}>Conversation</div>
+        <div className="text-center text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Conversation</div>
         {thread.map((m) =>
           m.from === "them" ? (
             <div key={m.id} className="flex items-end gap-2">
-              <div className="max-w-[78%] rounded-2xl rounded-bl-sm px-3.5 py-2.5" style={{ background: "hsl(156 16% 12%)" }}>
-                <p className="text-[13.5px]" style={{ color: "hsl(150 24% 86%)" }}>{m.text}</p>
-                <div className="mt-1 text-[10.5px]" style={{ color: "hsl(150 10% 48%)" }}>{m.time}</div>
+              <div className="max-w-[78%] rounded-2xl rounded-bl-sm px-3.5 py-2.5" style={{ background: "var(--hf-surface-raised)" }}>
+                <p className="text-[13.5px]" style={{ color: "var(--hf-text)" }}>{m.text}</p>
+                <div className="mt-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>{m.time}</div>
               </div>
             </div>
           ) : (
             <div key={m.id} className="flex items-end justify-end gap-2">
-              <div className="max-w-[78%] rounded-2xl rounded-br-sm px-3.5 py-2.5" style={{ background: "hsl(152 26% 16%)" }}>
-                <p className="text-[13.5px]" style={{ color: "hsl(150 26% 88%)" }}>{m.text}</p>
-                <div className="mt-1 flex items-center justify-end gap-1 text-[10.5px]" style={{ color: "hsl(150 12% 54%)" }}>
-                  {m.time}<CheckCheck className="h-3 w-3" style={{ color: "hsl(152 50% 56%)" }} />
+              <div className="max-w-[78%] rounded-2xl rounded-br-sm px-3.5 py-2.5" style={{ background: "var(--hf-border-strong)" }}>
+                <p className="text-[13.5px]" style={{ color: "var(--hf-text)" }}>{m.text}</p>
+                <div className="mt-1 flex items-center justify-end gap-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                  {m.time}<CheckCheck className="h-3 w-3" style={{ color: "var(--hf-green)" }} />
                 </div>
               </div>
-              <span className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "hsl(45 30% 80%)", color: "hsl(150 30% 14%)" }}>{accountInitials}</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "var(--hf-gold)", color: "var(--hf-green-soft)" }}>{accountInitials}</span>
             </div>
           )
         )}
       </div>
 
-      <div className="p-3" style={{ borderTop: "1px solid hsl(150 12% 13%)" }}>
-        <div className="mb-2 text-[12px]" style={{ color: "hsl(150 10% 54%)" }}>Quick replies</div>
+      <div className="p-3" style={{ borderTop: "1px solid var(--hf-surface-raised)" }}>
+        <div className="mb-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Quick replies</div>
         <div className="mb-3 flex flex-wrap gap-2">
           {QUICK_REPLIES.map((q, i) => {
             const Icon = QUICK_ICONS[i % QUICK_ICONS.length];
@@ -187,15 +187,15 @@ function Thread({
                 type="button"
                 onClick={() => setDraft(q)}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px]"
-                style={{ border: "1px solid hsl(150 12% 16%)", color: "hsl(150 18% 74%)" }}
+                style={{ border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }}
               >
-                <Icon className="h-3.5 w-3.5" style={{ color: "hsl(150 12% 56%)" }} />{q}
+                <Icon className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />{q}
               </button>
             );
           })}
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" style={{ color: "hsl(150 10% 54%)" }}><Paperclip className="h-4 w-4" /></button>
+          <button type="button" style={{ color: "var(--hf-text-muted)" }}><Paperclip className="h-4 w-4" /></button>
           <div className="ck-input flex h-10 flex-1 items-center gap-2 px-3">
             <input
               placeholder="Write a message…"
@@ -203,11 +203,11 @@ function Thread({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
               className="w-full bg-transparent text-[13.5px] outline-none"
-              style={{ color: "hsl(150 28% 90%)" }}
+              style={{ color: "var(--hf-text)" }}
             />
-            <Smile className="h-4 w-4" style={{ color: "hsl(150 10% 54%)" }} />
+            <Smile className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
           </div>
-          <button type="button" className="ck-btn ck-btn-brass !px-5" onClick={handleSend}>Send</button>
+          <button type="button" className="ck-btn ck-btn-primary !px-5" onClick={handleSend}>Send</button>
         </div>
       </div>
     </div>
@@ -239,7 +239,7 @@ export default function CockpitMessages() {
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
 
   if (isLoading && !conversations.length) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
+    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
   }
 
   const handleSend = (text: string) => {
@@ -255,7 +255,7 @@ export default function CockpitMessages() {
         className="ck-card hidden overflow-hidden md:grid"
         style={{ gridTemplateColumns: "300px 1fr 280px", height: "calc(100dvh - 168px)" }}
       >
-        <div style={{ borderRight: "1px solid hsl(150 12% 13%)" }}>
+        <div style={{ borderRight: "1px solid var(--hf-surface-raised)" }}>
           <ConversationList activeId={contactId ?? ""} onPick={setActiveId} conversations={conversations} accountName={account.name} />
         </div>
         {contactId && activeConv ? (
@@ -268,12 +268,12 @@ export default function CockpitMessages() {
             onSend={handleSend}
           />
         ) : (
-          <div className="flex items-center justify-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>Select a conversation</div>
+          <div className="flex items-center justify-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>Select a conversation</div>
         )}
-        <div style={{ borderLeft: "1px solid hsl(150 12% 13%)" }} className="p-4">
+        <div style={{ borderLeft: "1px solid var(--hf-surface-raised)" }} className="p-4">
           <div className="flex justify-center"><AvaOrb size={100} reflection={false} amp={0.22} flow={0.5} /></div>
           {activeCandidate && (
-            <p className="mt-3 text-[12.5px]" style={{ color: "hsl(150 12% 62%)" }}>
+            <p className="mt-3 text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>
               {activeCandidate.name} · {activeCandidate.stage} · {activeCandidate.overall}% match
             </p>
           )}

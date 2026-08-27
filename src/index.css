@@ -3,171 +3,298 @@
 @tailwind utilities;
 
 @layer base {
+  /* ══════════════════════════════════════════════════════════════════════════
+     HireFlow — one token system.
+
+     Two themes, one vocabulary. DAY is "Paper": warm ivory ground, deep jade as
+     ink. NIGHT is its true counterpart: warm ink ground, the ivory becomes the
+     text, jade and brass brighten to carry it. Both come from the locked
+     design system in design/preview/app.html — do not invent values here.
+
+     Four token systems used to compete in this file (legacy cobalt :root,
+     shadcn .dark, --ck-*, --hf-*). They are now all expressed in these same
+     colours, so a surface looks right whichever one it happens to use.
+     ══════════════════════════════════════════════════════════════════════════ */
+
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* ── The system, by name ───────────────────────────────────────────────── */
+    --ground: #F0EBDF;
+    --ground-2: #E9E2D2;
+    --sidebar: #E7E0CE;
+    --surface: #FCFAF4;
+    --surface-2: #E4DCC7;
+    --line: #D6CDB6;
+    --line-soft: #E2DAC6;
+    --hair: #C6B893;
+    --track: #E9E2D2;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --ink: #14201B;
+    --ink-2: #3F4B45;
+    --ink-3: #5C655E;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    /* The jade slab sunk into the paper — Ava's read. The signature moment. */
+    --slab: #0C2A21;
+    --slab-ink: #F2EFE5;
+    --slab-ink-2: #A9C6B8;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
+    --jade: #0F6B4F;
+    --jade-bright: #3FCE97;
+    --jade-soft: #DCEDE3;
+    --jade-soft-fg: #0A5340;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --brass: #8A6420;
+    --brass-line: #C9A45E;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --amber-bg: #F6E7C6;
+    --amber-fg: #7A5410;
+    --crit: #A8352A;
+    --crit-bg: #F4DEDA;
+    --btn-fg: #F7F4EB;
 
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
+    --seal-disc: #0F6B4F;
+    --seal-ring: #C9A45E;
+    --seal-shadow: rgba(20, 32, 27, 0.32);
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    --amb-a: rgba(15, 107, 79, 0.10);
+    --amb-b: rgba(201, 164, 94, 0.11);
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    /* ── shadcn / Tailwind (HSL triplets) ──────────────────────────────────── */
+    --background: 42 36% 91%;
+    --foreground: 155 23% 10%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --card: 45 57% 97%;
+    --card-foreground: 155 23% 10%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --popover: 45 57% 97%;
+    --popover-foreground: 155 23% 10%;
 
-    --radius: 0.75rem;
+    /* Jade is the action colour — it is what Ava vouches for. */
+    --primary: 162 75% 24%;
+    --primary-foreground: 45 43% 95%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%) 0%, hsl(262 83% 58%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(210 20% 98%) 0%, hsl(221 83% 53% / 0.05) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
-    --gradient-bg: radial-gradient(ellipse 80% 50% at 90% 10%, hsl(221 83% 53% / 0.04) 0%, transparent 50%),
-                   radial-gradient(ellipse 60% 40% at 10% 90%, hsl(262 83% 58% / 0.03) 0%, transparent 50%),
-                   hsl(210 20% 98%);
+    --secondary: 43 35% 84%;
+    --secondary-foreground: 155 23% 10%;
 
-    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.1), 0 2px 4px -2px hsl(222 47% 11% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.1), 0 4px 6px -4px hsl(222 47% 11% / 0.1);
-    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1), 0 8px 10px -6px hsl(222 47% 11% / 0.1);
-    --shadow-glow: 0 0 40px hsl(221 83% 53% / 0.15);
+    --muted: 42 34% 87%;
+    --muted-foreground: 133 5% 38%;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 221 83% 53%;
+    --accent: 145 32% 90%;
+    --accent-foreground: 164 78% 18%;
+
+    --success: 162 75% 24%;
+    --success-foreground: 45 43% 95%;
+
+    --warning: 38 77% 27%;
+    --warning-foreground: 45 43% 95%;
+
+    --destructive: 5 60% 41%;
+    --destructive-foreground: 45 43% 95%;
+
+    --border: 43 28% 78%;
+    --input: 43 28% 78%;
+    --ring: 162 75% 24%;
+
+    --radius: 0.625rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(162 75% 24%) 0%, hsl(164 78% 18%) 100%);
+    --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
+    --gradient-card: linear-gradient(180deg, #FCFAF4 0%, #F7F3E9 100%);
+    --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
+                   radial-gradient(ellipse 60% 45% at 8% 92%, var(--amb-b) 0%, transparent 55%),
+                   var(--ground);
+
+    --shadow-sm: 0 1px 1px rgba(20, 32, 27, 0.05), 0 1px 3px -1px rgba(20, 32, 27, 0.11);
+    --shadow-md: 0 1px 2px rgba(20, 32, 27, 0.06), 0 10px 22px -14px rgba(20, 32, 27, 0.34);
+    --shadow-lg: 0 2px 4px rgba(20, 32, 27, 0.07), 0 18px 36px -20px rgba(20, 32, 27, 0.38);
+    --shadow-xl: 0 3px 6px rgba(20, 32, 27, 0.08), 0 28px 56px -26px rgba(20, 32, 27, 0.42);
+    --shadow-glow: 0 0 40px rgba(15, 107, 79, 0.14);
+
+    --sidebar-background: 43 34% 86%;
+    --sidebar-foreground: 155 23% 10%;
+    --sidebar-primary: 162 75% 24%;
+    --sidebar-primary-foreground: 45 43% 95%;
+    --sidebar-accent: 43 35% 84%;
+    --sidebar-accent-foreground: 155 23% 10%;
+    --sidebar-border: 43 28% 78%;
+    --sidebar-ring: 162 75% 24%;
+
+    /* ── Cockpit tokens (--ck-*, HSL) ──────────────────────────────────────── */
+    --ck-bg: 42 36% 91%;
+    --ck-sidebar: 43 34% 86%;
+    --ck-surface: 45 57% 97%;
+    --ck-surface-2: 43 35% 84%;
+    --ck-line: 43 28% 78%;
+    --ck-cream: 155 23% 10%;     /* the reading colour, dark on paper */
+    --ck-sub: 133 5% 38%;
+    --ck-jade: 162 75% 24%;
+    --ck-mint: 157 59% 53%;
+    --ck-brass: 38 62% 33%;
+    --ck-brass-bright: 39 50% 58%;
+
+    /* ── Premium tokens (--hf-*, hex) ──────────────────────────────────────── */
+    --hf-bg: #F0EBDF;
+    --hf-bg-soft: #E9E2D2;
+    --hf-surface: #FCFAF4;
+    --hf-surface-raised: #FCFAF4;
+    --hf-surface-strong: #E4DCC7;
+    --hf-border: #D6CDB6;
+    --hf-border-strong: #C6B893;
+    --hf-text: #14201B;
+    --hf-text-soft: #3F4B45;
+    --hf-text-muted: #5C655E;
+    --hf-green: #0F6B4F;
+    --hf-green-soft: #DCEDE3;
+    --hf-green-border: rgba(15, 107, 79, 0.30);
+    --hf-gold: #8A6420;
+    --hf-gold-hover: #7A5410;
+    --hf-gold-soft: #F6E7C6;
+    --hf-gold-border: #C9A45E;
+    --hf-danger: #A8352A;
+    --hf-warning: #7A5410;
+    --hf-shadow-soft: 0 1px 2px rgba(20, 32, 27, 0.06), 0 10px 22px -14px rgba(20, 32, 27, 0.34);
+    --hf-shadow-raised: 0 2px 4px rgba(20, 32, 27, 0.07), 0 18px 36px -20px rgba(20, 32, 27, 0.38);
+    --hf-shadow-gold: 0 8px 22px -12px rgba(138, 100, 32, 0.35);
+    --hf-radius-sm: 8px;
+    --hf-radius-md: 10px;
+    --hf-radius-lg: 12px;
+    --hf-radius-xl: 16px;
   }
 
   .dark {
-    /* ── Deep Jade (Owner Cockpit) — near-black jade base, cream text, brass accent ── */
-    --background: 156 22% 5%;        /* #0a0f0d content base */
-    --foreground: 150 33% 95%;       /* #eef6f1 cream */
+    /* ── NIGHT — the true counterpart. The ivory becomes the text. ─────────── */
+    --ground: #17140F;
+    --ground-2: #1C1813;
+    --sidebar: #120F0B;
+    --surface: #221D17;
+    --surface-2: #2C2620;
+    --line: rgba(244, 239, 227, 0.15);
+    --line-soft: rgba(244, 239, 227, 0.085);
+    --hair: rgba(201, 164, 94, 0.42);
+    --track: rgba(244, 239, 227, 0.10);
 
-    --card: 156 18% 8%;              /* elevated solid panel */
-    --card-foreground: 150 33% 95%;
+    --ink: #F4EFE3;
+    --ink-2: #C3BBA9;
+    --ink-3: #948B7C;
 
-    --popover: 156 20% 7%;
-    --popover-foreground: 150 33% 95%;
+    --slab: #0B2A21;
+    --slab-ink: #F2EFE5;
+    --slab-ink-2: #A9C6B8;
 
-    /* Primary = brass/gold (CTAs, focus, value) */
-    --primary: 38 58% 60%;           /* #cba36a */
-    --primary-foreground: 150 30% 10%;
+    --jade: #4FBF95;
+    --jade-bright: #67E3AF;
+    --jade-soft: rgba(79, 191, 149, 0.15);
+    --jade-soft-fg: #6ADCAA;
 
-    /* Secondary = subtle elevated jade surface (outlined/secondary buttons) */
-    --secondary: 156 14% 13%;
-    --secondary-foreground: 150 30% 92%;
+    --brass: #E0B96A;
+    --brass-line: rgba(224, 185, 106, 0.55);
 
-    --muted: 156 14% 12%;
-    --muted-foreground: 150 10% 60%;
+    --amber-bg: rgba(224, 170, 80, 0.16);
+    --amber-fg: #E4B76E;
+    --crit: #D9715F;
+    --crit-bg: rgba(217, 113, 95, 0.14);
+    --btn-fg: #17140F;
 
-    --accent: 156 16% 14%;
-    --accent-foreground: 150 30% 92%;
+    --seal-disc: #17805F;
+    --seal-ring: #D9B876;
+    --seal-shadow: rgba(0, 0, 0, 0.55);
 
-    --success: 152 46% 46%;
-    --success-foreground: 150 30% 10%;
+    --amb-a: rgba(79, 191, 149, 0.09);
+    --amb-b: rgba(224, 185, 106, 0.08);
 
-    --warning: 38 70% 62%;
-    --warning-foreground: 150 30% 10%;
+    --background: 38 21% 7%;
+    --foreground: 42 44% 92%;
 
-    --destructive: 8 64% 56%;
-    --destructive-foreground: 0 0% 100%;
+    --card: 33 19% 11%;
+    --card-foreground: 42 44% 92%;
 
-    /* Borders — faint, low-contrast (surfaces separate by fill + shadow, not outlines) */
-    --border: 150 12% 15%;
-    --input: 150 12% 16%;
-    --ring: 38 58% 60%;
+    --popover: 33 19% 11%;
+    --popover-foreground: 42 44% 92%;
 
-    /* ── Cockpit brand tokens — neutralized 2026-06-30: deep charcoal base,
-       WARM cream text, green + gold used as ACCENTS only (not the whole UI). ── */
-    --ck-bg: 150 14% 4%;
-    --ck-sidebar: 150 16% 3%;
-    --ck-surface: 150 12% 7%;
-    --ck-surface-2: 150 11% 10%;
-    --ck-line: 150 8% 16%;          /* neutral dark hairline (legacy inline borders) */
-    --ck-cream: 43 40% 92%;         /* warm off-white text (was green-tinted) */
-    --ck-sub: 42 14% 70%;           /* warm soft secondary text */
-    --ck-jade: 154 64% 53%;         /* green ACCENT */
-    --ck-mint: 156 55% 72%;
-    --ck-brass: 42 72% 66%;         /* champagne/gold — primary action accent */
-    --ck-brass-bright: 42 78% 74%;
+    --primary: 158 47% 53%;
+    --primary-foreground: 38 21% 7%;
 
-    /* ── Premium token system (--hf-*): charcoal base · green accent · gold action · real depth.
-       Dark values here; the light theme overrides live in :root. ── */
-    /* Direction A — luminance lift (2026-07-09): surfaces raised off pure black,
-       borders + secondary/muted text brightened for contrast, accents a touch
-       brighter. Kills the "dull" feel while keeping the Deep Jade identity.
-       (True sunlight readability is the ivory light-mode toggle — roadmapped.) */
-    --hf-bg: #0c110e;
-    --hf-bg-soft: #121915;
-    --hf-surface: #18211c;
-    --hf-surface-raised: #1e2823;
-    --hf-surface-strong: #26312a;
-    --hf-border: rgba(229, 221, 196, 0.15);
-    --hf-border-strong: rgba(229, 221, 196, 0.26);
-    --hf-text: #f6f2e8;
-    --hf-text-soft: #d9d2c1;
-    --hf-text-muted: #a7b0a3;
-    --hf-green: #46e096;
-    --hf-green-soft: rgba(70, 224, 150, 0.16);
-    --hf-green-border: rgba(70, 224, 150, 0.36);
-    --hf-gold: #edca74;
-    --hf-gold-hover: #f4d78d;
-    --hf-gold-soft: rgba(237, 202, 116, 0.18);
-    --hf-gold-border: rgba(237, 202, 116, 0.38);
-    --hf-danger: #ff6b6b;
-    --hf-warning: #f6b94b;
-    --hf-shadow-soft: 0 14px 40px rgba(0, 0, 0, 0.32);
-    --hf-shadow-raised: 0 22px 70px rgba(0, 0, 0, 0.45);
-    --hf-shadow-gold: 0 10px 26px rgba(231, 195, 106, 0.22);
-    --hf-radius-sm: 10px;
-    --hf-radius-md: 14px;
-    --hf-radius-lg: 20px;
-    --hf-radius-xl: 28px;
+    --secondary: 30 16% 15%;
+    --secondary-foreground: 42 44% 92%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(38 64% 71%) 0%, hsl(38 56% 58%) 100%);
-    --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, hsl(152 40% 18% / 0.55) 0%, transparent 60%), hsl(156 22% 5%);
-    --gradient-card: linear-gradient(180deg, hsl(156 18% 9%) 0%, hsl(156 18% 7%) 100%);
-    --gradient-bg: hsl(156 22% 5%);
+    --muted: 33 19% 9%;
+    --muted-foreground: 37 10% 53%;
 
-    --shadow-sm: 0 1px 2px 0 hsl(156 30% 2% / 0.5);
-    --shadow-md: 0 6px 16px -6px hsl(156 40% 2% / 0.6);
-    --shadow-lg: 0 18px 40px -12px hsl(156 40% 2% / 0.7);
-    --shadow-xl: 0 28px 60px -16px hsl(156 40% 2% / 0.75);
-    --shadow-glow: 0 0 40px hsl(152 46% 40% / 0.15);
+    --accent: 30 16% 15%;
+    --accent-foreground: 42 44% 92%;
 
-    --sidebar-background: 156 20% 4%;
-    --sidebar-foreground: 150 33% 95%;
-    --sidebar-primary: 38 58% 60%;
-    --sidebar-primary-foreground: 150 30% 10%;
-    --sidebar-accent: 156 16% 11%;
-    --sidebar-accent-foreground: 150 33% 95%;
-    --sidebar-border: 150 12% 14%;
-    --sidebar-ring: 38 58% 60%;
+    --success: 158 47% 53%;
+    --success-foreground: 38 21% 7%;
+
+    --warning: 37 69% 66%;
+    --warning-foreground: 38 21% 7%;
+
+    --destructive: 9 62% 61%;
+    --destructive-foreground: 38 21% 7%;
+
+    --border: 42 44% 92%;          /* used at low alpha via border tokens */
+    --input: 30 16% 15%;
+    --ring: 158 47% 53%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(158 47% 53%) 0%, hsl(155 69% 65%) 100%);
+    --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
+    --gradient-card: linear-gradient(180deg, #221D17 0%, #1C1813 100%);
+    --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
+                   radial-gradient(ellipse 60% 45% at 8% 92%, var(--amb-b) 0%, transparent 55%),
+                   var(--ground);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(244, 239, 227, 0.055);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 28px -16px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(244, 239, 227, 0.075);
+    --shadow-lg: 0 3px 6px rgba(0, 0, 0, 0.55), 0 20px 44px -22px rgba(0, 0, 0, 0.92);
+    --shadow-xl: 0 4px 8px rgba(0, 0, 0, 0.6), 0 30px 64px -28px rgba(0, 0, 0, 0.95);
+    --shadow-glow: 0 0 40px rgba(79, 191, 149, 0.14);
+
+    --sidebar-background: 34 24% 6%;
+    --sidebar-foreground: 42 44% 92%;
+    --sidebar-primary: 158 47% 53%;
+    --sidebar-primary-foreground: 38 21% 7%;
+    --sidebar-accent: 30 16% 15%;
+    --sidebar-accent-foreground: 42 44% 92%;
+    --sidebar-border: 30 16% 15%;
+    --sidebar-ring: 158 47% 53%;
+
+    --ck-bg: 38 21% 7%;
+    --ck-sidebar: 34 24% 6%;
+    --ck-surface: 33 19% 11%;
+    --ck-surface-2: 30 16% 15%;
+    --ck-line: 30 16% 18%;
+    --ck-cream: 42 44% 92%;
+    --ck-sub: 37 10% 53%;
+    --ck-jade: 158 47% 53%;
+    --ck-mint: 155 69% 65%;
+    --ck-brass: 40 66% 65%;
+    --ck-brass-bright: 37 69% 66%;
+
+    --hf-bg: #17140F;
+    --hf-bg-soft: #1C1813;
+    --hf-surface: #221D17;
+    --hf-surface-raised: #2C2620;
+    --hf-surface-strong: #332C24;
+    --hf-border: rgba(244, 239, 227, 0.15);
+    --hf-border-strong: rgba(244, 239, 227, 0.26);
+    --hf-text: #F4EFE3;
+    --hf-text-soft: #C3BBA9;
+    --hf-text-muted: #948B7C;
+    --hf-green: #4FBF95;
+    --hf-green-soft: rgba(79, 191, 149, 0.15);
+    --hf-green-border: rgba(79, 191, 149, 0.36);
+    --hf-gold: #E0B96A;
+    --hf-gold-hover: #E9C983;
+    --hf-gold-soft: rgba(224, 170, 80, 0.16);
+    --hf-gold-border: rgba(224, 185, 106, 0.55);
+    --hf-danger: #D9715F;
+    --hf-warning: #E4B76E;
+    --hf-shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 28px -16px rgba(0, 0, 0, 0.9);
+    --hf-shadow-raised: 0 3px 6px rgba(0, 0, 0, 0.55), 0 20px 44px -22px rgba(0, 0, 0, 0.92);
+    --hf-shadow-gold: 0 10px 26px -14px rgba(224, 185, 106, 0.35);
+    --hf-radius-sm: 8px;
+    --hf-radius-md: 10px;
+    --hf-radius-lg: 12px;
+    --hf-radius-xl: 16px;
   }
 }
 
@@ -365,10 +492,10 @@
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px hsl(160 84% 39% / 0.25);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.25);
   }
   50% {
-    box-shadow: 0 0 40px hsl(160 84% 39% / 0.4);
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.4);
   }
 }
 
@@ -408,21 +535,21 @@
 
 @keyframes icon-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 2px hsl(160 84% 39% / 0.3));
+    filter: drop-shadow(0 0 2px hsl(var(--primary) / 0.3));
   }
   50% {
-    filter: drop-shadow(0 0 8px hsl(160 84% 39% / 0.6));
+    filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.6));
   }
 }
 
 @keyframes logo-breathe {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 20px hsl(160 84% 39% / 0.3);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
   }
   50% {
     transform: scale(1.05);
-    box-shadow: 0 0 30px hsl(160 84% 39% / 0.5);
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.5);
   }
 }
 
@@ -463,9 +590,9 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    hsl(220 12% 25% / 0.5) 20%,
-    hsl(150 50% 35% / 0.25) 50%,
-    hsl(220 12% 25% / 0.5) 80%,
+    hsl(var(--border) / 0.5) 20%,
+    hsl(var(--primary) / 0.25) 50%,
+    hsl(var(--border) / 0.5) 80%,
     transparent 100%
   );
   animation: border-shimmer 3s linear infinite;
@@ -486,9 +613,9 @@
   transform: translateY(-50%);
   width: 3px;
   height: 60%;
-  background: linear-gradient(180deg, hsl(150 50% 35%) 0%, hsl(150 60% 42%) 100%);
+  background: linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--primary)) 100%);
   border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 10px hsl(150 50% 35% / 0.4);
+  box-shadow: 0 0 10px hsl(var(--primary) / 0.4);
 }
 
 /* Mobile-first utility classes */

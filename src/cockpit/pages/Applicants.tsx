@@ -56,8 +56,8 @@ function RowActions({
         className="ck-pill"
         style={
           hired
-            ? { color: "hsl(152 52% 64%)", background: "hsl(152 46% 40% / 0.16)", borderColor: "hsl(152 46% 45% / 0.3)" }
-            : { color: "hsl(8 60% 66%)", background: "hsl(8 40% 40% / 0.12)", borderColor: "hsl(8 40% 45% / 0.25)" }
+            ? { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", borderColor: "color-mix(in srgb, var(--hf-green) 30%, transparent)" }
+            : { color: "var(--hf-danger)", background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", borderColor: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
         }
       >
         {hired ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
@@ -69,12 +69,12 @@ function RowActions({
   if (variant === "panel") {
     return offered ? (
       <>
-        <button className="ck-btn ck-btn-brass w-full" onClick={onHire}><CheckCircle2 className="h-4 w-4" />Hire</button>
-        <button className="ck-btn ck-btn-outline w-full" style={{ color: "hsl(8 66% 66%)", borderColor: "hsl(8 50% 40% / 0.5)" }} onClick={onReject}>Decline Offer</button>
+        <button className="ck-btn ck-btn-primary w-full" onClick={onHire}><CheckCircle2 className="h-4 w-4" />Hire</button>
+        <button className="ck-btn ck-btn-outline w-full" style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }} onClick={onReject}>Decline Offer</button>
       </>
     ) : (
       <>
-        {canAdvance && <button className="ck-btn ck-btn-brass w-full" onClick={onAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>}
+        {canAdvance && <button className="ck-btn ck-btn-primary w-full" onClick={onAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>}
         <button className="ck-btn ck-btn-outline w-full" onClick={onReject}>Pass</button>
       </>
     );
@@ -82,9 +82,9 @@ function RowActions({
 
   const sm = "!px-3 !py-1.5 !text-[12px]";
   return offered ? (
-    <button className={`ck-btn ck-btn-brass ${sm}`} onClick={onHire}><CheckCircle2 className="h-3.5 w-3.5" />Hire</button>
+    <button className={`ck-btn ck-btn-primary ${sm}`} onClick={onHire}><CheckCircle2 className="h-3.5 w-3.5" />Hire</button>
   ) : canAdvance ? (
-    <button className={`ck-btn ck-btn-brass ${sm}`} onClick={onAdvance}>Advance<ChevronRight className="h-3.5 w-3.5" /></button>
+    <button className={`ck-btn ck-btn-primary ${sm}`} onClick={onAdvance}>Advance<ChevronRight className="h-3.5 w-3.5" /></button>
   ) : null;
 }
 
@@ -100,7 +100,7 @@ function isAnalyzed(c: Candidate): boolean {
 function StagePill({ stage }: { stage: CandidateStage }) {
   if (stage === "Rejected") {
     return (
-      <span className="ck-pill" style={{ color: "hsl(8 60% 66%)", background: "hsl(8 40% 40% / 0.12)", borderColor: "hsl(8 40% 45% / 0.25)" }}>
+      <span className="ck-pill" style={{ color: "var(--hf-danger)", background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", borderColor: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" }}>
         Passed
       </span>
     );
@@ -111,8 +111,8 @@ function StagePill({ stage }: { stage: CandidateStage }) {
 }
 
 function Score({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-[15px]" style={{ color: "hsl(150 10% 42%)" }}>—</span>;
-  return <span className="ck-num text-[15px]" style={{ color: "hsl(150 28% 88%)" }}>{value}%</span>;
+  if (value === null) return <span className="text-[15px]" style={{ color: "var(--hf-text-muted)" }}>—</span>;
+  return <span className="ck-num text-[15px]" style={{ color: "var(--hf-text)" }}>{value}%</span>;
 }
 
 function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedule, onViewProfile }: { c: Candidate; status?: string; onClose?: () => void; onAdvance: () => void; onHire: () => void; onReject: () => void; onSchedule: () => void; onViewProfile: () => void }) {
@@ -123,19 +123,19 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
       {/* compact header — name, stage, match all visible at a glance */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-display text-[19px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</div>
-          <div className="mt-0.5 truncate text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>{c.role} · {c.appliedAgo}</div>
+          <div className="truncate font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
+          <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
           <div className="mt-1.5"><StagePill stage={c.stage} /></div>
         </div>
         <div className="flex shrink-0 items-start gap-2">
           {analyzed && (
             <div className="text-right">
-              <div className="ck-num leading-none text-[22px]" style={{ color: "hsl(152 52% 58%)" }}>{c.overall}<span className="text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>%</span></div>
-              <div className="text-[10.5px]" style={{ color: "hsl(150 10% 56%)" }}>match</div>
+              <div className="ck-num leading-none text-[22px]" style={{ color: "var(--hf-green)" }}>{c.overall}<span className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>%</span></div>
+              <div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>match</div>
             </div>
           )}
           {onClose && (
-            <button onClick={onClose} style={{ color: "hsl(150 10% 56%)" }}>
+            <button onClick={onClose} style={{ color: "var(--hf-text-muted)" }}>
               <X className="h-4 w-4" />
             </button>
           )}
@@ -146,13 +146,13 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
       <div className="ck-inset mt-3 p-3">
         <div className="flex items-center gap-2">
           <AvaOrb size={34} reflection={false} glow={false} amp={0.22} flow={0.5} />
-          <span className="font-display text-[14px]" style={{ color: "hsl(150 30% 90%)", fontWeight: 500 }}>Ava's read</span>
+          <span className="font-display text-[14px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</span>
         </div>
         {analyzed ? (
-          <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "hsl(150 14% 66%)" }}>{c.readFull}</p>
+          <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{c.readFull}</p>
         ) : (
-          <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(150 12% 60%)" }}>
-            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: "hsl(152 46% 58%)" }} />
+          <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-snug" style={{ color: "var(--hf-text-muted)" }}>
+            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: "var(--hf-green)" }} />
             Ava is screening this candidate. Scores and strengths appear here once screening completes.
           </p>
         )}
@@ -171,13 +171,13 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
       <div className="ck-scroll mt-4 flex-1 space-y-4 overflow-y-auto">
         {analyzed && c.strengths.length > 0 && (
           <div>
-            <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Top strengths</div>
+            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Top strengths</div>
             <div className="mt-2.5 space-y-2.5">
               {c.strengths.map((s, i) => {
                 const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
                 return (
-                  <div key={s} className="flex items-start gap-2.5 text-[13px]" style={{ color: "hsl(150 20% 78%)" }}>
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
+                  <div key={s} className="flex items-start gap-2.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="flex-1">{s}</span>
@@ -191,13 +191,13 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
         {analyzed && (
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Risk factors</span>
-              <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(152 46% 58%)" }}>
+              <span className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</span>
+              <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--hf-green)" }}>
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {c.risk.level}
               </span>
             </div>
-            <p className="mt-1 text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.risk.note}</p>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.note}</p>
           </div>
         )}
       </div>
@@ -367,7 +367,7 @@ export default function CockpitApplicants() {
   if (isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" />
       </div>
     );
   }
@@ -390,25 +390,25 @@ export default function CockpitApplicants() {
         <section className="min-w-0 space-y-5">
           <div className="ck-card p-5 md:p-6">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="font-display text-[16px]" style={{ color: "hsl(150 28% 88%)", fontWeight: 500 }}>
+          <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
             {candidateFocused && selected ? `Where ${selected.name.split(" ")[0]} is` : "Where your applicants are"}
           </h2>
           {candidateFocused && selected ? (
             <button
               onClick={() => setSelectedId(null)}
               className="inline-flex items-center gap-1.5 text-[12.5px] transition-opacity hover:opacity-80"
-              style={{ color: "hsl(38 64% 66%)" }}
+              style={{ color: "var(--hf-gold)" }}
             >
               <X className="h-3.5 w-3.5" /> View whole pipeline
             </button>
           ) : (
-            <span className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
+            <span className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
               {pipelineTotal} {pipelineTotal === 1 ? "candidate" : "candidates"} in your pipeline · each number is how many sit at that stage
             </span>
           )}
         </div>
         <Pipeline variant="large" nodes={candidateFocused ? candidateNodes : filteredPipeline} />
-        <p className="mt-4 text-[12px]" style={{ color: "hsl(150 10% 50%)" }}>
+        <p className="mt-4 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
           {candidateFocused && selected
             ? selected.stage === "Rejected"
               ? `${selected.name} was passed and is no longer active in this pipeline.`
@@ -429,12 +429,12 @@ export default function CockpitApplicants() {
           <div className="ck-card hidden overflow-hidden md:block">
             <div
               className="grid items-center gap-3 px-4 py-3 text-[12px]"
-              style={{ gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr", color: "hsl(150 10% 54%)", borderBottom: "1px solid hsl(150 12% 14%)" }}
+              style={{ gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr", color: "var(--hf-text-muted)", borderBottom: "1px solid var(--hf-border-strong)" }}
             >
               <div>Candidate</div><div>Role</div><div>Stage</div><div>Quiz score</div><div>Voice score</div><div>Ava's read</div><div>Actions</div>
             </div>
             {paged.length === 0 ? (
-              <div className="p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+              <div className="p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
                 {listCandidates.length === 0 && (roleIdFilter || search || stageFilter || scoreFilter)
                   ? "No applicants match these filters."
                   : "No applicants yet."}
@@ -451,23 +451,23 @@ export default function CockpitApplicants() {
                     className="grid cursor-pointer items-center gap-3 px-4 py-3 transition-colors"
                     style={{
                       gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr",
-                      borderBottom: "1px solid hsl(150 12% 13% / 0.6)",
-                      background: isSel ? "hsl(38 40% 14% / 0.5)" : "transparent",
-                      boxShadow: isSel ? "inset 4px 0 0 hsl(38 64% 60%)" : "none",
+                      borderBottom: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)",
+                      background: isSel ? "color-mix(in srgb, var(--hf-gold-hover) 50%, transparent)" : "transparent",
+                      boxShadow: isSel ? "inset 4px 0 0 var(--hf-gold)" : "none",
                     }}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={34} score={c.overall} index={pageStart + i} variant="signal" />
                       <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-semibold" style={{ color: "hsl(150 30% 91%)" }}>{c.name}</div>
-                        <div className="truncate text-[11.5px]" style={{ color: "hsl(150 10% 52%)" }}>{c.appliedAgo}</div>
+                        <div className="truncate text-[13.5px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</div>
+                        <div className="truncate text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.appliedAgo}</div>
                       </div>
                     </div>
-                    <div className="text-[13px]" style={{ color: "hsl(150 14% 66%)" }}>{c.role}</div>
+                    <div className="text-[13px]" style={{ color: "var(--hf-text-soft)" }}>{c.role}</div>
                     <div><StagePill stage={c.stage} /></div>
                     <div><Score value={c.quiz} /></div>
                     <div><Score value={c.voice} /></div>
-                    <div className="truncate pr-2 text-[12.5px]" style={{ color: "hsl(150 10% 58%)" }}>{analyzed ? c.read : "Screening in progress…"}</div>
+                    <div className="truncate pr-2 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{analyzed ? c.read : "Screening in progress…"}</div>
                     <div className="relative flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <RowActions
                         status={statusById[c.id]}
@@ -476,17 +476,17 @@ export default function CockpitApplicants() {
                         onHire={() => openHire(c)}
                         onReject={() => openReject(c)}
                       />
-                      <button style={{ color: "hsl(150 10% 52%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(menuId === c.id ? null : c.id); }}>
+                      <button style={{ color: "var(--hf-text-muted)" }} onClick={(e) => { e.stopPropagation(); setMenuId(menuId === c.id ? null : c.id); }}>
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                       {menuId === c.id && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenuId(null); }} />
-                          <div className="absolute right-0 top-9 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 18%)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
-                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(150 20% 80%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/applicants/${c.id}`); }}>View full profile</button>
-                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(150 20% 80%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/messages?candidate=${c.id}`); }}>Message</button>
+                          <div className="absolute right-0 top-9 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/applicants/${c.id}`); }}>View full profile</button>
+                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/messages?candidate=${c.id}`); }}>Message</button>
                             {statusById[c.id] !== "hired" && statusById[c.id] !== "rejected" && (
-                              <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "hsl(8 60% 64%)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); openReject(c); }}>
+                              <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-danger)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); openReject(c); }}>
                                 {statusById[c.id] === "offered" ? "Decline offer" : "Pass"}
                               </button>
                             )}
@@ -498,7 +498,7 @@ export default function CockpitApplicants() {
                 );
               })
             )}
-            <div className="flex items-center justify-between px-4 py-3 text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>
+            <div className="flex items-center justify-between px-4 py-3 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
               <span>
                 {listCandidates.length === 0
                   ? "No candidates"
@@ -506,24 +506,24 @@ export default function CockpitApplicants() {
               </span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">
-                  <button disabled={pageClamped === 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "hsl(150 12% 56%)" }}><ChevronLeft className="h-4 w-4" /></button>
+                  <button disabled={pageClamped === 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "var(--hf-text-muted)" }}><ChevronLeft className="h-4 w-4" /></button>
                   {pageNumbers.map((n, idx) => {
                     const prev = pageNumbers[idx - 1];
                     const gap = prev != null && n - prev > 1;
                     return (
                       <span key={n} className="flex items-center">
-                        {gap && <span className="px-1" style={{ color: "hsl(150 12% 45%)" }}>…</span>}
+                        {gap && <span className="px-1" style={{ color: "var(--hf-text-muted)" }}>…</span>}
                         <button
                           onClick={() => setPage(n)}
                           className="flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-[12.5px]"
-                          style={n === pageClamped ? { background: "hsl(152 30% 16%)", color: "hsl(150 30% 88%)" } : { color: "hsl(150 12% 56%)" }}
+                          style={n === pageClamped ? { background: "var(--hf-green-soft)", color: "var(--hf-text)" } : { color: "var(--hf-text-muted)" }}
                         >
                           {n}
                         </button>
                       </span>
                     );
                   })}
-                  <button disabled={pageClamped === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "hsl(150 12% 56%)" }}><ChevronRight className="h-4 w-4" /></button>
+                  <button disabled={pageClamped === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "var(--hf-text-muted)" }}><ChevronRight className="h-4 w-4" /></button>
                 </div>
               )}
             </div>
@@ -538,20 +538,20 @@ export default function CockpitApplicants() {
                   <div className="flex items-start gap-3">
                     <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={48} score={c.overall} index={pageStart + i} variant="signal" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold" style={{ color: "hsl(150 30% 91%)" }}>{c.name}</div>
-                      <div className="text-[12px]" style={{ color: "hsl(150 10% 54%)" }}>{c.role}</div>
+                      <div className="text-[15px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</div>
+                      <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role}</div>
                       <div className="mt-1"><StagePill stage={c.stage} /></div>
                     </div>
                     <div className="flex shrink-0 gap-4 text-center">
-                      <div><div className="text-[10.5px]" style={{ color: "hsl(150 10% 54%)" }}>Score</div><div className="ck-num text-[16px]" style={{ color: "hsl(150 28% 88%)" }}>{c.overall || "—"}</div></div>
-                      <div><div className="text-[10.5px]" style={{ color: "hsl(150 10% 54%)" }}>Quiz</div><div className="ck-num text-[16px]" style={{ color: "hsl(150 28% 88%)" }}>{c.quiz != null ? `${c.quiz}%` : "—"}</div></div>
-                      <div><div className="text-[10.5px]" style={{ color: "hsl(150 10% 54%)" }}>Voice</div><div className="ck-num text-[16px]" style={{ color: "hsl(150 28% 88%)" }}>{c.voice != null ? `${c.voice}%` : "—"}</div></div>
+                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Score</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.overall || "—"}</div></div>
+                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Quiz</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.quiz != null ? `${c.quiz}%` : "—"}</div></div>
+                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Voice</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.voice != null ? `${c.voice}%` : "—"}</div></div>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px]" style={{ color: "hsl(150 10% 56%)" }}>Ava's read</div>
-                      <p className="text-[12px] leading-snug" style={{ color: "hsl(150 12% 62%)" }}>{analyzed ? c.read : "Screening in progress…"}</p>
+                      <div className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>Ava's read</div>
+                      <p className="text-[12px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{analyzed ? c.read : "Screening in progress…"}</p>
                     </div>
                     <div className="flex shrink-0 flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <RowActions
@@ -572,7 +572,7 @@ export default function CockpitApplicants() {
               );
             })}
             {paged.length === 0 && (
-              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>No applicants yet.</div>
+              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No applicants yet.</div>
             )}
           </div>
         </div>

@@ -49,7 +49,7 @@ function Cell({ it }: { it: Item }) {
   return (
     <div
       className="flex flex-col items-center justify-end gap-3 rounded-2xl p-5"
-      style={{ background: "hsl(152 30% 7% / 0.5)", border: "1px solid hsl(152 20% 16%)", minHeight: it.size + 110 }}
+      style={{ background: "color-mix(in srgb, var(--hf-bg) 50%, transparent)", border: "1px solid var(--hf-border-strong)", minHeight: it.size + 110 }}
     >
       <div className="flex flex-1 items-center justify-center">
         <AvaOrb
@@ -61,7 +61,7 @@ function Cell({ it }: { it: Item }) {
           spin={it.spin}
         />
       </div>
-      <div className="text-[12px] font-medium tracking-wide" style={{ color: "hsl(150 14% 64%)" }}>
+      <div className="text-[12px] font-medium tracking-wide" style={{ color: "var(--hf-text-soft)" }}>
         {it.label}
       </div>
     </div>
@@ -73,7 +73,7 @@ function Section({ title, items }: { title: string; items: Item[] }) {
     <section className="mb-12">
       <h2
         className="mb-5 text-[11px] font-bold uppercase tracking-[0.22em]"
-        style={{ color: "hsl(38 62% 66%)" }}
+        style={{ color: "var(--hf-gold)" }}
       >
         {title}
       </h2>
@@ -92,14 +92,14 @@ export default function OrbAudit() {
       className="min-h-[100dvh] px-8 py-10"
       style={{
         background:
-          "radial-gradient(ellipse 90% 60% at 50% -10%, hsl(152 40% 14% / 0.5) 0%, transparent 60%), hsl(var(--background))",
+          "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))",
         color: "hsl(var(--foreground))",
       }}
     >
       <h1 className="mb-2 text-3xl" style={{ fontFamily: "'Fraunces', serif", fontWeight: 500 }}>
         Ava Orb audit
       </h1>
-      <p className="mb-10 text-sm" style={{ color: "hsl(150 12% 60%)" }}>
+      <p className="mb-10 text-sm" style={{ color: "var(--hf-text-muted)" }}>
         Every orb used in the app, at its real size + props. Checking each reads premium and proportioned.
       </p>
       <Section title="Create-job flow (must stay consistent)" items={HEROES} />

@@ -113,7 +113,7 @@ export default function EmployerWelcome() {
           <button
             onClick={() => go("create")}
             disabled={!!busy}
-            className="ck-btn ck-btn-brass w-full max-w-xs justify-center !py-3.5 !text-[15px] disabled:opacity-60"
+            className="ck-btn ck-btn-primary w-full max-w-xs justify-center !py-3.5 !text-[15px] disabled:opacity-60"
           >
             {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Create your first role

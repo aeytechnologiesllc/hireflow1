@@ -10,10 +10,10 @@ interface PipelineProps {
   className?: string;
 }
 
-const JADE = "hsl(152 50% 50%)";
-const BRASS = "hsl(38 64% 66%)";
-const MUTED = "hsl(150 10% 34%)";
-const RED = "hsl(8 60% 62%)";
+const JADE = "var(--hf-green)";
+const BRASS = "var(--hf-gold)";
+const MUTED = "var(--hf-text-muted)";
+const RED = "var(--hf-danger)";
 
 function nodeColor(node: PipelineNode) {
   if (node.tone === "bottleneck") return BRASS;
@@ -84,7 +84,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
               style={{
                 height: labelH,
                 fontSize: 12.5,
-                color: isCurrent || isBottleneck ? BRASS : "hsl(150 10% 64%)",
+                color: isCurrent || isBottleneck ? BRASS : "var(--hf-text-soft)",
                 fontWeight: 500,
               }}
             >
@@ -105,7 +105,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                   height: circle,
                   borderRadius: 999,
                   border: `2px solid ${color}`,
-                  background: "hsl(156 22% 6%)",
+                  background: "var(--hf-bg)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -113,7 +113,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                 }}
               >
                 {numberInside && (
-                  <span className="ck-num" style={{ fontSize: 22, color: color === MUTED ? "hsl(150 20% 80%)" : color }}>
+                  <span className="ck-num" style={{ fontSize: 22, color: color === MUTED ? "var(--hf-text)" : color }}>
                     <CountUp value={node.count} delay={120 + i * 90} />
                   </span>
                 )}
@@ -127,7 +127,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
 
             {/* number (below) — aggregate non-large variants */}
             {!numberInside && !candidateMode && (
-              <div className="ck-num" style={{ fontSize: variant === "funnel" ? 26 : 30, marginTop: 8, color: "hsl(150 30% 92%)" }}>
+              <div className="ck-num" style={{ fontSize: variant === "funnel" ? 26 : 30, marginTop: 8, color: "var(--hf-text)" }}>
                 <CountUp value={node.count} delay={120 + i * 90} />
               </div>
             )}
@@ -143,10 +143,10 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                     node.state === "current"
                       ? BRASS
                       : node.state === "done"
-                        ? "hsl(152 40% 64%)"
+                        ? "var(--hf-text-soft)"
                         : node.state === "passed"
                           ? RED
-                          : "hsl(150 10% 46%)",
+                          : "var(--hf-text-muted)",
                 }}
               >
                 {node.state === "current" ? "Now" : node.state === "done" ? "Done" : node.state === "passed" ? "Passed" : ""}
@@ -158,15 +158,15 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                     className="ck-pill"
                     style={
                       node.tone === "bottleneck"
-                        ? { color: "hsl(150 32% 11%)", background: BRASS, borderColor: BRASS }
-                        : { color: "hsl(150 14% 70%)", background: "hsl(150 10% 40% / 0.12)", borderColor: "hsl(150 10% 40% / 0.2)" }
+                        ? { color: "var(--hf-surface-raised)", background: BRASS, borderColor: BRASS }
+                        : { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-text-muted) 12%, transparent)", borderColor: "color-mix(in srgb, var(--hf-text-muted) 20%, transparent)" }
                     }
                   >
                     {node.pct}
                   </span>
                 </div>
                 {typeof node.dropOff === "number" && i > 0 && (
-                  <div style={{ marginTop: 8, fontSize: 11.5, color: node.tone === "bottleneck" ? BRASS : "hsl(150 10% 52%)" }}>
+                  <div style={{ marginTop: 8, fontSize: 11.5, color: node.tone === "bottleneck" ? BRASS : "var(--hf-text-muted)" }}>
                     drop-off {node.dropOff}
                   </div>
                 )}
@@ -177,7 +177,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                   marginTop: 4,
                   fontSize: 12.5,
                   fontWeight: 500,
-                  color: node.tone === "bottleneck" ? BRASS : "hsl(150 10% 52%)",
+                  color: node.tone === "bottleneck" ? BRASS : "var(--hf-text-muted)",
                 }}
               >
                 {node.pct}

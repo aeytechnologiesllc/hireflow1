@@ -29,10 +29,10 @@ const KPI_ICONS = {
 
 function DocStatusPill({ status }: { status: DocStatus }) {
   const map: Record<DocStatus, { color: string; bg: string; border: string }> = {
-    Pending: { color: "hsl(38 64% 68%)", bg: "hsl(38 58% 50% / 0.13)", border: "hsl(38 58% 50% / 0.25)" },
-    Submitted: { color: "hsl(152 50% 62%)", bg: "hsl(152 46% 40% / 0.14)", border: "hsl(152 46% 45% / 0.25)" },
-    Signed: { color: "hsl(150 30% 88%)", bg: "hsl(152 46% 32% / 0.3)", border: "hsl(152 46% 45% / 0.4)" },
-    Declined: { color: "hsl(8 64% 66%)", bg: "hsl(8 60% 45% / 0.14)", border: "hsl(8 60% 50% / 0.25)" },
+    Pending: { color: "var(--hf-gold)", bg: "color-mix(in srgb, var(--hf-gold-hover) 13%, transparent)", border: "color-mix(in srgb, var(--hf-gold-hover) 25%, transparent)" },
+    Submitted: { color: "var(--hf-text-soft)", bg: "color-mix(in srgb, var(--hf-green) 14%, transparent)", border: "color-mix(in srgb, var(--hf-green) 25%, transparent)" },
+    Signed: { color: "var(--hf-text)", bg: "color-mix(in srgb, var(--hf-green-border) 30%, transparent)", border: "color-mix(in srgb, var(--hf-green) 40%, transparent)" },
+    Declined: { color: "var(--hf-danger)", bg: "color-mix(in srgb, var(--hf-danger) 14%, transparent)", border: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" },
   };
   const s = map[status];
   return <span className="ck-pill" style={{ color: s.color, background: s.bg, borderColor: s.border }}>{status}</span>;
@@ -58,60 +58,60 @@ function DetailPanel({
     <div className="ck-card flex h-full flex-col p-5">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "hsl(152 30% 14%)", color: "hsl(152 46% 60%)" }}>
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
             <FileText className="h-6 w-6" />
           </span>
           <div>
-            <div className="font-display text-[19px]" style={{ color: "hsl(150 30% 92%)", fontWeight: 500 }}>{row.title}</div>
-            <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{row.type}</div>
+            <div className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{row.title}</div>
+            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.type}</div>
           </div>
         </div>
-        <button onClick={onClose} style={{ color: "hsl(150 10% 56%)" }}><X className="h-4 w-4" /></button>
+        <button onClick={onClose} style={{ color: "var(--hf-text-muted)" }}><X className="h-4 w-4" /></button>
       </div>
 
       <div className="mt-3"><DocStatusPill status={row.status} /></div>
-      <p className="mt-2 text-[13px]" style={{ color: "hsl(150 12% 62%)" }}>{row.status === "Pending" ? "Pending candidate signature" : row.statusNote}</p>
+      <p className="mt-2 text-[13px]" style={{ color: "var(--hf-text-soft)" }}>{row.status === "Pending" ? "Pending candidate signature" : row.statusNote}</p>
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>Candidate</div>
-        <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>Updated</div>
+        <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>Candidate</div>
+        <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>Updated</div>
       </div>
       <div className="mt-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CandidateMark who={row.avatar} size={30} variant="calm" />
           <div>
-            <div className="text-[13px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>{row.candidate}</div>
-            <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>{row.role}</div>
+            <div className="text-[13px] font-semibold" style={{ color: "var(--hf-text)" }}>{row.candidate}</div>
+            <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.role}</div>
           </div>
         </div>
-        <div className="text-[13px]" style={{ color: "hsl(150 22% 80%)" }}>{row.updated}</div>
+        <div className="text-[13px]" style={{ color: "var(--hf-text)" }}>{row.updated}</div>
       </div>
 
-      <div className="mt-4 flex gap-4 text-[13px]" style={{ borderBottom: "1px solid hsl(150 12% 14%)" }}>
+      <div className="mt-4 flex gap-4 text-[13px]" style={{ borderBottom: "1px solid var(--hf-border-strong)" }}>
         {["Details", "Document preview"].map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="pb-2" style={{ color: tab === t ? "hsl(38 62% 66%)" : "hsl(150 10% 56%)", borderBottom: tab === t ? "2px solid hsl(38 62% 60%)" : "2px solid transparent" }}>{t}</button>
+          <button key={t} onClick={() => setTab(t)} className="pb-2" style={{ color: tab === t ? "var(--hf-gold)" : "var(--hf-text-muted)", borderBottom: tab === t ? "2px solid var(--hf-gold)" : "2px solid transparent" }}>{t}</button>
         ))}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-y-3 text-[12.5px]">
-        <div><div style={{ color: "hsl(150 10% 54%)" }}>Created by</div><div style={{ color: "hsl(150 24% 84%)" }}>You</div></div>
-        <div><div style={{ color: "hsl(150 10% 54%)" }}>Created</div><div style={{ color: "hsl(150 24% 84%)" }}>{row.created ?? "—"}</div></div>
-        <div><div style={{ color: "hsl(150 10% 54%)" }}>Expires</div><div style={{ color: "hsl(150 24% 84%)" }}>{row.expires ?? "—"}</div></div>
+        <div><div style={{ color: "var(--hf-text-muted)" }}>Created by</div><div style={{ color: "var(--hf-text)" }}>You</div></div>
+        <div><div style={{ color: "var(--hf-text-muted)" }}>Created</div><div style={{ color: "var(--hf-text)" }}>{row.created ?? "—"}</div></div>
+        <div><div style={{ color: "var(--hf-text-muted)" }}>Expires</div><div style={{ color: "var(--hf-text)" }}>{row.expires ?? "—"}</div></div>
       </div>
 
-      <div className="mt-5 text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Timeline</div>
+      <div className="mt-5 text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Timeline</div>
       <div className="mt-2 space-y-3">
         {detailTimeline.length === 0 ? (
-          <p className="text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>No activity recorded yet.</p>
+          <p className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>No activity recorded yet.</p>
         ) : (
           detailTimeline.map((t) => {
           const Icon = t.icon === "clock" ? Clock : t.icon === "eye" ? Eye : CircleDot;
           return (
             <div key={t.id} className="flex items-start gap-2.5">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "hsl(150 12% 56%)" }} />
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
               <div>
-                <div className="text-[13px]" style={{ color: "hsl(150 22% 82%)" }}>{t.text}</div>
-                <div className="text-[11.5px]" style={{ color: "hsl(150 10% 50%)" }}>{t.time}</div>
+                <div className="text-[13px]" style={{ color: "var(--hf-text)" }}>{t.text}</div>
+                <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{t.time}</div>
               </div>
             </div>
           );
@@ -121,7 +121,7 @@ function DetailPanel({
 
       <div className="mt-auto flex gap-2 pt-5">
         <button
-          className="ck-btn ck-btn-brass flex-1"
+          className="ck-btn ck-btn-primary flex-1"
           disabled={!row.fileUrl}
           style={!row.fileUrl ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
           onClick={() => row.fileUrl && window.open(row.fileUrl, "_blank", "noopener")}
@@ -173,7 +173,7 @@ export default function CockpitDocuments() {
   ) : null;
 
   if (isLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" /></div>;
+    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
   }
 
   if (!selected) {
@@ -183,13 +183,13 @@ export default function CockpitDocuments() {
           title="Documents"
           subtitle="Offers, requests, and signed hiring paperwork."
           actions={
-            <button className="ck-btn ck-btn-brass" onClick={() => setWizard({ type: "offer_letter" })}>
+            <button className="ck-btn ck-btn-primary" onClick={() => setWizard({ type: "offer_letter" })}>
               <FileCheck className="h-4 w-4" />Create offer
             </button>
           }
         />
-        <div className="ck-card p-10 text-center" style={{ color: "hsl(150 10% 56%)" }}>
-          <FileText className="mx-auto h-8 w-8" style={{ color: "hsl(150 14% 40%)" }} />
+        <div className="ck-card p-10 text-center" style={{ color: "var(--hf-text-muted)" }}>
+          <FileText className="mx-auto h-8 w-8" style={{ color: "var(--hf-text-muted)" }} />
           <p className="mt-3 text-[14px]">No documents yet.</p>
           <p className="mt-1 text-[12.5px]">Create an offer letter or hiring document and send it for signature.</p>
         </div>
@@ -206,7 +206,7 @@ export default function CockpitDocuments() {
         actions={
           <>
             <button className="ck-btn ck-btn-outline" onClick={() => setWizard({})}><FileText className="h-4 w-4" />New document</button>
-            <button className="ck-btn ck-btn-brass" onClick={() => setWizard({ type: "offer_letter" })}><FileCheck className="h-4 w-4" />Create offer</button>
+            <button className="ck-btn ck-btn-primary" onClick={() => setWizard({ type: "offer_letter" })}><FileCheck className="h-4 w-4" />Create offer</button>
           </>
         }
       />
@@ -219,18 +219,18 @@ export default function CockpitDocuments() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <div className="ck-card overflow-hidden">
-          <div className="flex gap-5 px-5 pt-4 text-[13.5px]" style={{ borderBottom: "1px solid hsl(150 12% 14%)" }}>
+          <div className="flex gap-5 px-5 pt-4 text-[13.5px]" style={{ borderBottom: "1px solid var(--hf-border-strong)" }}>
             {documents.tabs.map((t) => (
-              <button key={t} onClick={() => setTab(t)} className="pb-3" style={{ color: tab === t ? "hsl(38 62% 66%)" : "hsl(150 10% 56%)", borderBottom: tab === t ? "2px solid hsl(38 62% 60%)" : "2px solid transparent" }}>{t}</button>
+              <button key={t} onClick={() => setTab(t)} className="pb-3" style={{ color: tab === t ? "var(--hf-gold)" : "var(--hf-text-muted)", borderBottom: tab === t ? "2px solid var(--hf-gold)" : "2px solid transparent" }}>{t}</button>
             ))}
           </div>
 
-          <div className="hidden grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-3 px-5 py-3 text-[12px] md:grid" style={{ color: "hsl(150 10% 54%)", borderBottom: "1px solid hsl(150 12% 13%)" }}>
+          <div className="hidden grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-3 px-5 py-3 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)", borderBottom: "1px solid var(--hf-surface-raised)" }}>
             <div>Document</div><div>Candidate</div><div>Status</div><div>Updated</div>
           </div>
 
           {filteredRows.length === 0 && (
-            <div className="px-5 py-8 text-center text-[13px]" style={{ color: "hsl(150 10% 56%)" }}>
+            <div className="px-5 py-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
               No {tab === "All documents" ? "" : tab.toLowerCase() + " "}documents.
             </div>
           )}
@@ -243,33 +243,33 @@ export default function CockpitDocuments() {
                 key={row.id}
                 onClick={() => setSelectedId(row.id)}
                 className="grid cursor-pointer grid-cols-[1.4fr_auto] items-center gap-3 px-5 py-3.5 md:grid-cols-[2fr_1.5fr_1.5fr_1fr]"
-                style={{ borderBottom: "1px solid hsl(150 12% 13% / 0.6)", background: isSel ? "hsl(156 18% 10%)" : "transparent", boxShadow: isSel ? "inset 2px 0 0 hsl(38 60% 60%)" : "none" }}
+                style={{ borderBottom: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)", background: isSel ? "var(--hf-surface-raised)" : "transparent", boxShadow: isSel ? "inset 2px 0 0 var(--hf-gold)" : "none" }}
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "hsl(152 28% 13%)", color: "hsl(152 46% 58%)" }}><Icon className="h-4 w-4" /></span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--hf-surface-raised)", color: "var(--hf-green)" }}><Icon className="h-4 w-4" /></span>
                   <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-semibold" style={{ color: "hsl(150 28% 89%)" }}>{row.title}</div>
-                    <div className="text-[11.5px]" style={{ color: "hsl(150 10% 54%)" }}>{row.type}</div>
+                    <div className="truncate text-[13.5px] font-semibold" style={{ color: "var(--hf-text)" }}>{row.title}</div>
+                    <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.type}</div>
                   </div>
                 </div>
                 <div className="hidden items-center gap-2 md:flex">
                   <CandidateMark who={row.avatar} size={28} variant="calm" />
-                  <div className="min-w-0"><div className="truncate text-[13px]" style={{ color: "hsl(150 22% 82%)" }}>{row.candidate}</div><div className="text-[11px]" style={{ color: "hsl(150 10% 52%)" }}>{row.role}</div></div>
+                  <div className="min-w-0"><div className="truncate text-[13px]" style={{ color: "var(--hf-text)" }}>{row.candidate}</div><div className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>{row.role}</div></div>
                 </div>
                 <div className="hidden md:block">
                   <DocStatusPill status={row.status} />
-                  <div className="mt-1 text-[11.5px]" style={{ color: "hsl(150 10% 52%)" }}>{row.statusNote}</div>
+                  <div className="mt-1 text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.statusNote}</div>
                 </div>
                 <div className="flex items-center justify-end gap-2 md:justify-between">
                   <div className="md:hidden"><DocStatusPill status={row.status} /></div>
-                  <span className="text-[12px]" style={{ color: "hsl(150 10% 54%)" }}>{row.updated}</span>
-                  <ChevronRight className="h-4 w-4" style={{ color: "hsl(150 10% 44%)" }} />
+                  <span className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{row.updated}</span>
+                  <ChevronRight className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
                 </div>
               </div>
             );
           })}
 
-          <div className="flex items-center justify-between px-5 py-3 text-[12.5px]" style={{ color: "hsl(150 10% 54%)" }}>
+          <div className="flex items-center justify-between px-5 py-3 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
             <span>Showing {filteredRows.length} document{filteredRows.length === 1 ? "" : "s"}</span>
           </div>
         </div>

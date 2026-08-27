@@ -27,9 +27,9 @@ export function AvaGlyph({ size = 14, className, style }: AvaGlyphProps) {
     >
       <defs>
         <radialGradient id={GRAD_ID} cx="38%" cy="32%" r="78%">
-          <stop offset="0%" stopColor="hsl(45 85% 80%)" />
+          <stop offset="0%" stopColor="var(--hf-gold)" />
           <stop offset="40%" stopColor="hsl(var(--ck-jade))" />
-          <stop offset="100%" stopColor="hsl(160 55% 16%)" />
+          <stop offset="100%" stopColor="var(--hf-green-soft)" />
         </radialGradient>
       </defs>
       {/* dotted halo — echoes the orb's dotted mesh */}
@@ -37,7 +37,7 @@ export function AvaGlyph({ size = 14, className, style }: AvaGlyphProps) {
       {/* core */}
       <circle cx="12" cy="12" r="8.4" fill={`url(#${GRAD_ID})`} />
       {/* specular highlight */}
-      <circle cx="9.2" cy="9" r="2.1" fill="hsl(45 92% 94% / 0.5)" />
+      <circle cx="9.2" cy="9" r="2.1" fill="color-mix(in srgb, var(--hf-gold) 50%, transparent)" />
     </svg>
   );
 }

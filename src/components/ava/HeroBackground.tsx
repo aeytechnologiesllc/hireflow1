@@ -30,16 +30,16 @@ const STYLE = `
   .hf-hero-bg__aurora::before {
     top: -26%; left: -12%; width: 64vw; height: 64vw; max-width: 820px; max-height: 820px;
     background: radial-gradient(circle at 50% 50%,
-      hsl(152 46% 24% / 0.46) 0%,
-      hsl(152 44% 18% / 0.18) 38%,
+      color-mix(in srgb, var(--hf-green-border) 46%, transparent) 0%,
+      color-mix(in srgb, var(--hf-green-soft) 18%, transparent) 38%,
       transparent 68%);
     animation: hf-hero-a 26s ease-in-out infinite;
   }
   .hf-hero-bg__aurora::after {
     bottom: -32%; right: -16%; width: 58vw; height: 58vw; max-width: 720px; max-height: 720px;
     background: radial-gradient(circle at 50% 50%,
-      hsl(160 42% 22% / 0.34) 0%,
-      hsl(38 46% 30% / 0.10) 42%,
+      color-mix(in srgb, var(--hf-green-soft) 34%, transparent) 0%,
+      color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 42%,
       transparent 70%);
     animation: hf-hero-b 32s ease-in-out infinite;
   }
@@ -48,8 +48,8 @@ const STYLE = `
     position: absolute; top: -18%; left: 50%; transform: translateX(-50%);
     width: 70vw; height: 46vw; max-width: 900px; max-height: 560px;
     background: radial-gradient(ellipse at 50% 50%,
-      hsl(152 50% 30% / 0.30) 0%,
-      hsl(152 44% 20% / 0.10) 45%,
+      color-mix(in srgb, var(--hf-green-border) 30%, transparent) 0%,
+      color-mix(in srgb, var(--hf-green-soft) 10%, transparent) 45%,
       transparent 72%);
   }
   .hf-hero-bg__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }

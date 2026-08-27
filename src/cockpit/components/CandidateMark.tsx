@@ -51,9 +51,9 @@ function mulberry32(a: number) {
   };
 }
 
-const DOT_JADE = "hsl(152 46% 56%)";
-const DOT_MINT = "hsl(156 62% 72%)";
-const DOT_BRASS = "hsl(38 66% 66%)";
+const DOT_JADE = "var(--hf-green)";
+const DOT_MINT = "var(--hf-text-soft)";
+const DOT_BRASS = "var(--hf-gold)";
 
 interface Node {
   x: number;
@@ -182,8 +182,8 @@ export function CandidateMark({
             <stop offset="100%" stopColor={c1} />
           </linearGradient>
           <radialGradient id={`body-${uid}`} cx="34%" cy="28%" r="80%">
-            <stop offset="0%" stopColor="hsl(156 24% 13%)" />
-            <stop offset="100%" stopColor="hsl(156 28% 7%)" />
+            <stop offset="0%" stopColor="var(--hf-surface-raised)" />
+            <stop offset="100%" stopColor="var(--hf-bg)" />
           </radialGradient>
         </defs>
 
@@ -246,7 +246,7 @@ export function CandidateMark({
         {/* score ring — signal variant only */}
         {showRing && (
           <>
-            <circle cx="50" cy="50" r={R} fill="none" stroke="hsl(150 14% 20% / 0.8)" strokeWidth={SW} />
+            <circle cx="50" cy="50" r={R} fill="none" stroke="color-mix(in srgb, var(--hf-border-strong) 80%, transparent)" strokeWidth={SW} />
             {sc > 0 && (
               <circle
                 className="cm-arc"
@@ -288,7 +288,7 @@ export function CandidateMark({
         )}
 
         {showInitials && initials && (
-          <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="26" fontWeight="600" fill="hsl(150 30% 90%)">
+          <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="26" fontWeight="600" fill="var(--hf-text)">
             {initials}
           </text>
         )}

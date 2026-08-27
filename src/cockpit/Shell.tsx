@@ -69,20 +69,20 @@ function AccountChip({ compact }: { compact?: boolean }) {
       <button
         aria-label="Account menu"
         className="flex items-center gap-2 rounded-full px-2.5 py-1.5"
-        style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)" }}
+        style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 80%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)" }}
       >
         <span
           className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
-          style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+          style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
         >
           {account.initials}
         </span>
         {!compact && (
-          <span className="text-[13px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
+          <span className="text-[13px] font-medium" style={{ color: "var(--hf-text)" }}>
             {account.name}
           </span>
         )}
-        <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+        <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />
       </button>
     </AccountMenu>
   );
@@ -96,15 +96,15 @@ function TrialBadge() {
   return (
     <div
       className="rounded-xl px-3.5 py-3"
-      style={{ background: "hsl(38 40% 14% / 0.4)", border: "1px solid hsl(38 50% 45% / 0.3)" }}
+      style={{ background: "color-mix(in srgb, var(--hf-gold-hover) 40%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-gold-hover) 30%, transparent)" }}
     >
       <div className="flex items-center gap-2">
-        <Clock className="h-3.5 w-3.5" style={{ color: "hsl(38 64% 66%)" }} />
-        <span className="text-[13px] font-semibold" style={{ color: "hsl(38 64% 72%)" }}>
+        <Clock className="h-3.5 w-3.5" style={{ color: "var(--hf-gold)" }} />
+        <span className="text-[13px] font-semibold" style={{ color: "var(--hf-gold)" }}>
           {account.trialDaysLeft} days left
         </span>
       </div>
-      <div className="mt-1 text-[12px]" style={{ color: "hsl(150 10% 58%)" }}>
+      <div className="mt-1 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
         Your trial ends {account.trialEnds}
       </div>
     </div>
@@ -117,7 +117,7 @@ function Sidebar() {
   return (
     <aside
       className="hidden md:flex w-[216px] shrink-0 flex-col px-3 py-5"
-      style={{ background: "hsl(var(--ck-sidebar))", borderRight: "1px solid hsl(150 12% 12% / 0.7)" }}
+      style={{ background: "hsl(var(--ck-sidebar))", borderRight: "1px solid color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)" }}
     >
       <div className="px-2 pb-6 pt-1">
         <Wordmark size={26} />
@@ -133,11 +133,11 @@ function Sidebar() {
               to={item.to}
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors"
               style={{
-                background: active ? "hsl(152 28% 13%)" : "transparent",
-                color: active ? "hsl(150 32% 94%)" : "hsl(150 10% 64%)",
+                background: active ? "var(--hf-surface-raised)" : "transparent",
+                color: active ? "var(--hf-text)" : "var(--hf-text-soft)",
               }}
             >
-              <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? "hsl(38 64% 68%)" : "hsl(150 12% 56%)" }} />
+              <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }} />
               {item.label}
             </Link>
           );
@@ -149,19 +149,19 @@ function Sidebar() {
         <AccountMenu align="start" side="top">
           <button
             aria-label="Account menu"
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-[hsl(152_24%_11%)]"
-            style={{ background: "hsl(156 16% 9%)", border: "1px solid hsl(150 12% 15% / 0.9)" }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-[var(--hf-surface-raised)]"
+            style={{ background: "var(--hf-surface-raised)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)" }}
           >
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold"
-              style={{ background: "linear-gradient(180deg, hsl(152 40% 28%), hsl(152 40% 20%))", color: "hsl(150 30% 90%)" }}
+              style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
             >
               {account.initials}
             </span>
-            <span className="flex-1 text-left text-[14px] font-medium" style={{ color: "hsl(150 28% 90%)" }}>
+            <span className="flex-1 text-left text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
               {account.name}
             </span>
-            <ChevronDown className="h-4 w-4" style={{ color: "hsl(150 10% 58%)" }} />
+            <ChevronDown className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
           </button>
         </AccountMenu>
       </div>
@@ -180,15 +180,15 @@ function NotificationBell({ compact }: { compact?: boolean }) {
       style={{
         width: 36,
         height: 36,
-        background: compact ? "transparent" : "hsl(156 16% 9% / 0.7)",
-        border: compact ? "none" : "1px solid hsl(150 12% 15% / 0.9)",
+        background: compact ? "transparent" : "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)",
+        border: compact ? "none" : "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)",
       }}
     >
-      <Bell className="h-5 w-5" style={{ color: "hsl(38 60% 64%)" }} />
+      <Bell className="h-5 w-5" style={{ color: "var(--hf-gold)" }} />
       {unread > 0 && (
         <span
           className="absolute -right-1 -top-1 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-          style={{ minWidth: 16, height: 16, background: "hsl(8 70% 55%)", color: "hsl(0 0% 100%)", border: "1.5px solid hsl(var(--ck-bg))" }}
+          style={{ minWidth: 16, height: 16, background: "var(--hf-danger)", color: "hsl(0 0% 100%)", border: "1.5px solid hsl(var(--ck-bg))" }}
         >
           {unread > 9 ? "9+" : unread}
         </span>
@@ -201,9 +201,9 @@ function TodayPill() {
   return (
     <button
       className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13.5px]"
-      style={{ background: "hsl(156 16% 9% / 0.7)", border: "1px solid hsl(150 12% 15% / 0.9)", color: "hsl(150 14% 72%)" }}
+      style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text-soft)" }}
     >
-      <CalIcon className="h-4 w-4" style={{ color: "hsl(150 12% 56%)" }} />
+      <CalIcon className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
       Today
       <ChevronDown className="h-3.5 w-3.5" />
     </button>
@@ -222,10 +222,10 @@ function DesktopTopBar() {
       {isDashboard ? (
         <>
           <div className="flex items-center gap-2 text-[14px]">
-            <span style={{ color: "hsl(38 60% 64%)" }}>Dashboard</span>
-            <span style={{ color: "hsl(150 10% 38%)" }}>/</span>
+            <span style={{ color: "var(--hf-gold)" }}>Dashboard</span>
+            <span style={{ color: "var(--hf-text-muted)" }}>/</span>
             <AccountMenu align="start" side="bottom">
-              <button aria-label="Account menu" className="flex items-center gap-1.5" style={{ color: "hsl(150 12% 64%)" }}>
+              <button aria-label="Account menu" className="flex items-center gap-1.5" style={{ color: "var(--hf-text-soft)" }}>
                 {account.name}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
@@ -258,7 +258,7 @@ function MobileTopBar() {
       className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3"
       style={{ background: "hsl(var(--ck-bg))" }}
     >
-      <h1 className="min-w-0 flex-1 truncate font-display text-[26px]" style={{ color: "hsl(150 32% 95%)", fontWeight: 500 }}>
+      <h1 className="min-w-0 flex-1 truncate font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
         {title}
       </h1>
       <div className="flex shrink-0 items-center gap-2">
@@ -277,8 +277,8 @@ function MobileTabBar() {
     <nav
       className="md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around px-2 pt-2"
       style={{
-        background: "hsl(156 20% 4%)",
-        borderTop: "1px solid hsl(150 12% 12%)",
+        background: "var(--hf-bg)",
+        borderTop: "1px solid var(--hf-surface-raised)",
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
       }}
     >
@@ -291,8 +291,8 @@ function MobileTabBar() {
             onClick={() => navigate(tab.to)}
             className="flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
           >
-            <Icon className="h-[22px] w-[22px]" style={{ color: active ? "hsl(38 64% 66%)" : "hsl(150 12% 52%)" }} />
-            <span className="text-[11px] font-medium" style={{ color: active ? "hsl(38 64% 70%)" : "hsl(150 12% 52%)" }}>
+            <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }} />
+            <span className="text-[11px] font-medium" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }}>
               {tab.label}
             </span>
           </button>

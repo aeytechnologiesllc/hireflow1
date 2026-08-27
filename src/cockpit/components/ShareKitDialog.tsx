@@ -128,7 +128,7 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
       {/* scrim */}
       <div
         className="absolute inset-0"
-        style={{ background: "hsl(156 40% 3% / 0.7)", backdropFilter: "blur(2px)" }}
+        style={{ background: "color-mix(in srgb, var(--hf-bg) 70%, transparent)", backdropFilter: "blur(2px)" }}
         onClick={onClose}
       />
       <div
@@ -137,14 +137,14 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
         className="ck-card relative w-full max-w-[460px] p-5"
         style={{ animation: "ck-rise 0.22s cubic-bezier(0.4,0,0.2,1) both" }}
       >
-        <button onClick={onClose} className="absolute right-3 top-3" style={{ color: "hsl(150 10% 56%)" }} aria-label="Close">
+        <button onClick={onClose} className="absolute right-3 top-3" style={{ color: "var(--hf-text-muted)" }} aria-label="Close">
           <X className="h-4 w-4" />
         </button>
 
-        <div className="font-display text-[19px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>
+        <div className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
           Share this job
         </div>
-        <p className="mt-0.5 truncate text-[13px]" style={{ color: "hsl(150 12% 62%)" }}>
+        <p className="mt-0.5 truncate text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
           {job.title}
         </p>
 
@@ -153,23 +153,23 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
           <div
             ref={qrWrapRef}
             className="shrink-0 rounded-xl p-2.5"
-            style={{ background: "hsl(45 40% 96%)" }}
+            style={{ background: "var(--hf-gold)" }}
             aria-label="QR code for the apply link"
           >
             <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#10201a" level="M" />
           </div>
           <div className="min-w-0 flex-1 self-center">
-            <div className="text-[11px] uppercase" style={{ color: "hsl(150 10% 55%)", letterSpacing: "0.12em" }}>
+            <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
               Apply link
             </div>
             <div
               className="mt-1.5 break-all font-mono text-[12.5px] leading-relaxed"
-              style={{ color: "hsl(150 26% 82%)" }}
+              style={{ color: "var(--hf-text)" }}
             >
               {applyUrl.replace(/^https?:\/\//, "")}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button className="ck-btn ck-btn-brass !px-3 !text-[12.5px]" onClick={() => void copy(applyUrl, "link")}>
+              <button className="ck-btn ck-btn-primary !px-3 !text-[12.5px]" onClick={() => void copy(applyUrl, "link")}>
                 {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy link
               </button>
               <button
@@ -183,14 +183,14 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
         </div>
 
         {/* ── Post text ──────────────────────────────── */}
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid hsl(150 12% 16%)" }}>
-          <div className="text-[11px] uppercase" style={{ color: "hsl(150 10% 55%)", letterSpacing: "0.12em" }}>
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
+          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
             Ready-to-paste post
           </div>
           <div className="relative mt-2">
             <pre
               className="overflow-x-auto whitespace-pre-wrap rounded-xl px-3.5 py-3 pr-24 text-[12.5px] leading-relaxed"
-              style={{ background: "hsl(150 16% 11%)", border: "1px solid hsl(150 12% 17%)", color: "hsl(150 18% 74%)", fontFamily: "inherit" }}
+              style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)", fontFamily: "inherit" }}
             >
               {postText}
             </pre>
@@ -204,8 +204,8 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
         </div>
 
         {/* ── Job boards ─────────────────────────────── */}
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid hsl(150 12% 16%)" }}>
-          <div className="text-[11px] uppercase" style={{ color: "hsl(150 10% 55%)", letterSpacing: "0.12em" }}>
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
+          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
             Post it free on job boards
           </div>
           <div className="mt-2.5 grid grid-cols-3 gap-2">
@@ -221,7 +221,7 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
               </a>
             ))}
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(152 40% 62%)" }}>
+          <div className="mt-3 flex items-center gap-1.5 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
             <Check className="h-3.5 w-3.5" /> Your HireFlow page is live; Google may index it. Post to outside boards manually.
           </div>
         </div>

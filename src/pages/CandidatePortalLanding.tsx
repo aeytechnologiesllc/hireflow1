@@ -25,7 +25,7 @@ export default function CandidatePortalLanding() {
     <CandidateShell>
       <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
         <header className="mb-12 flex items-center justify-between">
-          <Link to="/" className="font-display text-lg tracking-wide" style={{ color: "hsl(150 30% 92%)" }}>
+          <Link to="/" className="font-display text-lg tracking-wide" style={{ color: "var(--hf-text)" }}>
             HIREFLOW
           </Link>
           <Link to="/candidate/auth" className="cand-btn-ghost text-sm">
@@ -35,13 +35,13 @@ export default function CandidatePortalLanding() {
 
         <section className="cand-rise mx-auto mb-14 max-w-2xl text-center" style={{ ["--cand-i" as string]: 0 }}>
           <p className="cand-kicker mb-4">Candidate portal</p>
-          <h1 className="font-display text-4xl font-medium leading-tight md:text-5xl" style={{ color: "hsl(150 33% 95%)" }}>
+          <h1 className="font-display text-4xl font-medium leading-tight md:text-5xl" style={{ color: "var(--hf-text)" }}>
             Apply without the hassle.
-            <span className="mt-1 block" style={{ color: "hsl(38 64% 64%)" }}>
+            <span className="mt-1 block" style={{ color: "var(--hf-gold)" }}>
               One code. One clear path.
             </span>
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed" style={{ color: "hsl(150 12% 62%)" }}>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
             Enter the job code from the employer to apply — no signup wall. Come back anytime with your phone number.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
@@ -60,18 +60,18 @@ export default function CandidatePortalLanding() {
             <div key={feature.title} className="cand-panel p-5 text-left">
               <div
                 className="mb-4 flex h-11 w-11 items-center justify-center rounded-full"
-                style={{ background: "hsl(152 30% 14%)", color: "hsl(152 46% 58%)" }}
+                style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
               >
                 <feature.icon className="h-5 w-5" />
               </div>
-              <h3 className="font-display text-lg" style={{ color: "hsl(150 30% 91%)" }}>{feature.title}</h3>
-              <p className="mt-1.5 text-sm leading-snug" style={{ color: "hsl(150 12% 58%)" }}>{feature.description}</p>
+              <h3 className="font-display text-lg" style={{ color: "var(--hf-text)" }}>{feature.title}</h3>
+              <p className="mt-1.5 text-sm leading-snug" style={{ color: "var(--hf-text-muted)" }}>{feature.description}</p>
             </div>
           ))}
         </section>
 
         <section className="cand-rise cand-panel mx-auto max-w-2xl p-6 md:p-8" style={{ ["--cand-i" as string]: 5 }}>
-          <h2 className="font-display text-center text-2xl" style={{ color: "hsl(150 30% 93%)" }}>How it works</h2>
+          <h2 className="font-display text-center text-2xl" style={{ color: "var(--hf-text)" }}>How it works</h2>
           <div className="mt-6 space-y-4">
             {[
               { step: 1, icon: KeyRound, title: "Get a job code", desc: "The employer shares a code or apply link for the role" },
@@ -79,28 +79,28 @@ export default function CandidatePortalLanding() {
               { step: 3, icon: Phone, title: "Come back with your phone", desc: "See all your applications and pick up where you left off" },
               { step: 4, icon: FileText, title: "Optional: create an account", desc: "Save progress with Google or email — encouraged, never required to start" },
             ].map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "hsl(150 12% 14%)" }}>
+              <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
                 <span
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                  style={{ background: "hsl(152 30% 16%)", color: "hsl(152 46% 58%)" }}
+                  style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
                 >
                   {step}
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" style={{ color: "hsl(38 60% 62%)" }} />
-                    <span className="font-medium" style={{ color: "hsl(150 28% 88%)" }}>{title}</span>
+                    <Icon className="h-4 w-4" style={{ color: "var(--hf-gold)" }} />
+                    <span className="font-medium" style={{ color: "var(--hf-text)" }}>{title}</span>
                   </div>
-                  <p className="mt-0.5 text-sm" style={{ color: "hsl(150 12% 56%)" }}>{desc}</p>
+                  <p className="mt-0.5 text-sm" style={{ color: "var(--hf-text-muted)" }}>{desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        <footer className="mt-14 text-center text-sm" style={{ color: "hsl(150 10% 48%)" }}>
+        <footer className="mt-14 text-center text-sm" style={{ color: "var(--hf-text-muted)" }}>
           Hiring for your business?{" "}
-          <Link to="/auth" style={{ color: "hsl(38 60% 62%)" }}>
+          <Link to="/auth" style={{ color: "var(--hf-gold)" }}>
             Employer sign in
           </Link>
         </footer>

@@ -74,7 +74,7 @@ export function ActionDialog({
       {/* scrim */}
       <div
         className="absolute inset-0"
-        style={{ background: "hsl(156 40% 3% / 0.7)", backdropFilter: "blur(2px)" }}
+        style={{ background: "color-mix(in srgb, var(--hf-bg) 70%, transparent)", backdropFilter: "blur(2px)" }}
         onClick={() => !busy && onClose()}
       />
       <div
@@ -86,24 +86,24 @@ export function ActionDialog({
         <button
           onClick={() => !busy && onClose()}
           className="absolute right-3 top-3"
-          style={{ color: "hsl(150 10% 56%)" }}
+          style={{ color: "var(--hf-text-muted)" }}
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
 
-        <div className="font-display text-[19px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>
+        <div className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
           {title}
         </div>
         {description && (
-          <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "hsl(150 12% 64%)" }}>
+          <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
             {description}
           </p>
         )}
 
         {withReason && (
           <div className="mt-4">
-            <label className="text-[12.5px]" style={{ color: "hsl(150 12% 62%)" }}>
+            <label className="text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>
               {reasonLabel}
             </label>
             <textarea
@@ -123,10 +123,10 @@ export function ActionDialog({
             className="mt-4 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed"
             style={
               noteTone === "good"
-                ? { background: "hsl(152 46% 40% / 0.12)", border: "1px solid hsl(152 46% 45% / 0.25)", color: "hsl(152 40% 78%)" }
+                ? { background: "color-mix(in srgb, var(--hf-green) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-green) 25%, transparent)", color: "var(--hf-text)" }
                 : noteTone === "caution"
-                  ? { background: "hsl(38 50% 40% / 0.12)", border: "1px solid hsl(38 55% 50% / 0.28)", color: "hsl(38 60% 76%)" }
-                  : { background: "hsl(150 16% 12% / 0.7)", border: "1px solid hsl(150 12% 18%)", color: "hsl(150 16% 72%)" }
+                  ? { background: "color-mix(in srgb, var(--hf-gold-hover) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-gold-hover) 28%, transparent)", color: "var(--hf-gold)" }
+                  : { background: "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }
             }
           >
             {note}
@@ -138,8 +138,8 @@ export function ActionDialog({
             Cancel
           </button>
           <button
-            className={`ck-btn ${dangerStyle ? "ck-btn-outline" : "ck-btn-brass"}`}
-            style={dangerStyle ? { color: "hsl(8 66% 66%)", borderColor: "hsl(8 50% 40% / 0.5)" } : undefined}
+            className={`ck-btn ${dangerStyle ? "ck-btn-outline" : "ck-btn-primary"}`}
+            style={dangerStyle ? { color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" } : undefined}
             onClick={() => onConfirm(withReason ? reason : undefined)}
             disabled={confirmDisabled}
           >

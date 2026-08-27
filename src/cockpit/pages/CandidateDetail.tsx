@@ -45,7 +45,7 @@ export default function CockpitCandidateDetail() {
   if (isLoading || !c) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[hsl(152_46%_50%)] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" />
       </div>
     );
   }
@@ -87,20 +87,20 @@ export default function CockpitCandidateDetail() {
         <button
           onClick={goBack}
           className="hidden items-center gap-1.5 text-[13.5px] transition-opacity hover:opacity-80 md:inline-flex"
-          style={{ color: "hsl(150 14% 70%)" }}
+          style={{ color: "var(--hf-text-soft)" }}
         >
           <ArrowLeft className="h-4 w-4" /> Back to applicants
         </button>
         {/* mobile */}
         <div className="flex items-center gap-3 md:hidden">
-          <button onClick={goBack} aria-label="Back to applicants" style={{ color: "hsl(150 22% 80%)" }}><ChevronLeft className="h-6 w-6" /></button>
-          <span className="min-w-0 flex-1 truncate font-display text-[18px]" style={{ color: "hsl(150 30% 93%)", fontWeight: 500 }}>{c.name}</span>
+          <button onClick={goBack} aria-label="Back to applicants" style={{ color: "var(--hf-text)" }}><ChevronLeft className="h-6 w-6" /></button>
+          <span className="min-w-0 flex-1 truncate font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</span>
           <button
             className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5"
-            style={{ background: "hsl(156 16% 9% / 0.8)", border: "1px solid hsl(150 12% 16% / 0.9)", color: "hsl(150 28% 88%)" }}
+            style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 80%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text)" }}
           >
             <span className="text-[13px] font-medium">{account.name}</span>
-            <ChevronDown className="h-3.5 w-3.5" style={{ color: "hsl(150 10% 58%)" }} />
+            <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />
           </button>
         </div>
       </div>
@@ -109,34 +109,34 @@ export default function CockpitCandidateDetail() {
         <div className="ck-card flex items-center gap-4 p-4">
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={c.overall} rich variant="signal" />
           <div className="min-w-0 flex-1">
-            <div className="font-display text-[24px]" style={{ color: "hsl(150 30% 94%)", fontWeight: 500 }}>{c.name}</div>
-            <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.role} · {c.appliedAgo}</div>
+            <div className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
+            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
             <div className="mt-1.5"><span className="ck-pill ck-pill-stage">{c.stage}</span></div>
           </div>
           <div className="text-right">
-            <div className="ck-num leading-none" style={{ fontSize: 36, color: "hsl(150 30% 94%)" }}>
-              {c.overall}<span className="text-[16px]" style={{ color: "hsl(150 12% 56%)" }}>%</span>
+            <div className="ck-num leading-none" style={{ fontSize: 36, color: "var(--hf-text)" }}>
+              {c.overall}<span className="text-[16px]" style={{ color: "var(--hf-text-muted)" }}>%</span>
             </div>
-            <div className="text-[12px]" style={{ color: "hsl(150 10% 56%)" }}>match</div>
+            <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>match</div>
           </div>
         </div>
 
         <div className="ck-card flex items-start gap-3 p-4">
           <AvaOrb size={72} reflection={false} glow={false} amp={0.22} flow={0.5} />
           <div className="min-w-0">
-            <div className="font-display text-[16px]" style={{ color: "hsl(150 30% 91%)", fontWeight: 500 }}>Ava's read</div>
-            <p className="mt-1 text-[13px] leading-snug" style={{ color: "hsl(150 12% 64%)" }}>{c.readFull}</p>
+            <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</div>
+            <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{c.readFull}</p>
           </div>
         </div>
 
         <div className="ck-card p-4">
-          <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Top strengths</div>
+          <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Top strengths</div>
           <div className="mt-2 space-y-1">
             {c.strengths.map((s, i) => {
               const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
               return (
-                <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "hsl(150 20% 80%)" }}>
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "hsl(152 30% 15%)", color: "hsl(152 46% 60%)" }}>
+                <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <span className="flex-1">{s}</span>
@@ -153,28 +153,28 @@ export default function CockpitCandidateDetail() {
             { label: "Overall", v: c.overall },
           ].map((s) => (
             <div key={s.label} className="ck-card p-4 text-center">
-              <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{s.label}</div>
-              <div className="ck-num leading-none" style={{ fontSize: 28, color: "hsl(150 30% 92%)" }}>
-                {s.v ?? "—"}{s.v !== null ? <span className="text-[14px]" style={{ color: "hsl(150 12% 56%)" }}>%</span> : null}
+              <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{s.label}</div>
+              <div className="ck-num leading-none" style={{ fontSize: 28, color: "var(--hf-text)" }}>
+                {s.v ?? "—"}{s.v !== null ? <span className="text-[14px]" style={{ color: "var(--hf-text-muted)" }}>%</span> : null}
               </div>
             </div>
           ))}
         </div>
 
         <div className="ck-card flex items-center gap-3 p-4">
-          <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: "hsl(152 46% 58%)" }} />
+          <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: "var(--hf-green)" }} />
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Risk factors</div>
-            <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>{c.risk.level} — {c.risk.note}</div>
+            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</div>
+            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.level} — {c.risk.note}</div>
           </div>
         </div>
 
         {/* Resume — clear about whether one was provided */}
         <div className="ck-card flex items-center gap-3 p-4">
-          <FileText className="h-5 w-5 shrink-0" style={{ color: resumeUrl ? "hsl(152 46% 58%)" : "hsl(150 10% 48%)" }} />
+          <FileText className="h-5 w-5 shrink-0" style={{ color: resumeUrl ? "var(--hf-green)" : "var(--hf-text-muted)" }} />
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: "hsl(150 28% 88%)" }}>Resume</div>
-            <div className="text-[12.5px]" style={{ color: "hsl(150 10% 56%)" }}>
+            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Resume</div>
+            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
               {resumeUrl ? "Uploaded by the candidate." : "No resume provided — Ava scored this from the application answers."}
             </div>
           </div>
@@ -188,7 +188,7 @@ export default function CockpitCandidateDetail() {
 
       <div
         className="fixed inset-x-0 z-30 flex items-center gap-2 px-4 py-3 md:absolute md:rounded-2xl"
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)", background: "hsl(156 20% 5% / 0.96)", borderTop: "1px solid hsl(150 12% 13%)" }}
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)", background: "color-mix(in srgb, var(--hf-bg) 96%, transparent)", borderTop: "1px solid var(--hf-surface-raised)" }}
       >
         {isTerminal ? (
           <>
@@ -196,8 +196,8 @@ export default function CockpitCandidateDetail() {
               className="flex flex-1 items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-[14px] font-semibold"
               style={
                 isHired
-                  ? { background: "hsl(152 46% 40% / 0.16)", color: "hsl(152 52% 64%)", border: "1px solid hsl(152 46% 45% / 0.3)" }
-                  : { background: "hsl(8 40% 40% / 0.12)", color: "hsl(8 60% 66%)", border: "1px solid hsl(8 40% 45% / 0.25)" }
+                  ? { background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", color: "var(--hf-text-soft)", border: "1px solid color-mix(in srgb, var(--hf-green) 30%, transparent)" }
+                  : { background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", color: "var(--hf-danger)", border: "1px solid color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
               }
             >
               {isHired ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
@@ -207,10 +207,10 @@ export default function CockpitCandidateDetail() {
           </>
         ) : isOffered ? (
           <>
-            <button className="ck-btn ck-btn-brass flex-1" onClick={() => setDialog("hire")}><CheckCircle2 className="h-4 w-4" />Hire</button>
+            <button className="ck-btn ck-btn-primary flex-1" onClick={() => setDialog("hire")}><CheckCircle2 className="h-4 w-4" />Hire</button>
             <button
               className="ck-btn ck-btn-outline flex-1"
-              style={{ color: "hsl(8 66% 66%)", borderColor: "hsl(8 50% 40% / 0.5)" }}
+              style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
               onClick={() => setDialog("reject")}
             >
               Decline Offer
@@ -220,7 +220,7 @@ export default function CockpitCandidateDetail() {
         ) : (
           <>
             {canAdvance && (
-              <button className="ck-btn ck-btn-brass flex-1" onClick={() => setDialog("advance")} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
+              <button className="ck-btn ck-btn-primary flex-1" onClick={() => setDialog("advance")} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
             )}
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("reject")}>Pass</button>
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>

@@ -530,11 +530,11 @@ function FollowUpStep({
                     on
                       ? {
                           background:
-                            "linear-gradient(180deg, hsl(38 56% 58% / 0.22) 0%, hsl(38 56% 50% / 0.10) 100%), hsl(var(--ck-surface-2))",
+                            "linear-gradient(180deg, color-mix(in srgb, var(--hf-gold) 22%, transparent) 0%, color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 100%), hsl(var(--ck-surface-2))",
                           color: "hsl(var(--ck-brass-bright))",
                           border: "1px solid hsl(var(--primary) / 0.7)",
                           fontWeight: 600,
-                          boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 8px 20px -10px hsl(38 60% 28% / 0.7)",
+                          boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 8px 20px -10px color-mix(in srgb, var(--hf-gold-hover) 70%, transparent)",
                         }
                       : {
                           background: "hsl(var(--ck-surface-2))",
@@ -547,7 +547,7 @@ function FollowUpStep({
                   {on && (
                     <span
                       className="mr-2 grid h-4 w-4 place-items-center rounded-full"
-                      style={{ background: "linear-gradient(180deg, hsl(38 64% 71%), hsl(38 56% 56%))", color: "hsl(var(--primary-foreground))", boxShadow: "0 1px 3px hsl(38 60% 20% / 0.6)" }}
+                      style={{ background: "linear-gradient(180deg, var(--hf-gold), var(--hf-gold))", color: "hsl(var(--primary-foreground))", boxShadow: "0 1px 3px color-mix(in srgb, var(--hf-gold-hover) 60%, transparent)" }}
                     >
                       <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
                     </span>
@@ -1139,7 +1139,7 @@ export default function AvaFlowPreview() {
     <div
       className="ava-prev scroll-perf relative flex min-h-[100dvh] flex-col overflow-x-hidden"
       style={{
-        background: "radial-gradient(ellipse 90% 60% at 50% -10%, hsl(152 40% 14% / 0.5) 0%, transparent 60%), hsl(var(--background))",
+        background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))",
         color: "hsl(var(--foreground))",
       }}
     >
