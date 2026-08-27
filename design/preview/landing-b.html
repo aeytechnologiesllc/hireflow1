@@ -82,6 +82,15 @@
   .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.055;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 
+  /* ── The stars: they die with the dawn. Twinkle is autonomous (killed under
+     reduced motion); the field's fade rides --dawn, so it stays scroll-driven. ── */
+  .stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+    opacity:calc(1 - var(--dawn)*2.2)}
+  .stars i{position:absolute;border-radius:50%;background:var(--slab-ink);opacity:var(--so,.4);
+    animation:twinkle var(--tw,4s) ease-in-out var(--td,0s) infinite alternate}
+  .stars i.jd{background:var(--jade-bright)}
+  @keyframes twinkle{from{opacity:calc(var(--so,.4)*.28)}to{opacity:var(--so,.4)}}
+
   header,main,footer{position:relative;z-index:2}
   .wrap{max-width:1140px;margin-inline:auto;padding-inline:clamp(18px,4vw,32px)}
 
@@ -100,6 +109,16 @@
   .nav-links a:hover{color:var(--ink);background:var(--surface)}
   @media(max-width:680px){.nav-links{display:none}}
   a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
+
+  /* ── The clock chip: rides the scroll from 11:47 pm to 7:02 am (JS below) ── */
+  .clock{position:fixed;right:14px;bottom:14px;z-index:30;pointer-events:none;
+    display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;
+    border:1px solid var(--line);box-shadow:var(--shadow-sm);
+    background:var(--ground);background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .clock i{width:5px;height:5px;border-radius:50%;background:var(--jade-bright);flex-shrink:0}
+  @media(max-width:680px){.clock{right:10px;bottom:10px;padding:7px 11px}}
 
   /* ── Buttons (the app's own) ── */
   .btn{font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--r-ctl);min-height:38px;
@@ -175,10 +194,20 @@
 
   /* ── Dawn strip — the theme crossfades across this scroll. The copy sits
      at the TOP so the ink-flip moment happens over empty, lightening sky. ── */
-  .dawn{min-height:150svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px)}
+  .dawn{min-height:150svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px);position:relative}
   .dawn-in{max-width:640px;margin-inline:auto}
   .dawn h2{font-size:clamp(30px,4.6vw,46px)}
   .dawn .sub{margin-inline:auto}
+  /* the sun itself — a brass bloom that climbs the strip while the tokens cross (JS) */
+  .dawn-sun{position:absolute;left:50%;top:48%;width:min(78vmin,660px);aspect-ratio:1;
+    border-radius:50%;pointer-events:none;filter:blur(46px);will-change:transform,opacity;
+    background:radial-gradient(circle,rgba(224,185,106,.42),rgba(224,185,106,.17) 36%,transparent 68%);
+    transform:translate3d(-50%,20vh,0) scale(.85);opacity:0}
+  /* the night's work ticks by in the empty sky — bands of the same scroll progress (JS) */
+  .beat{position:absolute;left:50%;z-index:1;width:min(88%,560px);margin:0;pointer-events:none;
+    font-family:Fraunces,Georgia,serif;font-style:italic;font-size:clamp(15px,2vw,17px);
+    line-height:1.55;color:var(--ink-2);opacity:0;transform:translate3d(-50%,12px,0)}
+  .beat .bt{font-style:normal;font-weight:600;color:var(--brass);font-variant-numeric:tabular-nums}
 
   /* ── The morning read — app window demo ── */
   .demo-head{max-width:720px}
@@ -349,6 +378,7 @@
     *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
     html{scroll-behavior:auto}
     .amb i,.amb-day::after{animation:none!important}
+    .stars i{animation:none!important} /* stars hold still — the scroll still fades them */
     .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
     .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
     .step:hover .stseal svg{transform:rotate(5deg)}
@@ -373,7 +403,9 @@
 
 <div class="amb amb-night" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="amb amb-day" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="stars" id="stars" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
+<div class="clock" id="clock" aria-hidden="true"><i></i><span id="clock-t">11:47&#8202;pm</span></div>
 
 <header class="nav">
   <div class="wrap nav-in">
@@ -428,12 +460,16 @@
 
   <!-- ── DAWN · scrolling through this strip turns night into morning ── -->
   <section class="dawn" id="dawn" aria-label="Morning arrives">
+    <div class="dawn-sun" id="sun" aria-hidden="true"></div>
     <div class="wrap dawn-in">
       <p class="kick lbl io">7:02 am</p>
       <h2 class="io" style="--d:.08s">Then the sun comes up.</h2>
       <p class="sub io" style="--d:.16s">Ava doesn&#8217;t page you at midnight. She lets you sleep — and leaves the
         shortlist on your desk, sealed, for the morning. Keep scrolling: this is what daylight looks like.</p>
     </div>
+    <p class="beat" data-c="0.37" style="top:36%"><span class="bt">1:20 am</span> — two more applied. Both interviewed within minutes.</p>
+    <p class="beat" data-c="0.57" style="top:55%"><span class="bt">3:47 am</span> — Marisol asked about the scanner. Good question.</p>
+    <p class="beat" data-c="0.77" style="top:74%"><span class="bt">5:36 am</span> — a third sealed for your morning.</p>
   </section>
 
   <!-- ── DAY · the morning read (live demo) ── -->
@@ -687,10 +723,15 @@
   }
   var PAIRS=Object.keys(TOK).map(function(k){return[k,parseC(TOK[k][0]),parseC(TOK[k][1]),TOK[k][2]===1];});
   var dawn=d.getElementById("dawn"),vh=innerHeight,dTop=0,dH=1,lastT=-1,ticking=false;
+  var sun=d.getElementById("sun"),morning=d.getElementById("morning"),mTop=0;
+  var clock=d.getElementById("clock"),clockT=d.getElementById("clock-t"),lastLabel="",lastCO=-1;
+  var BEATS=[].slice.call(d.querySelectorAll(".beat")).map(function(el){
+    return[el,parseFloat(el.getAttribute("data-c"))];});
   function measure(){
     vh=innerHeight;
     var r=dawn.getBoundingClientRect();
     dTop=r.top+(window.scrollY||window.pageYOffset);dH=r.height;
+    mTop=morning.getBoundingClientRect().top+(window.scrollY||window.pageYOffset);
   }
   function applyT(t){
     var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
@@ -702,6 +743,18 @@
         Math.round(a[2]+(b[2]-a[2])*f)+","+(a[3]+(b[3]-a[3])*f).toFixed(3)+")");
     }
     root.style.setProperty("--dawn",e.toFixed(3));
+    /* the sun comes UP — it climbs the sky, blooming golden right at the crossover */
+    if(sun){
+      var g=Math.exp(-((e-0.5)/0.075)*((e-0.5)/0.075));
+      sun.style.transform="translate3d(-50%,"+((1-e)*0.5*vh-0.3*vh).toFixed(1)+"px,0) scale("+(0.85+0.3*e).toFixed(3)+")";
+      sun.style.opacity=((0.5+0.5*g)*(e<0.12?e/0.12:1)*(e>0.82?1-((e-0.82)/0.18)*0.45:1)).toFixed(3);
+    }
+    /* the night's work ticks by — each beat owns a band of the same progress */
+    for(var j=0;j<BEATS.length;j++){
+      var bd=(t-BEATS[j][1])/0.115,bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
+      BEATS[j][0].style.opacity=bo.toFixed(3);
+      BEATS[j][0].style.transform="translate3d(-50%,"+(-bd*12).toFixed(1)+"px,0)";
+    }
   }
   function frame(){
     ticking=false;
@@ -709,6 +762,20 @@
     var start=dTop-vh*0.5,end=dTop+dH-vh*0.55;
     var t=(y-start)/(end-start);t=t<0?0:t>1?1:t;
     if(Math.abs(t-lastT)>0.0015||lastT<0){lastT=t;applyT(t);}
+    /* the clock rides the scroll — 11:47 pm → 7:02 am, the dawn strip carrying the night */
+    if(clock){
+      var p1=start>0?y/start:1;p1=p1<0?0:p1>1?1:p1;
+      var ce=Math.max(end+1,mTop-vh*0.42);
+      var p3=(y-end)/(ce-end);p3=p3<0?0:p3>1?1:p3;
+      /* shaped so the chip agrees with each sky beat as it passes (1:20 / 3:47 / 5:36) */
+      var ts=t<0.37?t*0.546:t<0.57?0.202+(t-0.37)*1.833:t<0.77?0.569+(t-0.57)*1.359:0.840+(t-0.77)*0.696;
+      var total=(23*60+47+Math.round(12*p1+401*ts+22*p3))%1440;
+      var h=Math.floor(total/60)%12||12,m=total%60;
+      var label=h+":"+(m<10?"0":"")+m+" "+(total>=720?"pm":"am");
+      if(label!==lastLabel){lastLabel=label;clockT.textContent=label;}
+      var co=1-(y-(mTop-vh*0.40))/(vh*0.25);co=co<0?0:co>1?1:co;
+      if(Math.abs(co-lastCO)>0.015){lastCO=co;clock.style.opacity=co.toFixed(2);}
+    }
   }
   function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(frame);}}
   addEventListener("scroll",onScroll,{passive:true});
@@ -727,6 +794,26 @@
       t.style.setProperty("--i",i);
       ticker.appendChild(t);
     }
+  }
+
+  /* ── The stars: seeded (LCG) so the sky never re-rolls; they die with --dawn ── */
+  var sky=d.getElementById("stars");
+  if(sky){
+    var seed=1747;
+    var lcg=function(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+    var frag=d.createDocumentFragment();
+    for(var k=0;k<56;k++){
+      var st=d.createElement("i"),sz=lcg()<.3?2:1;
+      st.style.left=(lcg()*100).toFixed(2)+"%";
+      st.style.top=(lcg()*lcg()*100).toFixed(2)+"%"; /* biased skyward */
+      st.style.width=sz+"px";st.style.height=sz+"px";
+      st.style.setProperty("--so",(0.2+lcg()*0.4).toFixed(2));
+      st.style.setProperty("--tw",(2.6+lcg()*3.8).toFixed(2)+"s");
+      st.style.setProperty("--td",(-lcg()*6).toFixed(2)+"s");
+      if(k%9===4)st.className="jd";
+      frag.appendChild(st);
+    }
+    sky.appendChild(frag);
   }
 
   /* ── Count-up (rAF, ease-out cubic) ── */
