@@ -1,28 +1,25 @@
 /**
- * OrbLoader — the standard, premium full-screen loading state.
+ * OrbLoader — the standard full-screen loading state.
  *
- * Centers a medium <AvaOrb> (ORB_SIZE.md) on the Deep Jade background. Used for
- * route/lazy fallbacks and "preparing…" moments so the loading orb is always an
- * appropriate, brand-consistent size — never a tiny spinner.
+ * Ava's seal, centred, breathing slowly. Kept at badge scale on purpose: this
+ * is a held moment, not a brand splash. Named OrbLoader still because every
+ * lazy route imports it; the orb it used to show is retired.
  *
- * The orb is reduced-motion gated inside <AvaOrb> itself; it renders a static,
- * shaded mesh when motion is reduced.
+ * The breathing is gated by prefers-reduced-motion in cockpit.css.
  */
-import { AvaOrb } from "@/components/ava/AvaOrb";
-import { ORB_SIZE } from "@/components/ava/orbSizes";
+import AvaSeal from "@/components/ava/AvaSeal";
 
 export function OrbLoader({ message }: { message?: string }) {
   return (
     <div
-      className="orb-loader-fade min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6"
+      className="orb-loader-fade flex min-h-[100dvh] flex-col items-center justify-center gap-5 px-6"
       style={{ background: "hsl(var(--background))" }}
     >
-      <AvaOrb size={ORB_SIZE.md} reflection={false} amp={0.24} flow={0.6} />
+      <span className="ck-seal-breathe">
+        <AvaSeal size={44} />
+      </span>
       {message && (
-        <p
-          className="text-sm font-medium text-center"
-          style={{ color: "hsl(var(--muted-foreground))" }}
-        >
+        <p className="text-center text-sm font-medium" style={{ color: "hsl(var(--muted-foreground))" }}>
           {message}
         </p>
       )}

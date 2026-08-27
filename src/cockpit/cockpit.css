@@ -429,3 +429,16 @@
   outline: 2px solid var(--hf-gold);
   outline-offset: 2px;
 }
+
+/* The seal breathing on a held loading screen. Wax does not spin. */
+@keyframes ck-seal-breathe {
+  0%, 100% { opacity: 0.82; transform: scale(0.98); }
+  50%      { opacity: 1;    transform: scale(1.02); }
+}
+.ck-seal-breathe {
+  display: inline-flex;
+  animation: ck-seal-breathe 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-seal-breathe { animation: none; }
+}

@@ -11,7 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
-import { AvaOrb } from "@/components/ava/AvaOrb";
+import AvaSeal from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -462,41 +462,21 @@ export default function Auth() {
 
   return (
     <div
-      className="auth-jade dark scroll-perf min-h-[100dvh] relative overflow-y-auto overflow-x-hidden"
-      style={{ background: "#0a2019", color: "#eef6f1" }}
+      className="auth-jade scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
+      style={{ background: "var(--hf-bg)", color: "var(--hf-text)" }}
     >
       <style>{`
-        .auth-jade{
-          --background:158 52% 8%;
-          --foreground:150 30% 95%;
-          --card:158 46% 11%;
-          --card-foreground:150 30% 95%;
-          --popover:158 46% 11%;
-          --popover-foreground:150 30% 95%;
-          --primary:36 48% 61%;
-          --primary-foreground:158 60% 9%;
-          --secondary:158 28% 16%;
-          --secondary-foreground:150 30% 95%;
-          --muted:158 26% 14%;
-          --muted-foreground:156 14% 64%;
-          --accent:162 67% 37%;
-          --accent-foreground:0 0% 100%;
-          --border:152 22% 22%;
-          --input:152 22% 22%;
-          --ring:36 48% 61%;
-          font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-        }
+        /* This page used to carry its own copy of the whole token set, pinned to
+           the old dark jade and forced into .dark, so it ignored the theme
+           entirely. It now inherits the app's tokens like every other surface;
+           only the things that are genuinely local to it live here. */
         .auth-jade h1,.auth-jade h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
-        .auth-jade .bg-primary{background-image:linear-gradient(135deg,#cba36a,#e6c184);border:0;color:#0a2019;}
-        .auth-jade .bg-primary:hover:not(:disabled){filter:brightness(1.05);background-image:linear-gradient(135deg,#cba36a,#e6c184);}
-        .auth-jade .text-primary{color:#7fe3c2;}
-        .auth-jade .auth-card{border-color:rgba(203,163,106,0.22);background:rgba(14,42,34,0.92);}
-        /* Premium amber focus — single ring + soft glow, no green */
+        .auth-jade .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
         .auth-jade input{transition:border-color .18s ease, box-shadow .18s ease;}
         .auth-jade input:focus,.auth-jade input:focus-visible{
           outline:none;
-          border-color:#cba36a;
-          box-shadow:0 0 0 1px rgba(203,163,106,0.55), 0 0 18px rgba(203,163,106,0.20);
+          border-color:var(--hf-gold);
+          box-shadow:0 0 0 1px var(--hf-gold-border);
           --tw-ring-color:transparent;
           --tw-ring-offset-width:0px;
           --tw-ring-shadow:0 0 #0000;
@@ -527,22 +507,20 @@ export default function Auth() {
             transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center lg:items-start"
           >
-            {/* Hero orb — bumped up on both breakpoints (see `orbSize` above).
-                Density scales by area, so the larger sizes still read as a
-                crisp, well-separated dotted mesh. Mobile size is viewport-capped
-                so it grows without ever overflowing the sign-in card. */}
-            <AvaOrb size={orbSize} variant="landing" reflection={false} />
+            {/* No hero graphic — the wordmark and the line carry this page, the
+                same call as the dashboard. Ava is present as her seal. */}
+            <AvaSeal size={38} />
             <span
               className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{
-                borderColor: "rgba(203,163,106,0.35)",
-                color: "#cba36a",
-                background: "rgba(10,32,25,0.6)",
+                borderColor: "var(--hf-gold-border)",
+                color: "var(--hf-gold)",
+                background: "var(--hf-gold-soft)",
               }}
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "#1f9e77", boxShadow: "0 0 8px rgba(31,158,119,0.6)" }}
+                style={{ background: "var(--hf-green)" }}
               />
               Employer Portal
             </span>
