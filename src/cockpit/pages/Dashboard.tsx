@@ -1,11 +1,17 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { ChevronRight, CalendarDays, MessageSquare, Briefcase } from "lucide-react";
+import { ChevronRight, CalendarDays, Briefcase } from "lucide-react";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
-import { useCockpitAccount, useCockpitCandidates, useCockpitActions } from "../hooks/useCockpitData";
+import {
+  useCockpitAccount,
+  useCockpitCandidates,
+  useCockpitActions,
+  useCockpitInterviews,
+  useCockpitJobsData,
+} from "../hooks/useCockpitData";
 
 /**
  * The morning read.
@@ -124,6 +130,12 @@ export default function CockpitDashboard() {
   const { account, profile } = useCockpitAccount();
   const { candidates, isLoading } = useCockpitCandidates();
   const { advance, pass, isUpdating } = useCockpitActions();
+  const { interviews } = useCockpitInterviews();
+  const { jobs } = useCockpitJobsData();
+
+  // "Also today" is only worth a section when there is something real in it.
+  const nextInterview = interviews.upcoming[0] ?? null;
+  const liveJob = jobs.find((j) => j.status === "live") ?? null;
 
   const now = useMemo(() => new Date(), []);
   const who = firstName(profile?.full_name?.trim() || account.name);
@@ -247,59 +259,54 @@ export default function CockpitDashboard() {
             </div>
           )}
 
-          {/* ── Also today ─────────────────────────────────── */}
-          <section>
-            <h2
-              className="font-display mb-3 text-[19px]"
-              style={{ color: "var(--hf-text)", fontWeight: 500 }}
-            >
-              Also today
-            </h2>
-            <div className="grid gap-3 md:grid-cols-3">
-              <button
-                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
-                onClick={() => navigate("/interviews")}
+          {/* ── Also today — real items only, never filler ──── */}
+          {(nextInterview || liveJob) && (
+            <section>
+              <h2
+                className="font-display mb-3 text-[19px]"
+                style={{ color: "var(--hf-text)", fontWeight: 500 }}
               >
-                <CalendarDays className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
-                    Interviews
-                  </span>
-                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                    Confirm the times Ava held
-                  </span>
-                </span>
-              </button>
-              <button
-                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
-                onClick={() => navigate("/messages")}
-              >
-                <MessageSquare className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
-                    Messages
-                  </span>
-                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                    Replies waiting on you
-                  </span>
-                </span>
-              </button>
-              <button
-                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
-                onClick={() => navigate("/jobs")}
-              >
-                <Briefcase className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
-                    Your jobs
-                  </span>
-                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                    Where they are listed
-                  </span>
-                </span>
-              </button>
-            </div>
-          </section>
+                Also today
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {nextInterview && (
+                  <div className="ck-card ck-reveal flex flex-wrap items-center gap-3 p-4">
+                    <CalendarDays className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
+                        {nextInterview.time} — {nextInterview.name}
+                      </p>
+                      <p className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                        {nextInterview.role} · the slot is held — confirm it
+                      </p>
+                    </div>
+                    <button
+                      className="ck-btn ck-btn-primary !py-2 !text-[13px]"
+                      onClick={() => navigate("/interviews")}
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                )}
+                {liveJob && (
+                  <button
+                    className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
+                    onClick={() => navigate("/jobs")}
+                  >
+                    <Briefcase className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
+                        {liveJob.title} is live
+                      </span>
+                      <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                        {liveJob.applicants} applied · {liveJob.dateLabel.toLowerCase()} {liveJob.date}
+                      </span>
+                    </span>
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* ── The record, only when there is one ─────────── */}
           {hired > 0 && (
