@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import {
   Home,
   Briefcase,
@@ -13,6 +14,8 @@ import {
   ChevronDown,
   Bell,
   MoreHorizontal,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -202,10 +205,36 @@ function Sidebar() {
               </button>
             </AccountMenu>
           </div>
+          <ThemeSwitch />
           <NotificationBell />
         </div>
       </div>
     </aside>
+  );
+}
+
+function ThemeSwitch({ compact }: { compact?: boolean }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const night = resolvedTheme === "dark";
+  return (
+    <button
+      aria-label={night ? "Switch to Day" : "Switch to Night"}
+      title={night ? "Switch to Day" : "Switch to Night"}
+      onClick={() => setTheme(night ? "light" : "dark")}
+      className="relative flex shrink-0 items-center justify-center rounded-lg"
+      style={{
+        width: 36,
+        height: 36,
+        background: compact ? "transparent" : "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)",
+        border: compact ? "none" : "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)",
+      }}
+    >
+      {night ? (
+        <Sun className="h-5 w-5" style={{ color: "var(--hf-text-soft)" }} />
+      ) : (
+        <Moon className="h-5 w-5" style={{ color: "var(--hf-text-soft)" }} />
+      )}
+    </button>
   );
 }
 
@@ -265,6 +294,7 @@ function MobileTopBar() {
       </h1>
       <div className="flex shrink-0 items-center gap-2">
         <AccountChip />
+        <ThemeSwitch compact />
         <NotificationBell compact />
       </div>
     </header>
