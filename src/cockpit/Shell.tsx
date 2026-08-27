@@ -313,8 +313,13 @@ export function CockpitShell({ children }: { children: ReactNode }) {
     <div className="flex h-[100dvh] w-full overflow-hidden" style={{ background: "hsl(var(--ck-bg))" }}>
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* ambient depth — one cheap, living jade aurora behind the cockpit */}
-        <div className="ck-aurora" aria-hidden />
+        {/* Three slow lights drifting behind everything, so the page is never
+            a flat sheet. Cheap: transform-only, and off under reduced motion. */}
+        <div className="ck-ambient" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </div>
         <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
           <DesktopTopBar />
           {!hasOwnMobileHeader && <MobileTopBar />}
