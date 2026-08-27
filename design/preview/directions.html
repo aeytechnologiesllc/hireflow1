@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — living mark, five directions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --sidebar:#E7E0CE; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --hair:#C6B893; --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --jade:#0F6B4F; --jade-bright:#3FCE97;
+    --brass:#8A6420; --brass-line:#C9A45E; --btn-fg:#F7F4EB;
+    --shadow-md:0 1px 2px rgba(20,32,27,.06),0 10px 22px -14px rgba(20,32,27,.34);
+  }
+  [data-theme="dark"]{
+    --ground:#17140F; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --hair:rgba(201,164,94,.42);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --jade:#4FBF95; --jade-bright:#67E3AF;
+    --brass:#E0B96A; --brass-line:rgba(224,185,106,.55); --btn-fg:#17140F;
+    --shadow-md:0 2px 4px rgba(0,0,0,.5),0 12px 28px -16px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--ground);color:var(--ink);font-family:Inter,-apple-system,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:10px 18px;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .bar b{font-size:12px}
+  .pills{display:flex;gap:4px;background:var(--surface-2);padding:3px;border-radius:9px}
+  .pills button{font:inherit;font-size:12px;font-weight:600;cursor:pointer;border:0;background:transparent;
+    color:var(--ink-3);padding:6px 12px;border-radius:7px}
+  .pills button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-md)}
+  .seg{margin-left:auto}
+  .note{font-size:12px;color:var(--ink-3)}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 90px;display:grid;gap:36px}
+  .ctx-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin:0 0 10px}
+
+  /* ── Context A: sign-in ─────────────────────────────── */
+  .auth{display:grid;grid-template-columns:1.1fr 1fr;gap:44px;align-items:center;
+    background:var(--ground);border:1px solid var(--line);border-radius:18px;padding:44px 46px;overflow:hidden;position:relative}
+  .brand-side{position:relative;min-height:430px;display:flex;flex-direction:column;justify-content:flex-end}
+  .film-a{position:absolute;inset:-12% -8% 6% -10%;width:auto;height:auto}
+  .film-a canvas{width:100%;height:100%;display:block}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--brass-line);color:var(--brass);
+    border-radius:999px;padding:5px 14px;font-size:10.5px;font-weight:700;letter-spacing:.15em;align-self:flex-start;position:relative}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright)}
+  .auth h1{font-family:Fraunces,Georgia,serif;font-weight:500;font-size:40px;line-height:1.06;letter-spacing:-.015em;margin:14px 0 0;position:relative}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);padding:28px}
+  .card h2{font-family:Fraunces,Georgia,serif;font-weight:500;font-size:22px;margin:0 0 4px}
+  .card p{margin:0 0 18px;color:var(--ink-3);font-size:13px}
+  .f label{display:block;font-size:12px;font-weight:600;margin:12px 0 5px;color:var(--ink-2)}
+  .f input{width:100%;font:inherit;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--ground);color:var(--ink)}
+  .go{margin-top:18px;width:100%;font:inherit;font-weight:600;padding:11px 0;border:0;border-radius:9px;background:var(--jade);color:var(--btn-fg);cursor:pointer}
+
+  /* ── Context B: dashboard empty state ───────────────── */
+  .dash{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);
+    padding:30px 34px;display:grid;grid-template-columns:1fr 240px;gap:20px;align-items:center;overflow:hidden}
+  .dash h3{font-family:Fraunces,Georgia,serif;font-weight:500;font-size:22px;margin:0}
+  .dash p{margin:8px 0 0;color:var(--ink-2);max-width:48ch}
+  .dash .acts{margin-top:18px;display:flex;gap:8px}
+  .dash .acts .go{width:auto;margin:0;padding:10px 16px}
+  .dash .acts .alt{font:inherit;font-weight:600;padding:10px 16px;border-radius:9px;border:1px solid var(--hair);background:var(--surface);color:var(--ink);cursor:pointer}
+  .film-b{position:relative;height:230px;margin:-10px -14px -10px 0}
+  .film-b canvas{width:100%;height:100%;display:block}
+
+  /* ── Context C: loading ─────────────────────────────── */
+  .load{background:var(--ground);border:1px solid var(--line);border-radius:14px;height:300px;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+  .film-c{position:absolute;inset:-18%}
+  .film-c canvas{width:100%;height:100%;display:block;opacity:.9}
+  .load span{position:relative;font-size:13px;color:var(--ink-3);font-weight:500;background:color-mix(in srgb,var(--ground) 72%,transparent);padding:4px 12px;border-radius:999px}
+
+  @media(max-width:900px){.auth{grid-template-columns:1fr}.dash{grid-template-columns:1fr}.film-b{height:190px;margin:0}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <b>Living mark — pick a direction.</b>
+  <div class="pills" id="dirs"></div>
+  <div class="pills seg" id="theme">
+    <button data-t="light" aria-pressed="true">Day</button>
+    <button data-t="dark" aria-pressed="false">Night</button>
+  </div>
+  <span class="note" id="blurb"></span>
+</div>
+
+<div class="wrap">
+  <section>
+    <p class="ctx-label">Where it lives 1 · Sign-in</p>
+    <div class="auth">
+      <div class="brand-side">
+        <div class="film-a" data-film></div>
+        <span class="eyebrow"><i></i>EMPLOYER PORTAL</span>
+        <h1>Hiring, handled.</h1>
+      </div>
+      <div class="card">
+        <h2>Welcome back</h2>
+        <p>Sign in to manage your hiring</p>
+        <div class="f">
+          <label>Email</label><input placeholder="you@example.com">
+          <label>Password</label><input type="password" value="••••••••">
+        </div>
+        <button class="go">Sign In</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="ctx-label">Where it lives 2 · Dashboard, before the first applicant</p>
+    <div class="dash">
+      <div>
+        <h3>Nobody has applied yet.</h3>
+        <p>Publish a role and share its link. The moment someone applies, Ava screens them and they show up here — already read, already scored.</p>
+        <div class="acts"><button class="go">Post your first job</button><button class="alt">See your jobs</button></div>
+      </div>
+      <div class="film-b" data-film></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="ctx-label">Where it lives 3 · Loading</p>
+    <div class="load">
+      <div class="film-c" data-film></div>
+      <span>Preparing your dashboard…</span>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+const DIRECTIONS = {
+  1: { name: 'Liquid Rise',   blurb: 'the landing form — molten glass, erupting' },
+  2: { name: 'Jade Silk',     blurb: 'a ribbon of silk, drifting — the calm one' },
+  3: { name: 'Firefly Swarm', blurb: 'thousands of particles holding the line' },
+  4: { name: 'Molten Pour',   blurb: 'heavy gold flowing upward against gravity' },
+  5: { name: 'Aurora Thread', blurb: 'one filament of light — quiet luxury' },
+};
+
+/* One shared source video, luma-keyed onto every context canvas.
+   Black becomes true alpha, so each film composites on ivory or ink alike. */
+const video = document.createElement('video');
+Object.assign(video, { muted: true, loop: true, playsInline: true, autoplay: true });
+video.style.display = 'none';
+document.body.appendChild(video);
+
+const tex = new THREE.VideoTexture(video);
+tex.colorSpace = THREE.SRGBColorSpace;
+/* The key is theme-aware: ink hides murky low-luma edges, paper does not, so
+   Day cuts deeper into the glow to stay clean on ivory. */
+const mat = new THREE.ShaderMaterial({
+  transparent: true,
+  uniforms: { uTex: { value: tex }, uLo: { value: 0.10 }, uHi: { value: 0.30 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `varying vec2 vUv; uniform sampler2D uTex; uniform float uLo; uniform float uHi;
+    void main(){
+      vec4 c = texture2D(uTex, vUv);
+      float l = max(max(c.r, c.g), c.b);
+      gl_FragColor = vec4(c.rgb, smoothstep(uLo, uHi, l));
+    }`,
+});
+function setKeyForTheme(dark){ mat.uniforms.uLo.value = dark ? 0.035 : 0.10; mat.uniforms.uHi.value = dark ? 0.16 : 0.30; }
+
+const views = [...document.querySelectorAll('[data-film]')].map((host) => {
+  const canvas = document.createElement('canvas');
+  host.appendChild(canvas);
+  const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
+  r.setClearColor(0x000000, 0);
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+  const cam = new THREE.Camera();
+  const fit = () => r.setSize(canvas.clientWidth || 300, canvas.clientHeight || 300, false);
+  new ResizeObserver(fit).observe(canvas); fit();
+  return { r, scene, cam };
+});
+(function loop(){ requestAnimationFrame(loop);
+  if (video.readyState >= 2) views.forEach(v => v.r.render(v.scene, v.cam));
+})();
+
+const dirs = document.getElementById('dirs');
+const blurb = document.getElementById('blurb');
+function pick(n){
+  [...dirs.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.n == n)));
+  blurb.textContent = DIRECTIONS[n].blurb;
+  const can = video.canPlayType('video/webm; codecs="vp9"');
+  video.src = `directions-assets/d${n}.${can ? 'webm' : 'mp4'}`;
+  video.play().catch(() => {});
+}
+for (const n of Object.keys(DIRECTIONS)) {
+  const b = document.createElement('button');
+  b.dataset.n = n; b.textContent = `${n} · ${DIRECTIONS[n].name}`;
+  b.onclick = () => pick(n);
+  dirs.appendChild(b);
+}
+pick(1);
+
+document.getElementById('theme').addEventListener('click', (e) => {
+  const t = e.target.dataset.t; if (!t) return;
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+  setKeyForTheme(t === 'dark');
+  [...document.getElementById('theme').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === t)));
+});
+</script>
+</body>
+</html>
