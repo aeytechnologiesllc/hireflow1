@@ -1,169 +1,615 @@
-import {
-  CalendarDays,
-  CheckCircle2,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  Mic,
-  Users,
-  CalendarCheck,
-  ClipboardCheck,
-  UserRound,
-  Star,
-} from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { addDays, format, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns";
+import { AlertCircle, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
+import AvaSeal from "@/components/ava/AvaSeal";
+import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
+import { useInterviews, type InterviewWithDetails } from "@/hooks/useInterviews";
+import CkAvatar from "../components/Avatar";
 import { PageHeader } from "../components/PageHeader";
-import { StatCard } from "../components/StatCard";
-import { CandidateMark } from "../components/CandidateMark";
-import { useCockpitInterviews } from "../hooks/useCockpitData";
-import type { InterviewItem } from "../data";
+import { useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
+import type { CandidateStage } from "../data";
 
-const KPI_ICONS = {
-  calendar: <CalendarDays className="h-[18px] w-[18px]" />,
-  check: <CheckCircle2 className="h-[18px] w-[18px]" />,
-  clock: <Clock className="h-[18px] w-[18px]" />,
-};
+/**
+ * The week ahead.
+ *
+ * Five weekday cards so you can see the shape of the week at a glance, the
+ * held times underneath with the one that needs your call first, the brief for
+ * whoever you are meeting next, and the record of who you have already sat
+ * with. Nothing here is projected: a day is only marked if a real interview
+ * sits on it.
+ */
 
-const KIND = {
-  "voice-scheduled": { icon: Mic, label: "Voice scheduled", tone: "var(--hf-text-muted)" },
-  "in-person-confirmed": { icon: Users, label: "In-person confirmed", tone: "var(--hf-green)" },
-  "voice-completed": { icon: Mic, label: "Voice completed", tone: "var(--hf-green)" },
-  scheduled: { icon: Clock, label: "Scheduled", tone: "var(--hf-text-muted)" },
-};
+/** Real wax never sits square. A stable per-row tilt, so it does not jitter on re-render. */
+const TILTS = [-6, 4, -3, 5, -4];
 
-function Calendar({ daysWithInterviews, selectedDay }: { daysWithInterviews: number[]; selectedDay: number }) {
-  const days = Array.from({ length: 30 }, (_, i) => i + 1);
-  const trailing = [1, 2, 3, 4, 5];
-  const monthLabel = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+/** Monday-first, because nobody schedules an interview on a Sunday. */
+const WEEK_OPTS = { weekStartsOn: 1 as const };
+
+type Response = "confirmed" | "reschedule_requested" | "pending";
+
+interface Session {
+  id: string;
+  /** Application id — the key the applicant record is keyed by. Null in the showcase dataset. */
+  applicationId: string | null;
+  name: string;
+  role: string;
+  /** Real timestamp. Null only when the source has no dated row to offer. */
+  at: Date | null;
+  /** Stand-in label for a session with no real timestamp. */
+  timeLabel: string;
+  status: string;
+  response: Response;
+  minutes: number | null;
+  type: string | null;
+  /** The questions Ava prepared for this conversation. */
+  questions: string[];
+  candidateNote: string | null;
+  proposedTimes: Array<{ datetime: string }>;
+}
+
+function firstName(full: string) {
+  return full.trim().split(/\s+/)[0] || full;
+}
+
+/** The wizard writes "video" | "phone" | "in-person"; older rows use "in_person" / "voice". */
+function typeLabel(type: string | null) {
+  if (!type) return null;
+  const t = type.toLowerCase();
+  if (t === "in-person" || t === "in_person") return "in person";
+  if (t === "video") return "video call";
+  if (t === "phone") return "phone call";
+  if (t === "voice") return "voice screen";
+  return t.replace(/[-_]/g, " ");
+}
+
+function readResponse(value: string | null): Response {
+  if (value === "confirmed") return "confirmed";
+  if (value === "reschedule_requested") return "reschedule_requested";
+  return "pending";
+}
+
+function fromRow(row: InterviewWithDetails): Session {
+  const profile = row.applications?.profiles;
+  const raw = Array.isArray(row.proposed_times)
+    ? (row.proposed_times as unknown as Array<{ datetime?: string }>)
+    : [];
+  return {
+    id: row.id,
+    applicationId: row.applications?.id ?? null,
+    name: profile?.full_name ?? profile?.email ?? "Candidate",
+    role: row.applications?.jobs?.title ?? "Role",
+    at: new Date(row.scheduled_at),
+    timeLabel: "",
+    status: row.status,
+    response: readResponse(row.candidate_response),
+    minutes: row.duration_minutes,
+    type: row.interview_type,
+    questions: (row.ai_questions ?? []).filter((q) => !!q?.trim()),
+    candidateNote: row.candidate_note,
+    proposedTimes: raw
+      .filter((t) => !!t?.datetime)
+      .map((t) => ({ datetime: t.datetime as string })),
+  };
+}
+
+function Chip({ tone, children }: { tone: "live" | "amber" | "mut"; children: ReactNode }) {
+  const skin =
+    tone === "live"
+      ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+      : tone === "amber"
+        ? { background: "var(--amber-bg)", color: "var(--amber-fg)" }
+        : { background: "var(--surface-2)", color: "var(--ink-2)" };
   return (
-    <div className="ck-card p-5">
-      <div className="flex items-center justify-between">
-        <div className="font-display text-[17px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{monthLabel}</div>
-      </div>
-      <div className="mt-4 grid grid-cols-7 gap-y-2 text-center text-[11px]" style={{ color: "var(--hf-text-muted)" }}>
-        {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => <div key={d}>{d}</div>)}
-      </div>
-      <div className="mt-1 grid grid-cols-7 gap-y-1 text-center">
-        {days.map((d) => {
-          const has = daysWithInterviews.includes(d);
-          const sel = d === selectedDay;
-          return (
-            <div key={d} className="flex flex-col items-center py-1">
-              <span
-                className="flex h-7 w-7 items-center justify-center rounded-full text-[13px]"
-                style={sel ? { background: "var(--hf-green-border)", color: "var(--hf-text)", border: "1px solid var(--hf-green)" } : { color: "var(--hf-text-soft)" }}
-              >
-                {d}
-              </span>
-              <span className="mt-0.5 h-1 w-1 rounded-full" style={{ background: has ? "var(--hf-green)" : "transparent" }} />
-            </div>
-          );
-        })}
-        {trailing.map((d) => (
-          <div key={`t${d}`} className="flex flex-col items-center py-1">
-            <span className="flex h-7 w-7 items-center justify-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>{d}</span>
-            <span className="mt-0.5 h-1 w-1" />
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 flex items-center gap-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-        <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--hf-green)" }} />
-        Has interviews
-      </div>
-    </div>
+    <span
+      className="shrink-0 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
+      style={skin}
+    >
+      {children}
+    </span>
   );
 }
 
-function UpcomingRow({ it }: { it: InterviewItem }) {
-  const k = KIND[it.kind];
-  const Icon = k.icon;
+function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 py-3" style={{ borderTop: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)" }}>
-      <CandidateMark who={it.avatar} size={38} variant="calm" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>{it.name}</div>
-        <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{it.role}</div>
-      </div>
-      <div className="text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>{it.time}</div>
-      <div className="flex w-[120px] items-center gap-1.5 text-[12px]" style={{ color: k.tone }}>
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{k.label}</span>
-      </div>
-    </div>
+    <h2
+      className="font-display mb-2 text-[16px] leading-[1.15]"
+      style={{ color: "var(--ink)", fontWeight: 600 }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** One line of Ava's brief: an icon, a bolded label, and the fact itself. */
+function Evidence({
+  icon: Icon,
+  tone,
+  label,
+  children,
+}: {
+  icon: LucideIcon;
+  tone: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex items-start gap-2.5 text-[13px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
+      <Icon className="mt-[2px] h-3.5 w-3.5 shrink-0" style={{ color: tone }} aria-hidden />
+      <span>
+        <b style={{ color: "var(--ink)", fontWeight: 600 }}>{label}</b> {children}
+      </span>
+    </li>
   );
 }
 
 export default function CockpitInterviews() {
-  const { interviews, isLoading } = useCockpitInterviews();
   const navigate = useNavigate();
+  const { interviews, isLoading } = useCockpitInterviews();
+  const { data: rows = [] } = useInterviews();
+  const { candidates } = useCockpitCandidates();
+  const [reviewing, setReviewing] = useState<Session | null>(null);
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+
+  /* Real rows carry dates, notes and Ava's questions. The cockpit hook is the
+     fallback for the showcase dataset, which has times but no timestamps. */
+  const sessions = useMemo<Session[]>(() => {
+    if (rows.length > 0) {
+      return rows
+        .map(fromRow)
+        .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0));
+    }
+    const fallback: Session[] = [];
+    interviews.upcoming.forEach((it) => {
+      fallback.push({
+        id: it.id,
+        applicationId: it.id,
+        name: it.name,
+        role: it.role,
+        at: null,
+        timeLabel: it.time,
+        status: it.kind === "voice-completed" ? "completed" : "scheduled",
+        response: "pending",
+        minutes: null,
+        type: it.kind === "in-person-confirmed" ? "in-person" : "voice",
+        questions: [],
+        candidateNote: null,
+        proposedTimes: [],
+      });
+    });
+    return fallback;
+  }, [rows, interviews.upcoming]);
+
+  const upcoming = useMemo(
+    () => sessions.filter((s) => s.status === "scheduled" && (!s.at || s.at >= today)),
+    [sessions, today],
+  );
+
+  const completed = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.status === "completed" || s.status === "no_show")
+        .sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))
+        .slice(0, 4),
+    [sessions],
+  );
+
+  const noShows = useMemo(() => sessions.filter((s) => s.status === "no_show").length, [sessions]);
+  const needsCall = useMemo(
+    () => upcoming.filter((s) => s.response === "reschedule_requested").length,
+    [upcoming],
+  );
+
+  /* Outcomes live on the application, not the interview — so the record below
+     says what actually happened rather than guessing from the interview alone. */
+  const stageByApplication = useMemo(() => {
+    const map = new Map<string, CandidateStage>();
+    candidates.forEach((c) => map.set(c.id, c.stage));
+    return map;
+  }, [candidates]);
+
+  /* The strip follows the work: this week, unless everything sits further out. */
+  const dated = useMemo(() => sessions.filter((s) => s.at && s.status === "scheduled"), [sessions]);
+  const thisWeek = useMemo(() => startOfWeek(today, WEEK_OPTS), [today]);
+  const weekStart = useMemo(() => {
+    const firstUpcoming = upcoming.find((s) => s.at)?.at;
+    if (firstUpcoming && firstUpcoming >= addDays(thisWeek, 7)) return startOfWeek(firstUpcoming, WEEK_OPTS);
+    return thisWeek;
+  }, [upcoming, thisWeek]);
+  const weekDays = useMemo(() => [0, 1, 2, 3, 4].map((i) => addDays(weekStart, i)), [weekStart]);
+
+  const next = upcoming[0] ?? null;
+
+  const openRecord = (s: Session) =>
+    navigate(s.applicationId ? `/applicants/${s.applicationId}` : "/applicants");
+
+  const subtitle =
+    needsCall > 0
+      ? `${needsCall} ${needsCall === 1 ? "time needs" : "times need"} your call — I have the rest handled.`
+      : upcoming.length > 0
+        ? `${upcoming.length} coming up. Everyone gets the date and time from me the moment it is booked.`
+        : "Nothing on the books yet.";
 
   if (isLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
+    return (
+      <div className="space-y-5">
+        <div className="ck-reveal h-[52px] rounded-xl" style={{ background: "var(--hf-surface)", opacity: 0.55 }} />
+        <div className="grid grid-cols-5 gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="ck-reveal h-[62px]"
+              style={{ ["--ck-i" as string]: i, background: "var(--hf-surface)", borderRadius: 10, opacity: 0.55 }}
+            />
+          ))}
+        </div>
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="ck-card ck-reveal h-[76px]"
+            style={{ ["--ck-i" as string]: i, opacity: 0.55 }}
+          />
+        ))}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Interviews"
-        subtitle="Upcoming voice and in-person conversations"
+        subtitle={subtitle}
         actions={
-          <>
-            <button className="ck-btn ck-btn-primary" onClick={() => navigate("/applicants")}><CalendarCheck className="h-4 w-4" />Schedule interview</button>
-            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/applicants")}><ClipboardCheck className="h-4 w-4" />Review completed</button>
-          </>
+          candidates.length > 0 ? (
+            <button className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => navigate("/applicants")}>
+              Schedule an interview
+            </button>
+          ) : undefined
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {interviews.kpis.map((k, i) => (
-          <StatCard key={k.label} label={k.label} value={k.value} icon={KPI_ICONS[k.icon]} index={i} />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Calendar daysWithInterviews={interviews.daysWithInterviews} selectedDay={interviews.selectedDay} />
-
-        <div className="ck-card p-5">
-          <div className="font-display text-[17px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Upcoming interviews</div>
-          <div className="mt-1">
-            {interviews.upcoming.length === 0 ? (
-              <p className="py-6 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
-                No upcoming interviews scheduled. Candidates in the voice stage appear here when interviews are booked.
-              </p>
+      {upcoming.length === 0 && completed.length === 0 ? (
+        /* ── Nobody is on the calendar. Say so, and point at the one move. ── */
+        <section className="ck-card ck-reveal p-6 md:p-8">
+          <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
+            {candidates.length === 0 ? "Nobody to meet yet." : "Nothing on the calendar yet."}
+          </h2>
+          <p className="mt-2 max-w-[52ch] text-[14px]" style={{ color: "var(--ink-2)" }}>
+            {candidates.length === 0
+              ? "Publish a role and share its link. I read everyone who applies, and the moment you want to meet one of them the time lands here."
+              : "Open the record of anyone worth an hour and pick a time. I send them the date and the place, and hold your slot until they answer."}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {candidates.length === 0 ? (
+              <button className="ck-btn ck-btn-primary" onClick={() => navigate("/jobs")}>
+                See your jobs
+              </button>
             ) : (
-              interviews.upcoming.map((it) => <UpcomingRow key={it.id} it={it} />)
+              <button className="ck-btn ck-btn-primary" onClick={() => navigate("/applicants")}>
+                See who applied
+              </button>
             )}
           </div>
-          <button className="ck-btn ck-btn-ghost mt-2 !px-0 !text-[13px]" style={{ color: "var(--hf-gold)" }} onClick={() => navigate("/applicants")}>View all interviews<ChevronRight className="h-4 w-4" /></button>
-        </div>
-
-        <div className="ck-card p-5">
-          <div className="font-display text-[17px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's interview reads</div>
-          <div className="mt-2 flex justify-center">
-          </div>
-          <div className="mt-3 space-y-2.5">
-            {interviews.reads.length === 0 ? (
-              <p className="text-center text-[13px] py-4" style={{ color: "var(--hf-text-muted)" }}>
-                Interview summaries appear after candidates complete voice screening.
-              </p>
-            ) : (
-              interviews.reads.map((r) => {
-              const Icon = r.icon === "user" ? UserRound : Star;
-              return (
-                <div key={r.id} className="ck-inset flex items-center gap-3 p-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1 text-[13px]" style={{ color: "var(--hf-text)" }}>{r.text}</span>
-                  <ChevronRight className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
+        </section>
+      ) : (
+        <>
+          {/* ── The week at a glance ──────────────────────────── */}
+          {dated.length > 0 && (
+            <section>
+              {!isSameDay(weekStart, thisWeek) && (
+                <div
+                  className="mb-2 text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                  style={{ color: "var(--ink-3)" }}
+                >
+                  Week of {format(weekStart, "MMM d")}
                 </div>
-              );
-            })
+              )}
+              <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible md:pb-0">
+                {weekDays.map((day, i) => {
+                  const slots = dated.filter((s) => s.at && isSameDay(s.at, day));
+                  const held = slots.some((s) => s.response === "reschedule_requested");
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="ck-reveal w-[132px] shrink-0 md:w-auto md:shrink"
+                      style={{
+                        ["--ck-i" as string]: i,
+                        background: "var(--surface)",
+                        border: `1px solid ${held ? "var(--brass-line)" : "var(--line-soft)"}`,
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        minHeight: 62,
+                        boxShadow: held ? "var(--shadow-md)" : "var(--shadow-sm)",
+                      }}
+                    >
+                      <div
+                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                        style={{ color: "var(--ink-3)" }}
+                      >
+                        {format(day, "EEE d")}
+                        {isToday(day) && (
+                          <>
+                            <span>&middot; today</span>
+                            <span
+                              className="h-[5px] w-[5px] rounded-full"
+                              style={{ background: "var(--jade)" }}
+                              aria-hidden
+                            />
+                          </>
+                        )}
+                      </div>
+                      {slots.length === 0 ? (
+                        <div className="mt-[7px] text-[11px]" style={{ color: "var(--ink-3)" }}>
+                          Nothing booked
+                        </div>
+                      ) : (
+                        slots.map((s) => {
+                          const confirm = s.response === "reschedule_requested";
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => openRecord(s)}
+                              className="mt-[7px] block w-full px-2 py-[5px] text-left text-[11px] font-semibold leading-[1.35]"
+                              style={{
+                                borderRadius: 6,
+                                background: confirm ? "var(--amber-bg)" : "var(--jade-soft)",
+                                color: confirm ? "var(--amber-fg)" : "var(--jade-soft-fg)",
+                              }}
+                            >
+                              {format(s.at as Date, "h:mm aaa")} &middot; {firstName(s.name)}
+                              {confirm ? " · confirm" : ""}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* ── The times themselves ──────────────────────────── */}
+          {upcoming.length > 0 ? (
+            <div className="space-y-2">
+              {upcoming.map((s, i) => {
+                const confirm = s.response === "reschedule_requested";
+                const meta = [
+                  s.minutes ? `${s.minutes} min` : null,
+                  typeLabel(s.type),
+                  confirm
+                    ? "they asked for a different time — your slot is still held"
+                    : s.response === "confirmed"
+                      ? "they have confirmed"
+                      : "waiting on them to confirm",
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+
+                return (
+                  <div
+                    key={s.id}
+                    className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
+                    style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
+                  >
+                    <div className="min-w-[104px] shrink-0">
+                      <div
+                        className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                        style={{ color: "var(--brass)" }}
+                      >
+                        {s.at ? format(s.at, "EEE d") : "Next"}
+                      </div>
+                      <div
+                        className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
+                        style={{ fontSize: 28, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
+                      >
+                        {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openRecord(s)}
+                      className="flex min-w-0 flex-1 basis-full items-center gap-3.5 text-left sm:basis-0"
+                    >
+                      <span className="relative shrink-0">
+                        <CkAvatar who={s.name} size={40} />
+                        <span
+                          className="ck-seal absolute"
+                          style={{ right: -8, bottom: -8, transform: `rotate(${TILTS[i % TILTS.length]}deg)` }}
+                        >
+                          <AvaSeal size={22} />
+                        </span>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span
+                            className="truncate text-[14px] font-semibold leading-[1.3]"
+                            style={{ color: "var(--ink)" }}
+                          >
+                            {s.name}
+                          </span>
+                          {confirm ? (
+                            <Chip tone="amber">Needs confirm</Chip>
+                          ) : s.response === "confirmed" ? (
+                            <Chip tone="live">Confirmed</Chip>
+                          ) : (
+                            <Chip tone="mut">Awaiting reply</Chip>
+                          )}
+                        </span>
+                        <span
+                          className="mt-0.5 block text-[12px] leading-[1.35]"
+                          style={{ color: "var(--ink-3)" }}
+                        >
+                          {s.role} &middot; {meta}
+                        </span>
+                      </span>
+                    </button>
+
+                    <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+                      <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
+                        Details
+                      </button>
+                      {confirm && (
+                        <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)}>
+                          Review times
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
+              Nothing coming up &mdash; everyone you have already met is below.
+            </p>
+          )}
+
+          {/* ── The brief, and the record ─────────────────────── */}
+          <div className={next && completed.length > 0 ? "grid gap-3 lg:grid-cols-2" : "grid gap-3"}>
+            {next && (
+              <section>
+                <SectionTitle>
+                  {firstName(next.name)}&rsquo;s brief
+                  {next.at ? (isToday(next.at) ? " — ready for today" : ` — ready for ${format(next.at, "EEEE")}`) : ""}
+                </SectionTitle>
+                <div
+                  className="ck-card relative"
+                  style={{ padding: "14px 18px" }}
+                >
+                  {/* the brass hairline the read cards are sealed with */}
+                  <span
+                    className="pointer-events-none absolute"
+                    style={{ top: 9, left: 20, right: 20, height: 2, background: "var(--brass-line)", borderRadius: 1 }}
+                    aria-hidden
+                  />
+                  <ul className="mt-1.5 flex flex-col gap-2">
+                    <Evidence icon={ShieldCheck} tone="var(--brass)" label="Set for:">
+                      {next.at ? format(next.at, "EEEE d MMM 'at' h:mm aaa") : next.timeLabel}
+                      {next.minutes ? ` · ${next.minutes} min` : ""}
+                      {typeLabel(next.type) ? ` · ${typeLabel(next.type)}` : ""}
+                    </Evidence>
+                    {next.questions.slice(0, 3).map((q, qi) => (
+                      <Evidence key={qi} icon={HelpCircle} tone="var(--ink-3)" label="Ask:">
+                        {q}
+                      </Evidence>
+                    ))}
+                    {next.candidateNote && (
+                      <Evidence icon={AlertCircle} tone="var(--amber-fg)" label="Their note:">
+                        &ldquo;{next.candidateNote}&rdquo;
+                      </Evidence>
+                    )}
+                    {next.at && next.response === "pending" && (
+                      <Evidence icon={AlertCircle} tone="var(--amber-fg)" label="Not confirmed yet:">
+                        I am still waiting on them to say yes to this time.
+                      </Evidence>
+                    )}
+                  </ul>
+                  <div style={{ height: 1, background: "var(--line-soft)", margin: "13px 0 11px" }} />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px]" style={{ color: "var(--ink-3)" }}>
+                      Everything I have on them sits on their record.
+                    </span>
+                    <button
+                      className="ml-auto text-[12px] font-semibold"
+                      style={{ color: "var(--brass)" }}
+                      onClick={() => openRecord(next)}
+                    >
+                      Open their full read &rarr;
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {completed.length > 0 && (
+              <section>
+                <SectionTitle>Recently completed</SectionTitle>
+                <div className="flex flex-col gap-1.5">
+                  {completed.map((s) => {
+                    const stage = s.applicationId ? stageByApplication.get(s.applicationId) : undefined;
+                    const meta = [s.role, typeLabel(s.type), s.status === "no_show" ? "they did not show" : null]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => openRecord(s)}
+                        className="ck-card flex w-full items-center gap-3.5 px-4 py-3 text-left"
+                        style={{ borderRadius: 10 }}
+                      >
+                        <span
+                          className="min-w-[70px] shrink-0 whitespace-nowrap text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                          style={{ color: "var(--brass)" }}
+                        >
+                          {s.at ? format(s.at, "MMM d") : "Done"}
+                        </span>
+                        <CkAvatar who={s.name} size={32} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <span
+                              className="truncate text-[14px] font-semibold leading-[1.3]"
+                              style={{ color: "var(--ink)" }}
+                            >
+                              {s.name}
+                            </span>
+                            {s.status === "no_show" ? (
+                              <Chip tone="mut">No-show</Chip>
+                            ) : stage === "Hired" ? (
+                              <Chip tone="live">Hired</Chip>
+                            ) : stage === "Rejected" ? (
+                              <Chip tone="mut">Passed</Chip>
+                            ) : (
+                              <Chip tone="mut">Interviewed</Chip>
+                            )}
+                          </span>
+                          <span
+                            className="mt-0.5 block truncate text-[12px] leading-[1.35]"
+                            style={{ color: "var(--ink-3)" }}
+                          >
+                            {meta}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div
+                  className="mt-2 flex items-center gap-2.5 px-4 py-3 text-[12px]"
+                  style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
+                >
+                  <span>
+                    <b style={{ color: "var(--ink-2)" }}>
+                      No-shows so far: {noShows}.
+                    </b>{" "}
+                    Everyone gets the date and time by email the moment it is booked.
+                  </span>
+                </div>
+              </section>
             )}
           </div>
-          <button className="ck-btn ck-btn-ghost mt-3 !px-0 !text-[13px]" style={{ color: "var(--hf-gold)" }} onClick={() => navigate("/applicants")}>View all reads<ChevronRight className="h-4 w-4" /></button>
-        </div>
-      </div>
+        </>
+      )}
+
+      {/* The candidate proposed other times; this is where you take the call. */}
+      {reviewing && (
+        <EmployerRescheduleReviewDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setReviewing(null);
+          }}
+          interviewId={reviewing.id}
+          applicationId={reviewing.applicationId ?? ""}
+          currentScheduledAt={reviewing.at ? reviewing.at.toISOString() : ""}
+          proposedTimes={reviewing.proposedTimes}
+          candidateNote={reviewing.candidateNote}
+          onMessageCandidate={() => navigate("/messages")}
+        />
+      )}
     </div>
   );
 }

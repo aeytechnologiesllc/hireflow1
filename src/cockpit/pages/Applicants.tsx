@@ -1,206 +1,529 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
 import {
-  ChevronRight,
+  Check,
+  AlertCircle,
   ChevronLeft,
-  X,
-  UserRound,
-  MessageCircle,
-  Target,
-  BookOpen,
-  ShieldCheck,
-  MoreHorizontal,
+  ChevronRight,
+  Play,
   ExternalLink,
-  Loader2,
+  MessageSquare,
   CheckCircle2,
   XCircle,
-  CalendarPlus,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
-import { PageHeader } from "../components/PageHeader";
-import { Pipeline } from "../components/Pipeline";
-import { CandidateMark } from "../components/CandidateMark";
+import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
+import { ShareKitDialog } from "../components/ShareKitDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
-import { useCockpitCandidates, useCockpitActions, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
-import { toast } from "sonner";
-import { getInitials } from "../lib/mappers";
-import type { Candidate, CandidateStage, PipelineNode, StageKey } from "../data";
+import {
+  useCockpitCandidates,
+  useCockpitJobsData,
+  useCockpitActions,
+  nextAdvanceStatus,
+  advanceTargetLabel,
+  avaAdvanceRec,
+} from "../hooks/useCockpitData";
+import { getInitials, parseApplicationNotes } from "../lib/mappers";
+import { candidateApplyUrl } from "@/lib/showcaseApply";
+import { clearDraft } from "@/lib/avaEngine/draft";
+import type { Candidate, CandidateStage } from "../data";
 
-/** Stage-aware decision buttons shared by the detail panel, the table rows and the
- *  mobile cards. Terminal states show a badge; an offered candidate gets Hire +
- *  Decline; everyone else gets Advance + Pass. */
-function RowActions({
-  status,
-  variant,
-  onAdvance,
-  onHire,
-  onReject,
-}: {
+/**
+ * The people, and Ava's read on them.
+ *
+ * Two columns: on the left the field — everyone who applied to this job, each
+ * one line, sealed ones first. On the right the person you picked, on Ava's
+ * letterhead: the score she gave, their own words from the interview, the
+ * evidence behind it, and where they are. Pass, or set up the interview.
+ *
+ * Every value on this screen comes off the application record. Where the record
+ * is silent — no transcript, no quiz, no resume — the element is left out
+ * rather than filled in.
+ */
+
+/** Real wax never sits square. A stable per-row tilt, so it does not jitter. */
+const TILTS = [-6, 4, -3, 5, -4];
+
+const PAGE_SIZE = 8;
+
+/** The stage filter offers everything except Rejected — the tabs own that split. */
+const STAGES: CandidateStage[] = ["Application", "Quiz", "Voice", "Shortlist", "Hired"];
+
+/** Which side of the job a person is on. "reading" only exists while Ava works. */
+type Bucket = "sealed" | "reading" | "passed";
+
+/* ── Reading the real record ───────────────────────────────────────────────
+   `applications` carries either a live hireflow row or a showcase row, so every
+   field below is optional and read defensively. Nothing is inferred. */
+
+interface AppRecord {
+  id: string;
   status?: string;
-  variant: "panel" | "row" | "card";
-  onAdvance: () => void;
-  onHire: () => void;
-  onReject: () => void;
-}) {
-  const hired = status === "hired";
-  const rejected = status === "rejected";
-  const offered = status === "offered";
-  const canAdvance = !!nextAdvanceStatus(status);
-
-  if (hired || rejected) {
-    return (
-      <span
-        className="ck-pill"
-        style={
-          hired
-            ? { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", borderColor: "color-mix(in srgb, var(--hf-green) 30%, transparent)" }
-            : { color: "var(--hf-danger)", background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", borderColor: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
-        }
-      >
-        {hired ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-        {hired ? "Hired" : "Passed"}
-      </span>
-    );
-  }
-
-  if (variant === "panel") {
-    return offered ? (
-      <>
-        <button className="ck-btn ck-btn-primary w-full" onClick={onHire}><CheckCircle2 className="h-4 w-4" />Hire</button>
-        <button className="ck-btn ck-btn-outline w-full" style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }} onClick={onReject}>Decline Offer</button>
-      </>
-    ) : (
-      <>
-        {canAdvance && <button className="ck-btn ck-btn-primary w-full" onClick={onAdvance}>Advance<ChevronRight className="h-4 w-4" /></button>}
-        <button className="ck-btn ck-btn-outline w-full" onClick={onReject}>Pass</button>
-      </>
-    );
-  }
-
-  const sm = "!px-3 !py-1.5 !text-[12px]";
-  return offered ? (
-    <button className={`ck-btn ck-btn-primary ${sm}`} onClick={onHire}><CheckCircle2 className="h-3.5 w-3.5" />Hire</button>
-  ) : canAdvance ? (
-    <button className={`ck-btn ck-btn-primary ${sm}`} onClick={onAdvance}>Advance<ChevronRight className="h-3.5 w-3.5" /></button>
-  ) : null;
+  created_at?: string;
+  updated_at?: string;
+  notes?: string | null;
+  resume_url?: string | null;
+  voice_interview_recording_url?: string | null;
+  voice_interview_transcript?: unknown;
 }
 
-const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
-const PAGE_SIZE = 8;
-const STAGES: CandidateStage[] = ["Application", "Quiz", "Voice", "Shortlist", "Hired", "Rejected"];
+interface TranscriptTurn {
+  role?: string;
+  content?: string;
+  timestamp?: number | string;
+}
+
+function toMillis(value: number | string | undefined): number | null {
+  if (value == null) return null;
+  const ms = typeof value === "number" ? value : Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function transcriptOf(app?: AppRecord): TranscriptTurn[] {
+  const raw = app?.voice_interview_transcript;
+  return Array.isArray(raw) ? (raw as TranscriptTurn[]) : [];
+}
+
+/** Measured length of the interview — the transcript's own clock, not a setting. */
+function interviewMinutes(turns: TranscriptTurn[]): number | null {
+  const first = toMillis(turns[0]?.timestamp);
+  const last = toMillis(turns[turns.length - 1]?.timestamp);
+  if (first == null || last == null || last <= first) return null;
+  return Math.max(1, Math.round((last - first) / 60000));
+}
+
+function stampLabel(ms: number): string {
+  const secs = Math.round(ms / 1000);
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+}
+
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const sentence = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  if (sentence > max * 0.45) return cut.slice(0, sentence + 1).trim();
+  const space = cut.lastIndexOf(" ");
+  return `${cut.slice(0, space > 0 ? space : max).trimEnd()}…`;
+}
+
+/**
+ * Ava files her report with section headers and markdown emphasis. The employer
+ * should read her sentences, not the scaffolding, so the marks are stripped and
+ * the bare headers dropped. Display only — the stored record is untouched.
+ */
+function avaProse(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return raw
+    .split(/\n+/)
+    .map((line) => line.replace(/\*\*/g, "").replace(/^[-–—•*]+\s*/, "").trim())
+    .filter((line) => line.length > 2 && !/^[A-Z0-9 ,/&'()-]+:?$/.test(line))
+    .join(" ")
+    .trim();
+}
+
+/** The candidate's own words: their longest answer, quoted whole. */
+function pullQuote(turns: TranscriptTurn[]): { text: string; at: string | null } | null {
+  const answers = turns.filter(
+    (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 40,
+  );
+  if (answers.length === 0) return null;
+  const best = answers.reduce((a, b) => ((b.content?.length ?? 0) > (a.content?.length ?? 0) ? b : a));
+  const start = toMillis(turns[0]?.timestamp);
+  const spoken = toMillis(best.timestamp);
+  return {
+    text: clip(best.content!.trim().replace(/\s+/g, " "), 190),
+    at: start != null && spoken != null && spoken >= start ? stampLabel(spoken - start) : null,
+  };
+}
+
+interface QuizResult {
+  correct?: number;
+  total?: number;
+  passed?: boolean;
+}
+
+function quizResultOf(app?: AppRecord): QuizResult | null {
+  const notes = parseApplicationNotes(app?.notes ?? null);
+  const result = notes.quizResult as QuizResult | undefined;
+  if (!result || typeof result.total !== "number" || typeof result.correct !== "number") return null;
+  return result;
+}
 
 /** A candidate has real screening signal once any score exists; until then we don't fake strengths. */
 function isAnalyzed(c: Candidate): boolean {
   return (c.overall ?? 0) > 0 || c.quiz != null || c.voice != null;
 }
 
-function StagePill({ stage }: { stage: CandidateStage }) {
-  if (stage === "Rejected") {
-    return (
-      <span className="ck-pill" style={{ color: "var(--hf-danger)", background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", borderColor: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" }}>
-        Passed
-      </span>
-    );
-  }
-  const cls =
-    stage === "Voice" ? "ck-pill-stage-voice" : stage === "Application" ? "ck-pill-stage-neutral" : "ck-pill-stage";
-  return <span className={`ck-pill ${cls}`}>{stage}</span>;
+function bucketOf(c: Candidate): Bucket {
+  if (c.stage === "Rejected") return "passed";
+  return isAnalyzed(c) ? "sealed" : "reading";
 }
 
-function Score({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-[15px]" style={{ color: "var(--hf-text-muted)" }}>—</span>;
-  return <span className="ck-num text-[15px]" style={{ color: "var(--hf-text)" }}>{value}%</span>;
-}
+/* ── Pieces ────────────────────────────────────────────────────────────── */
 
-function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedule, onViewProfile }: { c: Candidate; status?: string; onClose?: () => void; onAdvance: () => void; onHire: () => void; onReject: () => void; onSchedule: () => void; onViewProfile: () => void }) {
-  const analyzed = isAnalyzed(c);
-  const canSchedule = status !== "rejected" && status !== "hired";
+/** The 10px all-caps rule the spec uses for every small label. */
+function Label({ children, color }: { children: React.ReactNode; color: string }) {
   return (
-    <div className="ck-card flex max-h-[calc(100dvh-104px)] flex-col p-5">
-      {/* compact header — name, stage, match all visible at a glance */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
-          <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
-          <div className="mt-1.5"><StagePill stage={c.stage} /></div>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          {analyzed && (
-            <div className="text-right">
-              <div className="ck-num leading-none text-[22px]" style={{ color: "var(--hf-green)" }}>{c.overall}<span className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>%</span></div>
-              <div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>match</div>
-            </div>
-          )}
-          {onClose && (
-            <button onClick={onClose} style={{ color: "var(--hf-text-muted)" }}>
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
+    <span
+      className="block text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+      style={{ color }}
+    >
+      {children}
+    </span>
+  );
+}
 
-      {/* Ava's read — first content, no scrolling needed */}
-      <div className="ck-inset mt-3 p-3">
-        <div className="flex items-center gap-2">
-          <AvaSeal size={28} />
-          <span className="font-display text-[14px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</span>
-        </div>
-        {analyzed ? (
-          <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{c.readFull}</p>
-        ) : (
-          <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-snug" style={{ color: "var(--hf-text-muted)" }}>
-            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: "var(--hf-green)" }} />
-            Ava is screening this candidate. Scores and strengths appear here once screening completes.
-          </p>
-        )}
-      </div>
+/** One person, one line: who, why, and the number. */
+function PersonRow({
+  candidate,
+  index,
+  selected,
+  onSelect,
+}: {
+  candidate: Candidate;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const analyzed = isAnalyzed(candidate);
+  const why = clip(avaProse(candidate.readFull) || candidate.read, 64);
 
-      {/* primary actions — reachable without scrolling past the read */}
-      <div className="mt-3 space-y-2">
-        <RowActions status={status} variant="panel" onAdvance={onAdvance} onHire={onHire} onReject={onReject} />
-        {canSchedule && (
-          <button className="ck-btn ck-btn-outline w-full" onClick={onSchedule}><CalendarPlus className="h-4 w-4" />Schedule interview</button>
-        )}
-        <button className="ck-btn ck-btn-ghost mx-auto !text-[12.5px]" onClick={onViewProfile}>View full profile<ExternalLink className="h-3.5 w-3.5" /></button>
-      </div>
-
-      {/* details (scroll for more) */}
-      <div className="ck-scroll mt-4 flex-1 space-y-4 overflow-y-auto">
-        {analyzed && c.strengths.length > 0 && (
-          <div>
-            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Top strengths</div>
-            <div className="mt-2.5 space-y-2.5">
-              {c.strengths.map((s, i) => {
-                const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
-                return (
-                  <div key={s} className="flex items-start gap-2.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
-                      <Icon className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="flex-1">{s}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
+      className={[
+        "ck-reveal group flex w-[228px] shrink-0 items-center gap-[11px] rounded-[10px] border p-3 text-left",
+        "transition-colors duration-150",
+        selected
+          ? ""
+          : "border-[var(--line-soft)] bg-[var(--surface)] hover:border-[var(--hair)] min-[1160px]:border-transparent min-[1160px]:bg-transparent min-[1160px]:hover:border-[var(--line-soft)] min-[1160px]:hover:bg-[var(--surface)]",
+        "min-[1160px]:w-auto",
+      ].join(" ")}
+      style={{
+        ["--ck-i" as string]: index,
+        ...(selected
+          ? {
+              borderColor: "var(--hair)",
+              background: "var(--surface)",
+              boxShadow: "var(--hf-shadow-raised)",
+            }
+          : {}),
+      }}
+    >
+      <span className="relative shrink-0">
+        <CkAvatar who={candidate.name} initials={getInitials(candidate.name)} size={36} />
         {analyzed && (
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</span>
-              <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--hf-green)" }}>
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {c.risk.level}
-              </span>
-            </div>
-            <p className="mt-1 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.note}</p>
+          <span className="absolute -bottom-[7px] -right-[7px] block transition-transform duration-150 group-hover:scale-[1.18]">
+            <AvaSeal size={20} tilt={TILTS[index % TILTS.length]} />
+          </span>
+        )}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }}>
+          {candidate.name}
+        </span>
+        {why && (
+          <span
+            className="mt-[2px] hidden truncate text-[11px] min-[1160px]:block"
+            style={{ color: "var(--ink-3)" }}
+          >
+            {why}
+          </span>
+        )}
+      </span>
+
+      <span
+        className="ck-num ml-auto min-w-[34px] shrink-0 text-right text-[18px] font-semibold"
+        style={{ color: analyzed ? "var(--jade)" : "var(--ink-3)" }}
+      >
+        {analyzed ? candidate.overall : "—"}
+      </span>
+    </button>
+  );
+}
+
+/** What the record holds on this person, three facts at a time. */
+function EvidenceTiles({
+  candidate,
+  app,
+  className,
+}: {
+  candidate: Candidate;
+  app?: AppRecord;
+  className: string;
+}) {
+  const turns = transcriptOf(app);
+  const minutes = interviewMinutes(turns);
+  const quiz = quizResultOf(app);
+  const resumeUrl = app?.resume_url ?? null;
+
+  const hasVoice = turns.length > 0 || candidate.voice != null;
+  const hasQuiz = quiz != null || candidate.quiz != null;
+  if (!hasVoice && !hasQuiz && !resumeUrl) return null;
+
+  const tile = "rounded-[10px] border px-[14px] py-3";
+  const tileStyle = {
+    borderColor: "var(--line-soft)",
+    background: "var(--surface)",
+    boxShadow: "var(--hf-shadow-soft)",
+  };
+
+  return (
+    <div className={className}>
+      {hasVoice && (
+        <div className={tile} style={tileStyle}>
+          <Label color="var(--ink-3)">Voice interview</Label>
+          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
+            {minutes != null ? `${minutes} min` : "Completed"}
           </div>
+          <div className="mt-[3px] text-[11px]" style={{ color: "var(--ink-3)" }}>
+            {turns.length > 0 ? "Transcript ready" : "No transcript saved"}
+          </div>
+        </div>
+      )}
+
+      {hasQuiz && (
+        <div className={tile} style={tileStyle}>
+          <Label color="var(--ink-3)">Skills check</Label>
+          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--jade)" }}>
+            {quiz ? `${quiz.correct} / ${quiz.total}` : `${candidate.quiz}%`}
+          </div>
+          <div className="mt-[3px] text-[11px]" style={{ color: "var(--ink-3)" }}>
+            {quiz?.passed === true ? "Passed" : quiz?.passed === false ? "Did not pass" : "Scored"}
+          </div>
+        </div>
+      )}
+
+      {resumeUrl && (
+        <div className={tile} style={tileStyle}>
+          <Label color="var(--ink-3)">Resume</Label>
+          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
+            On file
+          </div>
+          <a
+            href={resumeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-[3px] inline-block text-[11px] font-semibold hover:underline"
+            style={{ color: "var(--brass)" }}
+          >
+            Open
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Ava's letterhead: brass rule, her mark, the score, and her working. */
+function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
+  const analyzed = isAnalyzed(candidate);
+  const turns = transcriptOf(app);
+  const minutes = interviewMinutes(turns);
+  const quote = pullQuote(turns);
+  const recording = app?.voice_interview_recording_url ?? null;
+  const prose = avaProse(candidate.readFull) || candidate.read;
+
+  // Say what she actually weighed — nothing more than the record holds.
+  const weighed = [
+    turns.length > 0 || candidate.voice != null
+      ? minutes != null
+        ? `${minutes}-minute voice interview`
+        : "voice interview"
+      : null,
+    quizResultOf(app) != null || candidate.quiz != null ? "skills check" : null,
+    app?.resume_url ? "resume" : null,
+  ].filter(Boolean) as string[];
+
+  // A middling or weak score is the one thing worth raising before you commit.
+  const worthAsking =
+    analyzed && candidate.risk.level !== "Low"
+      ? candidate.risk.level === "Medium"
+        ? `${candidate.overall} puts them in the middle of your field — worth asking about the gaps`
+        : `${candidate.overall} is below the people I sealed — worth asking before you spend an hour`
+      : null;
+
+  return (
+    <div className="ck-card relative px-5 pb-4 pt-4">
+      {/* the brass rule across the head of the letterhead */}
+      <span
+        aria-hidden
+        className="absolute left-5 right-5 top-[9px] h-[2px] rounded-[1px]"
+        style={{ background: "var(--brass-line)" }}
+      />
+
+      <div className="mt-1.5 flex items-center gap-[11px]">
+        <AvaSeal size={24} />
+        <span className="min-w-0">
+          <Label color="var(--jade-soft-fg)">Ava&rsquo;s read</Label>
+          <span className="mt-[3px] block text-[11px]" style={{ color: "var(--ink-3)" }}>
+            {weighed.length > 0
+              ? `${weighed.join(", ")}, weighed against the job`
+              : "Weighed against the job"}
+          </span>
+        </span>
+        {analyzed && (
+          <span
+            className="ck-num ml-auto shrink-0 text-[38px] font-semibold leading-[0.85]"
+            style={{ color: "var(--jade)" }}
+          >
+            {candidate.overall}
+            <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
+              /100
+            </span>
+          </span>
         )}
       </div>
+
+      {!analyzed ? (
+        <p className="mt-3.5 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
+          I&rsquo;m still reading this one. The score and the evidence land here the moment
+          screening finishes — you don&rsquo;t have to wait on the page.
+        </p>
+      ) : (
+        <>
+          {quote && (
+            <figure className="mt-3.5">
+              <blockquote
+                className="font-display text-[20px] italic leading-[1.35]"
+                style={{ color: "var(--ink)", letterSpacing: "-0.01em" }}
+              >
+                &ldquo;{quote.text}&rdquo;
+              </blockquote>
+              <figcaption className="mt-2 flex items-center gap-[9px]">
+                {recording && (
+                  <a
+                    href={recording}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Play ${candidate.name}'s voice interview`}
+                    className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-[1.08]"
+                    style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }}
+                  >
+                    <Play className="h-[11px] w-[11px]" fill="currentColor" strokeWidth={0} />
+                  </a>
+                )}
+                <span className="text-[11px]" style={{ color: "var(--ink-3)" }}>
+                  {recording ? "Hear it — " : "From the "}
+                  voice interview{quote.at ? `, ${quote.at}` : ""}
+                </span>
+              </figcaption>
+            </figure>
+          )}
+
+          {prose && (
+            <p className="mt-3 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
+              {clip(prose, 320)}
+            </p>
+          )}
+
+          {(candidate.strengths.length > 0 || worthAsking) && (
+            <>
+              <div className="my-3 h-px" style={{ background: "var(--line-soft)" }} />
+              <ul className="flex flex-col gap-2">
+                {candidate.strengths.slice(0, 3).map((s) => (
+                  <li
+                    key={s}
+                    className="flex items-start gap-2.5 text-[13px] leading-[1.45]"
+                    style={{ color: "var(--ink-2)" }}
+                  >
+                    <Check
+                      className="mt-[2px] h-3.5 w-3.5 shrink-0"
+                      strokeWidth={2.5}
+                      style={{ color: "var(--jade)" }}
+                      aria-hidden
+                    />
+                    <span>{s}</span>
+                  </li>
+                ))}
+                {worthAsking && (
+                  <li
+                    className="flex items-start gap-2.5 text-[13px] leading-[1.45]"
+                    style={{ color: "var(--ink-2)" }}
+                  >
+                    <AlertCircle
+                      className="mt-[2px] h-3.5 w-3.5 shrink-0"
+                      strokeWidth={2.3}
+                      style={{ color: "var(--amber-fg)" }}
+                      aria-hidden
+                    />
+                    <span>{worthAsking}</span>
+                  </li>
+                )}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Where they have been, left to right. Only moments the record can date. */
+function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
+  const when = (iso?: string | null) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : format(d, "EEE h:mm a");
+  };
+
+  const applied = when(app?.created_at);
+  const interviewStart = toMillis(transcriptOf(app)[0]?.timestamp);
+  const voice = interviewStart != null ? format(new Date(interviewStart), "EEE h:mm a") : null;
+  // updated_at is when the row last changed — the best date the record has for
+  // the state it is in now.
+  const settled = when(app?.updated_at);
+
+  const stageTone =
+    candidate.stage === "Rejected"
+      ? "var(--crit)"
+      : candidate.stage === "Hired" || candidate.stage === "Shortlist"
+        ? "var(--jade-soft-fg)"
+        : "var(--amber-fg)";
+  const stageWord =
+    candidate.stage === "Rejected"
+      ? "Passed"
+      : candidate.stage === "Hired"
+        ? "Hired"
+        : candidate.stage === "Shortlist"
+          ? "Shortlisted"
+          : candidate.stage;
+
+  const steps: React.ReactNode[] = [];
+  if (applied) steps.push(<b key="applied" style={{ color: "var(--ink)" }}>Applied {applied}</b>);
+  if (voice) steps.push(<span key="voice">Voice interview {voice}</span>);
+  // "Application" is the state they arrive in — the first step already said so.
+  if (settled && candidate.stage !== "Application")
+    steps.push(
+      <span key="stage" style={{ color: stageTone, fontWeight: 600 }}>
+        {stageWord} {settled}
+      </span>,
+    );
+
+  if (steps.length === 0) return null;
+
+  return (
+    <div
+      className="mt-3 flex flex-wrap items-center gap-2 rounded-[10px] px-[14px] py-[9px] text-[11px]"
+      style={{ background: "var(--ground-2)", color: "var(--ink-2)" }}
+    >
+      {steps.map((step, i) => (
+        <span key={i} className="flex items-center gap-2">
+          {i > 0 && (
+            <span aria-hidden style={{ color: "var(--ink-3)" }}>
+              →
+            </span>
+          )}
+          {step}
+        </span>
+      ))}
     </div>
   );
 }
@@ -209,22 +532,36 @@ export default function CockpitApplicants() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const roleIdFilter = searchParams.get("roleId");
-  const { candidates, pipeline, applications, isLoading } = useCockpitCandidates();
+  const { candidates, applications, isLoading } = useCockpitCandidates();
+  const { jobs } = useCockpitJobsData();
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bucket, setBucket] = useState<Bucket>("sealed");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [scoreFilter, setScoreFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [menuId, setMenuId] = useState<string | null>(null);
   const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject" | "advance"; cand: Candidate } | null>(null);
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
   const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
-  // Map application id → live status (candidate.id === application.id in both schema modes).
+  // Map application id → the live record (candidate.id === application.id in
+  // both schema modes), so the read can quote the transcript it came from.
+  const appById = useMemo(() => {
+    const m: Record<string, AppRecord> = {};
+    applications.forEach((a) => {
+      m[a.id] = a as AppRecord;
+    });
+    return m;
+  }, [applications]);
+
   const statusById = useMemo(() => {
     const m: Record<string, string> = {};
-    applications.forEach((a) => { m[a.id] = (a as { status?: string }).status ?? ""; });
+    applications.forEach((a) => {
+      m[a.id] = (a as { status?: string }).status ?? "";
+    });
     return m;
   }, [applications]);
 
@@ -233,15 +570,15 @@ export default function CockpitApplicants() {
   const appRoleId = (a: (typeof applications)[number]): string | null =>
     ((a as { role_id?: string | null }).role_id ?? (a as { job_id?: string | null }).job_id) ?? null;
 
-  // Role-scoped set (drives the funnel + the role title) — only the URL roleId filter applies here.
+  // Role-scoped set — the job's own totals, never touched by search or filters.
   const roleScoped = useMemo(() => {
     if (!roleIdFilter) return candidates;
     const appIds = new Set(applications.filter((a) => appRoleId(a) === roleIdFilter).map((a) => a.id));
     return candidates.filter((c) => appIds.has(c.id));
   }, [candidates, applications, roleIdFilter]);
 
-  // List set (drives the table) — role + search + stage + score filters.
-  const listCandidates = useMemo(() => {
+  // Everything the search + filters allow through, before the tab split.
+  const scoped = useMemo(() => {
     let list = roleScoped;
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q));
@@ -259,8 +596,22 @@ export default function CockpitApplicants() {
     return list;
   }, [roleScoped, search, stageFilter, scoreFilter]);
 
-  // Reset to page 1 whenever the filters change.
-  useEffect(() => { setPage(1); }, [search, stageFilter, scoreFilter, roleIdFilter]);
+  const counts = useMemo(() => {
+    const c = { sealed: 0, reading: 0, passed: 0 };
+    scoped.forEach((cand) => { c[bucketOf(cand)] += 1; });
+    return c;
+  }, [scoped]);
+
+  // Strongest first — the point of the page is who is worth your time.
+  const listCandidates = useMemo(
+    () => scoped.filter((c) => bucketOf(c) === bucket).sort((a, b) => b.overall - a.overall),
+    [scoped, bucket],
+  );
+
+  // Reset to page 1 whenever the filters or the tab change.
+  useEffect(() => { setPage(1); }, [search, stageFilter, scoreFilter, roleIdFilter, bucket]);
+  // A selection from another tab is not on this one.
+  useEffect(() => { setSelectedId(null); }, [bucket, roleIdFilter]);
 
   const totalPages = Math.max(1, Math.ceil(listCandidates.length / PAGE_SIZE));
   const pageClamped = Math.min(page, totalPages);
@@ -286,56 +637,18 @@ export default function CockpitApplicants() {
     { label: "Not yet scored", value: "none" },
   ];
 
-  const filteredPipeline = useMemo(() => {
-    if (!roleIdFilter) return pipeline;
-    const total = Math.max(roleScoped.length, 1);
-    const count = (stage: CandidateStage) => roleScoped.filter((c) => c.stage === stage).length;
-    const application = count("Application");
-    const quiz = count("Quiz");
-    const voice = count("Voice");
-    const shortlist = count("Shortlist");
-    const hired = count("Hired");
-    const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
-    const drop = (from: number, to: number) => (from > 0 ? Math.max(0, from - to) : 0);
-    return [
-      { key: "application", label: "Application", count: application, pct: pct(application), tone: "green" as const, dropOff: drop(application, quiz) },
-      { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "green" as const, dropOff: drop(quiz, voice) },
-      { key: "voice", label: "Voice", count: voice, pct: pct(voice), tone: voice > 0 && voice / total < 0.25 ? "bottleneck" as const : "green" as const, dropOff: drop(voice, shortlist) },
-      { key: "shortlist", label: "Shortlist", count: shortlist, pct: pct(shortlist), tone: "muted" as const, dropOff: drop(shortlist, hired) },
-      { key: "hired", label: "Hired", count: hired, pct: pct(hired), tone: "muted" as const },
-    ];
-  }, [roleScoped, pipeline, roleIdFilter]);
+  const selected = listCandidates.find((c) => c.id === selectedId) ?? paged[0] ?? null;
+  const selectedIndex = selected ? listCandidates.findIndex((c) => c.id === selected.id) : -1;
 
-  const pipelineTotal = filteredPipeline.reduce((s, n) => s + n.count, 0);
+  /** Move through the whole filtered list, pulling the page along with it. */
+  const goTo = (index: number) => {
+    const next = listCandidates[index];
+    if (!next) return;
+    setSelectedId(next.id);
+    setPage(Math.floor(index / PAGE_SIZE) + 1);
+  };
 
-  const effectiveSelectedId = selectedId ?? paged[0]?.id ?? null;
-  const selected = listCandidates.find((c) => c.id === effectiveSelectedId) ?? paged[0];
-
-  // Funnel focus: the aggregate overview is the default. Only when the employer
-  // *actively* clicks a row (selectedId set — not the auto-highlighted first row)
-  // does the funnel switch to that one candidate's progress.
-  const candidateFocused = selectedId !== null && !!selected;
-  const candidateNodes = useMemo<PipelineNode[]>(() => {
-    if (!candidateFocused || !selected) return [];
-    const order: { key: StageKey; label: string; stage: CandidateStage }[] = [
-      { key: "application", label: "Application", stage: "Application" },
-      { key: "quiz", label: "Quiz", stage: "Quiz" },
-      { key: "voice", label: "Voice", stage: "Voice" },
-      { key: "shortlist", label: "Shortlist", stage: "Shortlist" },
-      { key: "hired", label: "Hired", stage: "Hired" },
-    ];
-    const rejected = selected.stage === "Rejected";
-    const curIdx = order.findIndex((o) => o.stage === selected.stage);
-    return order.map((o, i) => {
-      let state: PipelineNode["state"];
-      if (rejected || curIdx < 0 || i > curIdx) state = "upcoming";
-      else if (i === curIdx) state = "current";
-      else state = "done";
-      return { key: o.key, label: o.label, count: 0, pct: "", tone: "muted" as const, state };
-    });
-  }, [candidateFocused, selected]);
-
-  const statusOf = (id: string) => (applications.find((a) => a.id === id) as { status?: string } | undefined)?.status;
+  const statusOf = (id: string) => statusById[id] || undefined;
   const openAdvance = (c: Candidate) => setActionDialog({ type: "advance", cand: c });
   const openHire = (c: Candidate) => setActionDialog({ type: "hire", cand: c });
   const openReject = (c: Candidate) => setActionDialog({ type: "reject", cand: c });
@@ -361,240 +674,377 @@ export default function CockpitApplicants() {
     if (value) next.set("roleId", value); else next.delete("roleId");
     setSearchParams(next);
   };
+  const clearFilters = () => {
+    setSearch("");
+    setStageFilter("");
+    setScoreFilter("");
+  };
+  /** Same entry point the dashboard uses — a fresh brief, never a stale draft. */
+  const startRole = () => {
+    clearDraft();
+    sessionStorage.removeItem("ava-create-active");
+    navigate("/jobs/create");
+  };
 
-  const roleName = roleIdFilter ? roleOptions.find((o) => o.value === roleIdFilter)?.label : null;
+  const shareJob = roleIdFilter ? jobs.find((j) => j.id === roleIdFilter) ?? null : null;
+  // A job with no applicants yet has no candidate to borrow a title from.
+  const roleName = roleIdFilter
+    ? roleOptions.find((o) => o.value === roleIdFilter)?.label ?? shareJob?.title ?? null
+    : null;
+  const applyUrl = shareJob
+    ? shareJob.roleCode
+      ? candidateApplyUrl(shareJob.roleCode)
+      : `${window.location.origin}/candidate/job/${shareJob.id}`
+    : "";
+
+  const activeFilters = [search.trim(), stageFilter, scoreFilter].filter(Boolean).length;
+  const sealedTotal = roleScoped.filter((c) => bucketOf(c) === "sealed").length;
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" />
+      <div className="space-y-4">
+        <div className="ck-rise h-[44px] w-[280px] rounded-xl" style={{ background: "var(--surface)", opacity: 0.55 }} />
+        <div className="ck-reveal h-[420px] rounded-xl" style={{ background: "var(--surface)", opacity: 0.5 }} />
       </div>
     );
   }
 
-  const pageNumbers = (() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const set = new Set([1, 2, totalPages - 1, totalPages, pageClamped - 1, pageClamped, pageClamped + 1]);
-    return Array.from(set).filter((n) => n >= 1 && n <= totalPages).sort((a, b) => a - b);
-  })();
+  /* ── Nothing has come in yet ─────────────────────────────────────────── */
+  if (candidates.length === 0) {
+    return (
+      <div className="space-y-4">
+        <header className="ck-rise">
+          <h1
+            className="font-display text-[30px] font-semibold leading-[1.15]"
+            style={{ color: "var(--ink)", letterSpacing: "-0.025em" }}
+          >
+            Nobody has applied yet.
+          </h1>
+        </header>
+        <section className="ck-card ck-reveal p-6 md:p-8">
+          <p className="max-w-[52ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
+            Publish a role and share its link. The moment someone applies I read them, score them
+            against the job, and they show up here — already sealed, with my working shown.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={startRole}>
+              Post your first job
+            </button>
+            <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => navigate("/jobs")}>
+              See your jobs
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const tabs: Array<{ key: Bucket; label: string; count: number }> = [
+    { key: "sealed", label: "Sealed", count: counts.sealed },
+    ...(counts.reading > 0 || bucket === "reading"
+      ? [{ key: "reading" as const, label: "Still reading", count: counts.reading }]
+      : []),
+    { key: "passed", label: "Didn't make it", count: counts.passed },
+  ];
+
+  const emptyNote =
+    roleIdFilter && roleScoped.length === 0
+      ? "Nobody has applied to this job yet."
+      : activeFilters > 0
+        ? "Nobody matches these filters."
+        : bucket === "sealed"
+          ? "I haven't sealed anyone here yet."
+          : bucket === "reading"
+            ? "I'm not reading anyone right now — everyone who applied has a score."
+            : "You haven't passed on anyone here.";
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Applicants"
-        subtitle={roleName ? `${roleName} pipeline` : roleIdFilter ? "Filtered to one role" : "Your hiring pipeline"}
-      />
-
-      {/* Two-column command center: left = pipeline + filters + table · right = sticky candidate inspector */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="min-w-0 space-y-5">
-          <div className="ck-card p-5 md:p-6">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            {candidateFocused && selected ? `Where ${selected.name.split(" ")[0]} is` : "Where your applicants are"}
-          </h2>
-          {candidateFocused && selected ? (
+    <div className="space-y-4">
+      {/* ── The job is the page head ──────────────────────────────────── */}
+      <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
+        <h1
+          className={`font-display text-[30px] font-semibold leading-[1.15] ${roleName ? "" : "hidden md:block"}`}
+          style={{ color: "var(--ink)", letterSpacing: "-0.025em" }}
+        >
+          {roleName ?? "All applicants"}
+        </h1>
+        <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
+          {roleScoped.length} applied ·{" "}
+          <span style={{ color: "var(--jade)", fontWeight: 600 }}>{sealedTotal} sealed</span>
+          {activeFilters > 0 && ` · ${scoped.length} match your filters`}
+        </span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((o) => !o)}
+          >
+            Filter
+            {activeFilters > 0 && <span className="ck-dot ck-dot-live" aria-hidden />}
+          </button>
+          {shareJob && (
             <button
-              onClick={() => setSelectedId(null)}
-              className="inline-flex items-center gap-1.5 text-[12.5px] transition-opacity hover:opacity-80"
-              style={{ color: "var(--hf-gold)" }}
+              type="button"
+              className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+              onClick={() => setShareOpen(true)}
             >
-              <X className="h-3.5 w-3.5" /> View whole pipeline
+              Share job
             </button>
-          ) : (
-            <span className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-              {pipelineTotal} {pipelineTotal === 1 ? "candidate" : "candidates"} in your pipeline · each number is how many sit at that stage
-            </span>
           )}
         </div>
-        <Pipeline variant="large" nodes={candidateFocused ? candidateNodes : filteredPipeline} />
-        <p className="mt-4 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-          {candidateFocused && selected
-            ? selected.stage === "Rejected"
-              ? `${selected.name} was passed and is no longer active in this pipeline.`
-              : `${selected.name} is at the ${selected.stage} stage right now — amber marks where they are. Click any other row to switch, or “View whole pipeline” to see everyone.`
-            : "Quiz and Voice fill in only after a candidate completes those screening steps — that’s why their scores read “—” until then."}
-        </p>
-      </div>
+      </header>
 
-          <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <SearchInput placeholder="Search candidates…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
-            <FilterSelect label="Role" value={roleIdFilter ?? ""} options={roleOptions} onChange={setRole} />
-            <FilterSelect label="Stage" value={stageFilter} options={stageOptions} onChange={setStageFilter} />
-            <FilterSelect label="Score" value={scoreFilter} options={scoreOptions} onChange={setScoreFilter} />
+      {filtersOpen && (
+        <div className="ck-reveal flex flex-wrap items-center gap-2.5">
+          <SearchInput placeholder="Search applicants…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
+          <FilterSelect label="Job" value={roleIdFilter ?? ""} options={roleOptions} onChange={setRole} />
+          <FilterSelect label="Stage" value={stageFilter} options={stageOptions} onChange={setStageFilter} />
+          <FilterSelect label="Score" value={scoreFilter} options={scoreOptions} onChange={setScoreFilter} />
+          {activeFilters > 0 && (
+            <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={clearFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── The field, and the one you picked ─────────────────────────── */}
+      <div className="flex flex-col items-stretch gap-3.5 min-[1160px]:flex-row">
+        {/* left — everyone */}
+        <div className="flex w-full shrink-0 flex-col min-[1160px]:w-[clamp(280px,32%,360px)]">
+          <div className="mb-3 flex gap-4" role="tablist" aria-label="Applicant groups">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={bucket === t.key}
+                aria-controls="ck-applicant-list"
+                onClick={() => setBucket(t.key)}
+                className="pb-2 text-[12px] transition-colors"
+                style={
+                  bucket === t.key
+                    ? { color: "var(--ink)", fontWeight: 700, boxShadow: "inset 0 -2px 0 var(--jade)" }
+                    : { color: "var(--ink-3)", fontWeight: 500 }
+                }
+              >
+                {t.label} · {t.count}
+              </button>
+            ))}
           </div>
 
-          {/* desktop table */}
-          <div className="ck-card hidden overflow-hidden md:block">
-            <div
-              className="grid items-center gap-3 px-4 py-3 text-[12px]"
-              style={{ gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr", color: "var(--hf-text-muted)", borderBottom: "1px solid var(--hf-border-strong)" }}
-            >
-              <div>Candidate</div><div>Role</div><div>Stage</div><div>Quiz score</div><div>Voice score</div><div>Ava's read</div><div>Actions</div>
-            </div>
+          <div id="ck-applicant-list" role="tabpanel">
             {paged.length === 0 ? (
-              <div className="p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
-                {listCandidates.length === 0 && (roleIdFilter || search || stageFilter || scoreFilter)
-                  ? "No applicants match these filters."
-                  : "No applicants yet."}
+              <div
+                className="rounded-[10px] border border-dashed px-4 py-5 text-[12.5px]"
+                style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
+              >
+                {emptyNote}
               </div>
             ) : (
-              paged.map((c, i) => {
-                const isSel = c.id === effectiveSelectedId;
-                const analyzed = isAnalyzed(c);
-                return (
-                  <div
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 min-[1160px]:flex-col min-[1160px]:overflow-visible min-[1160px]:pb-0">
+                {paged.map((c, i) => (
+                  <PersonRow
                     key={c.id}
-                    onClick={() => setSelectedId(c.id)}
-                    data-selected={isSel}
-                    className="grid cursor-pointer items-center gap-3 px-4 py-3 transition-colors"
-                    style={{
-                      gridTemplateColumns: "1.5fr 0.7fr 0.9fr 0.7fr 0.7fr 2fr 1.2fr",
-                      borderBottom: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)",
-                      background: isSel ? "color-mix(in srgb, var(--hf-gold-hover) 50%, transparent)" : "transparent",
-                      boxShadow: isSel ? "inset 4px 0 0 var(--hf-gold)" : "none",
-                    }}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={34} score={c.overall} index={pageStart + i} variant="signal" />
-                      <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</div>
-                        <div className="truncate text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.appliedAgo}</div>
-                      </div>
-                    </div>
-                    <div className="text-[13px]" style={{ color: "var(--hf-text-soft)" }}>{c.role}</div>
-                    <div><StagePill stage={c.stage} /></div>
-                    <div><Score value={c.quiz} /></div>
-                    <div><Score value={c.voice} /></div>
-                    <div className="truncate pr-2 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{analyzed ? c.read : "Screening in progress…"}</div>
-                    <div className="relative flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      <RowActions
-                        status={statusById[c.id]}
-                        variant="row"
-                        onAdvance={() => openAdvance(c)}
-                        onHire={() => openHire(c)}
-                        onReject={() => openReject(c)}
-                      />
-                      <button style={{ color: "var(--hf-text-muted)" }} onClick={(e) => { e.stopPropagation(); setMenuId(menuId === c.id ? null : c.id); }}>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                      {menuId === c.id && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenuId(null); }} />
-                          <div className="absolute right-0 top-9 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
-                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/applicants/${c.id}`); }}>View full profile</button>
-                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); navigate(`/messages?candidate=${c.id}`); }}>Message</button>
-                            {statusById[c.id] !== "hired" && statusById[c.id] !== "rejected" && (
-                              <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-danger)" }} onClick={(e) => { e.stopPropagation(); setMenuId(null); openReject(c); }}>
-                                {statusById[c.id] === "offered" ? "Decline offer" : "Pass"}
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+                    candidate={c}
+                    index={i}
+                    selected={selected?.id === c.id}
+                    onSelect={() => setSelectedId(c.id)}
+                  />
+                ))}
+              </div>
             )}
-            <div className="flex items-center justify-between px-4 py-3 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-2.5 flex items-center justify-between text-[11px]" style={{ color: "var(--ink-3)" }}>
               <span>
-                {listCandidates.length === 0
-                  ? "No candidates"
-                  : `Showing ${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, listCandidates.length)} of ${listCandidates.length}`}
+                {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, listCandidates.length)} of {listCandidates.length}
               </span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <button disabled={pageClamped === 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "var(--hf-text-muted)" }}><ChevronLeft className="h-4 w-4" /></button>
-                  {pageNumbers.map((n, idx) => {
-                    const prev = pageNumbers[idx - 1];
-                    const gap = prev != null && n - prev > 1;
-                    return (
-                      <span key={n} className="flex items-center">
-                        {gap && <span className="px-1" style={{ color: "var(--hf-text-muted)" }}>…</span>}
-                        <button
-                          onClick={() => setPage(n)}
-                          className="flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-[12.5px]"
-                          style={n === pageClamped ? { background: "var(--hf-green-soft)", color: "var(--hf-text)" } : { color: "var(--hf-text-muted)" }}
-                        >
-                          {n}
-                        </button>
-                      </span>
-                    );
-                  })}
-                  <button disabled={pageClamped === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30" style={{ color: "var(--hf-text-muted)" }}><ChevronRight className="h-4 w-4" /></button>
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Previous page"
+                  disabled={pageClamped === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next page"
+                  disabled={pageClamped === totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </span>
+            </div>
+          )}
+
+          {selected && (
+            <EvidenceTiles
+              candidate={selected}
+              app={appById[selected.id]}
+              className="mt-3 hidden grid-cols-1 gap-2.5 min-[1160px]:grid"
+            />
+          )}
+        </div>
+
+        {/* right — the person, on Ava's letterhead */}
+        <div className="min-w-0 flex-1">
+          {selected ? (
+            <>
+              <div className="mb-3 flex flex-wrap items-start gap-3.5">
+                <div className="min-w-0">
+                  <div
+                    className="font-display text-[20px] font-semibold leading-[1.15]"
+                    style={{ color: "var(--ink)", letterSpacing: "-0.02em" }}
+                  >
+                    {selected.name}
+                  </div>
+                  <div className="mt-1 text-[12px]" style={{ color: "var(--ink-3)" }}>
+                    {selected.appliedAgo} · {selected.role}
+                  </div>
                 </div>
+
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {listCandidates.length > 1 && (
+                    <span className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--ink-3)" }}>
+                      <button
+                        type="button"
+                        aria-label="Previous applicant"
+                        disabled={selectedIndex <= 0}
+                        onClick={() => goTo(selectedIndex - 1)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border disabled:opacity-30"
+                        style={{ borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink-2)" }}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </button>
+                      {selectedIndex + 1} of {listCandidates.length}
+                      <button
+                        type="button"
+                        aria-label="Next applicant"
+                        disabled={selectedIndex >= listCandidates.length - 1}
+                        onClick={() => goTo(selectedIndex + 1)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border disabled:opacity-30"
+                        style={{ borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink-2)" }}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  )}
+
+                  {selected.stage === "Hired" || selected.stage === "Rejected" ? (
+                    <span
+                      className="ck-pill"
+                      style={
+                        selected.stage === "Hired"
+                          ? { color: "var(--jade-soft-fg)", background: "var(--jade-soft)" }
+                          : { color: "var(--crit)", background: "var(--crit-bg)" }
+                      }
+                    >
+                      {selected.stage === "Hired" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                      {selected.stage === "Hired" ? "Hired" : "Passed"}
+                    </span>
+                  ) : statusById[selected.id] === "offered" ? (
+                    <>
+                      <button
+                        className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+                        disabled={isUpdating}
+                        onClick={() => openReject(selected)}
+                      >
+                        Decline offer
+                      </button>
+                      <button
+                        className="ck-btn ck-btn-primary !py-2 !text-[12.5px]"
+                        disabled={isUpdating}
+                        onClick={() => openHire(selected)}
+                      >
+                        Hire
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+                        disabled={isUpdating}
+                        onClick={() => openReject(selected)}
+                      >
+                        Pass
+                      </button>
+                      {nextAdvanceStatus(statusById[selected.id]) && (
+                        <button
+                          className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+                          disabled={isUpdating}
+                          onClick={() => openAdvance(selected)}
+                        >
+                          Move to {advanceTargetLabel(statusById[selected.id])}
+                        </button>
+                      )}
+                      <button
+                        className="ck-btn ck-btn-primary !py-2 !text-[12.5px]"
+                        onClick={() => setScheduleCand(selected)}
+                      >
+                        Set up interview
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <AvasRead candidate={selected} app={appById[selected.id]} />
+              <Timeline candidate={selected} app={appById[selected.id]} />
+
+              <EvidenceTiles
+                candidate={selected}
+                app={appById[selected.id]}
+                className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3 min-[1160px]:hidden"
+              />
+
+              <div className="mt-3 flex flex-wrap gap-4 text-[12px]">
+                <button
+                  className="inline-flex items-center gap-1.5 hover:underline"
+                  style={{ color: "var(--brass)" }}
+                  onClick={() => navigate(`/applicants/${selected.id}`)}
+                >
+                  View full profile
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="inline-flex items-center gap-1.5 hover:underline"
+                  style={{ color: "var(--brass)" }}
+                  onClick={() => navigate(`/messages?candidate=${selected.id}`)}
+                >
+                  Message them
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="ck-card p-6">
+              <p className="text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
+                {emptyNote}{" "}
+                {activeFilters > 0
+                  ? "Clear the filters to see everyone again."
+                  : bucket === "sealed"
+                    ? "The moment I finish reading someone, they land here with a score and my working."
+                    : ""}
+              </p>
+              {activeFilters > 0 && (
+                <button className="ck-btn ck-btn-outline mt-4 !py-2 !text-[12.5px]" onClick={clearFilters}>
+                  Clear filters
+                </button>
               )}
             </div>
-          </div>
-
-          {/* mobile cards */}
-          <div className="space-y-3 md:hidden">
-            {paged.map((c, i) => {
-              const analyzed = isAnalyzed(c);
-              return (
-                <div key={c.id} className="ck-row p-3.5" onClick={() => navigate(`/applicants/${c.id}`)}>
-                  <div className="flex items-start gap-3">
-                    <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={48} score={c.overall} index={pageStart + i} variant="signal" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</div>
-                      <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role}</div>
-                      <div className="mt-1"><StagePill stage={c.stage} /></div>
-                    </div>
-                    <div className="flex shrink-0 gap-4 text-center">
-                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Score</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.overall || "—"}</div></div>
-                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Quiz</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.quiz != null ? `${c.quiz}%` : "—"}</div></div>
-                      <div><div className="text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>Voice</div><div className="ck-num text-[16px]" style={{ color: "var(--hf-text)" }}>{c.voice != null ? `${c.voice}%` : "—"}</div></div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>Ava's read</div>
-                      <p className="text-[12px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{analyzed ? c.read : "Screening in progress…"}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      <RowActions
-                        status={statusById[c.id]}
-                        variant="card"
-                        onAdvance={() => openAdvance(c)}
-                        onHire={() => openHire(c)}
-                        onReject={() => openReject(c)}
-                      />
-                      {statusById[c.id] !== "hired" && statusById[c.id] !== "rejected" && (
-                        <button className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12px]" onClick={(e) => { e.stopPropagation(); openReject(c); }}>
-                          {statusById[c.id] === "offered" ? "Decline" : "Pass"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {paged.length === 0 && (
-              <div className="ck-card p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No applicants yet.</div>
-            )}
-          </div>
+          )}
         </div>
-        </section>
-
-        {/* right column — sticky candidate inspector, aligned high with the pipeline */}
-        <aside className="hidden min-w-0 lg:block">
-          {selected ? (
-            <div className="hf-inspector-enter sticky top-4">
-              <DetailPanel
-                c={selected}
-                status={statusById[selected.id]}
-                onClose={() => setSelectedId(null)}
-                onAdvance={() => openAdvance(selected)}
-                onHire={() => openHire(selected)}
-                onReject={() => openReject(selected)}
-                onSchedule={() => setScheduleCand(selected)}
-                onViewProfile={() => navigate(`/applicants/${selected.id}`)}
-              />
-            </div>
-          ) : null}
-        </aside>
       </div>
 
       {actionDialog?.type === "advance" && (() => {
@@ -663,6 +1113,9 @@ export default function CockpitApplicants() {
           candidateEmail={scheduleCand.email ?? undefined}
           jobTitle={scheduleCand.role}
         />
+      )}
+      {shareJob && (
+        <ShareKitDialog open={shareOpen} job={shareJob} applyUrl={applyUrl} onClose={() => setShareOpen(false)} />
       )}
     </div>
   );

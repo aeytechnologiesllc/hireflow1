@@ -1,302 +1,549 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import AvaSeal from "@/components/ava/AvaSeal";
+import CkAvatar from "../components/Avatar";
 import {
-  Search,
-  SlidersHorizontal,
-  MoreVertical,
-  ChevronDown,
-  ChevronRight,
-  CheckCheck,
-  Paperclip,
-  Smile,
-  Sparkles,
-  CalendarCheck,
-  Clock,
-  FileText,
-  UserRound,
-  Star,
-  ChevronLeft,
-  ListFilter,
-} from "lucide-react";
-import { PageHeader } from "../components/PageHeader";
-import { CandidateMark } from "../components/CandidateMark";
-import { useCockpitMessages, useCockpitAccount, useCockpitCandidates } from "../hooks/useCockpitData";
-import { getInitials } from "../lib/mappers";
+  useCockpitMessages,
+  useCockpitAccount,
+  useCockpitCandidates,
+  useCockpitInterviews,
+} from "../hooks/useCockpitData";
 
-const QUICK_ICONS = [CalendarCheck, Clock, FileText];
-const QUICK_REPLIES = ["Confirm interview", "Ask availability", "Send documents"];
+/**
+ * Messages — Ava answers first.
+ *
+ * Two panes: the threads on the left, triaged by whether anything is actually
+ * waiting on you, and the conversation on the right. No hero graphic; the
+ * wax seal only appears where Ava has really done the reading.
+ *
+ * Ava's drafted-reply block from the mockup is deliberately absent: nothing in
+ * the app produces a draft yet, and a fabricated one would be a message put in
+ * the owner's mouth. It comes back the day there is a real draft to show.
+ */
 
-function ConversationList({
-  activeId,
-  onPick,
-  conversations,
-  accountName,
+/** Real wax never sits square. A stable per-row tilt, so it does not jitter on re-render. */
+const TILTS = [-6, 4, -3, 5, -4];
+
+type ThreadItem = ReturnType<typeof useCockpitMessages>["conversations"][number];
+
+function firstName(full: string) {
+  return full.trim().split(/\s+/)[0] || full;
+}
+
+/** The mapper hands over a long relative stamp ("about 2 hours ago"); a thread
+ *  row has 10px of type to say it in, so drop the filler, keep the fact. */
+function shortWhen(when: string) {
+  if (!when) return "";
+  if (when.startsWith("less than a minute")) return "just now";
+  return when.replace(/^(about|almost|over)\s+/, "");
+}
+
+function FilterPill({
+  label,
+  count,
+  tone,
+  pressed,
+  onClick,
 }: {
-  activeId: string;
-  onPick: (id: string) => void;
-  conversations: ReturnType<typeof useCockpitMessages>["conversations"];
-  accountName: string;
+  label: string;
+  count?: number;
+  tone: "neutral" | "amber" | "jade";
+  pressed: boolean;
+  onClick: () => void;
 }) {
-  const [q, setQ] = useState("");
-  const query = q.trim().toLowerCase();
-  const filtered = query
-    ? conversations.filter(
-        (c) =>
-          c.name.toLowerCase().includes(query) ||
-          (c.role ?? "").toLowerCase().includes(query) ||
-          (c.preview ?? "").toLowerCase().includes(query),
-      )
-    : conversations;
+  const dot =
+    tone === "amber" ? "var(--amber-fg)" : tone === "jade" ? "var(--jade)" : "var(--ink-3)";
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-3 pt-3 md:hidden">
-        <h1 className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Messages</h1>
-        <button
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-          style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 80%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text)" }}
-        >
-          <span className="text-[12.5px] font-medium">{accountName}</span>
-          <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />
-        </button>
-      </div>
-      <div className="flex items-center gap-2 p-3">
-        <div className="ck-input flex h-9 flex-1 items-center gap-2 px-3">
-          <Search className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search messages…" className="w-full bg-transparent text-[13px] outline-none" style={{ color: "var(--hf-text)" }} />
-        </div>
-        <button className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-muted)" }}>
-          <SlidersHorizontal className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="ck-scroll flex-1 overflow-y-auto px-2">
-        {conversations.length === 0 ? (
-          <p className="p-4 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No conversations yet.</p>
-        ) : filtered.length === 0 ? (
-          <p className="p-4 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>No conversations match “{q}”.</p>
-        ) : (
-          filtered.map((c) => {
-            const active = c.id === activeId;
-            return (
-              <button
-                key={c.id}
-                onClick={() => onPick(c.id)}
-                className="mb-1 flex w-full items-start gap-3 rounded-xl p-3 text-left"
-                style={active ? { background: "var(--hf-surface-raised)", boxShadow: "inset 2px 0 0 var(--hf-green)" } : undefined}
-              >
-                <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={42} variant="calm" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>{c.name}</span>
-                    <span className="shrink-0 text-[11px]" style={{ color: "var(--hf-text-muted)" }}>{c.time}</span>
-                  </div>
-                  <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{c.role}</div>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span className="truncate text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.preview}</span>
-                    {c.unread ? (
-                      <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: "var(--hf-green)", color: "var(--hf-text)" }}>{c.unread}</span>
-                    ) : null}
-                  </div>
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 rounded-full border px-[11px] py-1.5 text-[10px] font-bold uppercase tracking-[0.06em] transition-colors hover:border-[var(--hair)]"
+      style={{
+        background: pressed ? "var(--surface-2)" : "var(--surface)",
+        borderColor: pressed ? "var(--hair)" : "var(--line)",
+        color: pressed ? "var(--ink)" : "var(--ink-3)",
+      }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+      {label}
+      {count != null ? ` · ${count}` : ""}
+    </button>
   );
 }
 
-function Thread({
-  contactId,
-  contactName,
-  contactRole,
-  thread,
-  accountInitials,
-  onBack,
-  onSend,
+function ThreadRow({
+  conv,
+  index,
+  active,
+  sealed,
+  onPick,
 }: {
-  contactId: string;
-  contactName: string;
-  contactRole: string;
-  thread: ReturnType<typeof useCockpitMessages>["thread"];
-  accountInitials: string;
-  onBack?: () => void;
-  onSend: (text: string) => void;
+  conv: ThreadItem;
+  index: number;
+  active: boolean;
+  sealed: boolean;
+  onPick: () => void;
 }) {
-  const [draft, setDraft] = useState("");
-
-  const handleSend = () => {
-    const text = draft.trim();
-    if (!text) return;
-    onSend(text);
-    setDraft("");
-  };
-
+  const unread = conv.unread ?? 0;
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5 p-3" style={{ borderBottom: "1px solid var(--hf-surface-raised)" }}>
-        {onBack && (
-          <>
-            <button className="md:hidden" onClick={onBack} style={{ color: "var(--hf-text)" }}><ChevronLeft className="h-5 w-5" /></button>
-            <button className="md:hidden" onClick={onBack} style={{ color: "var(--hf-text-muted)" }}><ListFilter className="h-[18px] w-[18px]" /></button>
-          </>
+    <button
+      type="button"
+      onClick={onPick}
+      aria-current={active ? "true" : undefined}
+      className="flex w-[220px] shrink-0 items-start gap-[11px] rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--line-soft)] hover:bg-[var(--surface)] min-[1120px]:w-full min-[1120px]:shrink"
+      style={{
+        background: active ? "var(--surface)" : "transparent",
+        borderColor: active ? "var(--hair)" : "transparent",
+        boxShadow: active ? "var(--hf-shadow-soft)" : undefined,
+      }}
+    >
+      <span className="relative shrink-0">
+        <CkAvatar who={conv.name} size={34} />
+        {sealed && (
+          <AvaSeal
+            size={19}
+            tilt={TILTS[index % TILTS.length]}
+            style={{ position: "absolute", right: -6, bottom: -6 }}
+          />
         )}
-        <CandidateMark who={contactId} initials={getInitials(contactName)} size={38} variant="quiet" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px]">
-            <span className="font-semibold" style={{ color: "var(--hf-text)" }}>{contactName}</span>
-            <span className="hidden md:inline" style={{ color: "var(--hf-text-soft)" }}> · {contactRole}</span>
-          </div>
-        </div>
-        <button className="hidden md:block" style={{ color: "var(--hf-text-muted)" }}><MoreVertical className="h-4 w-4" /></button>
-      </div>
-
-      <div className="ck-scroll flex-1 space-y-4 overflow-y-auto p-4">
-        <div className="text-center text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Conversation</div>
-        {thread.map((m) =>
-          m.from === "them" ? (
-            <div key={m.id} className="flex items-end gap-2">
-              <div className="max-w-[78%] rounded-2xl rounded-bl-sm px-3.5 py-2.5" style={{ background: "var(--hf-surface-raised)" }}>
-                <p className="text-[13.5px]" style={{ color: "var(--hf-text)" }}>{m.text}</p>
-                <div className="mt-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>{m.time}</div>
-              </div>
-            </div>
-          ) : (
-            <div key={m.id} className="flex items-end justify-end gap-2">
-              <div className="max-w-[78%] rounded-2xl rounded-br-sm px-3.5 py-2.5" style={{ background: "var(--hf-border-strong)" }}>
-                <p className="text-[13.5px]" style={{ color: "var(--hf-text)" }}>{m.text}</p>
-                <div className="mt-1 flex items-center justify-end gap-1 text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                  {m.time}<CheckCheck className="h-3 w-3" style={{ color: "var(--hf-green)" }} />
-                </div>
-              </div>
-              <span className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "var(--hf-gold)", color: "var(--hf-green-soft)" }}>{accountInitials}</span>
-            </div>
-          )
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className="block truncate text-[13px] leading-[1.3]"
+          style={{ color: unread ? "var(--ink)" : "var(--ink-2)", fontWeight: unread ? 700 : 600 }}
+        >
+          {conv.name}
+        </span>
+        <span
+          className="mt-0.5 block truncate text-[11px]"
+          style={{ color: unread ? "var(--ink-2)" : "var(--ink-3)" }}
+        >
+          {conv.preview}
+        </span>
+      </span>
+      <span className="flex shrink-0 items-start gap-1.5">
+        {conv.time && (
+          <span
+            className="text-[10px]"
+            style={{ color: unread ? "var(--brass)" : "var(--ink-3)", fontWeight: unread ? 600 : 400 }}
+          >
+            {shortWhen(conv.time)}
+          </span>
         )}
-      </div>
+        {unread > 0 && (
+          <span
+            className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full"
+            style={{ background: "var(--jade)" }}
+            aria-label={`${unread} unread`}
+          />
+        )}
+      </span>
+    </button>
+  );
+}
 
-      <div className="p-3" style={{ borderTop: "1px solid var(--hf-surface-raised)" }}>
-        <div className="mb-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Quick replies</div>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {QUICK_REPLIES.map((q, i) => {
-            const Icon = QUICK_ICONS[i % QUICK_ICONS.length];
-            return (
-              <button
-                key={q}
-                type="button"
-                onClick={() => setDraft(q)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px]"
-                style={{ border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }}
-              >
-                <Icon className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />{q}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" style={{ color: "var(--hf-text-muted)" }}><Paperclip className="h-4 w-4" /></button>
-          <div className="ck-input flex h-10 flex-1 items-center gap-2 px-3">
-            <input
-              placeholder="Write a message…"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-              className="w-full bg-transparent text-[13.5px] outline-none"
-              style={{ color: "var(--hf-text)" }}
-            />
-            <Smile className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
-          </div>
-          <button type="button" className="ck-btn ck-btn-primary !px-5" onClick={handleSend}>Send</button>
-        </div>
-      </div>
+function Bubble({
+  who,
+  time,
+  text,
+  mine,
+}: {
+  who: string;
+  time: string;
+  text: string;
+  mine: boolean;
+}) {
+  return (
+    <div
+      className="max-w-[76%] rounded-xl px-[13px] py-2.5 text-[13px] leading-[1.5] sm:max-w-[70%]"
+      style={
+        mine
+          ? {
+              alignSelf: "flex-end",
+              background: "var(--jade-soft)",
+              color: "var(--jade-soft-fg)",
+              borderBottomRightRadius: 4,
+            }
+          : {
+              alignSelf: "flex-start",
+              background: "var(--surface-2)",
+              color: "var(--ink)",
+              borderBottomLeftRadius: 4,
+            }
+      }
+    >
+      <span className="mb-[3px] block text-[10px] font-bold uppercase leading-[1.2] tracking-[0.06em] opacity-75">
+        {who}
+        {time ? ` · ${time}` : ""}
+      </span>
+      {text}
     </div>
   );
 }
 
 export default function CockpitMessages() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const candidateParam = searchParams.get("candidate");
   const { account } = useCockpitAccount();
   const { candidates } = useCockpitCandidates();
+  const { interviews } = useCockpitInterviews();
+
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<"thread" | "list">("thread");
+  const [filter, setFilter] = useState<"all" | "needs" | "quiet">("all");
+  const [draft, setDraft] = useState("");
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const bubblesRef = useRef<HTMLDivElement>(null);
+  const appliedParam = useRef<string | null>(null);
 
   const contactId = activeId;
-  const { conversations, thread, rawThread, send, markRead, isLoading } = useCockpitMessages(contactId);
+  const { conversations, thread, rawThread, send, markRead, isLoading, isSending } =
+    useCockpitMessages(contactId);
 
-  useEffect(() => {
-    if (candidateParam) setActiveId(candidateParam);
-    else if (!activeId && conversations[0]) setActiveId(conversations[0].id);
-  }, [candidateParam, conversations, activeId]);
+  // A deep link may carry the candidate's user id (what messaging addresses) or
+  // the application id (what a list row has to hand). Accept either.
+  const linkedContactId = useMemo(() => {
+    if (!candidateParam) return null;
+    const byApplication = candidates.find((c) => c.id === candidateParam);
+    return byApplication?.avatar ?? candidateParam;
+  }, [candidateParam, candidates]);
 
+  // Honour the deep link once. Re-applying it on every render would pin the
+  // page to that person and make every other thread unclickable.
   useEffect(() => {
-    const unread = rawThread.filter((m) => !m.is_read).map((m) => m.id);
-    if (unread.length) void markRead(unread);
-  }, [rawThread, markRead]);
+    if (linkedContactId && appliedParam.current !== linkedContactId) {
+      appliedParam.current = linkedContactId;
+      setActiveId(linkedContactId);
+      return;
+    }
+    if (!activeId && conversations[0]) setActiveId(conversations[0].id);
+  }, [linkedContactId, conversations, activeId]);
+
+  // Only the messages addressed to you can be marked read — marking your own
+  // outbound ones would refetch forever, since the update can never take.
+  //
+  // Asking twice is the other way to loop forever: markRead invalidates the
+  // query, the refetch hands back new array identities, the effect runs again,
+  // and if the write did not land (offline, a policy refusal) it asks again
+  // immediately. Remembering what we have already asked for makes the effect
+  // idempotent, so the worst case is one wasted request per message.
+  const askedRead = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const incoming = new Set(thread.filter((m) => m.from === "them").map((m) => m.id));
+    const unread = rawThread
+      .filter((m) => !m.is_read && incoming.has(m.id) && !askedRead.current.has(m.id))
+      .map((m) => m.id);
+    if (!unread.length) return;
+    unread.forEach((id) => askedRead.current.add(id));
+    void markRead(unread);
+  }, [thread, rawThread, markRead]);
 
   const activeConv = conversations.find((c) => c.id === contactId);
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
 
-  if (isLoading && !conversations.length) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
-  }
+  // The person on screen: their thread if one exists, otherwise the applicant
+  // the deep link named — so a first message is always possible.
+  const partner = useMemo(() => {
+    if (activeConv) {
+      return {
+        id: activeConv.id,
+        name: activeConv.name,
+        role: activeConv.role,
+      };
+    }
+    if (activeCandidate && contactId) {
+      return { id: contactId, name: activeCandidate.name, role: activeCandidate.role };
+    }
+    return null;
+  }, [activeConv, activeCandidate, contactId]);
 
-  const handleSend = (text: string) => {
-    if (!contactId) return;
+  const needsYou = conversations.filter((c) => (c.unread ?? 0) > 0).length;
+  const quiet = conversations.length - needsYou;
+
+  const rows = useMemo(() => {
+    const list =
+      filter === "needs"
+        ? conversations.filter((c) => (c.unread ?? 0) > 0)
+        : filter === "quiet"
+          ? conversations.filter((c) => !(c.unread ?? 0))
+          : conversations;
+
+    // A deep-linked applicant with no history yet still belongs in the list.
+    if (partner && !conversations.some((c) => c.id === partner.id)) {
+      const pending: ThreadItem = {
+        id: partner.id,
+        avatar: partner.id,
+        name: partner.name,
+        role: partner.role,
+        time: "",
+        preview: "No messages yet",
+        unread: undefined,
+      };
+      return [pending, ...list];
+    }
+    return list;
+  }, [conversations, filter, partner]);
+
+  const hasInterview = !!contactId && interviews.upcoming.some((i) => i.avatar === contactId);
+  const sealedScore = activeCandidate && activeCandidate.overall > 0 ? activeCandidate.overall : null;
+
+  // Land at the newest message whenever the conversation changes or grows.
+  useEffect(() => {
+    const el = bubblesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [contactId, thread.length]);
+
+  // A half-written line belongs to the person it was written to — never carry
+  // it across when the thread changes.
+  useEffect(() => {
+    setDraft("");
+    if (composerRef.current) composerRef.current.style.height = "auto";
+  }, [contactId]);
+
+  const handleSend = () => {
+    const text = draft.trim();
+    if (!text || !contactId) return;
     void send(text, contactId);
+    setDraft("");
+    if (composerRef.current) composerRef.current.style.height = "auto";
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="hidden md:block"><PageHeader title="Messages" /></div>
-
-      <div
-        className="ck-card hidden overflow-hidden md:grid"
-        style={{ gridTemplateColumns: "300px 1fr 280px", height: "calc(100dvh - 168px)" }}
-      >
-        <div style={{ borderRight: "1px solid var(--hf-surface-raised)" }}>
-          <ConversationList activeId={contactId ?? ""} onPick={setActiveId} conversations={conversations} accountName={account.name} />
-        </div>
-        {contactId && activeConv ? (
-          <Thread
-            contactId={contactId}
-            contactName={activeConv.name}
-            contactRole={activeConv.role}
-            thread={thread}
-            accountInitials={account.initials}
-            onSend={handleSend}
-          />
-        ) : (
-          <div className="flex items-center justify-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>Select a conversation</div>
-        )}
-        <div style={{ borderLeft: "1px solid var(--hf-surface-raised)" }} className="p-4">
-          {activeCandidate && (
-            <p className="mt-3 text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>
-              {activeCandidate.name} · {activeCandidate.stage} · {activeCandidate.overall}% match
-            </p>
-          )}
+  if (isLoading && !conversations.length) {
+    return (
+      <div className="space-y-4">
+        <div className="ck-rise h-[42px] w-56 rounded-lg" style={{ background: "var(--surface)", opacity: 0.55 }} />
+        <div className="flex flex-col gap-3.5 min-[1120px]:flex-row">
+          <div className="ck-card h-[220px] min-[1120px]:h-[440px] min-[1120px]:w-[320px]" style={{ opacity: 0.55 }} />
+          <div className="ck-card h-[300px] flex-1 min-[1120px]:h-[440px]" style={{ opacity: 0.55 }} />
         </div>
       </div>
+    );
+  }
 
-      <div className="ck-card -mt-1 overflow-hidden md:hidden" style={{ height: "calc(100dvh - 92px)" }}>
-        {mobileView === "list" ? (
-          <ConversationList
-            activeId={contactId ?? ""}
-            onPick={(id) => { setActiveId(id); setMobileView("thread"); }}
-            conversations={conversations}
-            accountName={account.name}
-          />
-        ) : contactId && activeConv ? (
-          <Thread
-            contactId={contactId}
-            contactName={activeConv.name}
-            contactRole={activeConv.role}
-            thread={thread}
-            accountInitials={account.initials}
-            onBack={() => setMobileView("list")}
-            onSend={handleSend}
-          />
-        ) : null}
+  const header = (
+    <header className="ck-rise flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+      <h1
+        className="font-display"
+        style={{
+          fontSize: "clamp(26px, 3.2vw, 30px)",
+          lineHeight: 1.15,
+          fontWeight: 500,
+          color: "var(--hf-text)",
+        }}
+      >
+        Messages
+      </h1>
+      <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
+        Ava answers first · you approve anything that matters
+      </span>
+    </header>
+  );
+
+  // Brand-new account: no threads, nobody deep-linked. Say so, and point at the
+  // one thing that starts them.
+  if (!conversations.length && !partner) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+          <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+            Nobody has written to you yet.
+          </h2>
+          <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+            {candidates.length > 0
+              ? "Open an applicant and message them — everything you send, and everything Ava sends in your name, lands back here."
+              : "Post a role and share its link. The first time an applicant writes, the thread opens here."}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {candidates.length > 0 ? (
+              <button className="ck-btn ck-btn-primary" onClick={() => navigate("/applicants")}>
+                See your applicants
+              </button>
+            ) : (
+              <button className="ck-btn ck-btn-primary" onClick={() => navigate("/jobs")}>
+                Post a job
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:space-y-5">
+      {header}
+
+      <div className="flex flex-col gap-3.5 min-[1120px]:h-[calc(100dvh-180px)] min-[1120px]:min-h-[440px] min-[1120px]:flex-row min-[1120px]:items-stretch">
+        {/* ── The threads, triaged ──────────────────────────── */}
+        <div className="ck-reveal flex min-w-0 flex-col min-[1120px]:w-[320px] min-[1120px]:min-h-0 min-[1120px]:shrink-0" style={{ ["--ck-i" as string]: 0 }}>
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            <FilterPill label="All" tone="neutral" pressed={filter === "all"} onClick={() => setFilter("all")} />
+            <FilterPill
+              label="Needs you"
+              count={needsYou}
+              tone="amber"
+              pressed={filter === "needs"}
+              onClick={() => setFilter("needs")}
+            />
+            <FilterPill
+              label="Caught up"
+              count={quiet}
+              tone="jade"
+              pressed={filter === "quiet"}
+              onClick={() => setFilter("quiet")}
+            />
+          </div>
+
+          {/* Narrow: a horizontal selector strip, so the conversation stays on
+              screen. Wide: the full column. Neither scrolls the page sideways. */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 min-[1120px]:min-h-0 min-[1120px]:flex-1 min-[1120px]:flex-col min-[1120px]:overflow-x-hidden min-[1120px]:overflow-y-auto min-[1120px]:pb-0">
+            {rows.length === 0 ? (
+              <p className="px-1 py-3 text-[12px]" style={{ color: "var(--ink-3)" }}>
+                {filter === "needs" ? "Nothing is waiting on you." : "Nothing here."}
+              </p>
+            ) : (
+              rows.map((c, i) => {
+                const cand = candidates.find((x) => x.avatar === c.id);
+                return (
+                  <ThreadRow
+                    key={c.id}
+                    conv={c}
+                    index={i}
+                    active={c.id === contactId}
+                    sealed={!!cand && cand.overall > 0}
+                    onPick={() => setActiveId(c.id)}
+                  />
+                );
+              })
+            )}
+          </div>
+
+          {quiet > 0 && filter !== "needs" && (
+            <div
+              className="mt-2 hidden items-center gap-2.5 rounded-[10px] border border-dashed px-3 py-2 text-[11px] min-[1120px]:flex"
+              style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
+            >
+              <span>
+                <b style={{ color: "var(--ink-2)" }}>
+                  {quiet} caught up
+                </b>{" "}
+                · nothing unread waiting in {quiet === 1 ? "it" : "them"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ── The conversation ──────────────────────────────── */}
+        <section
+          className="ck-card ck-reveal flex min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden min-[1120px]:min-h-0"
+          style={{ ["--ck-i" as string]: 1 }}
+        >
+          {partner ? (
+            <>
+              <div
+                className="flex items-center gap-[11px] px-4 py-3 min-[1120px]:px-[18px]"
+                style={{ borderBottom: "1px solid var(--line-soft)" }}
+              >
+                <span className="relative shrink-0">
+                  <CkAvatar who={partner.name} size={34} />
+                  {sealedScore != null && (
+                    <AvaSeal size={19} tilt={-4} style={{ position: "absolute", right: -6, bottom: -6 }} />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                    {partner.name}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: "var(--ink-3)" }}>
+                    {partner.role}
+                    {sealedScore != null ? ` · sealed ${sealedScore}` : ""}
+                    {hasInterview ? " · interview scheduled" : ""}
+                  </div>
+                </div>
+                {activeCandidate && (
+                  <button
+                    className="ck-btn ck-btn-outline ml-auto shrink-0 !px-3 !py-1.5 !text-[12px]"
+                    onClick={() => navigate(`/applicants/${activeCandidate.id}`)}
+                  >
+                    View application
+                  </button>
+                )}
+              </div>
+
+              {/* mt-auto, not justify-end: a short thread still hugs the
+                  composer, but a long one scrolls without clipping its top. */}
+              <div
+                ref={bubblesRef}
+                className="ck-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 min-[1120px]:px-[18px]"
+              >
+                <div className="mt-auto flex flex-col gap-2.5">
+                  {thread.length === 0 ? (
+                    <p className="text-center text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+                      No messages with {firstName(partner.name)} yet — write the first one.
+                    </p>
+                  ) : (
+                    thread.map((m) => (
+                      <Bubble
+                        key={m.id}
+                        mine={m.from === "me"}
+                        who={m.from === "me" ? account.name : firstName(partner.name)}
+                        time={m.time}
+                        text={m.text}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div
+                className="flex items-end gap-2 px-4 py-3 min-[1120px]:px-[18px]"
+                style={{ borderTop: "1px solid var(--line-soft)" }}
+              >
+                <textarea
+                  ref={composerRef}
+                  rows={1}
+                  value={draft}
+                  aria-label={`Write to ${firstName(partner.name)}`}
+                  placeholder={`Write to ${firstName(partner.name)}…`}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  className="min-h-[38px] max-h-24 flex-1 resize-none rounded-[10px] px-3 py-2.5 text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--line)",
+                    color: "var(--ink)",
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ck-btn ck-btn-primary shrink-0 !px-4 !py-2.5 !text-[13px]"
+                  onClick={handleSend}
+                  disabled={isSending || !draft.trim()}
+                  style={isSending || !draft.trim() ? { opacity: 0.55 } : undefined}
+                >
+                  {isSending ? "Sending…" : "Send"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center px-6 text-center">
+              <p className="text-[13px]" style={{ color: "var(--ink-3)" }}>
+                Pick a thread to read it.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

@@ -1,135 +1,227 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Clock,
-  CheckCircle2,
-  XCircle,
-  PenLine,
-  FileText,
-  FileCheck,
-  ChevronRight,
-  X,
-  Eye,
-  CircleDot,
-} from "lucide-react";
-import { PageHeader } from "../components/PageHeader";
-import { StatCard } from "../components/StatCard";
-import { CandidateMark } from "../components/CandidateMark";
+import { FileSignature, FileText, Paperclip, ShieldCheck, UserCheck } from "lucide-react";
 import { useCockpitDocuments } from "../hooks/useCockpitData";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import type { DocRow, DocStatus } from "../data";
 
-const KPI_ICONS = {
-  clock: <Clock className="h-[18px] w-[18px]" />,
-  check: <CheckCircle2 className="h-[18px] w-[18px]" />,
-  x: <XCircle className="h-[18px] w-[18px]" />,
-  edit: <PenLine className="h-[18px] w-[18px]" />,
+/**
+ * The drawer.
+ *
+ * Two questions only: what is still waiting on a signature, and what has each
+ * person already given you. So the paperwork that makes the hire sits together
+ * as one packet under a readiness meter, and everything else is filed under the
+ * person it belongs to. No folder tree — a short list you can finish.
+ */
+
+/** Human labels for the wizard's raw document_type values. */
+const TYPE_LABELS: Record<string, string> = {
+  offer_letter: "Offer letter",
+  employment_contract: "Employment contract",
+  nda: "Non-disclosure agreement",
+  non_compete: "Non-compete agreement",
+  ip_assignment: "IP assignment",
+  background_check: "Background check",
+  custom: "Document",
 };
 
-function DocStatusPill({ status }: { status: DocStatus }) {
-  const map: Record<DocStatus, { color: string; bg: string; border: string }> = {
-    Pending: { color: "var(--hf-gold)", bg: "color-mix(in srgb, var(--hf-gold-hover) 13%, transparent)", border: "color-mix(in srgb, var(--hf-gold-hover) 25%, transparent)" },
-    Submitted: { color: "var(--hf-text-soft)", bg: "color-mix(in srgb, var(--hf-green) 14%, transparent)", border: "color-mix(in srgb, var(--hf-green) 25%, transparent)" },
-    Signed: { color: "var(--hf-text)", bg: "color-mix(in srgb, var(--hf-green-border) 30%, transparent)", border: "color-mix(in srgb, var(--hf-green) 40%, transparent)" },
-    Declined: { color: "var(--hf-danger)", bg: "color-mix(in srgb, var(--hf-danger) 14%, transparent)", border: "color-mix(in srgb, var(--hf-danger) 25%, transparent)" },
-  };
-  const s = map[status];
-  return <span className="ck-pill" style={{ color: s.color, background: s.bg, borderColor: s.border }}>{status}</span>;
+function typeLabel(type: string) {
+  const key = (type ?? "").toLowerCase();
+  if (TYPE_LABELS[key]) return TYPE_LABELS[key];
+  const words = key.replace(/[_-]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Document";
 }
 
-function docIcon(type: string) {
-  if (type === "Offer") return FileText;
-  if (type === "Agreement") return FileCheck;
-  return FileText;
+function typeIcon(type: string) {
+  const t = (type ?? "").toLowerCase();
+  if (t.includes("offer")) return FileText;
+  if (t.includes("contract") || t.includes("agreement") || t.includes("nda") || t.includes("compete")) return FileSignature;
+  if (t.includes("background")) return UserCheck;
+  if (t.includes("ip_") || t.includes("assignment")) return ShieldCheck;
+  return Paperclip;
 }
 
-function DetailPanel({
-  row,
-  onClose,
-  detailTimeline,
-}: {
-  row: DocRow;
-  onClose: () => void;
-  detailTimeline: Array<{ id: string; icon: string; text: string; time: string }>;
-}) {
-  const [tab, setTab] = useState("Details");
+/**
+ * The hiring packet is the paperwork you send out to make the hire; everything
+ * else in the drawer came from, or is about, one person. Matched on the type
+ * string so it holds for both the wizard's values and the showcase sections.
+ */
+function isPacket(row: DocRow) {
+  const t = (row.type ?? "").toLowerCase();
   return (
-    <div className="ck-card flex h-full flex-col p-5">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
-            <FileText className="h-6 w-6" />
-          </span>
-          <div>
-            <div className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{row.title}</div>
-            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.type}</div>
-          </div>
+    t.includes("offer") ||
+    t.includes("contract") ||
+    t.includes("agreement") ||
+    t.includes("nda") ||
+    t.includes("compete") ||
+    t.includes("assignment") ||
+    t.includes("packet")
+  );
+}
+
+const CHIPS: Record<DocStatus, { label: string; bg: string; fg: string }> = {
+  Pending: { label: "Waiting", bg: "var(--amber-bg)", fg: "var(--amber-fg)" },
+  Submitted: { label: "On file", bg: "var(--surface-2)", fg: "var(--ink-2)" },
+  Signed: { label: "Signed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
+  Declined: { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" },
+};
+
+/** Ready means nobody is waiting on it — it is signed, or it is on file. */
+function isReady(row: DocRow) {
+  return row.status === "Signed" || row.status === "Submitted";
+}
+
+/** Things that need a person rise to the top of their section. */
+const ATTENTION: Record<DocStatus, number> = { Pending: 0, Declined: 1, Submitted: 2, Signed: 3 };
+
+/** The mapper falls back to "Candidate"/"Role" when a document has no application. */
+function named(value: string | undefined, placeholder: string) {
+  return value && value !== placeholder ? value : null;
+}
+
+function firstName(full: string) {
+  return full.trim().split(/\s+/)[0] || full;
+}
+
+/** Meta values stay short: this year's date needs no year on it. */
+function shortDate(value: string) {
+  return value.replace(new RegExp(`,\\s*${new Date().getFullYear()}$`), "");
+}
+
+function statusLine(row: DocRow) {
+  const person = named(row.candidate, "Candidate");
+  const who = person ? firstName(person) : "the recipient";
+  const when = row.updated ? ` · ${row.updated}` : "";
+  if (row.status === "Pending") return `Waiting on ${who} to sign${when}`;
+  if (row.status === "Signed") return `Signed by ${who}${when}`;
+  if (row.status === "Declined") return `${who} declined this${when}`;
+  return `On file from ${who}${when}`;
+}
+
+/**
+ * Browsers refuse top-level navigation to a `data:` URL, so a document stored
+ * inline never opened at all. Hand the bytes over as a blob instead; remote
+ * URLs still open the way they always did.
+ */
+function openDocument(fileUrl: string) {
+  if (!fileUrl.startsWith("data:")) {
+    window.open(fileUrl, "_blank", "noopener");
+    return;
+  }
+  const comma = fileUrl.indexOf(",");
+  if (comma === -1) return;
+  const meta = fileUrl.slice(5, comma);
+  const payload = fileUrl.slice(comma + 1);
+  const base64 = /;base64$/i.test(meta);
+  const mime = meta.replace(/;base64$/i, "") || "application/octet-stream";
+
+  let blob: Blob;
+  try {
+    if (base64) {
+      const binary = atob(payload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      blob = new Blob([bytes], { type: mime });
+    } else {
+      blob = new Blob([decodeURIComponent(payload)], { type: mime });
+    }
+  } catch {
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const opened = window.open(url, "_blank", "noopener");
+  // The new tab needs the URL alive long enough to fetch it; a blocked popup
+  // never will, so let that one go straight away.
+  if (opened) window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  else URL.revokeObjectURL(url);
+}
+
+function DocRowItem({ row, index }: { row: DocRow; index: number }) {
+  const Icon = typeIcon(row.type);
+  const chip = CHIPS[row.status];
+  const person = named(row.candidate, "Candidate");
+  const meta: Array<{ v: string; l: string }> = [];
+  if (row.created) meta.push({ v: shortDate(row.created), l: "Created" });
+  if (row.expires) meta.push({ v: shortDate(row.expires), l: "Expires" });
+
+  return (
+    <div
+      className="ck-card ck-reveal flex flex-wrap items-center gap-x-3.5 gap-y-2.5 px-4 py-3"
+      style={{ ["--ck-i" as string]: index }}
+    >
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
+        style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}
+      >
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        {/* The name wraps rather than truncates — on a phone a clipped document
+            name is useless, and two lines is the worst case. */}
+        <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }} title={row.title}>
+          {row.title}
         </div>
-        <button onClick={onClose} style={{ color: "var(--hf-text-muted)" }}><X className="h-4 w-4" /></button>
-      </div>
-
-      <div className="mt-3"><DocStatusPill status={row.status} /></div>
-      <p className="mt-2 text-[13px]" style={{ color: "var(--hf-text-soft)" }}>{row.status === "Pending" ? "Pending candidate signature" : row.statusNote}</p>
-
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>Candidate</div>
-        <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>Updated</div>
-      </div>
-      <div className="mt-1 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CandidateMark who={row.avatar} size={30} variant="calm" />
-          <div>
-            <div className="text-[13px] font-semibold" style={{ color: "var(--hf-text)" }}>{row.candidate}</div>
-            <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.role}</div>
-          </div>
+        <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--ink-3)" }}>
+          {typeLabel(row.type)} · {statusLine(row)}
         </div>
-        <div className="text-[13px]" style={{ color: "var(--hf-text)" }}>{row.updated}</div>
       </div>
 
-      <div className="mt-4 flex gap-4 text-[13px]" style={{ borderBottom: "1px solid var(--hf-border-strong)" }}>
-        {["Details", "Document preview"].map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="pb-2" style={{ color: tab === t ? "var(--hf-gold)" : "var(--hf-text-muted)", borderBottom: tab === t ? "2px solid var(--hf-gold)" : "2px solid transparent" }}>{t}</button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-y-3 text-[12.5px]">
-        <div><div style={{ color: "var(--hf-text-muted)" }}>Created by</div><div style={{ color: "var(--hf-text)" }}>You</div></div>
-        <div><div style={{ color: "var(--hf-text-muted)" }}>Created</div><div style={{ color: "var(--hf-text)" }}>{row.created ?? "—"}</div></div>
-        <div><div style={{ color: "var(--hf-text-muted)" }}>Expires</div><div style={{ color: "var(--hf-text)" }}>{row.expires ?? "—"}</div></div>
-      </div>
-
-      <div className="mt-5 text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Timeline</div>
-      <div className="mt-2 space-y-3">
-        {detailTimeline.length === 0 ? (
-          <p className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>No activity recorded yet.</p>
-        ) : (
-          detailTimeline.map((t) => {
-          const Icon = t.icon === "clock" ? Clock : t.icon === "eye" ? Eye : CircleDot;
-          return (
-            <div key={t.id} className="flex items-start gap-2.5">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
-              <div>
-                <div className="text-[13px]" style={{ color: "var(--hf-text)" }}>{t.text}</div>
-                <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{t.time}</div>
+      {meta.length > 0 && (
+        <div className="ml-auto hidden shrink-0 gap-4 text-right min-[861px]:flex">
+          {meta.map((m) => (
+            <div key={m.l}>
+              <div className="font-display tnum text-[16px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
+                {m.v}
+              </div>
+              <div
+                className="mt-0.5 text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                style={{ color: "var(--ink-3)" }}
+              >
+                {m.l}
               </div>
             </div>
-          );
-        })
+          ))}
+        </div>
+      )}
+
+      <span
+        className="shrink-0 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
+        style={{ background: chip.bg, color: chip.fg }}
+      >
+        {chip.label}
+      </span>
+
+      <div className="flex shrink-0 gap-[7px] max-[620px]:w-full max-[620px]:justify-end">
+        {row.fileUrl ? (
+          <button
+            type="button"
+            className={`ck-btn !py-2 !text-[12.5px] ${row.status === "Pending" ? "ck-btn-primary" : "ck-btn-outline"}`}
+            onClick={() => openDocument(row.fileUrl!)}
+            aria-label={`Open ${row.title}${person ? ` for ${person}` : ""}`}
+          >
+            Open
+          </button>
+        ) : (
+          <span className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+            No file yet
+          </span>
         )}
       </div>
-
-      <div className="mt-auto flex gap-2 pt-5">
-        <button
-          className="ck-btn ck-btn-primary flex-1"
-          disabled={!row.fileUrl}
-          style={!row.fileUrl ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-          onClick={() => row.fileUrl && window.open(row.fileUrl, "_blank", "noopener")}
-        >
-          <Eye className="h-4 w-4" />{row.fileUrl ? "Open document" : "Not uploaded yet"}
-        </button>
-      </div>
     </div>
+  );
+}
+
+function SectionTitle({ children, flush }: { children: ReactNode; flush?: boolean }) {
+  return (
+    <h2
+      className={`font-display mb-2 text-[16px] font-semibold leading-[1.15] ${flush ? "" : "mt-4"}`}
+      style={{ color: "var(--ink)" }}
+    >
+      {children}
+    </h2>
   );
 }
 
@@ -137,18 +229,41 @@ export default function CockpitDocuments() {
   const { documents, isLoading } = useCockpitDocuments();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: appsForDocs = [] } = useApplicationsForDocuments();
-  const [tab, setTab] = useState(documents.tabs[0]);
-  const [selectedId, setSelectedId] = useState(documents.rows[0]?.id ?? "");
-  const [wizard, setWizard] = useState<{ type?: string; appId?: string } | null>(null);
-  const selected = documents.rows.find((r) => r.id === selectedId) ?? documents.rows[0];
+  const [wizard, setWizard] = useState<{ type?: string; appId?: string; mode?: "generate" | "upload" } | null>(null);
 
-  // Tab filtering (was previously decorative — the list ignored the active tab).
-  const filteredRows = documents.rows.filter((r) => {
-    if (tab === "Pending") return r.status === "Pending";
-    if (tab === "Signed") return r.status === "Signed";
-    if (tab === "Requests") return r.status === "Submitted" || (r.type ?? "").toLowerCase().includes("request");
-    return true;
-  });
+  // One shape for both schema modes — the showcase rows carry the same fields.
+  const rows: DocRow[] = documents.rows;
+
+  const { packet, people, ready, pending, declined } = useMemo(() => {
+    const byAttention = (a: DocRow, b: DocRow) => ATTENTION[a.status] - ATTENTION[b.status];
+    const packetRows = rows.filter(isPacket).sort(byAttention);
+
+    // Everything that is not packet paperwork belongs to whoever it came from.
+    const groups = new Map<string, { key: string; title: string; rows: DocRow[] }>();
+    for (const row of rows) {
+      if (isPacket(row)) continue;
+      const person = named(row.candidate, "Candidate");
+      const key = person ? row.avatar || person : "__unassigned";
+      if (!groups.has(key)) {
+        const role = named(row.role, "Role");
+        groups.set(key, {
+          key,
+          title: person ? (role ? `${person} · ${role}` : person) : "Not attached to anyone yet",
+          rows: [],
+        });
+      }
+      groups.get(key)!.rows.push(row);
+    }
+    for (const group of groups.values()) group.rows.sort(byAttention);
+
+    return {
+      packet: packetRows,
+      people: [...groups.values()],
+      ready: rows.filter(isReady).length,
+      pending: rows.filter((r) => r.status === "Pending").length,
+      declined: rows.filter((r) => r.status === "Declined").length,
+    };
+  }, [rows]);
 
   // Opened from the hire prompt → /documents?applicant_id=…&action=create.
   useEffect(() => {
@@ -164,120 +279,139 @@ export default function CockpitDocuments() {
   const wizardEl = wizard ? (
     <DocumentWizard
       open
-      onOpenChange={(o) => { if (!o) setWizard(null); }}
+      onOpenChange={(o) => {
+        if (!o) setWizard(null);
+      }}
       applications={appsForDocs}
       preSelectedApplicationId={wizard.appId}
-      initialMode="generate"
+      initialMode={wizard.mode ?? "generate"}
       preSelectedDocumentType={wizard.type}
     />
   ) : null;
 
+  const head = (
+    <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
+      <h1
+        className="font-display hidden md:block"
+        style={{ fontSize: "clamp(26px, 3.2vw, 30px)", fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1.15, color: "var(--ink)" }}
+      >
+        Documents
+      </h1>
+      <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
+        Everything for this hire, in one drawer
+      </span>
+      <div className="ml-auto flex gap-2 max-md:w-full max-md:[&>button]:flex-1">
+        <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setWizard({})}>
+          + New document
+        </button>
+      </div>
+    </header>
+  );
+
   if (isLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
+    return (
+      <div className="space-y-2">
+        <div className="ck-rise mb-4 h-[44px] rounded-xl" style={{ background: "var(--hf-surface)", opacity: 0.55 }} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="ck-card ck-reveal h-[66px]" style={{ ["--ck-i" as string]: i, opacity: 0.55 }} />
+        ))}
+      </div>
+    );
   }
 
-  if (!selected) {
+  if (rows.length === 0) {
     return (
-      <div className="space-y-5">
-        <PageHeader
-          title="Documents"
-          subtitle="Offers, requests, and signed hiring paperwork."
-          actions={
+      <div className="space-y-4">
+        {head}
+        <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+          <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
+            The drawer is empty.
+          </h2>
+          <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--ink-2)" }}>
+            Offers, contracts and anything you ask a candidate to sign land here. Make the first one and
+            I&rsquo;ll keep track of who has signed what.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
             <button className="ck-btn ck-btn-primary" onClick={() => setWizard({ type: "offer_letter" })}>
-              <FileCheck className="h-4 w-4" />Create offer
+              Write an offer letter
             </button>
-          }
-        />
-        <div className="ck-card p-10 text-center" style={{ color: "var(--hf-text-muted)" }}>
-          <FileText className="mx-auto h-8 w-8" style={{ color: "var(--hf-text-muted)" }} />
-          <p className="mt-3 text-[14px]">No documents yet.</p>
-          <p className="mt-1 text-[12.5px]">Create an offer letter or hiring document and send it for signature.</p>
-        </div>
+            <button className="ck-btn ck-btn-outline" onClick={() => setWizard({ mode: "upload" })}>
+              Upload a document
+            </button>
+          </div>
+        </section>
         {wizardEl}
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Documents"
-        subtitle="Offers, requests, and signed hiring paperwork."
-        actions={
-          <>
-            <button className="ck-btn ck-btn-outline" onClick={() => setWizard({})}><FileText className="h-4 w-4" />New document</button>
-            <button className="ck-btn ck-btn-primary" onClick={() => setWizard({ type: "offer_letter" })}><FileCheck className="h-4 w-4" />Create offer</button>
-          </>
-        }
-      />
+  const total = rows.length;
+  const caption =
+    pending > 0
+      ? `I\u2019m still waiting on ${pending} signature${pending === 1 ? "" : "s"}.`
+      : declined > 0
+        ? `${declined} came back declined — worth another look.`
+        : "Everything in here is done.";
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {documents.kpis.map((k, i) => (
-          <StatCard key={k.label} label={k.label} value={k.value} icon={KPI_ICONS[k.icon]} index={i} />
-        ))}
+  return (
+    <div>
+      {head}
+
+      {/* The meter: how much of the drawer is finished, and what is holding it up. */}
+      <div className="ck-rise mb-3 mt-3.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-2">
+        <span className="font-display tnum" style={{ fontSize: 32, fontWeight: 600, lineHeight: 1, color: "var(--ink)" }}>
+          {ready}
+        </span>
+        <span className="font-display text-[16px]" style={{ color: "var(--ink-3)" }}>
+          of {total} ready
+        </span>
+        {total <= 12 && (
+          <span className="ml-1.5 flex flex-wrap gap-[5px]" aria-hidden="true">
+            {rows.map((_, i) => {
+              const tone = i < ready ? "on" : i < ready + pending ? "mid" : "off";
+              return (
+                <span
+                  key={i}
+                  className="h-[10px] w-[10px] rounded-[3px] border"
+                  style={
+                    tone === "on"
+                      ? { background: "var(--jade)", borderColor: "var(--jade)" }
+                      : tone === "mid"
+                        ? { background: "var(--amber-bg)", borderColor: "var(--amber-fg)" }
+                        : { borderColor: "var(--hair)" }
+                  }
+                />
+              );
+            })}
+          </span>
+        )}
+        <span className="text-[13px]" style={{ color: "var(--ink-2)" }}>
+          {caption}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="ck-card overflow-hidden">
-          <div className="flex gap-5 px-5 pt-4 text-[13.5px]" style={{ borderBottom: "1px solid var(--hf-border-strong)" }}>
-            {documents.tabs.map((t) => (
-              <button key={t} onClick={() => setTab(t)} className="pb-3" style={{ color: tab === t ? "var(--hf-gold)" : "var(--hf-text-muted)", borderBottom: tab === t ? "2px solid var(--hf-gold)" : "2px solid transparent" }}>{t}</button>
+      {packet.length > 0 && (
+        <>
+          <SectionTitle flush>Hiring packet</SectionTitle>
+          <div className="flex flex-col gap-2">
+            {packet.map((row, i) => (
+              <DocRowItem key={row.id} row={row} index={i} />
             ))}
           </div>
+        </>
+      )}
 
-          <div className="hidden grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-3 px-5 py-3 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)", borderBottom: "1px solid var(--hf-surface-raised)" }}>
-            <div>Document</div><div>Candidate</div><div>Status</div><div>Updated</div>
-          </div>
-
-          {filteredRows.length === 0 && (
-            <div className="px-5 py-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
-              No {tab === "All documents" ? "" : tab.toLowerCase() + " "}documents.
-            </div>
-          )}
-
-          {filteredRows.map((row) => {
-            const Icon = docIcon(row.type);
-            const isSel = row.id === selectedId;
-            return (
-              <div
-                key={row.id}
-                onClick={() => setSelectedId(row.id)}
-                className="grid cursor-pointer grid-cols-[1.4fr_auto] items-center gap-3 px-5 py-3.5 md:grid-cols-[2fr_1.5fr_1.5fr_1fr]"
-                style={{ borderBottom: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)", background: isSel ? "var(--hf-surface-raised)" : "transparent", boxShadow: isSel ? "inset 2px 0 0 var(--hf-gold)" : "none" }}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--hf-surface-raised)", color: "var(--hf-green)" }}><Icon className="h-4 w-4" /></span>
-                  <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-semibold" style={{ color: "var(--hf-text)" }}>{row.title}</div>
-                    <div className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.type}</div>
-                  </div>
-                </div>
-                <div className="hidden items-center gap-2 md:flex">
-                  <CandidateMark who={row.avatar} size={28} variant="calm" />
-                  <div className="min-w-0"><div className="truncate text-[13px]" style={{ color: "var(--hf-text)" }}>{row.candidate}</div><div className="text-[11px]" style={{ color: "var(--hf-text-muted)" }}>{row.role}</div></div>
-                </div>
-                <div className="hidden md:block">
-                  <DocStatusPill status={row.status} />
-                  <div className="mt-1 text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>{row.statusNote}</div>
-                </div>
-                <div className="flex items-center justify-end gap-2 md:justify-between">
-                  <div className="md:hidden"><DocStatusPill status={row.status} /></div>
-                  <span className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{row.updated}</span>
-                  <ChevronRight className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="flex items-center justify-between px-5 py-3 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-            <span>Showing {filteredRows.length} document{filteredRows.length === 1 ? "" : "s"}</span>
+      {people.map((group, g) => (
+        <div key={group.key}>
+          <SectionTitle flush={g === 0 && packet.length === 0}>{group.title}</SectionTitle>
+          <div className="flex flex-col gap-2">
+            {group.rows.map((row, i) => (
+              <DocRowItem key={row.id} row={row} index={i} />
+            ))}
           </div>
         </div>
+      ))}
 
-        <div className="hidden lg:block">
-          <DetailPanel row={selected} onClose={() => undefined} detailTimeline={documents.detailTimeline} />
-        </div>
-      </div>
       {wizardEl}
     </div>
   );
