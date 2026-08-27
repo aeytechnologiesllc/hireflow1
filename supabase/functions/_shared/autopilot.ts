@@ -111,6 +111,77 @@ export function buildEvidenceFingerprint(snapshot: Record<string, unknown>) {
   return JSON.stringify(normalizeForFingerprint(snapshot));
 }
 
+function numOr(value: number | null | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+export interface JudgmentSubScores {
+  directMatchScore?: number | null;
+  transferableFitScore?: number | null;
+  learningSignalScore?: number | null;
+  writingQualityScore?: number | null;
+  attentionToDetailScore?: number | null;
+  authenticityScore?: number | null;
+  specificityScore?: number | null;
+  hardRequirementConflicts?: string[] | null;
+}
+
+/**
+ * The single source of truth for how the LLM judge's per-dimension judgments turn
+ * into a 0-100 substance score. This is deterministic arithmetic over the sub-scores
+ * ONLY — it never looks at the LLM's own holistic `overallScore`, because that number
+ * has been observed to be too soft (it barely separated a clean strong resume from
+ * the same resume riddled with typos, and it wasn't even reproducible run to run).
+ *
+ * - writingQualityScore and attentionToDetailScore are weighted heavily (36% combined)
+ *   so sloppy, error-riddled writing pulls the score down materially even when the
+ *   underlying role fit is identical.
+ * - authenticityScore acts as a hard ceiling: once it drops into suspicious territory,
+ *   nothing else can lift the score back above that ceiling — a polished, specific,
+ *   well-matched resume that looks fabricated must still fail.
+ * - hardRequirementConflicts subtract a flat penalty on top of the ceiling, so a
+ *   candidate who fails a stated non-negotiable can't average their way past it.
+ *
+ * Calling this twice with the same input always returns the same number.
+ */
+export function computeJudgmentScore(input: JudgmentSubScores): number {
+  const direct = clampPercent(numOr(input.directMatchScore, 55));
+  const transferable = clampPercent(numOr(input.transferableFitScore, 55));
+  const learning = clampPercent(numOr(input.learningSignalScore, 50));
+  const writing = clampPercent(numOr(input.writingQualityScore, 70));
+  const attention = clampPercent(numOr(input.attentionToDetailScore, 70));
+  const specificity = clampPercent(numOr(input.specificityScore, 50));
+  const authenticity = clampPercent(numOr(input.authenticityScore, 80));
+  const conflicts = sanitizeList(input.hardRequirementConflicts, 8);
+
+  // Weighted substance average: role fit (direct/transferable/learning, 46%) plus
+  // candidate-authored quality signals (writing/attention/specificity, 54%).
+  const substance =
+    direct * 0.22 +
+    transferable * 0.14 +
+    learning * 0.1 +
+    writing * 0.2 +
+    attention * 0.16 +
+    specificity * 0.18;
+
+  // Authenticity is a ceiling, not just another average term: a credible-looking
+  // score can't be bought back by strength elsewhere once fabrication is likely.
+  let ceiling = 100;
+  if (authenticity < 50) {
+    ceiling = authenticity + 15;
+  } else if (authenticity < 75) {
+    ceiling = authenticity + 25;
+  }
+
+  let score = Math.min(substance, ceiling);
+
+  if (conflicts.length > 0) {
+    score -= Math.min(25, 6 + conflicts.length * 5);
+  }
+
+  return clampPercent(score);
+}
+
 export function buildAvaScorecard(params: {
   finalScore: number | null;
   passingScore: number;
@@ -138,6 +209,10 @@ export function buildAvaScorecard(params: {
   directMatchScore?: number | null;
   transferableFitScore?: number | null;
   learningSignalScore?: number | null;
+  writingQualityScore?: number | null;
+  attentionToDetailScore?: number | null;
+  authenticityScore?: number | null;
+  specificityScore?: number | null;
   hardRequirementConflicts?: string[] | null;
   transferableEvidence?: string[] | null;
   evidenceFingerprint: string;
@@ -169,12 +244,41 @@ export function buildAvaScorecard(params: {
     directMatchScore,
     transferableFitScore,
     learningSignalScore,
+    writingQualityScore,
+    attentionToDetailScore,
+    authenticityScore,
+    specificityScore,
     hardRequirementConflicts,
     transferableEvidence,
     evidenceFingerprint,
   } = params;
 
-  const safeScore = clampPercent(finalScore ?? 0);
+  // The deterministic aggregate of the judge's sub-scores — NOT the LLM's own
+  // holistic overallScore, which never reaches this function and has zero
+  // effect on the persisted score. This is the dominant signal; `finalScore`
+  // (the caller's phase-performance blend — quiz/typing/voice/etc., see
+  // trigger-ava-analysis) is folded in at a minority weight so those signals
+  // still move the number the way they always have, without being able to
+  // paper over weak substance or sloppy writing.
+  const judgmentScore = computeJudgmentScore({
+    directMatchScore,
+    transferableFitScore,
+    learningSignalScore,
+    writingQualityScore,
+    attentionToDetailScore,
+    authenticityScore,
+    specificityScore,
+    hardRequirementConflicts,
+  });
+  const safeScore = clampPercent(
+    weightedAverage(
+      [
+        { value: judgmentScore, weight: 0.7 },
+        { value: finalScore, weight: 0.3 },
+      ],
+      judgmentScore,
+    ),
+  );
   const family = inferJobFamily(jobTitle, jobDescription);
   const entryLevel = isEntryLevelRole(experienceLevel, jobTitle);
   const riskFlags: string[] = [];

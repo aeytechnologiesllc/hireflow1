@@ -11,6 +11,7 @@ import {
 import {
   buildAvaScorecard,
   buildEvidenceFingerprint,
+  computeJudgmentScore,
   inferJobFamily,
   resolveAutopilotAction,
   type AvaScorecard,
@@ -26,10 +27,17 @@ const corsHeaders = {
 };
 
 interface StructuredScore {
+  // The LLM's own holistic judgment. Kept on the type for logging/analysisMeta only —
+  // it MUST NOT be read into the persisted score. See computeJudgmentScore in
+  // _shared/autopilot.ts, which is the deterministic function that replaces it.
   overallScore: number;
   directMatchScore: number;
   transferableFitScore: number;
   learningSignalScore: number;
+  writingQualityScore: number;
+  attentionToDetailScore: number;
+  authenticityScore: number;
+  specificityScore: number;
   hardRequirementConflicts: string[];
   transferableEvidence: string[];
   confidence: number;
@@ -1035,9 +1043,28 @@ ${interviewType} Interview with AVA Results:
     const analysisText = analysisData?.analysis || "";
     const structuredScore = analysisData?.structuredScore as StructuredScore | null | undefined;
     let newScore: number | null = null;
-    if (structuredScore && typeof structuredScore.overallScore === "number") {
-      newScore = structuredScore.overallScore;
-      console.log("[trigger-ava-analysis] Score extracted via structuredScore.overallScore:", newScore);
+    if (structuredScore) {
+      // Deterministic aggregate of the judge's per-dimension sub-scores. The LLM's own
+      // structuredScore.overallScore is intentionally never read here — it was found to
+      // be nondeterministic (±3 across identical reruns) and too soft to separate a
+      // clean resume from the same resume riddled with typos (~14pt gap vs. the ~24pt
+      // gap the underlying sub-scores actually support). See computeJudgmentScore.
+      newScore = computeJudgmentScore({
+        directMatchScore: structuredScore.directMatchScore,
+        transferableFitScore: structuredScore.transferableFitScore,
+        learningSignalScore: structuredScore.learningSignalScore,
+        writingQualityScore: structuredScore.writingQualityScore,
+        attentionToDetailScore: structuredScore.attentionToDetailScore,
+        authenticityScore: structuredScore.authenticityScore,
+        specificityScore: structuredScore.specificityScore,
+        hardRequirementConflicts: structuredScore.hardRequirementConflicts,
+      });
+      console.log(
+        "[trigger-ava-analysis] Score computed via computeJudgmentScore (sub-scores only, LLM overallScore ignored):",
+        newScore,
+        "LLM's own overallScore was:",
+        structuredScore.overallScore,
+      );
     }
 
     // Pattern 1: FINAL CALCULATED SCORE (preferred) - supports decimals
@@ -1259,6 +1286,10 @@ ${interviewType} Interview with AVA Results:
       directMatchScore: structuredScore?.directMatchScore ?? null,
       transferableFitScore: structuredScore?.transferableFitScore ?? null,
       learningSignalScore: structuredScore?.learningSignalScore ?? null,
+      writingQualityScore: structuredScore?.writingQualityScore ?? null,
+      attentionToDetailScore: structuredScore?.attentionToDetailScore ?? null,
+      authenticityScore: structuredScore?.authenticityScore ?? null,
+      specificityScore: structuredScore?.specificityScore ?? null,
       hardRequirementConflicts: structuredScore?.hardRequirementConflicts ?? [],
       transferableEvidence: structuredScore?.transferableEvidence ?? [],
       evidenceFingerprint,
@@ -1313,12 +1344,14 @@ ${interviewType} Interview with AVA Results:
     };
 
     // Update the application with AI analysis using admin client (bypasses RLS)
-    // Save both the raw resume score (newScore) and the weighted overall score (finalScore)
+    // ai_score mirrors scorecard.overallScore exactly — buildAvaScorecard is the single
+    // source of truth for the persisted score, so this column and the canonical
+    // scorecard below can never disagree.
     const { error: updateError } = await supabaseAdmin
       .from("applications")
       .update({
         ai_analysis: analysisData?.analysis || null,
-        ai_score: typeof finalScore === "number" && finalScore >= 0 && finalScore <= 100 ? finalScore : null,
+        ai_score: typeof scorecard?.overallScore === "number" ? scorecard.overallScore : null,
         // Canonical scorecard — single source of truth read by every screen.
         ai_scorecard: scorecard ?? null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)

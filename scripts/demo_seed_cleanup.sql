@@ -41,6 +41,14 @@ update public.profiles set location = null
                    '4af7873a-fea4-413d-89e7-817da73b4f9a',
                    'c6debb4d-9647-47b3-b54b-6ca0afddfe71');
 
+
+-- 3. The verification candidate added 2026-08-27 (candidate.test@hireflow.dev)
+--    and its mid-journey application. The auth user itself must be deleted from
+--    the Supabase dashboard (Auth > Users) — SQL here only clears public rows.
+delete from public.applications where candidate_id = '3f16c4a5-00dd-4525-9232-4029fffb5cda';
+delete from public.user_roles  where user_id      = '3f16c4a5-00dd-4525-9232-4029fffb5cda';
+delete from public.profiles    where user_id      = '3f16c4a5-00dd-4525-9232-4029fffb5cda';
+
 commit;
 
 -- Confirm nothing is left behind:

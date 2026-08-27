@@ -288,6 +288,65 @@ const guards = [
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
+
+  {
+    id: "scoring-is-pure-function",
+    why:
+      "The LLM judge's own holistic overallScore was leaking straight through as the " +
+      "persisted ai_score — nondeterministic (±3 across identical reruns) and too soft " +
+      "to separate a clean resume from the same resume riddled with typos (~14pt gap vs " +
+      "the ~24pt the sub-scores actually support). The fix: trigger-ava-analysis must " +
+      "compute the resume score via computeJudgmentScore (deterministic arithmetic over " +
+      "the sub-scores, in _shared/autopilot.ts) and persist ai_score from " +
+      "scorecard.overallScore, never from structuredScore.overallScore directly. " +
+      "applications.ai_scorecard must keep existing, or the whole update silently fails.",
+    async run() {
+      const FN = "supabase/functions/trigger-ava-analysis/index.ts";
+      const SCORECARD_MIGRATION = "supabase/migrations/20260827205000_add_ai_scorecard_column.sql";
+      const bad = [];
+
+      const src = await read(FN);
+      if (src == null) {
+        bad.push(`${FN} is missing`);
+      } else {
+        // The LLM's raw holistic number must never be assigned to the score the
+        // pipeline goes on to persist.
+        if (/newScore\s*=\s*structuredScore\??\.overallScore/.test(src)) {
+          bad.push(`${FN} assigns newScore from structuredScore.overallScore — the LLM's raw score is leaking through again`);
+        }
+
+        // The deterministic aggregator must actually be in the call path.
+        if (!/\bcomputeJudgmentScore\s*\(/.test(src)) {
+          bad.push(`${FN} no longer calls computeJudgmentScore — the resume score isn't going through the pure aggregator`);
+        }
+        if (!/computeJudgmentScore/.test(src) || !src.includes('from "../_shared/autopilot.ts"')) {
+          bad.push(`${FN} doesn't import from _shared/autopilot.ts`);
+        }
+
+        // The persisted ai_score column must come from the scorecard the pure builder
+        // returned, not from a caller-side number computed outside it.
+        if (!/ai_score:\s*typeof\s+scorecard\?\.overallScore/.test(src)) {
+          bad.push(`${FN} doesn't persist ai_score from scorecard.overallScore — check the applications.update() call`);
+        }
+
+        // buildAvaScorecard must still be the thing that produces the persisted scorecard.
+        if (!/const\s+scorecard\s*=\s*buildAvaScorecard\(/.test(src)) {
+          bad.push(`${FN} no longer builds the scorecard via buildAvaScorecard`);
+        }
+      }
+
+      // Pin the migration that actually creates the column both of the above write to —
+      // without it the entire applications.update() 42703s and nothing persists at all.
+      const migration = await read(SCORECARD_MIGRATION);
+      if (migration == null) {
+        bad.push(`${SCORECARD_MIGRATION} is missing`);
+      } else if (!/ai_scorecard/.test(migration)) {
+        bad.push(`${SCORECARD_MIGRATION} no longer mentions ai_scorecard`);
+      }
+
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
 ];
 
 /* --------------------------------------------------------------------- main */
