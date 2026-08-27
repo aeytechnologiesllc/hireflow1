@@ -1,11 +1,15 @@
 # HireFlow - Project Reference
 
+> ⚠️ The project ref below is load-bearing. It was previously wrong here
+> (`kcotpxlggfvgclwksmhl`), and that wrong value was copied into a database
+> trigger, silently breaking every push notification. Verify before changing.
+
 ## Hosting & Infrastructure
 
 | Service | Details |
 |---------|---------|
 | **Frontend Hosting** | Vercel |
-| **Live URL** | https://hireflow1-iota.vercel.app |
+| **Live URL** | https://hireflownow.com |
 | **Vercel Project** | aeytechnologiesllc-8936s-projects/hireflow1 |
 | **GitHub Repo** | https://github.com/aeytechnologiesllc/hireflow1 |
 | **Branch** | main |
@@ -14,12 +18,12 @@
 
 | Item | Value |
 |------|-------|
-| **Project ID** | kcotpxlggfvgclwksmhl |
-| **Project URL** | https://kcotpxlggfvgclwksmhl.supabase.co |
-| **Dashboard** | https://supabase.com/dashboard/project/kcotpxlggfvgclwksmhl |
-| **Edge Functions** | https://supabase.com/dashboard/project/kcotpxlggfvgclwksmhl/functions |
-| **Database Migrations** | 71 migrations (all applied) |
-| **Edge Functions Deployed** | 37 functions |
+| **Project ID** | yqklrkpptnhubsnijqze |
+| **Project URL** | https://yqklrkpptnhubsnijqze.supabase.co |
+| **Dashboard** | https://supabase.com/dashboard/project/yqklrkpptnhubsnijqze |
+| **Edge Functions** | https://supabase.com/dashboard/project/yqklrkpptnhubsnijqze/functions |
+| **Database Migrations** | see supabase/migrations (all applied) |
+| **Edge Functions Deployed** | see supabase/functions |
 
 ## Auth Providers
 
@@ -70,7 +74,7 @@ git push origin main
 
 ```bash
 # Link (already done)
-npx supabase link --project-ref kcotpxlggfvgclwksmhl
+npx supabase link --project-ref yqklrkpptnhubsnijqze
 
 # Push database migrations
 npx supabase db push

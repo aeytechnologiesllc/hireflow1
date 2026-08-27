@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
+import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-4.1";
@@ -707,6 +708,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Public endpoint that spends money per call — cap how fast one caller can spend it.
+  const limited = await guardPublicAiCall(req, "ai-generate-workflow", corsHeaders, 15, 3600);
+  if (limited) return limited;
 
   try {
     const request: WorkflowRequest = await req.json();

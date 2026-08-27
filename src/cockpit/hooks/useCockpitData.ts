@@ -148,7 +148,7 @@ export function useCockpitDashboard() {
   const { data: jobs = [], isLoading: jobsLoading } = useEmployerJobs();
   const { data: applications = [], isLoading: appsLoading } = useEmployerApplications();
   const { data: stats } = useApplicationStats();
-  const { data: activities = [], isLoading: activityLoading } = useActivityFeed(8);
+  const { activities = [], isLoading: activityLoading } = useActivityFeed(8);
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-dashboard"],
@@ -184,7 +184,7 @@ export function useCockpitDashboard() {
 export function useCockpitCandidate(id: string | undefined) {
   const { candidates, applications, isLoading } = useCockpitCandidates();
   const candidate = useMemo(
-    () => candidates.find((c) => c.id === id) ?? candidates[0] ?? null,
+    () => candidates.find((c) => c.id === id) ?? null,
     [candidates, id],
   );
   const application = useMemo(

@@ -208,6 +208,30 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Verify the requester is authenticated before we hand back any candidate data
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user: requestingUser }, error: requestingUserError } = await supabaseUserClient.auth.getUser();
+
+    if (requestingUserError || !requestingUser) {
+      console.error('[Dossier] Invalid auth token:', requestingUserError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch application with job data (separate query for profile to avoid FK issues)
     const { data: application, error: appError } = await supabase
       .from('applications')
@@ -220,6 +244,43 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Application not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify the requesting user actually owns this application's data (candidate,
+    // employer, an active team member of that employer, or a developer)
+    const employerId = (application.jobs as any)?.employer_id;
+    const isCandidateOwner = application.candidate_id === requestingUser.id;
+    const isEmployerOwner = !!employerId && employerId === requestingUser.id;
+
+    const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
+      !isCandidateOwner && !isEmployerOwner && employerId
+        ? supabase
+            .from('team_members')
+            .select('id')
+            .eq('user_id', requestingUser.id)
+            .eq('employer_id', employerId)
+            .eq('status', 'active')
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', requestingUser.id)
+        .eq('role', 'developer')
+        .maybeSingle(),
+    ]);
+
+    if (!isCandidateOwner && !isEmployerOwner && !teamMembership && !developerRole) {
+      console.warn('[Dossier] Unauthorized dossier request', {
+        requesterId: requestingUser.id,
+        applicationId,
+        employerId,
+        candidateId: application.candidate_id,
+      });
+      return new Response(
+        JSON.stringify({ error: 'You do not have permission to access this application' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

@@ -241,7 +241,8 @@ export async function submitPhase1Application(input: Phase1Input): Promise<Phase
   });
   if (appRes.error) throw new Error(appRes.error.message);
 
-  const next = nextPhaseAfterApply(role);
+  const role = await fetchRoleById(input.roleId);
+  const next = role ? nextPhaseAfterApply(role) : { phase: "applied", stage: "applied" };
   if (next.phase !== "applied") {
     await updateShowcaseApplicationPhase(applicationId, next.phase, next.stage);
   }

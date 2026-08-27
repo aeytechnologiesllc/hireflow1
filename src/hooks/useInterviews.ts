@@ -83,6 +83,7 @@ export function useInterviews() {
 
 export function useUpcomingInterviews() {
   const { user, role } = useAuth();
+  const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["interviews", "upcoming", user?.id, role],

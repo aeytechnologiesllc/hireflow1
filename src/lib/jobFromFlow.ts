@@ -294,15 +294,14 @@ export async function createJobFromFlow(
     );
   }
 
-  // Structured salary (currency- + period-aware), parsed from what the employer typed,
-  // falling back to the brief's semi-structured pay. Country hints the currency (PKR, etc.).
-  const payText = brief.pay?.rawText
-    || (brief.pay?.min != null ? `${brief.pay.min}${brief.pay.max != null ? `-${brief.pay.max}` : ""} ${brief.pay.unit ?? ""}` : "");
+  // Structured salary (currency- + period-aware), parsed from what the employer typed.
+  // Country hints the currency (PKR, etc.) when the pay text doesn't state one.
+  const payText = brief.pay?.trim() || "";
   const sal = parseSalary(payText, geo.ok ? geo.countryCode : undefined);
-  const salaryMin = sal.min ?? brief.pay?.min ?? brief.pay?.amount ?? null;
-  const salaryMax = sal.max ?? brief.pay?.max ?? null;
-  const salaryCurrency = sal.currency ?? brief.pay?.currency ?? (geo.ok && geo.countryCode === "US" ? "USD" : null);
-  const salaryPeriod = sal.period ?? (brief.pay?.unit ? brief.pay.unit.toUpperCase() : null);
+  const salaryMin = sal.min;
+  const salaryMax = sal.max;
+  const salaryCurrency = sal.currency ?? (geo.ok && geo.countryCode === "US" ? "USD" : null);
+  const salaryPeriod = sal.period;
 
   const row = {
     employer_id: employerId,
