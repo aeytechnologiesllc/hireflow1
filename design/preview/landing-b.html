@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — Meet Ava. She handles hiring, so you don't have to.</title>
+<meta name="description" content="Every applicant gets a real interview minutes after applying, any hour. You get a short sealed shortlist with the evidence. Every decision is yours.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* ── Tokens. The page OPENS in Night; scrolling to morning interpolates
+     every one of these toward Day on the root (script at the bottom). ── */
+  :root{
+    --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+    --track:rgba(244,239,227,.10);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF; --jade-soft:rgba(79,191,149,.15); --jade-soft-fg:#6ADCAA;
+    --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+    --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+    --btn-fg:#17140F;
+    --seal-disc:#17805F; --seal-ring:#D9B876; --seal-shadow:rgba(0,0,0,.55);
+    /* shadow colour slots — interpolated alongside the surfaces */
+    --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,0); --shtop:rgba(244,239,227,.055);
+    --sm1:rgba(0,0,0,.5); --sm2:rgba(0,0,0,.9); --smtop:rgba(244,239,227,.075);
+    --bm1:rgba(255,255,255,.12); --bm2:rgba(0,0,0,.5);
+    --shadow-sm:0 1px 2px var(--sh1),0 1px 3px -1px var(--sh2),inset 0 1px 0 var(--shtop);
+    --shadow-md:0 2px 3px var(--sm1),0 11px 25px -15px var(--sm2),inset 0 1px 0 var(--smtop);
+    --btn-model:inset 0 1px 0 var(--bm1),0 1px 2px var(--bm2);
+    --dawn:0; /* 0 = deep night, 1 = full morning */
+    --r-xs:5px; --r-ctl:8px; --r-md:10px; --r-lg:12px;
+    --dur-fast:90ms; --dur-base:140ms; --ease:cubic-bezier(.2,.7,.3,1);
+    --press:cubic-bezier(.34,1.4,.44,1);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-padding-top:78px}
+  @media (prefers-reduced-motion: no-preference){ html{scroll-behavior:smooth} }
+  html,body{margin:0}
+  body{
+    background:var(--ground);color:var(--ink);overflow-x:clip;
+    font-family:Inter,-apple-system,sans-serif;font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit}
+  ::selection{background:var(--jade-soft)}
+  .lbl{font-size:10px;font-weight:700;letter-spacing:.14em;line-height:1.2;text-transform:uppercase}
+
+  /* ── The room: drifting lamplight (Night, 4 coats) crossfading into
+     morning light (Day, 3 coats + the sun band), plus paper grain. ── */
+  .amb{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .amb i{position:absolute;border-radius:50%;filter:blur(90px)}
+  .amb i:nth-child(1){width:560px;height:560px;top:-150px;right:-90px;animation:drift1 26s ease-in-out infinite alternate}
+  .amb i:nth-child(2){width:500px;height:500px;bottom:-170px;left:18%;animation:drift2 34s ease-in-out infinite alternate}
+  .amb i:nth-child(3){width:320px;height:320px;top:34%;left:-120px;animation:drift3 30s ease-in-out infinite alternate}
+  @keyframes drift1{to{transform:translate3d(-70px,50px,0) scale(1.08)}}
+  @keyframes drift2{to{transform:translate3d(80px,-40px,0) scale(1.05)}}
+  @keyframes drift3{to{transform:translate3d(50px,60px,0)}}
+  .amb-night{opacity:calc(1 - var(--dawn))}
+  .amb-night i:nth-child(odd){background:
+    radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),
+    radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),radial-gradient(circle,rgba(79,191,149,.09),transparent 66%)}
+  .amb-night i:nth-child(even){background:
+    radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),
+    radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),radial-gradient(circle,rgba(224,185,106,.08),transparent 66%)}
+  .amb-day{opacity:var(--dawn)}
+  .amb-day i:nth-child(odd){background:
+    radial-gradient(circle,rgba(15,107,79,.04),transparent 66%),radial-gradient(circle,rgba(15,107,79,.04),transparent 66%),
+    radial-gradient(circle,rgba(15,107,79,.04),transparent 66%)}
+  .amb-day i:nth-child(even){background:
+    radial-gradient(circle,rgba(201,164,94,.045),transparent 66%),radial-gradient(circle,rgba(201,164,94,.045),transparent 66%),
+    radial-gradient(circle,rgba(201,164,94,.045),transparent 66%)}
+  .amb-day::after{ /* the morning sun band sweeping the paper */
+    content:"";position:absolute;inset:-25%;
+    background:linear-gradient(105deg,transparent 38%,rgba(201,164,94,.11) 50%,transparent 62%),
+               linear-gradient(105deg,transparent 40%,rgba(201,164,94,.11) 50%,transparent 60%);
+    animation:sunband 19s ease-in-out infinite alternate;will-change:transform;
+  }
+  @keyframes sunband{from{transform:translate3d(-14%,0,0);opacity:.8}to{transform:translate3d(14%,0,0);opacity:1}}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.055;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  header,main,footer{position:relative;z-index:2}
+  .wrap{max-width:1140px;margin-inline:auto;padding-inline:clamp(18px,4vw,32px)}
+
+  /* ── Nav ── */
+  .nav{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line);
+    background:var(--ground);background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .nav-in{display:flex;align-items:center;gap:22px;min-height:62px}
+  .brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
+  .brand-mark{width:28px;height:28px;border-radius:8px;background:var(--slab);display:flex;align-items:center;
+    justify-content:center;box-shadow:var(--shadow-sm),inset 0 0 0 1px rgba(244,239,227,.07);flex-shrink:0}
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .nav-links{display:flex;gap:4px;margin-left:auto}
+  .nav-links a{font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;padding:8px 12px;border-radius:var(--r-ctl);
+    transition:color var(--dur-base) var(--ease),background-color var(--dur-base) var(--ease)}
+  .nav-links a:hover{color:var(--ink);background:var(--surface)}
+  @media(max-width:680px){.nav-links{display:none}}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
+
+  /* ── Buttons (the app's own) ── */
+  .btn{font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--r-ctl);min-height:38px;
+    padding:9px 16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;
+    transition:background-color var(--dur-base) var(--ease),border-color var(--dur-base) var(--ease),
+      transform var(--dur-fast) var(--ease),box-shadow var(--dur-base) var(--ease),filter var(--dur-base) var(--ease)}
+  .btn:hover{background:var(--surface-2);border-color:var(--hair);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .btn:active{transform:translateY(1px);box-shadow:none}
+  .btn.go{background:var(--jade);border-color:var(--jade);color:var(--btn-fg);box-shadow:var(--btn-model)}
+  .btn.go:hover{filter:brightness(1.08);background:var(--jade);border-color:var(--jade);transform:translateY(-1px)}
+  .btn.go:active{box-shadow:inset 0 1px 3px rgba(0,0,0,.30);transform:translateY(1px);filter:none}
+  .btn.lg{min-height:48px;padding:13px 24px;font-size:14px;border-radius:var(--r-md)}
+  .btn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+  .nav .btn.go:focus-visible,.slabband .btn:focus-visible{outline-color:var(--brass)}
+
+  /* ── Sections ── */
+  section{padding:clamp(64px,9vw,104px) 0}
+  .kick{color:var(--brass);margin:0 0 14px}
+  h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.025em;line-height:1.06;margin:0}
+  h2{font-size:clamp(28px,4.4vw,42px)}
+  .sub{font-size:16px;color:var(--ink-2);max-width:56ch;margin:16px 0 0}
+  .sub b{color:var(--ink)}
+  .dim{font-size:12px;color:var(--ink-3)}
+
+  /* ── Hero (Night) ── */
+  .hero{padding:clamp(56px,8vw,96px) 0 clamp(56px,7vw,84px);min-height:calc(88svh - 62px);display:flex;align-items:center}
+  .hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(28px,5vw,64px);align-items:center;width:100%}
+  @media(max-width:960px){.hero-grid{grid-template-columns:1fr}}
+  .hero h1{font-size:clamp(36px,5.6vw,62px)}
+  .hero h1 .t{color:var(--jade-bright);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hero .sub{margin-top:18px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--brass-line);color:var(--brass);
+    border-radius:999px;padding:6px 14px;margin-bottom:18px}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright)}
+  .ava-line{display:flex;align-items:center;gap:11px;margin-top:22px}
+  .ava-line svg{width:26px;height:26px;flex-shrink:0;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .ava-line p{margin:0;font-family:Fraunces,Georgia,serif;font-style:italic;font-size:17px;color:var(--ink-2)}
+  .ava-line p b{color:var(--ink);font-style:normal;font-weight:600}
+  .ctas{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+
+  /* The night ledger — Ava's shift, ticking live */
+  .tlcard{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-md);
+    padding:22px 24px 18px;position:relative}
+  .tlcard::before{content:"";position:absolute;top:10px;left:22px;right:22px;height:2px;background:var(--brass-line);border-radius:1px}
+  .tl-h{display:flex;align-items:center;gap:8px;color:var(--ink-3);margin:6px 0 6px}
+  .tl-h .live{margin-left:auto;color:var(--jade-soft-fg);display:inline-flex;align-items:center;gap:6px;letter-spacing:.1em}
+  .tl-h .live i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+  .tl{list-style:none;margin:0;padding:0}
+  .tstep{display:flex;gap:14px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line-soft);
+    transition:opacity .45s var(--ease)}
+  .tstep:first-child{border-top:0}
+  .tt{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:19px;letter-spacing:-.02em;color:var(--brass);
+    font-variant-numeric:tabular-nums;min-width:86px;line-height:1.35}
+  .tstep:last-child .tt{color:var(--jade-bright)}
+  .tstep b{display:block;font-size:14px;font-weight:600;color:var(--ink)}
+  .tstep small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px;line-height:1.45}
+  .tseal{width:32px;height:32px;margin-left:auto;flex-shrink:0;align-self:center}
+  .tseal svg{width:32px;height:32px;display:block;transform:rotate(-5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .tl-f{border-top:1px solid var(--line-soft);padding-top:13px;margin-top:2px;font-size:13px;color:var(--ink-2);
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .tl-f b{color:var(--ink)}
+  .tl-f .dim{margin-left:auto}
+  .anim .tstep{opacity:.3}
+  .anim .tstep.on{opacity:1}
+  .anim .tseal svg{opacity:0}
+  .anim .tstep.on .tseal svg{animation:sealpress .46s var(--press) .1s both}
+  @keyframes sealpress{
+    0%{opacity:0;transform:scale(1.9) rotate(-14deg)}
+    55%{opacity:1;transform:scale(.88) rotate(-3deg)}
+    100%{opacity:1;transform:scale(1) rotate(-5deg)}}
+
+  /* ── Dawn strip — the theme crossfades across this scroll. The copy sits
+     at the TOP so the ink-flip moment happens over empty, lightening sky. ── */
+  .dawn{min-height:150svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px)}
+  .dawn-in{max-width:640px;margin-inline:auto}
+  .dawn h2{font-size:clamp(30px,4.6vw,46px)}
+  .dawn .sub{margin-inline:auto}
+
+  /* ── The morning read — app window demo ── */
+  .demo-head{max-width:720px}
+  .window{margin-top:34px;background:var(--ground);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow-md);overflow:hidden}
+  .win-bar{display:flex;align-items:center;gap:9px;padding:10px 16px;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .win-bar .brand-mark{width:20px;height:20px;border-radius:6px}
+  .win-t{font-size:12px;font-weight:600;color:var(--ink-2)}
+  .win-bar .dim{margin-left:auto;font-variant-numeric:tabular-nums}
+  .win-in{padding:clamp(16px,3vw,26px)}
+  .greet{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .greet h3{font-family:Fraunces,Georgia,serif;font-size:clamp(20px,2.6vw,26px);font-weight:600;letter-spacing:-.02em;margin:0}
+  .nightbar{background:var(--slab);border-radius:var(--r-md);display:flex;align-items:center;gap:13px;
+    padding:11px 15px;box-shadow:var(--shadow-md);margin-bottom:12px}
+  .nightbar>svg{width:30px;height:30px;flex-shrink:0}
+  .night-t{font-size:13px;color:var(--slab-ink-2);min-width:0}
+  .night-t b{color:var(--slab-ink)} .night-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  .ticker{display:flex;align-items:center;gap:3px;margin-left:auto;flex-shrink:0}
+  @media(max-width:760px){.ticker{display:none}}
+  .ticker i{--o:.55;width:3px;height:12px;border-radius:2px;background:var(--slab-ink-2);opacity:var(--o)}
+  .ticker i:nth-child(3n){height:16px}.ticker i:nth-child(4n){height:9px}.ticker i:nth-child(5n){height:14px}
+  .ticker i.keep{--o:1;background:var(--jade-bright)}
+  .rowlist{display:flex;flex-direction:column;gap:8px}
+  .wrow{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:var(--r-md);padding:12px 16px;box-shadow:var(--shadow-sm);cursor:pointer;
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
+  .wrow:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .rid{position:relative;width:40px;height:40px;flex-shrink:0}
+  .rav{width:40px;height:40px;border-radius:var(--r-ctl);background:var(--surface-2);display:flex;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink-2)}
+  .rseal{position:absolute;right:-8px;bottom:-8px;width:22px;height:22px;--tilt:0deg}
+  .rseal svg{width:22px;height:22px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow));
+    transform:rotate(var(--tilt));transition:transform var(--dur-base) var(--ease)}
+  .wrow:hover .rseal svg{transform:rotate(var(--tilt)) scale(1.18)}
+  .wrow:nth-child(1) .rseal{--tilt:-6deg;--pd:.8s}
+  .wrow:nth-child(2) .rseal{--tilt:4deg;--pd:1.3s}
+  .wrow:nth-child(3) .rseal{--tilt:-3deg;--pd:1.8s}
+  .rwho{min-width:146px;flex-shrink:0}
+  .rname{font-size:14px;font-weight:600;line-height:1.3}
+  .rmeta{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .chip{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-xs);
+    white-space:nowrap;display:inline-block;line-height:1;vertical-align:middle;position:relative;top:-1px;
+    text-transform:uppercase;background:var(--amber-bg);color:var(--amber-fg)}
+  .rwhy{flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);line-height:1.5;
+    border-left:2px solid var(--hair);padding-left:13px}
+  .rwhy b{color:var(--ink)}
+  .rscore{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:600;color:var(--jade);
+    line-height:.85;flex-shrink:0;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+  .rscore .lbl{display:block;color:var(--ink-3);margin-top:5px;letter-spacing:.08em}
+  .racts{display:flex;gap:7px;flex-shrink:0}
+  .racts .btn{min-height:34px;padding:7px 13px;font-size:12px}
+  .rest{margin-top:12px;display:flex;align-items:center;gap:10px;padding:12px 16px;
+    border:1px dashed var(--line);border-radius:var(--r-md);color:var(--ink-3);font-size:12.5px}
+  .rest b{color:var(--ink-2)}
+  @media(max-width:640px){
+    .wrow{flex-wrap:wrap;row-gap:10px}
+    .rwho{min-width:0;flex:1 1 auto}
+    .rwhy{order:3;flex:1 1 100%;border-left:0;padding-left:0}
+    .racts{order:4;flex:1 1 100%;justify-content:flex-end}
+  }
+  /* demo choreography: rows rise, seals press one by one, scores count (JS) */
+  .anim #demo:not(.play) .greet,.anim #demo:not(.play) .nightbar,
+  .anim #demo:not(.play) .wrow,.anim #demo:not(.play) .rest{opacity:0}
+  .anim #demo:not(.play) .rseal svg{opacity:0}
+  .anim #demo.play .greet{animation:rise .5s var(--ease) 0s backwards}
+  .anim #demo.play .nightbar{animation:rise .5s var(--ease) .12s backwards}
+  .anim #demo.play .wrow:nth-child(1){animation:rise .5s var(--ease) .28s backwards}
+  .anim #demo.play .wrow:nth-child(2){animation:rise .5s var(--ease) .44s backwards}
+  .anim #demo.play .wrow:nth-child(3){animation:rise .5s var(--ease) .6s backwards}
+  .anim #demo.play .rest{animation:rise .5s var(--ease) 2.3s backwards}
+  .anim #demo.play .rseal svg{animation:rowseal .46s var(--press) var(--pd) backwards}
+  @keyframes rowseal{
+    0%{opacity:0;transform:scale(1.9) rotate(-14deg)}
+    55%{opacity:1;transform:scale(.88) rotate(2deg)}
+    100%{opacity:1;transform:scale(1) rotate(var(--tilt))}}
+  .anim #demo .ticker i{opacity:0}
+  .anim #demo.play .ticker i{animation:tickin .3s var(--ease) both,tickidle 3.2s ease-in-out infinite;
+    animation-delay:calc(var(--i)*45ms + .4s),calc(var(--i)*140ms + 1.8s)}
+  @keyframes tickin{from{opacity:0;transform:scaleY(.3)}to{opacity:var(--o);transform:scaleY(1)}}
+  @keyframes tickidle{0%,100%{opacity:var(--o)}50%{opacity:1}}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+  /* ── How it works ── */
+  .steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:36px 0 0;padding:0;counter-reset:step}
+  @media(max-width:900px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);
+    padding:24px 22px;position:relative;
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
+  .step:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .step-n{font-family:Fraunces,Georgia,serif;font-size:34px;font-weight:600;color:var(--brass);line-height:1;letter-spacing:-.02em}
+  .step h3{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.015em;margin:12px 0 8px}
+  .step p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+  .step p b{color:var(--ink)}
+  .step .stseal{position:absolute;top:20px;right:20px;width:26px;height:26px}
+  .step .stseal svg{width:26px;height:26px;transform:rotate(5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow));
+    transition:transform var(--dur-base) var(--ease)}
+  .step:hover .stseal svg{transform:rotate(5deg) scale(1.18)}
+
+  /* ── Answered / no-ghosting: a slab band ── */
+  .slabband{background:var(--slab);border-block:1px solid var(--line);color:var(--slab-ink)}
+  .slabband .kick{color:var(--seal-ring)}
+  .slabband .sub{color:var(--slab-ink-2)}
+  .slabband .sub b{color:var(--slab-ink)}
+  .bigstats{display:flex;gap:clamp(20px,6vw,84px);margin-top:38px;flex-wrap:wrap}
+  .bigstat .v{font-family:Fraunces,Georgia,serif;font-size:clamp(44px,7vw,72px);font-weight:600;line-height:.9;
+    letter-spacing:-.03em;color:var(--jade-bright);font-variant-numeric:tabular-nums}
+  .bigstat .l{color:var(--slab-ink-2);margin-top:10px}
+  .bigstat:last-child .v{color:var(--seal-ring)}
+  .slabband .dim{color:var(--slab-ink-2);opacity:.75;display:block;margin-top:26px}
+
+  /* ── Your call ── */
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:36px}
+  @media(max-width:860px){.twocol{grid-template-columns:1fr}}
+  .col{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);padding:22px 24px}
+  .col.yours{border-color:var(--brass-line);box-shadow:var(--shadow-md)}
+  .col-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .col-h .lbl{color:var(--ink-3)}
+  .col.yours .col-h .lbl{color:var(--brass)}
+  .col-h svg{width:22px;height:22px;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .col ul{list-style:none;margin:0;padding:0}
+  .col li{display:flex;gap:10px;padding:9px 0;font-size:14px;color:var(--ink-2);line-height:1.5;border-top:1px solid var(--line-soft)}
+  .col li:first-child{border-top:0}
+  .col li b{color:var(--ink)}
+  .col li svg{margin-top:4px;flex-shrink:0}
+  .never{margin:26px auto 0;max-width:660px;text-align:center;font-family:Fraunces,Georgia,serif;
+    font-size:clamp(19px,2.6vw,24px);font-style:italic;color:var(--ink);line-height:1.4;letter-spacing:-.01em}
+  .never b{color:var(--jade);font-style:normal}
+
+  /* ── FAQ ── */
+  .faq{max-width:760px;margin:36px auto 0}
+  .faq details{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-sm);margin-bottom:8px;overflow:hidden;
+    transition:border-color var(--dur-base) var(--ease)}
+  .faq details:hover{border-color:var(--hair)}
+  .faq summary{list-style:none;cursor:pointer;padding:16px 18px;font-size:15px;font-weight:600;
+    display:flex;align-items:center;gap:12px;color:var(--ink)}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";margin-left:auto;font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:400;
+    color:var(--brass);line-height:1;transition:transform var(--dur-base) var(--ease);flex-shrink:0}
+  .faq details[open] summary::after{transform:rotate(45deg)}
+  .faq details p{margin:0;padding:0 18px 18px;font-size:14px;color:var(--ink-2);line-height:1.65;max-width:62ch}
+  .faq details p b{color:var(--ink)}
+
+  /* ── Closing CTA + footer ── */
+  .cta{text-align:center}
+  .cta h2{font-size:clamp(38px,6vw,58px)}
+  .cta .sub{margin-inline:auto}
+  .cta .ctas{justify-content:center;margin-top:30px}
+  .cta .ava-line{justify-content:center;margin-top:30px}
+  footer{background:var(--slab);border-top:1px solid var(--line);color:var(--slab-ink-2);margin-top:clamp(40px,6vw,72px)}
+  .foot{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-block:26px;font-size:13px}
+  .foot .brand{color:var(--slab-ink)}
+  .foot .brand-mark{box-shadow:inset 0 0 0 1px rgba(244,239,227,.14)}
+  .foot-links{margin-left:auto;display:flex;gap:18px}
+  .foot a{color:var(--slab-ink-2);text-decoration:none;transition:color var(--dur-base) var(--ease)}
+  .foot a:hover{color:var(--jade-bright)}
+  @media(max-width:640px){.foot{flex-direction:column;align-items:flex-start}.foot-links{margin-left:0}}
+
+  /* ── Entrances: on-load (hero) and on-scroll (everything else) ── */
+  .anim .hi{animation:rise .6s var(--ease) var(--d,0s) backwards}
+  .anim .ink{animation:inkin .64s var(--ease) var(--d,0s) backwards}
+  @keyframes inkin{0%{opacity:0;filter:blur(7px);letter-spacing:.01em}100%{opacity:1;filter:blur(0);letter-spacing:-.025em}}
+  .anim .io{opacity:0;transform:translateY(14px);
+    transition:opacity .6s ease var(--d,0s),transform .6s var(--ease) var(--d,0s)}
+  .anim .io.in{opacity:1;transform:none}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+    html{scroll-behavior:auto}
+    .amb i,.amb-day::after{animation:none!important}
+    .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
+    .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
+    .step:hover .stseal svg{transform:rotate(5deg)}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="wax-sm">
+      <circle cx="50" cy="50" r="46" fill="var(--seal-disc)"/>
+      <circle cx="50" cy="50" r="31" fill="none" stroke="var(--seal-ring)" stroke-width="6"/>
+      <text x="50" y="52" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="52" font-weight="700" fill="var(--seal-ring)">A</text>
+    </g>
+    <g id="rising">
+      <path d="M4 18 L9 7 L14 15 L20 6" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="amb amb-night" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="amb amb-day" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="HireFlow — back to top">
+      <span class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </a>
+    <nav class="nav-links" aria-label="Page sections">
+      <a href="#how">How it works</a>
+      <a href="#answered">No ghosting</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn go" href="#cta" style="margin-left:8px">Try free</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ── NIGHT · the hero ── -->
+  <section class="hero" aria-label="While you slept">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
+        <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
+        <p class="sub hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
+          not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
+          <b>You were asleep the whole time.</b></p>
+        <div class="ava-line hi" style="--d:.42s">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+          <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
+        </div>
+        <div class="ctas hi" style="--d:.52s">
+          <a class="btn go lg" href="#cta">Try free — first hire at no cost</a>
+          <a class="btn lg" href="#morning">Watch how it works</a>
+        </div>
+      </div>
+      <div class="tlcard hi" style="--d:.35s" aria-label="Overnight timeline">
+        <div class="tl-h"><span class="lbl">Tonight, at your shop</span><span class="live lbl"><i></i>Ava is on</span></div>
+        <ol class="tl" id="tl">
+          <li class="tstep"><span class="tt">11:47 pm</span>
+            <div><b>She applies</b><small>From her phone, after her shift ends.</small></div></li>
+          <li class="tstep"><span class="tt">11:51 pm</span>
+            <div><b>Ava interviews her</b><small>Eight minutes, by voice. Skills, availability, the questions you&#8217;d ask.</small></div></li>
+          <li class="tstep"><span class="tt">11:59 pm</span>
+            <div><b>Sealed for the morning</b><small>Scored, evidence attached, waiting on your desk.</small></div>
+            <span class="tseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></span></li>
+        </ol>
+        <div class="tl-f"><span><b>Nobody got ghosted tonight.</b> Everyone hears back.</span><span class="dim">Illustrative demo</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DAWN · scrolling through this strip turns night into morning ── -->
+  <section class="dawn" id="dawn" aria-label="Morning arrives">
+    <div class="wrap dawn-in">
+      <p class="kick lbl io">7:02 am</p>
+      <h2 class="io" style="--d:.08s">Then the sun comes up.</h2>
+      <p class="sub io" style="--d:.16s">Ava doesn&#8217;t page you at midnight. She lets you sleep — and leaves the
+        shortlist on your desk, sealed, for the morning. Keep scrolling: this is what daylight looks like.</p>
+    </div>
+  </section>
+
+  <!-- ── DAY · the morning read (live demo) ── -->
+  <section id="morning" aria-label="The morning read">
+    <div class="wrap">
+      <div class="demo-head">
+        <p class="kick lbl io">The morning read</p>
+        <h2 class="io" style="--d:.08s">Open the shop. It&#8217;s already done.</h2>
+        <p class="sub io" style="--d:.16s">Sample role — a <b>Part-Time Mechanic</b> at a neighborhood garage.
+          Demo data, and the same screen you&#8217;ll see in the app.</p>
+      </div>
+      <div class="window io" style="--d:.2s" id="demo">
+        <div class="win-bar">
+          <span class="brand-mark"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+          <span class="win-t">HireFlow — Dashboard</span>
+          <span class="dim">Tue · 7:02 am</span>
+        </div>
+        <div class="win-in">
+          <div class="greet"><h3>Good morning, Ray.</h3><span class="dim">Part-Time Mechanic · day 6</span></div>
+          <div class="nightbar">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+            <div class="night-t"><b>Ava worked overnight.</b> Read <span class="n">41</span> · interviewed all 41 ·
+              sealed <span class="n">3</span> — none of your time, nobody left waiting.</div>
+            <div class="ticker" id="ticker" aria-hidden="true"></div>
+          </div>
+          <div class="rowlist">
+            <div class="wrow">
+              <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur · mornings</div></div>
+              <div class="rwhy">Named the right torque sequence unprompted. <b>Can start Monday.</b></div>
+              <div class="rscore"><span data-count="92">92</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+            <div class="wrow">
+              <div class="rid"><div class="rav">MR</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Marisol Reyes</div><div class="rmeta">East Atlanta · flexible</div></div>
+              <div class="rwhy">Strong diagnostics. Smart questions about <b>your scanner</b>.</div>
+              <div class="rscore"><span data-count="88">88</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+            <div class="wrow">
+              <div class="rid"><div class="rav">TB</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Tyrone Baptiste</div><div class="rmeta">Kirkwood · weekends <span class="chip">Needs training</span></div></div>
+              <div class="rwhy"><b>Least experience, sharpest answers on customers.</b> A bet worth meeting.</div>
+              <div class="rscore"><span data-count="81">81</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+          </div>
+          <div class="rest">
+            <span><b>38 didn&#8217;t make the cut</b> — every one already got a polite reply in your name.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it works ── -->
+  <section id="how" aria-label="How it works">
+    <div class="wrap">
+      <p class="kick lbl io">How it works</p>
+      <h2 class="io" style="--d:.08s">Brief her. She screens. You decide.</h2>
+      <ol class="steps">
+        <li class="step io" style="--d:.05s">
+          <div class="step-n" aria-hidden="true">1</div>
+          <h3>Tell Ava about the job</h3>
+          <p>Five minutes, talking or typing. She turns it into a proper job post, lists it where local
+            job-seekers actually look, and gives you a link and a QR code for the counter.</p>
+        </li>
+        <li class="step io" style="--d:.18s">
+          <div class="step-n" aria-hidden="true">2</div>
+          <h3>She interviews everyone</h3>
+          <p>Every applicant gets a real screening interview <b>minutes after applying</b> — 11 pm on a Sunday
+            included. Not a quiz, not a form: a conversation about the actual work.</p>
+        </li>
+        <li class="step io" style="--d:.31s">
+          <span class="stseal" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+          <div class="step-n" aria-hidden="true">3</div>
+          <h3>You make the call</h3>
+          <p>You get a short, sealed shortlist — each score backed by evidence you can check: quotes, transcripts,
+            timings. Meet the ones you like. <b>Every yes and every no is your click.</b></p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ── Every applicant answered ── -->
+  <section class="slabband" id="answered" aria-label="Every applicant answered">
+    <div class="wrap">
+      <p class="kick lbl io">Nobody left waiting</p>
+      <h2 class="io" style="--d:.08s">41 people applied. All 41 got interviewed.<br>You talked to three.</h2>
+      <p class="sub io" style="--d:.16s">Applying for work usually ends in silence — most people never hear back at
+        all. Not at your place. Everyone who applies gets a real interview and a courteous answer either way,
+        signed from your shop. <b>Nobody who applies to you gets ghosted again.</b></p>
+      <div class="bigstats io" style="--d:.2s" id="bigstats">
+        <div class="bigstat"><div class="v" data-count="41">41</div><div class="l lbl">Applied</div></div>
+        <div class="bigstat"><div class="v" data-count="41">41</div><div class="l lbl">Interviewed</div></div>
+        <div class="bigstat"><div class="v" data-count="3">3</div><div class="l lbl">You met</div></div>
+      </div>
+      <span class="dim io" style="--d:.26s">Numbers from the demo role above — your roles will have their own.</span>
+    </div>
+  </section>
+
+  <!-- ── You make every call ── -->
+  <section id="trust" aria-label="You make every call">
+    <div class="wrap">
+      <p class="kick lbl io">You make every call</p>
+      <h2 class="io" style="--d:.08s">Ava recommends. She never rejects.</h2>
+      <p class="sub io" style="--d:.16s">Ava has no reject button. Hiring at your shop stays yours — she just
+        carries the weight of it.</p>
+      <div class="twocol">
+        <div class="col io" style="--d:.05s">
+          <div class="col-h">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+            <span class="lbl">Ava&#8217;s side of the counter</span>
+          </div>
+          <ul>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Reads every application — the 11&#8202;pm ones included</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Interviews everyone within minutes, at any hour</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Writes every score down <b>with the evidence behind it</b></span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Sends the courteous &ldquo;not this time&rdquo; notes — after you decide, in your name</span></li>
+          </ul>
+        </div>
+        <div class="col yours io" style="--d:.18s">
+          <div class="col-h">
+            <span class="brand-mark" style="width:22px;height:22px;border-radius:6px"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+            <span class="lbl">Yours, always</span>
+          </div>
+          <ul>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Read three short briefs over coffee</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Pick who to meet — and meet them your way</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Say <b>every yes and every no</b> — each one is your click</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Make the hire, shake the hand</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="never io" style="--d:.1s">Ava never rejects anyone. <b>Not quietly, not automatically, not ever.</b></p>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section id="faq" aria-label="Questions, answered straight">
+    <div class="wrap">
+      <div style="text-align:center">
+        <p class="kick lbl io">Fair questions</p>
+        <h2 class="io" style="--d:.08s">Asked straight, answered straight.</h2>
+      </div>
+      <div class="faq io" style="--d:.14s">
+        <details>
+          <summary>What does it cost?</summary>
+          <p>Simple pricing, announced at launch. What we&#8217;ll promise now: <b>your first hire is free</b> —
+            post the job, read the shortlist, hire someone, pay nothing. Judge HireFlow by the person
+            you hired, not by a sales page.</p>
+        </details>
+        <details>
+          <summary>Are my applicants talking to a bot?</summary>
+          <p>They&#8217;re talking to Ava, and she says so — she introduces herself as your hiring assistant and
+            never pretends to be human. It&#8217;s a real conversation about the actual job, by voice or text,
+            at whatever hour they apply. Most applicants prefer a fair listen at 11&#8202;pm to a form and
+            three weeks of silence.</p>
+        </details>
+        <details>
+          <summary>I already post on job boards. What changes?</summary>
+          <p>Keep whatever works. HireFlow lists your job where local job-seekers already look, and gives you a
+            link and QR code for the door, the counter, or your socials. Wherever people come from, every one
+            of them gets the same interview and lands in the same shortlist.</p>
+        </details>
+        <details>
+          <summary>How fast is it, really?</summary>
+          <p>Applicants are interviewed <b>minutes after applying</b>, day or night. Your shortlist builds as they
+            come in — most owners are reading sealed briefs with their coffee the next morning, not sorting
+            resumes on Sunday night.</p>
+        </details>
+        <details>
+          <summary>Can Ava turn someone down without me?</summary>
+          <p><b>No. Never.</b> Ava scores, seals, and recommends — passing on someone is always your click. And when
+            you do pass, she sends a courteous reply in your name, so the answer is a kindness instead of silence.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Closing CTA (full daylight) ── -->
+  <section class="cta" id="cta" aria-label="Get started">
+    <div class="wrap">
+      <p class="kick lbl io">HireFlow</p>
+      <h2 class="io" style="--d:.08s">Hiring, handled.</h2>
+      <p class="sub io" style="--d:.16s">Post the job tonight. Read the shortlist with tomorrow&#8217;s coffee.</p>
+      <div class="ctas io" style="--d:.22s">
+        <a class="btn go lg" href="https://hireflownow.com" >Try free — first hire at no cost</a>
+        <a class="btn lg" href="#morning">Watch how it works</a>
+      </div>
+      <div class="ava-line io" style="--d:.3s">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+        <p>&ldquo;I&#8217;ll take the night shift.&rdquo;&nbsp;<b>— Ava</b></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="#top">
+      <span class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+      <span class="brand-name" style="font-size:17px">HireFlow</span>
+    </a>
+    <span>© 2026 HireFlow · hireflownow.com</span>
+    <nav class="foot-links" aria-label="Legal">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var d=document,root=d.documentElement;
+  var RM=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var ANIM=!RM&&"IntersectionObserver" in window;
+  if(ANIM)root.classList.add("anim");
+
+  /* ── Night → Day: scroll-driven interpolation of the root tokens.
+     The crossfade runs while the #dawn strip crosses the viewport.
+     Surfaces drift with the smooth curve; foreground tokens (third field = 1)
+     invert, so they flip on a steep curve centred where ink and paper would
+     otherwise meet — the text re-inks in a blink instead of fading away. ── */
+  var TOK={
+    "--ground":["#17140F","#F0EBDF"],"--ground-2":["#1C1813","#E9E2D2"],"--sidebar":["#120F0B","#E7E0CE"],
+    "--surface":["#221D17","#FCFAF4"],"--surface-2":["#2C2620","#E4DCC7"],
+    "--line":["rgba(244,239,227,.15)","#D6CDB6"],"--line-soft":["rgba(244,239,227,.085)","#E2DAC6"],
+    "--hair":["rgba(201,164,94,.42)","#C6B893"],"--track":["rgba(244,239,227,.10)","#E9E2D2"],
+    "--ink":["#F4EFE3","#14201B",1],"--ink-2":["#C3BBA9","#3F4B45",1],"--ink-3":["#948B7C","#5C655E",1],
+    "--slab":["#0B2A21","#0C2A21"],"--slab-ink":["#F2EFE5","#F2EFE5"],"--slab-ink-2":["#A9C6B8","#A9C6B8"],
+    "--jade":["#4FBF95","#0F6B4F",1],"--jade-bright":["#67E3AF","#3FCE97"],
+    "--jade-soft":["rgba(79,191,149,.15)","#DCEDE3"],"--jade-soft-fg":["#6ADCAA","#0A5340",1],
+    "--brass":["#E0B96A","#8A6420",1],"--brass-line":["rgba(224,185,106,.55)","#C9A45E"],
+    "--amber-bg":["rgba(224,170,80,.16)","#F6E7C6"],"--amber-fg":["#E4B76E","#7A5410",1],
+    "--btn-fg":["#17140F","#F7F4EB",1],
+    "--seal-disc":["#17805F","#0F6B4F"],"--seal-ring":["#D9B876","#C9A45E"],
+    "--seal-shadow":["rgba(0,0,0,.55)","rgba(20,32,27,.32)"],
+    "--sh1":["rgba(0,0,0,.45)","rgba(20,32,27,.05)"],"--sh2":["rgba(0,0,0,0)","rgba(20,32,27,.11)"],
+    "--shtop":["rgba(244,239,227,.055)","rgba(244,239,227,0)"],
+    "--sm1":["rgba(0,0,0,.5)","rgba(20,32,27,.06)"],"--sm2":["rgba(0,0,0,.9)","rgba(20,32,27,.34)"],
+    "--smtop":["rgba(244,239,227,.075)","rgba(244,239,227,0)"],
+    "--bm1":["rgba(255,255,255,.12)","rgba(255,255,255,.16)"],"--bm2":["rgba(0,0,0,.5)","rgba(12,42,33,.28)"]
+  };
+  function parseC(s){
+    if(s.charAt(0)==="#"){var n=parseInt(s.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255,1];}
+    var m=s.match(/rgba?\(([^)]+)\)/),p=m[1].split(",").map(parseFloat);
+    return[p[0],p[1],p[2],p.length>3?p[3]:1];
+  }
+  var PAIRS=Object.keys(TOK).map(function(k){return[k,parseC(TOK[k][0]),parseC(TOK[k][1]),TOK[k][2]===1];});
+  var dawn=d.getElementById("dawn"),vh=innerHeight,dTop=0,dH=1,lastT=-1,ticking=false;
+  function measure(){
+    vh=innerHeight;
+    var r=dawn.getBoundingClientRect();
+    dTop=r.top+(window.scrollY||window.pageYOffset);dH=r.height;
+  }
+  function applyT(t){
+    var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
+    var u=(e-0.42)/0.16;u=u<0?0:u>1?1:u;
+    var es=u*u*(3-2*u); /* the ink flip — steep, centred on the crossing */
+    for(var i=0;i<PAIRS.length;i++){
+      var p=PAIRS[i],a=p[1],b=p[2],f=p[3]?es:e;
+      root.style.setProperty(p[0],"rgba("+Math.round(a[0]+(b[0]-a[0])*f)+","+Math.round(a[1]+(b[1]-a[1])*f)+","+
+        Math.round(a[2]+(b[2]-a[2])*f)+","+(a[3]+(b[3]-a[3])*f).toFixed(3)+")");
+    }
+    root.style.setProperty("--dawn",e.toFixed(3));
+  }
+  function frame(){
+    ticking=false;
+    var y=window.scrollY||window.pageYOffset;
+    var start=dTop-vh*0.5,end=dTop+dH-vh*0.55;
+    var t=(y-start)/(end-start);t=t<0?0:t>1?1:t;
+    if(Math.abs(t-lastT)>0.0015||lastT<0){lastT=t;applyT(t);}
+  }
+  function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(frame);}}
+  addEventListener("scroll",onScroll,{passive:true});
+  addEventListener("resize",function(){measure();lastT=-1;onScroll();},{passive:true});
+  measure();frame();
+  /* late layout shifts (fonts) move the dawn strip — re-measure once settled */
+  addEventListener("load",function(){measure();lastT=-1;onScroll();});
+
+  /* ── Ava's overnight ticker: 41 reads, 3 keeps ── */
+  var ticker=d.getElementById("ticker");
+  if(ticker){
+    var KEEP=[7,19,33];
+    for(var i=0;i<41;i++){
+      var t=d.createElement("i");
+      if(KEEP.indexOf(i)>=0)t.className="keep";
+      t.style.setProperty("--i",i);
+      ticker.appendChild(t);
+    }
+  }
+
+  /* ── Count-up (rAF, ease-out cubic) ── */
+  function countUp(el,dur){
+    var to=parseInt(el.getAttribute("data-count"),10)||0;
+    var t0=performance.now();
+    function f(now){
+      var p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3);
+      el.textContent=Math.round(to*e);
+      if(p<1)requestAnimationFrame(f);
+    }
+    requestAnimationFrame(f);
+  }
+
+  /* ── Scroll reveals ── */
+  if(ANIM){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});
+    },{threshold:.18,rootMargin:"0px 0px -36px 0px"});
+    d.querySelectorAll(".io").forEach(function(el){io.observe(el);});
+  }
+
+  /* ── Hero ledger: the night ticks by, seals press, then it replays ── */
+  var steps=[].slice.call(d.querySelectorAll("#tl .tstep")),tlTimers=[];
+  if(steps.length){
+    if(!ANIM){steps.forEach(function(s){s.classList.add("on");});}
+    else{
+      var runTl=function(){
+        tlTimers.forEach(clearTimeout);tlTimers=[];
+        steps.forEach(function(s){s.classList.remove("on");});
+        steps.forEach(function(s,i){tlTimers.push(setTimeout(function(){s.classList.add("on");},700+i*1300));});
+        tlTimers.push(setTimeout(runTl,700+steps.length*1300+2900));
+      };
+      runTl();
+    }
+  }
+
+  /* ── The demo: rows land, seals press one by one, scores count.
+     Replays each time it scrolls back into view. ── */
+  var demo=d.getElementById("demo");
+  var demoScores=demo?[].slice.call(demo.querySelectorAll("[data-count]")):[];
+  var demoTimers=[];
+  if(demo&&ANIM){
+    demoScores.forEach(function(el){el.textContent="0";});
+    var playing=false;
+    var ob=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.intersectionRatio>=.35&&!playing){
+          playing=true;demo.classList.add("play");
+          demoScores.forEach(function(el,i){
+            el.textContent="0";
+            demoTimers.push(setTimeout(function(){countUp(el,800);},950+i*500));
+          });
+        }else if(e.intersectionRatio===0&&playing){
+          playing=false;demo.classList.remove("play");
+          demoTimers.forEach(clearTimeout);demoTimers=[];
+          demoScores.forEach(function(el){el.textContent="0";});
+        }
+      });
+    },{threshold:[0,.35]});
+    ob.observe(demo);
+  }
+
+  /* ── Big stats count once ── */
+  var stats=d.getElementById("bigstats");
+  if(stats&&ANIM){
+    var nums=[].slice.call(stats.querySelectorAll("[data-count]"));
+    nums.forEach(function(el){el.textContent="0";});
+    var sb=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          nums.forEach(function(el,i){setTimeout(function(){countUp(el,900);},i*160);});
+          sb.unobserve(stats);
+        }
+      });
+    },{threshold:.4});
+    sb.observe(stats);
+  }
+})();
+</script>
+</body>
+</html>

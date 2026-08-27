@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — Hiring, handled.</title>
+<meta name="description" content="Meet Ava. She interviews every applicant minutes after they apply, answers every one of them, and leaves a short sealed shortlist on your desk. Every decision is your click.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
+<script>document.documentElement.classList.add('js');</script>
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --sidebar:#E7E0CE; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --jade-soft:#DCEDE3; --jade-soft-fg:#0A5340;
+    --brass:#8A6420; --brass-line:#C9A45E;
+    --amber-bg:#F6E7C6; --amber-fg:#7A5410;
+    --btn-fg:#F7F4EB;
+    --seal-disc:#0F6B4F; --seal-ring:#C9A45E; --seal-shadow:rgba(20,32,27,.32);
+    --amb-a:rgba(15,107,79,.10); --amb-b:rgba(201,164,94,.11);
+    --r-xs:5px; --r-ctl:8px; --r-md:10px; --r-lg:12px;
+    --shadow-sm:0 1px 1px rgba(20,32,27,.05),0 1px 3px -1px rgba(20,32,27,.11);
+    --shadow-md:0 1px 2px rgba(20,32,27,.06),0 10px 22px -14px rgba(20,32,27,.34);
+    --btn-model:inset 0 1px 0 rgba(255,255,255,.16),0 1px 2px rgba(12,42,33,.28);
+    --dur-fast:90ms; --dur-base:140ms; --ease:cubic-bezier(.2,.7,.3,1);
+    --eo:cubic-bezier(.22,1,.36,1);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+      --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+      --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+      --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+      --jade:#4FBF95; --jade-bright:#67E3AF; --jade-soft:rgba(79,191,149,.15); --jade-soft-fg:#6ADCAA;
+      --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+      --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+      --btn-fg:#17140F;
+      --seal-disc:#17805F; --seal-ring:#D9B876; --seal-shadow:rgba(0,0,0,.55);
+      --amb-a:rgba(79,191,149,.09); --amb-b:rgba(224,185,106,.08);
+      --shadow-sm:0 1px 2px rgba(0,0,0,.45),inset 0 1px 0 rgba(244,239,227,.055);
+      --shadow-md:0 2px 4px rgba(0,0,0,.5),0 12px 28px -16px rgba(0,0,0,.9),inset 0 1px 0 rgba(244,239,227,.075);
+      --btn-model:inset 0 1px 0 rgba(255,255,255,.12),0 1px 2px rgba(0,0,0,.5);
+    }
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  html{scroll-padding-top:76px}
+  @media (prefers-reduced-motion: no-preference){html{scroll-behavior:smooth}}
+  body{
+    background:var(--ground);color:var(--ink);
+    font-family:Inter,-apple-system,sans-serif;font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  button{font:inherit}
+  ::selection{background:var(--jade-soft)}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
+  .lbl{font-size:10px;font-weight:700;letter-spacing:.1em;line-height:1.2;text-transform:uppercase}
+  section[id]{scroll-margin-top:70px}
+
+  /* ── the desk: drifting lights, morning sun, paper grain ── */
+  .ambient{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .ambient i{position:absolute;border-radius:50%;filter:blur(90px);will-change:transform}
+  .ambient i:nth-child(1){width:620px;height:620px;top:-150px;right:-90px;
+    background:radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%);
+    animation:drift1 22s ease-in-out infinite alternate}
+  .ambient i:nth-child(2){width:560px;height:560px;bottom:-170px;left:18%;
+    background:radial-gradient(circle,var(--amb-b),transparent 66%),radial-gradient(circle,var(--amb-b),transparent 66%),radial-gradient(circle,var(--amb-b),transparent 66%);
+    animation:drift2 28s ease-in-out infinite alternate}
+  .ambient i:nth-child(3){width:380px;height:380px;top:34%;left:-120px;
+    background:radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%);
+    animation:drift3 25s ease-in-out infinite alternate}
+  .ambient::after{content:"";position:absolute;inset:-25%;
+    background:linear-gradient(105deg,transparent 38%,var(--amb-b) 50%,transparent 62%),
+      linear-gradient(105deg,transparent 40%,var(--amb-b) 50%,transparent 60%);
+    animation:sunband 19s ease-in-out infinite alternate;will-change:transform}
+  @keyframes drift1{from{opacity:.7}to{opacity:1;transform:translate3d(-160px,110px,0) scale(1.14)}}
+  @keyframes drift2{from{opacity:1}to{opacity:.65;transform:translate3d(190px,-90px,0) scale(1.08)}}
+  @keyframes drift3{from{opacity:.7}to{opacity:1;transform:translate3d(130px,140px,0) scale(1.06)}}
+  @keyframes sunband{from{transform:translate3d(-14%,0,0);opacity:.8}to{transform:translate3d(14%,0,0);opacity:1}}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .ambient::after{display:none}
+    :root:not([data-theme="light"]) .ambient i:nth-child(1){
+      background:radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%)}
+    :root:not([data-theme="light"]) .ambient i:nth-child(2){
+      background:radial-gradient(circle,var(--amb-b),transparent 66%),radial-gradient(circle,var(--amb-b),transparent 66%),radial-gradient(circle,var(--amb-b),transparent 66%),radial-gradient(circle,var(--amb-b),transparent 66%)}
+    :root:not([data-theme="light"]) .ambient i:nth-child(3){
+      background:radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%),radial-gradient(circle,var(--amb-a),transparent 66%)}
+  }
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  header,main,footer{position:relative;z-index:1}
+
+  /* ── entrance choreography ── */
+  .js [data-rv]{opacity:0;transform:translateY(14px);
+    transition:opacity .7s var(--eo),transform .7s var(--eo);transition-delay:var(--rd,0ms)}
+  .js [data-rv].in{opacity:1;transform:none}
+  .js [data-rv].ink{transform:none;transition:none}
+  .js [data-rv].ink.in{animation:inkin .64s var(--ease) both;animation-delay:var(--rd,0ms)}
+  @keyframes inkin{0%{opacity:0;filter:blur(7px);letter-spacing:.015em}100%{opacity:1;filter:blur(0);letter-spacing:-.025em}}
+  .js .press[data-rv]{transform:none;transition:none;opacity:0}
+  .js .press[data-rv].in{animation:pressin .46s cubic-bezier(.34,1.4,.44,1) both;animation-delay:var(--rd,0ms)}
+  @keyframes pressin{0%{opacity:0;transform:scale(1.9) rotate(-14deg)}55%{opacity:1;transform:scale(.88) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
+
+  /* ── shared: brand, buttons, chips, seals ── */
+  .brand{display:flex;align-items:center;gap:9px;color:inherit;text-decoration:none}
+  .brand-mark{width:26px;height:26px;border-radius:var(--r-ctl);background:var(--slab);display:flex;
+    align-items:center;justify-content:center;box-shadow:var(--shadow-sm);flex-shrink:0}
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
+  .btn{font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--r-ctl);min-height:36px;
+    padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;
+    transition:background-color var(--dur-base) var(--ease),border-color var(--dur-base) var(--ease),
+      transform var(--dur-fast) var(--ease),box-shadow var(--dur-base) var(--ease),filter var(--dur-base) var(--ease)}
+  .btn:hover{background:var(--surface-2);border-color:var(--hair);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .btn:active{transform:translateY(1px);box-shadow:none}
+  .btn.go{background:var(--jade);border-color:var(--jade);color:var(--btn-fg);box-shadow:var(--btn-model)}
+  .btn.dark{background:var(--slab);border-color:var(--slab);color:var(--slab-ink);box-shadow:var(--btn-model)}
+  .btn.go:hover{filter:brightness(1.08);background:var(--jade);border-color:var(--jade);transform:translateY(-1px)}
+  .btn.dark:hover{filter:brightness(1.15);background:var(--slab);border-color:var(--slab);transform:translateY(-1px)}
+  .btn.go:active,.btn.dark:active{box-shadow:inset 0 1px 3px rgba(0,0,0,.30);transform:translateY(1px);filter:none}
+  .btn.big{min-height:46px;padding:12px 22px;font-size:13px;border-radius:var(--r-md)}
+  .chip{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-xs);
+    white-space:nowrap;display:inline-block;line-height:1;vertical-align:middle;position:relative;top:-1px;text-transform:uppercase}
+  .chip.live{background:var(--jade-soft);color:var(--jade-soft-fg)}
+  .chip.amber{background:var(--amber-bg);color:var(--amber-fg)}
+  .seal{display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .tiltwrap svg{transform:rotate(var(--tilt,0deg));transition:transform var(--dur-base) var(--ease)}
+
+  /* ── nav ── */
+  .topbar{position:sticky;top:0;z-index:40;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .topbar-in{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:10px 22px}
+  .nav-links{display:flex;gap:2px;margin-left:auto}
+  .nav-links a{font-size:13px;font-weight:500;color:var(--ink-2);padding:7px 11px;border-radius:var(--r-ctl);text-decoration:none;
+    transition:background-color var(--dur-base) var(--ease),color var(--dur-base) var(--ease)}
+  .nav-links a:hover{background:var(--surface);color:var(--ink)}
+  .topbar .btn{margin-left:6px}
+  @media(max-width:700px){.nav-links{display:none}.topbar .btn{margin-left:auto}}
+
+  /* ── the hero letter ── */
+  .hero{padding:58px 22px 26px}
+  .hero-wrap{max-width:720px;margin:0 auto}
+  .eyebrow{color:var(--brass);text-align:center;margin:0 0 18px}
+  .sheet{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-md);position:relative}
+  .sheet::before{content:"";position:absolute;top:10px;left:26px;right:26px;height:2px;background:var(--brass-line);border-radius:1px}
+  .letter{padding:clamp(26px,5vw,48px) clamp(22px,6vw,58px) clamp(24px,4vw,40px)}
+  .letter-head{display:flex;align-items:center;gap:9px;padding-bottom:16px;border-bottom:1px solid var(--line-soft);margin-bottom:24px}
+  .letter-head .when{margin-left:auto;font-size:12px;color:var(--ink-3)}
+  .salut{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(32px,6vw,46px);
+    letter-spacing:-.025em;line-height:1.08;margin:0 0 18px}
+  .letter-body p{font-family:Fraunces,Georgia,serif;font-size:clamp(17px,2.4vw,19.5px);line-height:1.66;
+    color:var(--ink-2);margin:0 0 16px;letter-spacing:-.005em}
+  .letter-body b{color:var(--ink);font-weight:600}
+  .sig{display:flex;align-items:center;gap:14px;margin-top:24px}
+  .sig-name{font-family:Fraunces,Georgia,serif;font-style:italic;font-weight:600;font-size:30px;letter-spacing:-.01em;line-height:1}
+  .sig-sub{font-size:12px;color:var(--ink-3);line-height:1.4}
+  .sig-seal{width:34px;height:34px;margin-left:auto;flex-shrink:0;--tilt:-6deg}
+  .sig-seal svg{width:34px;height:34px}
+  .sig:hover .sig-seal svg{transform:rotate(var(--tilt)) scale(1.18)}
+  .ps{margin:22px 0 0;padding-top:16px;border-top:1px dashed var(--hair);
+    font-family:Fraunces,Georgia,serif;font-style:italic;font-size:16px;line-height:1.6;color:var(--ink-2)}
+  .hero-cta{display:flex;gap:10px;justify-content:center;align-items:center;margin-top:26px;flex-wrap:wrap}
+
+  /* ── section scaffolding ── */
+  .sec{max-width:1080px;margin:0 auto;padding:64px 22px 6px}
+  .kicker{color:var(--brass);margin:0 0 10px}
+  .h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(26px,3.6vw,38px);
+    letter-spacing:-.025em;line-height:1.12;margin:0 0 10px;max-width:24ch}
+  .sub{font-size:15px;color:var(--ink-2);max-width:60ch;line-height:1.6;margin:0}
+
+  /* ── how it works: three artifacts ── */
+  .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:30px}
+  @media(max-width:880px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-sm);padding:22px;display:flex;flex-direction:column;
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
+  .step:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .step-n{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:13px;color:var(--brass);letter-spacing:.08em;text-transform:uppercase}
+  .step h3{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:20px;letter-spacing:-.02em;margin:8px 0 8px;line-height:1.2}
+  .step p{font-size:13px;color:var(--ink-2);line-height:1.6;margin:0}
+  .step-art{margin-top:auto;padding-top:16px}
+  .art{background:var(--ground-2);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:12px 14px}
+  .art-t{font-size:13px;font-weight:600;line-height:1.35}
+  .art-m{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .art-q{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:15px;line-height:1.45;color:var(--ink);margin:0;letter-spacing:-.01em}
+  .art-row{display:flex;align-items:center;gap:10px}
+  .rid{position:relative;width:36px;height:36px;flex-shrink:0}
+  .rav{width:36px;height:36px;border-radius:var(--r-ctl);background:var(--surface-2);display:flex;
+    align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--ink-2)}
+  .rseal{position:absolute;right:-7px;bottom:-7px;width:20px;height:20px}
+  .rseal svg{width:20px;height:20px}
+  .art-sc{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:22px;color:var(--jade);margin-left:auto;font-variant-numeric:tabular-nums}
+
+  /* ── the sealed-shortlist demo ── */
+  .slabbar{background:var(--slab);border-radius:var(--r-md);display:flex;align-items:center;gap:13px;
+    padding:11px 15px;box-shadow:var(--shadow-md);margin:28px 0 10px}
+  .slabbar .nseal{width:30px;height:30px;flex-shrink:0}
+  .slabbar .nseal svg{width:30px;height:30px}
+  .slab-t{font-size:13px;color:var(--slab-ink-2);min-width:0}
+  .slab-t b{color:var(--slab-ink)}
+  .slab-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  .sort{margin-left:auto;display:flex;align-items:center;gap:3px;flex-shrink:0}
+  @media(max-width:1120px){.sort{display:none}}
+  .sort i{width:4px;height:18px;border-radius:2px;background:rgba(242,239,229,.3)}
+  .running .sort i{animation:tickfade .45s var(--ease) forwards;animation-delay:var(--d)}
+  @keyframes tickfade{to{opacity:.14;height:7px}}
+  .sort i.keep{background:var(--jade-bright)}
+  .running .sort i.keep{animation:tickkeep .45s var(--ease) forwards;animation-delay:var(--d)}
+  @keyframes tickkeep{to{opacity:1;height:16px}}
+
+  .rowlist{display:flex;flex-direction:column;gap:8px}
+  .srow{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:var(--r-md);padding:12px 16px;box-shadow:var(--shadow-sm);
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),
+      transform var(--dur-base) var(--ease),opacity .5s var(--ease)}
+  .srow .rid,.srow .rav{width:40px;height:40px}
+  .srow .rav{font-size:13px}
+  .srow .rseal{right:-8px;bottom:-8px;width:22px;height:22px}
+  .srow .rseal svg{width:22px;height:22px}
+  .srow:nth-child(1) .rseal{--tilt:-6deg}
+  .srow:nth-child(2) .rseal{--tilt:4deg}
+  .srow:nth-child(3) .rseal{--tilt:-3deg}
+  .js .srow:not(.sealed){opacity:.45}
+  .js .srow:not(.sealed) .rseal{opacity:0}
+  .js .srow.sealed .rseal{animation:pressin .46s cubic-bezier(.34,1.4,.44,1) both}
+  .srow.sealed:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .srow.sealed:hover .rseal svg{transform:rotate(var(--tilt)) scale(1.18)}
+  .rwho{min-width:146px;flex-shrink:0}
+  .rname{font-size:14px;font-weight:600;line-height:1.3}
+  .rmeta{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+  .rwhy{flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);line-height:1.5;
+    border-left:2px solid var(--hair);padding-left:13px;display:flex;align-items:baseline;gap:14px}
+  .rwhy b{color:var(--ink)}
+  .rwhy .fact{margin-left:auto;color:var(--ink-3);font-size:12px;white-space:nowrap;flex-shrink:0}
+  @media(max-width:980px){.rwhy .fact{display:none}}
+  .rscore{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:600;color:var(--jade);
+    line-height:.85;flex-shrink:0;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+  .rscore .slbl{display:block;color:var(--ink-3);margin-top:5px;text-align:right;letter-spacing:.08em;
+    font-size:10px;font-weight:700;text-transform:uppercase;font-family:Inter,sans-serif;
+    opacity:1;transition:opacity .4s var(--ease) .45s}
+  .js .srow:not(.sealed) .slbl{opacity:0;transition:none}
+  @media(max-width:620px){
+    .srow{flex-wrap:wrap;row-gap:10px}
+    .rwho{min-width:0;flex:1 1 auto}
+    .rwhy{order:3;flex:1 1 100%;border-left:0;padding-left:0}
+  }
+  .rest{margin-top:10px;display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
+    border:1px dashed var(--line);border-radius:var(--r-md);color:var(--ink-3);font-size:12px}
+  .rest b{color:var(--ink-2)}
+  .rest a{color:var(--brass);font-weight:600;text-decoration:none;margin-left:auto;white-space:nowrap}
+  .rest a:hover{text-decoration:underline}
+  .js #demo-rest{opacity:0;transition:opacity .6s var(--ease)}
+  .js #demo-rest.in{opacity:1}
+  .demo-cap{font-size:11px;color:var(--ink-3);margin-top:12px}
+
+  /* ── the note nobody else sends ── */
+  .twocol{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:44px;align-items:center;margin-top:8px}
+  @media(max-width:940px){.twocol{grid-template-columns:1fr;gap:26px}}
+  .note-stack{max-width:520px;justify-self:end;width:100%}
+  @media(max-width:940px){.note-stack{justify-self:start}}
+  .note{padding:24px 28px;transform:rotate(-.5deg);transition:transform .35s var(--eo)}
+  .note:hover{transform:rotate(0deg)}
+  .note-to{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+  .note-to .who{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .note-to .when{margin-left:auto;font-size:11px;color:var(--ink-3)}
+  .note p{font-family:Fraunces,Georgia,serif;font-size:15.5px;line-height:1.65;color:var(--ink-2);margin:0 0 12px;letter-spacing:-.005em}
+  .note-sig{display:flex;align-items:center;gap:10px}
+  .note-sig .nm{font-family:Fraunces,Georgia,serif;font-style:italic;font-weight:600;font-size:19px}
+  .note-sig .for{font-size:11px;color:var(--ink-3)}
+  .note-sig .tiltwrap{width:24px;height:24px;margin-left:auto;--tilt:5deg}
+  .note-sig .tiltwrap svg{width:24px;height:24px}
+  .reply{display:flex;align-items:flex-start;gap:9px;margin-top:16px;padding:0 6px}
+  .reply .rav{width:28px;height:28px;font-size:10px;border-radius:var(--r-ctl)}
+  .bub{background:var(--surface-2);color:var(--ink);border-radius:var(--r-lg);border-bottom-left-radius:4px;
+    padding:9px 13px;font-size:13px;line-height:1.5}
+  .bub .who{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75;margin-bottom:3px}
+  .reply-cap{font-size:11px;color:var(--ink-3);margin-top:10px;padding:0 6px}
+
+  /* ── your call ── */
+  .call{max-width:760px}
+  .decide{padding:18px;margin-top:28px}
+  .decide-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .decide-top .lbl{color:var(--jade-soft-fg)}
+  .decide-row{display:flex;align-items:center;gap:14px}
+  .decide-row .rid,.decide-row .rav{width:40px;height:40px}
+  .decide-row .rav{font-size:13px}
+  .decide-row .rseal{right:-8px;bottom:-8px;width:22px;height:22px;--tilt:-6deg}
+  .decide-row .rseal svg{width:22px;height:22px}
+  .decide-row:hover .rseal svg{transform:rotate(var(--tilt)) scale(1.18)}
+  .stamp svg{animation:pressin .46s cubic-bezier(.34,1.4,.44,1)}
+  .decide-sc{font-family:Fraunces,Georgia,serif;font-size:30px;font-weight:600;color:var(--jade);
+    line-height:.9;margin-left:auto;font-variant-numeric:tabular-nums;flex-shrink:0}
+  .decide-acts{display:flex;gap:7px;flex-shrink:0}
+  .decide-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);
+    font-size:12.5px;color:var(--ink-3);line-height:1.5;min-height:20px}
+  .decide-foot b{color:var(--ink-2)}
+  @media(max-width:620px){
+    .decide-row{flex-wrap:wrap;row-gap:10px}
+    .decide-sc{margin-left:auto}
+    .decide-acts{flex:1 1 100%;justify-content:flex-end}
+  }
+
+  /* ── faq ── */
+  .faqs{max-width:760px;margin-top:26px;display:flex;flex-direction:column;gap:8px}
+  .faq{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-md);box-shadow:var(--shadow-sm);
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease)}
+  .faq:hover{border-color:var(--hair)}
+  .faq[open]{box-shadow:var(--shadow-md);border-color:var(--hair)}
+  .faq summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:11px;
+    padding:15px 18px;font-size:14px;font-weight:600;line-height:1.4}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq .chev{margin-left:auto;flex-shrink:0;color:var(--ink-3);transition:transform var(--dur-base) var(--ease)}
+  .faq[open] .chev{transform:rotate(90deg)}
+  .faq-a{padding:0 18px 16px 18px}
+  .faq-a p{margin:0;font-size:13.5px;line-height:1.65;color:var(--ink-2);max-width:64ch}
+  .faq-a b{color:var(--ink)}
+
+  /* ── closing slab ── */
+  .close-sec{max-width:1080px;margin:0 auto;padding:70px 22px 84px}
+  .close-card{background:var(--slab);border-radius:16px;box-shadow:var(--shadow-md);
+    padding:clamp(34px,6vw,56px) clamp(22px,5vw,56px);text-align:center;position:relative;overflow:hidden}
+  .close-card .tiltwrap{width:34px;height:34px;margin:0 auto 16px;--tilt:-4deg;animation:sealbreathe 2.6s ease-in-out infinite}
+  .close-card .tiltwrap svg{width:34px;height:34px}
+  @keyframes sealbreathe{0%,100%{opacity:.85;transform:scale(.98)}50%{opacity:1;transform:scale(1.02)}}
+  .close-card h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(28px,4.5vw,42px);
+    letter-spacing:-.025em;line-height:1.1;margin:0 0 10px;color:var(--slab-ink)}
+  .close-card p{margin:0 auto;max-width:46ch;font-size:14.5px;line-height:1.6;color:var(--slab-ink-2)}
+  .close-cta{display:flex;gap:10px;justify-content:center;align-items:center;margin-top:24px;flex-wrap:wrap}
+  .btn.ghost{background:transparent;border-color:rgba(169,198,184,.4);color:var(--slab-ink)}
+  .btn.ghost:hover{background:rgba(169,198,184,.12);border-color:rgba(169,198,184,.6);transform:translateY(-1px)}
+
+  /* ── footer ── */
+  footer{border-top:1px solid var(--line);background:var(--sidebar)}
+  .foot-in{max-width:1120px;margin:0 auto;padding:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    font-size:12px;color:var(--ink-3)}
+  .foot-in .brand-name{font-size:15px}
+  .foot-in .brand-mark{width:22px;height:22px}
+  .foot-links{margin-left:auto;display:flex;gap:14px}
+  .foot-in a{color:var(--ink-2);text-decoration:none}
+  .foot-in a:hover{color:var(--ink);text-decoration:underline}
+  @media(max-width:560px){.foot-links{margin-left:0;flex-basis:100%}}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;
+      animation-delay:0ms!important;transition-delay:0ms!important;animation-iteration-count:1!important}
+    .ambient i,.ambient::after,.close-card .tiltwrap{animation:none!important}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="wax-sm">
+      <circle cx="50" cy="50" r="46" fill="var(--seal-disc)"/>
+      <circle cx="50" cy="50" r="31" fill="none" stroke="var(--seal-ring)" stroke-width="6"/>
+      <text x="50" y="52" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="52" font-weight="700" fill="var(--seal-ring)">A</text>
+    </g>
+  </defs>
+</svg>
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#top" aria-label="HireFlow — back to top">
+      <span class="brand-mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </a>
+    <nav class="nav-links" aria-label="Page sections">
+      <a href="#how">How it works</a>
+      <a href="#answered">Nobody ghosted</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn go" href="#try">Try free</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ═══ The letter ═══ -->
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="hero-wrap">
+      <p class="eyebrow lbl" data-rv>A letter from your new hiring assistant</p>
+      <article class="sheet letter" data-rv style="--rd:80ms">
+        <div class="letter-head">
+          <span class="brand-mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+          <span class="brand-name">HireFlow</span>
+          <span class="when">Tuesday &middot; 6:04 am</span>
+        </div>
+        <h1 class="salut ink" id="hero-h" data-rv style="--rd:220ms">Hey — I&rsquo;m Ava.</h1>
+        <div class="letter-body">
+          <p data-rv style="--rd:340ms">When someone applies to your job, I interview them. A real screening interview — minutes after they hit apply, even when it&rsquo;s <b>2 am on a Sunday</b>. Every applicant. Every time.</p>
+          <p data-rv style="--rd:440ms">Every one of them hears back, too — kindly, in your shop&rsquo;s name. <b>Nobody who wants to work for you gets ghosted.</b></p>
+          <p data-rv style="--rd:540ms">Then I leave a short, sealed shortlist on your desk, with the evidence behind every score. I never hire and I never reject — <b>every decision here is your click.</b> You run the shop; I&rsquo;ll run the chasing. You just meet the good ones.</p>
+        </div>
+        <div class="sig" data-rv style="--rd:680ms">
+          <div>
+            <div class="sig-name">Ava</div>
+            <div class="sig-sub">Your hiring assistant &middot; HireFlow</div>
+          </div>
+          <span class="sig-seal tiltwrap press" data-rv style="--rd:950ms" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+        </div>
+        <p class="ps" data-rv style="--rd:1100ms">P.S. Your best applicant will apply at 11&nbsp;pm. She&rsquo;ll have been interviewed by 11:04.</p>
+      </article>
+      <div class="hero-cta" data-rv style="--rd:600ms">
+        <a class="btn go big" href="#try">Try free — first hire at no cost</a>
+        <a class="btn big" href="#how">Watch how it works</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ How it works ═══ -->
+  <section class="sec" id="how" aria-labelledby="how-h">
+    <p class="kicker lbl" data-rv>How it works</p>
+    <h2 class="h2 ink" id="how-h" data-rv style="--rd:80ms">Three pieces of paper.</h2>
+    <p class="sub" data-rv style="--rd:160ms">That&rsquo;s the whole system. A brief, an interview, a shortlist — and a desk that stays clear.</p>
+    <div class="steps">
+      <article class="step" data-rv>
+        <span class="step-n">01 &middot; The brief</span>
+        <h3>You tell me the job.</h3>
+        <p>Say it the way you&rsquo;d say it out loud: &ldquo;I need a mechanic, mornings, starting yesterday.&rdquo; I turn that into a proper post and put it in front of people already looking near you.</p>
+        <div class="step-art"><div class="art">
+          <div class="art-t">Part-Time Mechanic <span class="chip live">Live</span></div>
+          <div class="art-m">$22&ndash;26/hr &middot; mornings &middot; Ridgeway Garage</div>
+        </div></div>
+      </article>
+      <article class="step" data-rv style="--rd:120ms">
+        <span class="step-n">02 &middot; The interviews</span>
+        <h3>I talk to everyone.</h3>
+        <p>Minutes after anyone applies — any hour — they get a real screening interview. I keep the transcript, the moments worth hearing, and the one thing worth asking about.</p>
+        <div class="step-art"><div class="art">
+          <p class="art-q">&ldquo;I always torque in a star pattern — hundred foot-pounds on those.&rdquo;</p>
+          <div class="art-m">Voice interview &middot; 3:42</div>
+        </div></div>
+      </article>
+      <article class="step" data-rv style="--rd:240ms">
+        <span class="step-n">03 &middot; The shortlist</span>
+        <h3>You meet three, not forty-one.</h3>
+        <p>A short, sealed list with the evidence behind every score. Interview or pass, each one is your click — and only yours.</p>
+        <div class="step-art"><div class="art art-row">
+          <div class="rid"><div class="rav">DO</div><div class="rseal tiltwrap press" data-rv style="--rd:420ms;--tilt:-6deg" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div style="min-width:0"><div class="art-t">Darnell Okafor</div><div class="art-m">Sealed, with evidence</div></div>
+          <span class="art-sc">92</span>
+        </div></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ═══ The sealed shortlist, live ═══ -->
+  <section class="sec" id="shortlist" aria-labelledby="sl-h">
+    <p class="kicker lbl" data-rv>The shortlist</p>
+    <h2 class="h2 ink" id="sl-h" data-rv style="--rd:80ms">41 people applied. All 41 got interviewed. You talked to three.</h2>
+    <p class="sub" data-rv style="--rd:160ms">This is what Tuesday looks like when Ava worked your Monday night.</p>
+
+    <div id="demo" data-rv style="--rd:200ms">
+      <div class="slabbar">
+        <span class="nseal" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+        <div class="slab-t"><b>Ava worked overnight.</b> Read <span class="n">41</span> &middot; interviewed all <span class="n">41</span> &middot; sealed <span class="n">3</span> — none of your time, nobody left waiting.</div>
+        <div class="sort" id="ticks" aria-hidden="true"></div>
+      </div>
+
+      <div class="rowlist">
+        <div class="srow sealed" data-score="92">
+          <div class="rid"><div class="rav">DO</div><div class="rseal tiltwrap" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur &middot; mornings</div></div>
+          <div class="rwhy"><span>Named the right torque sequence unprompted. <b>Can start Monday</b>.</span><span class="fact">20 hrs &middot; asks $24</span></div>
+          <div class="rscore"><span class="num">92</span><span class="slbl">Sealed</span></div>
+        </div>
+        <div class="srow sealed" data-score="88">
+          <div class="rid"><div class="rav">MR</div><div class="rseal tiltwrap" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Marisol Reyes</div><div class="rmeta">East Atlanta &middot; flexible</div></div>
+          <div class="rwhy"><span>Strong diagnostics. Smart questions about <b>your scanner</b>.</span><span class="fact">Open to Sat rotation</span></div>
+          <div class="rscore"><span class="num">88</span><span class="slbl">Sealed</span></div>
+        </div>
+        <div class="srow sealed" data-score="81">
+          <div class="rid"><div class="rav">TB</div><div class="rseal tiltwrap" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Tyrone Baptiste</div><div class="rmeta">Kirkwood &middot; weekends <span class="chip amber">Needs training</span></div></div>
+          <div class="rwhy"><span><b>Least experience, sharpest answers on customers.</b> A bet worth meeting.</span><span class="fact">Wants 25 hrs &middot; role is 20</span></div>
+          <div class="rscore"><span class="num">81</span><span class="slbl">Sealed</span></div>
+        </div>
+      </div>
+
+      <div class="rest" id="demo-rest">
+        <span><b>38 didn&rsquo;t make the cut</b> — every one already has a polite reply, signed from your shop.</span>
+        <a href="#answered">Read the note they get →</a>
+      </div>
+      <p class="demo-cap">Sample role, sample crew — Darnell, Marisol and Tyrone are the demo data from our app tour, not customers we&rsquo;re claiming.</p>
+    </div>
+  </section>
+
+  <!-- ═══ Nobody ghosted ═══ -->
+  <section class="sec" id="answered" aria-labelledby="an-h">
+    <div class="twocol">
+      <div>
+        <p class="kicker lbl" data-rv>Every applicant answered</p>
+        <h2 class="h2 ink" id="an-h" data-rv style="--rd:80ms">Nobody who applies to you gets ghosted again.</h2>
+        <p class="sub" data-rv style="--rd:180ms">The industry standard is silence — someone gives you an evening of their life and never hears another word. Not at your shop. Everyone gets interviewed, and the day you make your call, everyone hears back: a courteous note, signed from your shop, written by Ava.</p>
+        <p class="sub" data-rv style="--rd:260ms;margin-top:12px">The people you don&rsquo;t hire walk away thinking well of you. Around here, they&rsquo;re also your customers.</p>
+      </div>
+      <div class="note-stack">
+        <article class="sheet note" data-rv style="--rd:200ms">
+          <div class="note-to"><span class="who">To &middot; Jerome Pryce</span><span class="when">Sent Tue 4:19 pm</span></div>
+          <p>Hi Jerome — thank you for applying to Ridgeway Garage, and for the time you gave me on the phone this week. Ray has gone with a candidate whose experience sits closer to this particular role, and I didn&rsquo;t want you waiting on an answer that wasn&rsquo;t coming.</p>
+          <p>It was a genuine pleasure — if a role opens up here that fits you better, I hope you&rsquo;ll be back.</p>
+          <div class="note-sig">
+            <span class="nm">Ava</span><span class="for">for Ridgeway Garage</span>
+            <span class="tiltwrap press" data-rv style="--rd:600ms" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+          </div>
+        </article>
+        <div class="reply" data-rv style="--rd:800ms">
+          <div class="rav">JP</div>
+          <div class="bub"><div class="who">Jerome &middot; 4:31 pm</div>Thanks for letting me know.</div>
+        </div>
+        <p class="reply-cap" data-rv style="--rd:950ms">He wrote back. People almost never get the chance.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Your call ═══ -->
+  <section class="sec call" id="yourcall" aria-labelledby="yc-h">
+    <p class="kicker lbl" data-rv>Your call, always</p>
+    <h2 class="h2 ink" id="yc-h" data-rv style="--rd:80ms">Ava recommends. She never rejects.</h2>
+    <p class="sub" data-rv style="--rd:180ms">Not once, not quietly, not by accident. She seals a recommendation, shows you the evidence — the quotes, the moments worth hearing, the one thing worth asking — and then she waits. In HireFlow, every decision is the same size: <b>one click, and it&rsquo;s yours.</b></p>
+    <div class="sheet decide" data-rv style="--rd:260ms">
+      <div class="decide-top"><span class="lbl">Sealed &middot; waiting on you</span></div>
+      <div class="decide-row">
+        <div class="rid"><div class="rav">DO</div><div class="rseal tiltwrap" id="decide-seal" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+        <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur &middot; mornings &middot; can start Monday</div></div>
+        <div class="decide-sc">92</div>
+        <div class="decide-acts">
+          <button class="btn" type="button" data-decide="pass">Pass</button>
+          <button class="btn go" type="button" data-decide="go">Interview</button>
+        </div>
+      </div>
+      <div class="decide-foot" id="decide-msg" aria-live="polite">Go ahead — click one. That&rsquo;s the whole job.</div>
+    </div>
+  </section>
+
+  <!-- ═══ FAQ ═══ -->
+  <section class="sec" id="faq" aria-labelledby="faq-h">
+    <p class="kicker lbl" data-rv>Before you ask</p>
+    <h2 class="h2 ink" id="faq-h" data-rv style="--rd:80ms">Fair questions.</h2>
+    <div class="faqs" data-rv style="--rd:180ms">
+      <details class="faq">
+        <summary>What does it cost?<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></summary>
+        <div class="faq-a"><p>Honestly: simple pricing, announced at launch — no numbers hiding behind a demo call. What we can promise today is this: <b>your first hire is free.</b> If Ava doesn&rsquo;t earn her keep on hire number one, you owe us nothing.</p></div>
+      </details>
+      <details class="faq">
+        <summary>Are candidates talking to a bot?<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></summary>
+        <div class="faq-a"><p>They&rsquo;re talking to Ava, and she says so — she introduces herself as your shop&rsquo;s hiring assistant and <b>never pretends to be human</b>. It&rsquo;s a real voice conversation about the actual job, usually about eight minutes, at whatever hour suits them. Applicants tend to like it for the same reason you will: they get answered in minutes, and they&rsquo;re never ghosted.</p></div>
+      </details>
+      <details class="faq">
+        <summary>I already post on job boards. Do I have to stop?<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></summary>
+        <div class="faq-a"><p>No — keep whatever works. HireFlow publishes your job to the big job-search feeds automatically, and everything funnels back into one place. <b>Whoever applies, wherever they came from, Ava interviews them the same way.</b></p></div>
+      </details>
+      <details class="faq">
+        <summary>How fast is it, honestly?<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></summary>
+        <div class="faq-a"><p>Interviews start <b>minutes after someone applies</b> — the 11&nbsp;pm applicant is usually interviewed by 11:04. The shortlist builds as good people show up, typically over the first few days a job is live. The slow part of hiring was never the paperwork; it was the waiting. That part&rsquo;s gone.</p></div>
+      </details>
+      <details class="faq">
+        <summary>What&rsquo;s actually left for me to do?<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></summary>
+        <div class="faq-a"><p>Three things. Tell Ava the job. Read a short shortlist. Click <b>Interview</b> on the people you want to meet. She handles the posting, the screening, the scheduling, the reminders and every reply — and she never makes a hiring decision. Those stay yours.</p></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ═══ Closing seal ═══ -->
+  <section class="close-sec" id="try" aria-labelledby="cl-h">
+    <div class="close-card" data-rv>
+      <span class="tiltwrap" aria-hidden="true"><svg class="seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+      <h2 id="cl-h" class="ink" data-rv style="--rd:120ms">Hiring, handled.</h2>
+      <p data-rv style="--rd:220ms">Meet Ava. She handles hiring, so you don&rsquo;t have to — and the first hire is on us.</p>
+      <div class="close-cta" data-rv style="--rd:320ms">
+        <a class="btn go big" href="https://hireflownow.com" rel="noopener">Try free — first hire at no cost</a>
+        <a class="btn ghost big" href="#how">Watch how it works</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot-in">
+    <span class="brand">
+      <span class="brand-mark"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </span>
+    <span>&copy; 2026 HireFlow &middot; <a href="https://hireflownow.com" rel="noopener">hireflownow.com</a></span>
+    <span class="foot-links"><a href="#">Privacy</a><a href="#">Terms</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── reveal on scroll ── */
+  var rvEls = [].slice.call(document.querySelectorAll('[data-rv]'));
+  if (reduced || !('IntersectionObserver' in window)) {
+    rvEls.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, { threshold: .16, rootMargin: '0px 0px -36px 0px' });
+    rvEls.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ── count-up (rAF, ease-out cubic) ── */
+  function count(el, target, dur){
+    if (reduced || dur <= 0) { el.textContent = target; return; }
+    var t0 = null;
+    function step(ts){
+      if (t0 === null) t0 = ts;
+      var p = Math.min((ts - t0) / dur, 1);
+      var e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * e);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* ── Ava's overnight tick strip: 41 read, 3 kept ── */
+  var strip = document.getElementById('ticks');
+  if (strip) {
+    var keep = [7, 19, 33];
+    for (var i = 0; i < 41; i++) {
+      var t = document.createElement('i');
+      if (keep.indexOf(i) >= 0) t.className = 'keep';
+      t.style.setProperty('--d', (0.10 + i * 0.016).toFixed(2) + 's');
+      strip.appendChild(t);
+    }
+  }
+
+  /* ── the demo: rows sealed one by one, on a loop while in view ── */
+  var demo = document.getElementById('demo');
+  var rows = [].slice.call(document.querySelectorAll('.srow'));
+  var rest = document.getElementById('demo-rest');
+  var timers = [], active = false, cycling = false;
+  function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
+  function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+  function sealRow(r){
+    r.classList.add('sealed');
+    count(r.querySelector('.num'), +r.dataset.score, 700);
+  }
+  function resetDemo(){
+    demo.classList.remove('running');
+    rest.classList.remove('in');
+    rows.forEach(function(r){
+      r.classList.remove('sealed');
+      r.querySelector('.num').textContent = '–';
+    });
+    void demo.offsetWidth; /* reflow so tick + press animations can replay */
+  }
+  function finalDemo(){
+    demo.classList.add('running');
+    rest.classList.add('in');
+    rows.forEach(function(r){
+      r.classList.add('sealed');
+      r.querySelector('.num').textContent = r.dataset.score;
+    });
+  }
+  function cycle(){
+    if (!active) { cycling = false; return; }
+    cycling = true;
+    resetDemo();
+    later(function(){ demo.classList.add('running'); }, 150);
+    later(function(){ sealRow(rows[0]); }, 1500);
+    later(function(){ sealRow(rows[1]); }, 2350);
+    later(function(){ sealRow(rows[2]); }, 3200);
+    later(function(){ rest.classList.add('in'); }, 4100);
+    later(cycle, 9500);
+  }
+  if (demo && rows.length === 3 && rest) {
+    if (reduced || !('IntersectionObserver' in window)) {
+      finalDemo();
+    } else {
+      var dio = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          active = en.isIntersecting;
+          if (active && !cycling) { cycle(); }
+          if (!active) { clearTimers(); cycling = false; finalDemo(); }
+        });
+      }, { threshold: .3 });
+      dio.observe(demo);
+    }
+  }
+
+  /* ── the decision card: the click is yours ── */
+  var msg = document.getElementById('decide-msg');
+  var dseal = document.getElementById('decide-seal');
+  var lines = {
+    go:   'That’s it. Ava finds a time that fits your week and confirms with Darnell — you just show up.',
+    pass: 'That’s it. Ava sends the kind note in your name today — and Darnell still hears back.'
+  };
+  [].slice.call(document.querySelectorAll('[data-decide]')).forEach(function(b){
+    b.addEventListener('click', function(){
+      if (msg) msg.textContent = lines[b.getAttribute('data-decide')] || '';
+      if (dseal && !reduced) {
+        dseal.classList.remove('stamp');
+        void dseal.offsetWidth;
+        dseal.classList.add('stamp');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
