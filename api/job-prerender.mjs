@@ -88,9 +88,11 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
       .join("") || `<p>${job.title}</p>`;
 
   const empType = EMP_TYPE[(job.job_type ?? "").toLowerCase()] ?? "FULL_TIME";
-  const validThrough = job.application_deadline
-    ? new Date(job.application_deadline)
-    : new Date(new Date(job.created_at).getTime() + 60 * 86400000);
+  // Only state an expiry the employer actually set. We used to invent
+  // created_at + 60 days, then the indexable gate below compared that invented
+  // date against now() and stamped the page noindex — so every job silently
+  // de-indexed itself on day 60 while still published and still in the sitemap.
+  const validThrough = job.application_deadline ? new Date(job.application_deadline) : null;
 
   const data = {
     "@context": "https://schema.org/",
@@ -98,7 +100,7 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
     title: job.title,
     description: descHtml,
     datePosted: isoDate(new Date(job.created_at)),
-    validThrough: isoDate(validThrough),
+    ...(validThrough ? { validThrough: validThrough.toISOString() } : {}),
     employmentType: empType,
     directApply: true,
     url,

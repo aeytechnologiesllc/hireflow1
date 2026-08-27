@@ -218,6 +218,26 @@ const guards = [
   },
 
   {
+    id: "job-pages-do-not-invent-an-expiry",
+    why:
+      "The prerender used to invent validThrough = created_at + 60 days, then the " +
+      "indexable gate compared that invented date against now() and stamped the page " +
+      "noindex. Every job silently de-indexed itself on day 60 while still published " +
+      "and still submitted in the sitemap — Google for Jobs saw nothing.",
+    async run() {
+      const src = (await read("api/job-prerender.mjs")) || "";
+      const bad = [];
+      if (/86400000/.test(src) && /validThrough/.test(src)) {
+        bad.push("api/job-prerender.mjs synthesizes a validThrough again");
+      }
+      if (!/!schema\.validThrough\s*\|\|/.test(src)) {
+        bad.push("the indexable gate no longer tolerates a missing validThrough");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "resumes-bucket-not-public",
     why: "Resumes are personal data. The bucket must stay private and be read via signed URLs.",
     async run() {
