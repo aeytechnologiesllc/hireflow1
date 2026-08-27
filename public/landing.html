@@ -1,1061 +1,898 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hireflow — Hiring, handled by Ava</title>
+<title>HireFlow — Meet Ava. She handles hiring, so you don't have to.</title>
+<meta name="description" content="Every applicant gets a real interview minutes after applying, any hour. You get a short sealed shortlist with the evidence. Every decision is yours.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@300..800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
+  /* ── Tokens. The page OPENS in Night; scrolling to morning interpolates
+     every one of these toward Day on the root (script at the bottom). ── */
   :root{
-    --jade-deep:#0a2019;
-    --jade-mid:#0e2a22;
-    --jade-light:#16382c;
-    --jade-glow:#1f9e77;
-    --jade-mint:#9fe7c9;
-    --brass:#cba36a;
-    --brass-light:#e6c184;
-    --cream:#eef6f1;
-    --cream-dim:rgba(238,246,241,.55);
-    --cream-faint:rgba(238,246,241,.25);
+    --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+    --track:rgba(244,239,227,.10);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF; --jade-soft:rgba(79,191,149,.15); --jade-soft-fg:#6ADCAA;
+    --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+    --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+    --btn-fg:#17140F;
+    --seal-disc:#17805F; --seal-ring:#D9B876; --seal-shadow:rgba(0,0,0,.55);
+    /* shadow colour slots — interpolated alongside the surfaces */
+    --sh1:rgba(0,0,0,.45); --sh2:rgba(0,0,0,0); --shtop:rgba(244,239,227,.055);
+    --sm1:rgba(0,0,0,.5); --sm2:rgba(0,0,0,.9); --smtop:rgba(244,239,227,.075);
+    --bm1:rgba(255,255,255,.12); --bm2:rgba(0,0,0,.5);
+    --shadow-sm:0 1px 2px var(--sh1),0 1px 3px -1px var(--sh2),inset 0 1px 0 var(--shtop);
+    --shadow-md:0 2px 3px var(--sm1),0 11px 25px -15px var(--sm2),inset 0 1px 0 var(--smtop);
+    --btn-model:inset 0 1px 0 var(--bm1),0 1px 2px var(--bm2);
+    --dawn:0; /* 0 = deep night, 1 = full morning */
+    --r-xs:5px; --r-ctl:8px; --r-md:10px; --r-lg:12px;
+    --dur-fast:90ms; --dur-base:140ms; --ease:cubic-bezier(.2,.7,.3,1);
+    --press:cubic-bezier(.34,1.4,.44,1);
   }
+
+  *{box-sizing:border-box}
+  html{scroll-padding-top:78px}
+  @media (prefers-reduced-motion: no-preference){ html{scroll-behavior:smooth} }
+  html,body{margin:0}
   body{
-    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    background:var(--ground);color:var(--ink);overflow-x:clip;
+    font-family:Inter,-apple-system,sans-serif;font-size:15px;line-height:1.55;
     -webkit-font-smoothing:antialiased;
-    background:var(--jade-deep);
-    color:var(--cream);
-    overflow-x:hidden;
-    cursor:auto;
   }
+  button{font:inherit}
+  ::selection{background:var(--jade-soft)}
+  .lbl{font-size:10px;font-weight:700;letter-spacing:.14em;line-height:1.2;text-transform:uppercase}
 
-  /* ─── WEBGL HERO ─── */
-  #hero-canvas{position:fixed;inset:0;z-index:0;width:100%;height:100%}
-  #hero-canvas canvas{display:block}
+  /* ── The room: drifting lamplight (Night, 4 coats) crossfading into
+     morning light (Day, 3 coats + the sun band), plus paper grain. ── */
+  .amb{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .amb i{position:absolute;border-radius:50%;filter:blur(90px)}
+  .amb i:nth-child(1){width:560px;height:560px;top:-150px;right:-90px;animation:drift1 26s ease-in-out infinite alternate}
+  .amb i:nth-child(2){width:500px;height:500px;bottom:-170px;left:18%;animation:drift2 34s ease-in-out infinite alternate}
+  .amb i:nth-child(3){width:320px;height:320px;top:34%;left:-120px;animation:drift3 30s ease-in-out infinite alternate}
+  @keyframes drift1{to{transform:translate3d(-70px,50px,0) scale(1.08)}}
+  @keyframes drift2{to{transform:translate3d(80px,-40px,0) scale(1.05)}}
+  @keyframes drift3{to{transform:translate3d(50px,60px,0)}}
+  .amb-night{opacity:calc(1 - var(--dawn))}
+  .amb-night i:nth-child(odd){background:
+    radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),
+    radial-gradient(circle,rgba(79,191,149,.09),transparent 66%),radial-gradient(circle,rgba(79,191,149,.09),transparent 66%)}
+  .amb-night i:nth-child(even){background:
+    radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),
+    radial-gradient(circle,rgba(224,185,106,.08),transparent 66%),radial-gradient(circle,rgba(224,185,106,.08),transparent 66%)}
+  .amb-day{opacity:var(--dawn)}
+  .amb-day i:nth-child(odd){background:
+    radial-gradient(circle,rgba(15,107,79,.04),transparent 66%),radial-gradient(circle,rgba(15,107,79,.04),transparent 66%),
+    radial-gradient(circle,rgba(15,107,79,.04),transparent 66%)}
+  .amb-day i:nth-child(even){background:
+    radial-gradient(circle,rgba(201,164,94,.045),transparent 66%),radial-gradient(circle,rgba(201,164,94,.045),transparent 66%),
+    radial-gradient(circle,rgba(201,164,94,.045),transparent 66%)}
+  .amb-day::after{ /* the morning sun band sweeping the paper */
+    content:"";position:absolute;inset:-25%;
+    background:linear-gradient(105deg,transparent 38%,rgba(201,164,94,.11) 50%,transparent 62%),
+               linear-gradient(105deg,transparent 40%,rgba(201,164,94,.11) 50%,transparent 60%);
+    animation:sunband 19s ease-in-out infinite alternate;will-change:transform;
+  }
+  @keyframes sunband{from{transform:translate3d(-14%,0,0);opacity:.8}to{transform:translate3d(14%,0,0);opacity:1}}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.055;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 
-  .hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;pointer-events:none}
-  .hero > *{pointer-events:auto}
+  /* ── The stars: they die with the dawn. Twinkle is autonomous (killed under
+     reduced motion); the field's fade rides --dawn, so it stays scroll-driven. ── */
+  .stars{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+    opacity:calc(1 - var(--dawn)*2.2)}
+  .stars i{position:absolute;border-radius:50%;background:var(--slab-ink);opacity:var(--so,.4);
+    animation:twinkle var(--tw,4s) ease-in-out var(--td,0s) infinite alternate}
+  .stars i.jd{background:var(--jade-bright)}
+  @keyframes twinkle{from{opacity:calc(var(--so,.4)*.28)}to{opacity:var(--so,.4)}}
 
-  .hero-inner{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;max-width:1200px;width:100%;margin:0 auto}
-  @media(max-width:1024px){.hero-inner{grid-template-columns:1fr;gap:40px;text-align:center}}
+  header,main,footer{position:relative;z-index:2}
+  .wrap{max-width:1140px;margin-inline:auto;padding-inline:clamp(18px,4vw,32px)}
 
-  .hero-left{display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .hero-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
-  @media(max-width:1024px){.hero-right{align-items:center}}
+  /* ── Nav ── */
+  .nav{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line);
+    background:var(--ground);background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .nav-in{display:flex;align-items:center;gap:22px;min-height:62px}
+  .brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
+  .brand-mark{width:28px;height:28px;border-radius:8px;background:var(--slab);display:flex;align-items:center;
+    justify-content:center;box-shadow:var(--shadow-sm),inset 0 0 0 1px rgba(244,239,227,.07);flex-shrink:0}
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .nav-links{display:flex;gap:4px;margin-left:auto}
+  .nav-links a{font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;padding:8px 12px;border-radius:var(--r-ctl);
+    transition:color var(--dur-base) var(--ease),background-color var(--dur-base) var(--ease)}
+  .nav-links a:hover{color:var(--ink);background:var(--surface)}
+  @media(max-width:680px){.nav-links{display:none}}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
 
-  .hero-orb-wrap{position:relative;width:420px;height:420px;transition:transform .35s cubic-bezier(.2,.7,.3,1);will-change:transform}
-  .hero-loop{position:absolute;inset:-16%;width:132%;height:132%;object-fit:cover;display:block;opacity:0;pointer-events:none}
-  .hero-key{position:absolute;inset:-16%;width:132%;height:132%;display:block;pointer-events:none}
-  @media(max-width:1024px){.hero-orb-wrap{width:320px;height:320px}}
-  @media(max-width:640px){.hero-orb-wrap{width:260px;height:260px}}
-  #orb-canvas{width:100%;height:100%;display:block}
+  /* ── The clock chip: rides the scroll from 11:47 pm to 7:02 am (JS below) ── */
+  .clock{position:fixed;right:14px;bottom:14px;z-index:30;pointer-events:none;
+    display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;
+    border:1px solid var(--line);box-shadow:var(--shadow-sm);
+    background:var(--ground);background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .clock i{width:5px;height:5px;border-radius:50%;background:var(--jade-bright);flex-shrink:0}
+  @media(max-width:680px){.clock{right:10px;bottom:10px;padding:7px 11px}}
 
-  .hero-badge{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);border:1px solid rgba(203,163,106,.35);border-radius:999px;padding:7px 18px;margin-top:28px;backdrop-filter:blur(10px);background:rgba(10,32,25,.6);opacity:0;transform:translateY(12px);animation:fadeInUp 0.6s 0.4s forwards}
-  @media(max-width:1024px){.hero-badge{margin-top:20px}}
-  .hero-badge .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--jade-glow);box-shadow:0 0 10px rgba(31,158,119,.6);animation:pulseDot 2.2s ease-in-out infinite}
-  @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+  /* ── Buttons (the app's own) ── */
+  .btn{font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--r-ctl);min-height:38px;
+    padding:9px 16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;
+    transition:background-color var(--dur-base) var(--ease),border-color var(--dur-base) var(--ease),
+      transform var(--dur-fast) var(--ease),box-shadow var(--dur-base) var(--ease),filter var(--dur-base) var(--ease)}
+  .btn:hover{background:var(--surface-2);border-color:var(--hair);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .btn:active{transform:translateY(1px);box-shadow:none}
+  .btn.go{background:var(--jade);border-color:var(--jade);color:var(--btn-fg);box-shadow:var(--btn-model)}
+  .btn.go:hover{filter:brightness(1.08);background:var(--jade);border-color:var(--jade);transform:translateY(-1px)}
+  .btn.go:active{box-shadow:inset 0 1px 3px rgba(0,0,0,.30);transform:translateY(1px);filter:none}
+  .btn.lg{min-height:48px;padding:13px 24px;font-size:14px;border-radius:var(--r-md)}
+  .btn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+  .nav .btn.go:focus-visible,.slabband .btn:focus-visible{outline-color:var(--brass)}
 
-  .hero h1{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:56px;line-height:1.08;letter-spacing:-.025em;margin-bottom:20px;text-align:left;text-shadow:0 2px 40px rgba(0,0,0,.4)}
-  @media(max-width:1024px){.hero h1{text-align:center;font-size:48px}}
-  @media(max-width:768px){.hero h1{font-size:36px}}
-  .hero h1 .accent{color:var(--brass);font-weight:600}
-  .hero h1 .line{display:block}
-  .hero h1 .char{display:inline-block;opacity:0;transform:translateY(24px) rotateX(-40deg);animation:textReveal 0.55s cubic-bezier(.22,1,.36,1) forwards}
-  @keyframes textReveal{to{opacity:1;transform:translateY(0) rotateX(0)}}
-  .hero h1 .char.space{width:0.3em}
+  /* ── Sections ── */
+  section{padding:clamp(64px,9vw,104px) 0}
+  .kick{color:var(--brass);margin:0 0 14px}
+  h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.025em;line-height:1.06;margin:0}
+  h2{font-size:clamp(28px,4.4vw,42px)}
+  .sub{font-size:16px;color:var(--ink-2);max-width:56ch;margin:16px 0 0}
+  .sub b{color:var(--ink)}
+  .dim{font-size:12px;color:var(--ink-3)}
 
-  .hero-sub{font-size:17px;line-height:1.65;color:var(--cream-dim);max-width:480px;text-align:left;margin-bottom:32px;font-weight:400;opacity:0;animation:fadeInUp 0.6s 1.2s forwards}
-  @media(max-width:1024px){.hero-sub{text-align:center}}
-  .hero-sub strong{color:var(--cream);font-weight:600}
-  @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  /* ── Hero (Night) ── */
+  .hero{padding:clamp(56px,8vw,96px) 0 clamp(56px,7vw,84px);min-height:calc(88svh - 62px);display:flex;align-items:center}
+  .hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(28px,5vw,64px);align-items:center;width:100%}
+  @media(max-width:960px){.hero-grid{grid-template-columns:1fr}}
+  .hero h1{font-size:clamp(36px,5.6vw,62px)}
+  .hero h1 .t{color:var(--jade-bright);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hero .sub{margin-top:18px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--brass-line);color:var(--brass);
+    border-radius:999px;padding:6px 14px;margin-bottom:18px}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright)}
+  .ava-line{display:flex;align-items:center;gap:11px;margin-top:22px}
+  .ava-line svg{width:26px;height:26px;flex-shrink:0;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .ava-line p{margin:0;font-family:Fraunces,Georgia,serif;font-style:italic;font-size:17px;color:var(--ink-2)}
+  .ava-line p b{color:var(--ink);font-style:normal;font-weight:600}
+  .ctas{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
 
-  .cta-row{display:flex;gap:14px;justify-content:flex-start;flex-wrap:wrap;opacity:0;animation:fadeInUp 0.6s 1.4s forwards}
-  @media(max-width:1024px){.cta-row{justify-content:center}}
-  .btn-primary{background:linear-gradient(135deg,var(--brass),var(--brass-light));color:var(--jade-deep);font-size:14px;font-weight:800;padding:15px 32px;border-radius:14px;border:0;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;box-shadow:0 8px 32px rgba(203,163,106,.25),inset 0 1px 0 rgba(255,255,255,.3)}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 48px rgba(203,163,106,.35),inset 0 1px 0 rgba(255,255,255,.3)}
-  .btn-primary:active{transform:translateY(0) scale(0.98)}
-  .btn-ghost{background:rgba(255,255,255,.04);color:var(--cream);font-size:14px;font-weight:700;padding:15px 32px;border-radius:14px;border:1px solid rgba(238,246,241,.15);backdrop-filter:blur(10px);transition:all .2s}
-  .btn-ghost:hover{border-color:rgba(238,246,241,.35);background:rgba(255,255,255,.08)}
+  /* The night ledger — Ava's shift, ticking live */
+  .tlcard{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-md);
+    padding:22px 24px 18px;position:relative}
+  .tlcard::before{content:"";position:absolute;top:10px;left:22px;right:22px;height:2px;background:var(--brass-line);border-radius:1px}
+  .tl-h{display:flex;align-items:center;gap:8px;color:var(--ink-3);margin:6px 0 6px}
+  .tl-h .live{margin-left:auto;color:var(--jade-soft-fg);display:inline-flex;align-items:center;gap:6px;letter-spacing:.1em}
+  .tl-h .live i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+  .tl{list-style:none;margin:0;padding:0}
+  .tstep{display:flex;gap:14px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line-soft);
+    transition:opacity .45s var(--ease)}
+  .tstep:first-child{border-top:0}
+  .tt{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:19px;letter-spacing:-.02em;color:var(--brass);
+    font-variant-numeric:tabular-nums;min-width:86px;line-height:1.35}
+  .tstep:last-child .tt{color:var(--jade-bright)}
+  .tstep b{display:block;font-size:14px;font-weight:600;color:var(--ink)}
+  .tstep small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px;line-height:1.45}
+  .tseal{width:32px;height:32px;margin-left:auto;flex-shrink:0;align-self:center}
+  .tseal svg{width:32px;height:32px;display:block;transform:rotate(-5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .tl-f{border-top:1px solid var(--line-soft);padding-top:13px;margin-top:2px;font-size:13px;color:var(--ink-2);
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .tl-f b{color:var(--ink)}
+  .tl-f .dim{margin-left:auto}
+  .anim .tstep{opacity:.3}
+  .anim .tstep.on{opacity:1}
+  .anim .tseal svg{opacity:0}
+  .anim .tstep.on .tseal svg{animation:sealpress .46s var(--press) .1s both}
+  @keyframes sealpress{
+    0%{opacity:0;transform:scale(1.9) rotate(-14deg)}
+    55%{opacity:1;transform:scale(.88) rotate(-3deg)}
+    100%{opacity:1;transform:scale(1) rotate(-5deg)}}
 
-  a.btn-primary, a.btn-ghost, a.nav-cta { display: inline-block; text-decoration: none; text-align: center; }
+  /* ── Dawn strip — the theme crossfades across this scroll. The copy sits
+     at the TOP so the ink-flip moment happens over empty, lightening sky. ── */
+  .dawn{min-height:150svh;display:block;text-align:center;padding-top:clamp(48px,9vh,110px);position:relative}
+  .dawn-in{max-width:640px;margin-inline:auto}
+  .dawn h2{font-size:clamp(30px,4.6vw,46px)}
+  .dawn .sub{margin-inline:auto}
+  /* the sun itself — a brass bloom that climbs the strip while the tokens cross (JS) */
+  .dawn-sun{position:absolute;left:50%;top:48%;width:min(78vmin,660px);aspect-ratio:1;
+    border-radius:50%;pointer-events:none;filter:blur(46px);will-change:transform,opacity;
+    background:radial-gradient(circle,rgba(224,185,106,.42),rgba(224,185,106,.17) 36%,transparent 68%);
+    transform:translate3d(-50%,20vh,0) scale(.85);opacity:0}
+  /* the night's work ticks by in the empty sky — bands of the same scroll progress (JS) */
+  .beat{position:absolute;left:50%;z-index:1;width:min(88%,560px);margin:0;pointer-events:none;
+    font-family:Fraunces,Georgia,serif;font-style:italic;font-size:clamp(15px,2vw,17px);
+    line-height:1.55;color:var(--ink-2);opacity:0;transform:translate3d(-50%,12px,0)}
+  .beat .bt{font-style:normal;font-weight:600;color:var(--brass);font-variant-numeric:tabular-nums}
 
-  .hero-risk{display:flex;gap:16px;justify-content:flex-start;margin-top:16px;font-size:12px;color:rgba(238,246,241,.35);font-weight:500;opacity:0;animation:fadeInUp 0.6s 2.2s forwards}
-  @media(max-width:1024px){.hero-risk{justify-content:center}}
-  .hero-risk .check{color:var(--jade-glow);font-weight:700;margin-right:2px}
+  /* ── The morning read — app window demo ── */
+  .demo-head{max-width:720px}
+  .window{margin-top:34px;background:var(--ground);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow-md);overflow:hidden}
+  .win-bar{display:flex;align-items:center;gap:9px;padding:10px 16px;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .win-bar .brand-mark{width:20px;height:20px;border-radius:6px}
+  .win-t{font-size:12px;font-weight:600;color:var(--ink-2)}
+  .win-bar .dim{margin-left:auto;font-variant-numeric:tabular-nums}
+  .win-in{padding:clamp(16px,3vw,26px)}
+  .greet{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .greet h3{font-family:Fraunces,Georgia,serif;font-size:clamp(20px,2.6vw,26px);font-weight:600;letter-spacing:-.02em;margin:0}
+  .nightbar{background:var(--slab);border-radius:var(--r-md);display:flex;align-items:center;gap:13px;
+    padding:11px 15px;box-shadow:var(--shadow-md);margin-bottom:12px}
+  .nightbar>svg{width:30px;height:30px;flex-shrink:0}
+  .night-t{font-size:13px;color:var(--slab-ink-2);min-width:0}
+  .night-t b{color:var(--slab-ink)} .night-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  .ticker{display:flex;align-items:center;gap:3px;margin-left:auto;flex-shrink:0}
+  @media(max-width:760px){.ticker{display:none}}
+  .ticker i{--o:.55;width:3px;height:12px;border-radius:2px;background:var(--slab-ink-2);opacity:var(--o)}
+  .ticker i:nth-child(3n){height:16px}.ticker i:nth-child(4n){height:9px}.ticker i:nth-child(5n){height:14px}
+  .ticker i.keep{--o:1;background:var(--jade-bright)}
+  .rowlist{display:flex;flex-direction:column;gap:8px}
+  .wrow{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:var(--r-md);padding:12px 16px;box-shadow:var(--shadow-sm);cursor:pointer;
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
+  .wrow:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .rid{position:relative;width:40px;height:40px;flex-shrink:0}
+  .rav{width:40px;height:40px;border-radius:var(--r-ctl);background:var(--surface-2);display:flex;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink-2)}
+  .rseal{position:absolute;right:-8px;bottom:-8px;width:22px;height:22px;--tilt:0deg}
+  .rseal svg{width:22px;height:22px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow));
+    transform:rotate(var(--tilt));transition:transform var(--dur-base) var(--ease)}
+  .wrow:hover .rseal svg{transform:rotate(var(--tilt)) scale(1.18)}
+  .wrow:nth-child(1) .rseal{--tilt:-6deg;--pd:.8s}
+  .wrow:nth-child(2) .rseal{--tilt:4deg;--pd:1.3s}
+  .wrow:nth-child(3) .rseal{--tilt:-3deg;--pd:1.8s}
+  .rwho{min-width:146px;flex-shrink:0}
+  .rname{font-size:14px;font-weight:600;line-height:1.3}
+  .rmeta{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .chip{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:var(--r-xs);
+    white-space:nowrap;display:inline-block;line-height:1;vertical-align:middle;position:relative;top:-1px;
+    text-transform:uppercase;background:var(--amber-bg);color:var(--amber-fg)}
+  .rwhy{flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);line-height:1.5;
+    border-left:2px solid var(--hair);padding-left:13px}
+  .rwhy b{color:var(--ink)}
+  .rscore{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:600;color:var(--jade);
+    line-height:.85;flex-shrink:0;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+  .rscore .lbl{display:block;color:var(--ink-3);margin-top:5px;letter-spacing:.08em}
+  .racts{display:flex;gap:7px;flex-shrink:0}
+  .racts .btn{min-height:34px;padding:7px 13px;font-size:12px}
+  .rest{margin-top:12px;display:flex;align-items:center;gap:10px;padding:12px 16px;
+    border:1px dashed var(--line);border-radius:var(--r-md);color:var(--ink-3);font-size:12.5px}
+  .rest b{color:var(--ink-2)}
+  @media(max-width:640px){
+    .wrow{flex-wrap:wrap;row-gap:10px}
+    .rwho{min-width:0;flex:1 1 auto}
+    .rwhy{order:3;flex:1 1 100%;border-left:0;padding-left:0}
+    .racts{order:4;flex:1 1 100%;justify-content:flex-end}
+  }
+  /* demo choreography: rows rise, seals press one by one, scores count (JS) */
+  .anim #demo:not(.play) .greet,.anim #demo:not(.play) .nightbar,
+  .anim #demo:not(.play) .wrow,.anim #demo:not(.play) .rest{opacity:0}
+  .anim #demo:not(.play) .rseal svg{opacity:0}
+  .anim #demo.play .greet{animation:rise .5s var(--ease) 0s backwards}
+  .anim #demo.play .nightbar{animation:rise .5s var(--ease) .12s backwards}
+  .anim #demo.play .wrow:nth-child(1){animation:rise .5s var(--ease) .28s backwards}
+  .anim #demo.play .wrow:nth-child(2){animation:rise .5s var(--ease) .44s backwards}
+  .anim #demo.play .wrow:nth-child(3){animation:rise .5s var(--ease) .6s backwards}
+  .anim #demo.play .rest{animation:rise .5s var(--ease) 2.3s backwards}
+  .anim #demo.play .rseal svg{animation:rowseal .46s var(--press) var(--pd) backwards}
+  @keyframes rowseal{
+    0%{opacity:0;transform:scale(1.9) rotate(-14deg)}
+    55%{opacity:1;transform:scale(.88) rotate(2deg)}
+    100%{opacity:1;transform:scale(1) rotate(var(--tilt))}}
+  .anim #demo .ticker i{opacity:0}
+  .anim #demo.play .ticker i{animation:tickin .3s var(--ease) both,tickidle 3.2s ease-in-out infinite;
+    animation-delay:calc(var(--i)*45ms + .4s),calc(var(--i)*140ms + 1.8s)}
+  @keyframes tickin{from{opacity:0;transform:scaleY(.3)}to{opacity:var(--o);transform:scaleY(1)}}
+  @keyframes tickidle{0%,100%{opacity:var(--o)}50%{opacity:1}}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-  .hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;margin-top:40px;padding-top:32px;border-top:1px solid rgba(238,246,241,.08);opacity:0;animation:fadeInUp 0.6s 2.4s forwards}
-  @media(max-width:640px){.hero-stats{grid-template-columns:repeat(2,1fr);gap:20px}}
-  .hero-stat{text-align:left}
-  @media(max-width:1024px){.hero-stat{text-align:center}}
-  .hero-stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:28px;color:var(--cream);letter-spacing:-.01em}
-  .hero-stat-label{font-size:12px;color:var(--cream-dim);margin-top:4px;font-weight:500}
+  /* ── How it works ── */
+  .steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:36px 0 0;padding:0;counter-reset:step}
+  @media(max-width:900px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);
+    padding:24px 22px;position:relative;
+    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
+  .step:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .step-n{font-family:Fraunces,Georgia,serif;font-size:34px;font-weight:600;color:var(--brass);line-height:1;letter-spacing:-.02em}
+  .step h3{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.015em;margin:12px 0 8px}
+  .step p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+  .step p b{color:var(--ink)}
+  .step .stseal{position:absolute;top:20px;right:20px;width:26px;height:26px}
+  .step .stseal svg{width:26px;height:26px;transform:rotate(5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow));
+    transition:transform var(--dur-base) var(--ease)}
+  .step:hover .stseal svg{transform:rotate(5deg) scale(1.18)}
 
-  .scroll-hint{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12px;color:rgba(238,246,241,.3);letter-spacing:.05em;animation:fadeInUp 0.6s 1.8s forwards,floatHint 2.8s ease-in-out infinite 2s}
-  .scroll-hint::after{content:'';width:1px;height:28px;background:linear-gradient(180deg,var(--brass),transparent)}
-  @keyframes floatHint{0%,100%{transform:translateX(-50%)translateY(0)}50%{transform:translateX(-50%)translateY(8px)}}
-  .noise-overlay{position:fixed;inset:0;z-index:9990;pointer-events:none;opacity:0.035;mix-blend-mode:overlay}
-  @media(pointer:coarse){.noise-overlay{display:none}}
+  /* ── Answered / no-ghosting: a slab band ── */
+  .slabband{background:var(--slab);border-block:1px solid var(--line);color:var(--slab-ink)}
+  .slabband .kick{color:var(--seal-ring)}
+  .slabband .sub{color:var(--slab-ink-2)}
+  .slabband .sub b{color:var(--slab-ink)}
+  .bigstats{display:flex;gap:clamp(20px,6vw,84px);margin-top:38px;flex-wrap:wrap}
+  .bigstat .v{font-family:Fraunces,Georgia,serif;font-size:clamp(44px,7vw,72px);font-weight:600;line-height:.9;
+    letter-spacing:-.03em;color:var(--jade-bright);font-variant-numeric:tabular-nums}
+  .bigstat .l{color:var(--slab-ink-2);margin-top:10px}
+  .bigstat:last-child .v{color:var(--seal-ring)}
+  .slabband .dim{color:var(--slab-ink-2);opacity:.75;display:block;margin-top:26px}
 
-  .scroll-progress{position:fixed;top:0;left:0;height:2px;z-index:10000;background:linear-gradient(90deg,var(--jade-glow),var(--brass));transform-origin:left;transform:scaleX(0);transition:transform 0.1s linear}
+  /* ── Your call ── */
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:36px}
+  @media(max-width:860px){.twocol{grid-template-columns:1fr}}
+  .col{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);padding:22px 24px}
+  .col.yours{border-color:var(--brass-line);box-shadow:var(--shadow-md)}
+  .col-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .col-h .lbl{color:var(--ink-3)}
+  .col.yours .col-h .lbl{color:var(--brass)}
+  .col-h svg{width:22px;height:22px;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .col ul{list-style:none;margin:0;padding:0}
+  .col li{display:flex;gap:10px;padding:9px 0;font-size:14px;color:var(--ink-2);line-height:1.5;border-top:1px solid var(--line-soft)}
+  .col li:first-child{border-top:0}
+  .col li b{color:var(--ink)}
+  .col li svg{margin-top:4px;flex-shrink:0}
+  .never{margin:26px auto 0;max-width:660px;text-align:center;font-family:Fraunces,Georgia,serif;
+    font-size:clamp(19px,2.6vw,24px);font-style:italic;color:var(--ink);line-height:1.4;letter-spacing:-.01em}
+  .never b{color:var(--jade);font-style:normal}
 
-  /* ─── SECTIONS ─── */
-  .section{position:relative;z-index:2;padding:120px 24px;background:var(--jade-deep)}
-  .section-alt{background:linear-gradient(180deg,var(--jade-deep),var(--jade-mid),var(--jade-deep))}
-  .section-narrow{max-width:1100px;margin:0 auto}
+  /* ── FAQ ── */
+  .faq{max-width:760px;margin:36px auto 0}
+  .faq details{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-sm);margin-bottom:8px;overflow:hidden;
+    transition:border-color var(--dur-base) var(--ease)}
+  .faq details:hover{border-color:var(--hair)}
+  .faq summary{list-style:none;cursor:pointer;padding:16px 18px;font-size:15px;font-weight:600;
+    display:flex;align-items:center;gap:12px;color:var(--ink)}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";margin-left:auto;font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:400;
+    color:var(--brass);line-height:1;transition:transform var(--dur-base) var(--ease);flex-shrink:0}
+  .faq details[open] summary::after{transform:rotate(45deg)}
+  .faq details p{margin:0;padding:0 18px 18px;font-size:14px;color:var(--ink-2);line-height:1.65;max-width:62ch}
+  .faq details p b{color:var(--ink)}
 
-  .sec-head{text-align:center;margin-bottom:64px}
-  .sec-eyebrow{font-size:11px;font-weight:700;letter-spacing:.4em;text-transform:uppercase;color:var(--brass);margin-bottom:14px;display:inline-block;padding:4px 12px;border-radius:999px;border:1px solid rgba(203,163,106,.2)}
-  .sec-title{font-family:'Fraunces',serif;font-weight:500;font-size:42px;line-height:1.08;letter-spacing:-.01em;margin-bottom:14px}
-  .sec-sub{font-size:16px;color:var(--cream-dim);line-height:1.6;max-width:480px;margin:0 auto}
-  @media(max-width:768px){.sec-title{font-size:30px}}
+  /* ── Closing CTA + footer ── */
+  .cta{text-align:center}
+  .cta h2{font-size:clamp(38px,6vw,58px)}
+  .cta .sub{margin-inline:auto}
+  .cta .ctas{justify-content:center;margin-top:30px}
+  .cta .ava-line{justify-content:center;margin-top:30px}
+  footer{background:var(--slab);border-top:1px solid var(--line);color:var(--slab-ink-2);margin-top:clamp(40px,6vw,72px)}
+  .foot{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-block:26px;font-size:13px}
+  .foot .brand{color:var(--slab-ink)}
+  .foot .brand-mark{box-shadow:inset 0 0 0 1px rgba(244,239,227,.14)}
+  .foot-links{margin-left:auto;display:flex;gap:18px}
+  .foot a{color:var(--slab-ink-2);text-decoration:none;transition:color var(--dur-base) var(--ease)}
+  .foot a:hover{color:var(--jade-bright)}
+  @media(max-width:640px){.foot{flex-direction:column;align-items:flex-start}.foot-links{margin-left:0}}
 
-  /* ─── HOW IT WORKS (progressive pipeline) ─── */
-  .pipeline-wrap{position:relative;perspective:1200px;max-width:1000px;margin:0 auto;padding-top:24px}
-  .pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;position:relative}
+  /* ── Entrances: on-load (hero) and on-scroll (everything else) ── */
+  .anim .hi{animation:rise .6s var(--ease) var(--d,0s) backwards}
+  .anim .ink{animation:inkin .64s var(--ease) var(--d,0s) backwards}
+  @keyframes inkin{0%{opacity:0;filter:blur(7px);letter-spacing:.01em}100%{opacity:1;filter:blur(0);letter-spacing:-.025em}}
+  .anim .io{opacity:0;transform:translateY(14px);
+    transition:opacity .6s ease var(--d,0s),transform .6s var(--ease) var(--d,0s)}
+  .anim .io.in{opacity:1;transform:none}
 
-  .pipe-track{position:absolute;top:36px;left:12%;right:12%;height:3px;background:rgba(238,246,241,.08);border-radius:2px;overflow:hidden}
-  .pipe-fill{position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,var(--jade-glow),var(--brass));border-radius:2px;transition:width 1.8s cubic-bezier(.22,1,.36,1)}
-  .pipe-fill.active{width:100%}
-
-  .stage{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.15);border-radius:22px;padding:32px 24px;text-align:center;position:relative;z-index:1;transition:opacity 0.6s cubic-bezier(.22,1,.36,1),transform 0.6s cubic-bezier(.34,1.56,.64,1),border-color 0.4s,box-shadow 0.4s;transform-style:preserve-3d;opacity:0;transform:translateY(40px) scale(0.92)}
-  .stage.visible{opacity:1;transform:translateY(0) scale(1)}
-  .stage:hover{border-color:rgba(202,163,106,.4);box-shadow:0 24px 56px rgba(0,0,0,.3),0 0 0 1px rgba(203,163,106,.08)}
-  .stage-num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:'Fraunces',serif;font-weight:500;font-size:17px;background:rgba(203,163,106,.12);color:var(--brass);margin:0 auto 18px;border:1px solid rgba(203,163,106,.2);transition:all 0.5s cubic-bezier(.22,1,.36,1)}
-  .stage.visible .stage-num{animation:nodeGlow 0.5s ease-out forwards}
-  @keyframes nodeGlow{0%{box-shadow:0 0 0 0 rgba(203,163,106,0)}50%{box-shadow:0 0 24px rgba(203,163,106,.3)}100%{box-shadow:0 0 12px rgba(203,163,106,.15)}}
-  .stage:hover .stage-num{transform:translateZ(30px);box-shadow:0 0 20px rgba(203,163,106,.2)}
-  .stage h3{font-size:17px;font-weight:700;margin-bottom:10px;transition:transform 0.4s}
-  .stage:hover h3{transform:translateZ(20px)}
-  .stage p{font-size:13.5px;color:var(--cream-dim);line-height:1.55;transition:transform 0.4s}
-  .stage:hover p{transform:translateZ(10px)}
-  @media(max-width:768px){.pipeline{grid-template-columns:1fr 1fr}.pipe-track{display:none}}
-  @media(max-width:480px){.pipeline{grid-template-columns:1fr}}
-
-  /* ─── LIVE SIMULATION ─── */
-  .sim-card{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.18);border-radius:24px;padding:36px;position:relative;overflow:hidden;opacity:0;transform:translateY(30px);transition:all .6s cubic-bezier(.22,1,.36,1)}
-  .sim-card.visible{opacity:1;transform:translateY(0)}
-  .sim-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--brass),transparent);opacity:.4}
-  .sim-header{display:flex;align-items:center;gap:16px;margin-bottom:28px}
-  .sim-orb{width:52px;height:52px;border-radius:50%;flex:none;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);box-shadow:0 0 24px rgba(31,158,119,.3),inset 0 2px 6px rgba(255,255,255,.3);position:relative}
-  .sim-orb::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(31,158,119,.25);animation:orbRing 2.5s ease-in-out infinite}
-  @keyframes orbRing{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:.5}}
-  .sim-header h3{font-family:'Fraunces',serif;font-weight:500;font-size:22px}
-  .sim-status{font-size:12px;font-weight:700;color:var(--jade-glow);display:flex;align-items:center;gap:8px;margin-top:4px}
-  .sim-status::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--jade-glow);animation:liveBlink 1.8s ease-in-out infinite}
-  @keyframes liveBlink{0%,100%{opacity:1}50%{opacity:.3}}
-
-  .sim-candidates{display:flex;flex-direction:column;gap:10px}
-  .sim-row{display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,255,255,.025);border-radius:14px;border:1px solid rgba(255,255,255,.05);transition:all .3s}
-  .sim-row:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
-  .sim-av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;flex:none}
-  .sim-name{font-size:14px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sim-track{display:flex;align-items:center;gap:5px;flex:1.5;max-width:260px}
-  .track-step{height:7px;border-radius:4px;flex:1;background:rgba(255,255,255,.06);transition:background .8s ease}
-  .track-step.done{background:var(--jade-glow);box-shadow:0 0 10px rgba(31,158,119,.25)}
-  .track-step.current{background:var(--brass);animation:stepPulse 1.5s ease-in-out infinite}
-  @keyframes stepPulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .track-label{font-size:11px;font-weight:700;color:rgba(238,246,241,.4);min-width:64px;text-align:right}
-  .sim-score{font-family:'Fraunces',serif;font-weight:500;font-size:20px;color:var(--brass);min-width:40px;text-align:right}
-
-  /* ─── APP MOCKUP PHONE ─── */
-  .mockup-section{padding:80px 24px 120px;position:relative;z-index:2}
-  .mockup-wrap{display:flex;justify-content:center;gap:48px;align-items:center;flex-wrap:wrap;max-width:1000px;margin:0 auto}
-  .mockup-text{flex:1;min-width:300px;max-width:460px}
-  .mockup-text h3{font-family:'Fraunces',serif;font-weight:500;font-size:32px;margin-bottom:14px;line-height:1.1}
-  .mockup-text p{font-size:15px;color:var(--cream-dim);line-height:1.65;margin-bottom:24px}
-  .mockup-feature{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
-  .mockup-feature:last-child{border-bottom:0}
-  .mockup-feature-icon{width:36px;height:36px;border-radius:10px;background:rgba(203,163,106,.1);display:grid;place-items:center;font-size:16px}
-  .mockup-feature span{font-size:14px;font-weight:600}
-
-  .phone-frame{width:280px;height:580px;border-radius:44px;background:linear-gradient(150deg,#2a2733,#0e0c14 72%);padding:10px;box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);flex:none;position:relative;transition:transform 0.6s cubic-bezier(.22,1,.36,1);opacity:0;transform:translateY(40px) rotateY(-8deg)}
-  .phone-frame.visible{opacity:1;transform:translateY(0) rotateY(-8deg)}
-  .phone-frame:hover{transform:translateY(-8px) rotateY(-4deg) scale(1.02)}
-  .phone-screen{position:relative;overflow:hidden;height:100%;border-radius:36px;background:var(--jade-mid);border:1px solid rgba(255,255,255,.1);padding:20px;display:flex;flex-direction:column;gap:12px}
-  .phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:90px;height:24px;border-radius:14px;background:#0b0910;z-index:5}
-  .phone-header{display:flex;align-items:center;gap:10px;margin-top:16px;margin-bottom:8px}
-  .phone-orb{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);flex:none}
-  .phone-wm{font-weight:700;font-size:13px;letter-spacing:.15em;text-transform:uppercase}
-  .phone-card{background:rgba(255,255,255,.04);border:1px solid rgba(202,163,106,.15);border-radius:16px;padding:16px;transition:all 0.3s}
-  .phone-card:hover{border-color:rgba(202,163,106,.3);transform:translateY(-2px)}
-  .phone-card-label{font-size:11px;color:rgba(238,246,241,.45);font-weight:700;margin-bottom:6px}
-  .phone-card-val{font-family:'Fraunces',serif;font-weight:500;font-size:24px;color:var(--brass)}
-  .phone-card-sub{font-size:11px;color:rgba(238,246,241,.4);margin-top:2px}
-  .phone-list{display:flex;flex-direction:column;gap:8px}
-  .phone-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.05)}
-  .phone-row-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
-  .phone-row-info{flex:1}
-  .phone-row-name{font-size:12px;font-weight:700}
-  .phone-row-role{font-size:10px;color:rgba(238,246,241,.45)}
-  .phone-row-score{font-family:'Fraunces',serif;font-size:14px;color:var(--brass);font-weight:500}
-  @media(max-width:768px){.phone-frame{width:240px;height:500px}.mockup-text{text-align:center}}
-
-  /* ─── STATS ─── */
-  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
-  .stat-card{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.12);border-radius:22px;padding:40px 28px;text-align:center;transition:transform .3s,border-color .3s;opacity:0;transform:translateY(24px)}
-  .stat-card.visible{opacity:1;transform:translateY(0)}
-  .stat-card:hover{transform:translateY(-4px);border-color:rgba(202,163,106,.35)}
-  .stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:52px;letter-spacing:-.02em;color:var(--brass);margin-bottom:6px;line-height:1}
-  .stat-label{font-size:13px;color:var(--cream-dim);font-weight:600}
-  @media(max-width:768px){.stats-row{grid-template-columns:1fr}.stat-val{font-size:42px}}
-
-  /* ─── TRUSTED BY MARQUEE ─── */
-  .marquee-section{padding:60px 24px;position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden}
-  .marquee-label{text-align:center;font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:rgba(238,246,241,.35);margin-bottom:24px}
-  .marquee-track{display:flex;gap:64px;animation:marquee 30s linear infinite;width:max-content}
-  .marquee-track:hover{animation-play-state:paused}
-  @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-  .marquee-item{display:flex;align-items:center;gap:10px;opacity:0.35;transition:opacity 0.3s;white-space:nowrap}
-  .marquee-item:hover{opacity:0.8}
-  .marquee-item svg{width:28px;height:28px}
-  .marquee-item span{font-size:14px;font-weight:700;letter-spacing:0.05em}
-
-  /* ─── TESTIMONIALS ─── */
-  .testimonials{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
-  .testi{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:28px;transition:all .3s;opacity:0;transform:translateY(20px)}
-  .testi.visible{opacity:1;transform:translateY(0)}
-  .testi:hover{border-color:rgba(202,163,106,.2);transform:translateY(-3px)}
-  .testi q{display:block;font-size:14px;line-height:1.65;color:rgba(238,246,241,.65);font-style:italic;margin-bottom:18px}
-  .testi-author{display:flex;align-items:center;gap:12px}
-  .testi-av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;flex:none}
-  .testi-name{font-size:13px;font-weight:700}.testi-role{font-size:12px;color:rgba(238,246,241,.4)}
-  @media(max-width:768px){.testimonials{grid-template-columns:1fr}}
-
-  /* ─── TRY IT ─── */
-  .try-input-wrap{display:flex;gap:12px;max-width:520px;margin:32px auto 0;background:rgba(255,255,255,.04);border:1px solid rgba(202,163,106,.2);border-radius:16px;padding:7px;transition:border-color .3s}
-  .try-input-wrap:focus-within{border-color:rgba(202,163,106,.5)}
-  .try-input{flex:1;background:transparent;border:0;color:var(--cream);font-size:15px;padding:13px 18px;outline:none;font-family:inherit}
-  .try-input::placeholder{color:rgba(238,246,241,.25)}
-  .try-btn{background:var(--brass);color:var(--jade-deep);font-size:14px;font-weight:800;padding:13px 24px;border-radius:12px;border:0;white-space:nowrap;transition:all .2s}
-  .try-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(203,163,106,.2)}
-  @media(pointer:coarse){.try-btn{cursor:pointer}}
-  .try-result{margin-top:28px;max-width:640px;margin-left:auto;margin-right:auto;text-align:left;opacity:0;transform:translateY(16px);transition:all .5s;pointer-events:none}
-  .try-result.show{opacity:1;transform:translateY(0);pointer-events:auto}
-  .try-flow{background:rgba(255,255,255,.03);border:1px solid rgba(202,163,106,.18);border-radius:20px;padding:28px;position:relative}
-  .try-flow::before{content:'';position:absolute;top:0;left:32px;right:32px;height:1px;background:linear-gradient(90deg,transparent,var(--brass),transparent)}
-  .try-flow h4{font-size:14px;font-weight:700;margin-bottom:20px;color:var(--brass);letter-spacing:.02em}
-  .try-phase{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06);opacity:0;transform:translateX(-12px);animation:phaseIn .4s forwards}
-  .try-phase:last-child{border-bottom:0}
-  @keyframes phaseIn{to{opacity:1;transform:translateX(0)}}
-  .try-phase-num{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;background:rgba(203,163,106,.12);color:var(--brass);flex:none;margin-top:1px}
-  .try-phase-title{font-size:14px;font-weight:700;margin-bottom:3px}
-  .try-phase-desc{font-size:12.5px;color:var(--cream-dim);line-height:1.5}
-
-  /* ─── FOOTER ─── */
-  .footer{position:relative;z-index:2;padding:60px 24px 40px;text-align:center;border-top:1px solid rgba(255,255,255,.06)}
-  .footer-links{display:flex;gap:28px;justify-content:center;margin-bottom:16px}
-  .footer a{color:rgba(238,246,241,.4);text-decoration:none;font-size:13px;font-weight:600;transition:color .2s}
-  .footer a:hover{color:var(--brass)}
-  .footer p{font-size:13px;color:rgba(238,246,241,.25)}
-
-  /* ─── NAV (scroll reveal) ─── */
-  .nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,32,25,.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);transform:translateY(-100%);transition:transform .4s cubic-bezier(.22,1,.36,1)}
-  .nav.visible{transform:translateY(0)}
-  .nav-logo{display:flex;align-items:center;gap:12px;font-weight:700;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream)}
-  .nav-logo .mini-orb{width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 36% 28%,#eafff6,#7fe3c2 18%,#1f9e77 48%,#0c5a44 82%);box-shadow:0 0 12px rgba(31,158,119,.3)}
-  .nav-links{display:flex;gap:32px;align-items:center}
-  .nav-links a{color:rgba(238,246,241,.5);text-decoration:none;font-size:13px;font-weight:600;transition:color .2s}
-  .nav-links a:hover{color:var(--cream)}
-  .nav-cta{background:var(--brass);color:var(--jade-deep);font-size:12px;font-weight:800;padding:8px 20px;border-radius:10px;border:0}
-  @media(pointer:coarse){.nav-cta{cursor:pointer}}
-  @media(max-width:640px){.nav-links{display:none}}
-  /* ─── HERO STATS BAR ─── */
-  .hero-stats{display:flex;gap:48px;justify-content:center;margin-top:48px;opacity:0;animation:fadeInUp 0.6s 2.0s forwards}
-  .hero-stat{text-align:center}
-  .hero-stat-val{font-family:'Fraunces',serif;font-weight:500;font-size:32px;color:var(--brass);line-height:1}
-  .hero-stat-label{font-size:12px;color:var(--cream-dim);margin-top:6px;letter-spacing:0.05em}
-  @media(max-width:640px){.hero-stats{gap:24px}.hero-stat-val{font-size:26px}}
-
-  /* ─── WHY US COMPARISON ─── */
-  .compare-wrap{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:900px;margin:0 auto}
-  .compare-col{padding:40px 32px;border-radius:24px;position:relative}
-  .compare-col.old{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
-  .compare-col.new{background:rgba(31,158,119,.08);border:1px solid rgba(31,158,119,.25)}
-  .compare-col.new::before{content:'';position:absolute;top:0;left:24px;right:24px;height:1px;background:linear-gradient(90deg,transparent,var(--jade-glow),transparent)}
-  .compare-head{font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:28px;display:flex;align-items:center;gap:10px}
-  .compare-col.old .compare-head{color:var(--cream-dim)}
-  .compare-col.new .compare-head{color:var(--jade-mint)}
-  .compare-item{display:flex;align-items:flex-start;gap:14px;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:15px;color:var(--cream);line-height:1.6;font-weight:500}
-  .compare-item:last-child{border-bottom:0}
-  .compare-item .x{color:#e74c3c;font-size:20px;line-height:1;flex:none;margin-top:2px;font-weight:700}
-  .compare-item .check{color:var(--jade-glow);font-size:20px;line-height:1;flex:none;margin-top:2px;font-weight:700}
-  @media(max-width:768px){.compare-wrap{grid-template-columns:1fr}}
-
-  /* ─── PRICING ─── */
-  .pricing-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:960px;margin:0 auto;align-items:start}
-  .price-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:36px 28px;text-align:center;position:relative;transition:all .3s;opacity:0;transform:translateY(30px)}
-  .price-card.visible{opacity:1;transform:translateY(0)}
-  .price-card:hover{transform:translateY(-6px);border-color:rgba(202,163,106,.25);box-shadow:0 24px 60px rgba(0,0,0,.3)}
-  .price-card.popular{border-color:var(--brass);background:linear-gradient(180deg,rgba(203,163,106,.08),rgba(255,255,255,.03))}
-  .price-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--brass);color:var(--jade-deep);font-size:11px;font-weight:800;padding:6px 16px;border-radius:999px;letter-spacing:0.05em}
-  .price-name{font-size:16px;font-weight:700;margin-bottom:8px}
-  .price-amount{font-family:'Fraunces',serif;font-weight:500;font-size:48px;color:var(--cream);margin-bottom:4px;line-height:1}
-  .price-amount span{font-size:18px;color:var(--cream-dim);vertical-align:super}
-  .price-period{font-size:13px;color:var(--cream-dim);margin-bottom:24px}
-  .price-features{text-align:left;list-style:none;display:flex;flex-direction:column;gap:12px;margin-bottom:28px}
-  .price-features li{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--cream-dim)}
-  .price-features li::before{content:'✓';color:var(--jade-glow);font-weight:800;font-size:16px;flex:none}
-  .price-risk{font-size:12px;color:rgba(238,246,241,.35);margin-top:16px;font-weight:500}
-  @media(max-width:768px){.pricing-row{grid-template-columns:1fr;max-width:420px}.price-card.popular{order:-1}}
-
-  /* ─── INTEGRATIONS ─── */
-  .integ-row{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;align-items:center;margin-top:40px}
-  .integ-item{display:flex;align-items:center;gap:10px;opacity:0.4;transition:opacity .3s;filter:grayscale(40%)}
-  .integ-item:hover{opacity:0.9;filter:grayscale(0%)}
-  .integ-item svg{width:28px;height:28px}
-  .integ-item span{font-size:13px;font-weight:700;letter-spacing:0.02em}
-
-  /* ─── TRUST BADGES ─── */
-  .trust-row{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;margin-top:40px}
-  .trust-item{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:rgba(238,246,241,.4);opacity:0.6;transition:opacity .3s}
-  .trust-item:hover{opacity:1}
-  .trust-item .icon{font-size:16px}
-
-  /* ─── FAQ ─── */
-  .faq-list{max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-  .faq-item{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:16px;overflow:hidden;transition:border-color .3s;opacity:0;transform:translateY(16px)}
-  .faq-item.visible{opacity:1;transform:translateY(0)}
-  .faq-item:hover{border-color:rgba(202,163,106,.15)}
-  .faq-q{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;cursor:pointer;font-size:15px;font-weight:700;color:var(--cream);transition:color .2s}
-  .faq-q:hover{color:var(--brass)}
-  .faq-q::after{content:'+';font-size:20px;color:var(--brass);transition:transform .3s}
-  .faq-item.open .faq-q::after{transform:rotate(45deg)}
-  .faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease;padding:0 24px;font-size:14px;color:var(--cream-dim);line-height:1.6}
-  .faq-item.open .faq-a{max-height:200px;padding:0 24px 20px}
-  .faq-item.open{border-color:rgba(202,163,106,.2)}
-
-  /* ─── RISK MICRO-COPY ─── */
-  .risk-note{display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px;color:rgba(238,246,241,.4);margin-top:16px;font-weight:500}
-  .risk-note .dot{width:4px;height:4px;border-radius:50%;background:var(--jade-glow)}
-
-  /* ─── STICKY NAV CTA ENHANCEMENT ─── */
-  .nav-cta:hover{background:var(--brass-light);transform:translateY(-1px);box-shadow:0 8px 24px rgba(203,163,106,.2)}
-  .nav-cta{transition:all .2s}
-
-  /* ─── TESTIMONIAL ENHANCEMENT ─── */
-  .testi-stars{display:flex;gap:3px;margin-bottom:12px}
-  .testi-stars span{color:var(--brass);font-size:14px}
-
-  /* ─── FOOTER TRUST ─── */
-  .footer-trust{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
-  .footer-trust-item{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:rgba(238,246,241,.3);text-transform:uppercase;letter-spacing:0.08em}
-  .footer-trust-item .icon{font-size:14px}
-
-  /* ─── HERO RISK ─── */
-  .hero-risk{display:flex;gap:16px;justify-content:center;margin-top:16px;font-size:12px;color:rgba(238,246,241,.35);font-weight:500;opacity:0;animation:fadeInUp 0.6s 2.2s forwards}
-  .hero-risk span{display:flex;align-items:center;gap:6px}
-  .hero-risk .check{color:var(--jade-glow);font-size:14px}
-
-  /* ─── COMPARISON SECTION ─── */
-  .compare-section{padding:0 24px 120px;position:relative;z-index:2}
-
-  /* ─── PRICING SECTION WRAPPER ─── */
-  .pricing-section{padding:120px 24px;position:relative;z-index:2;background:var(--jade-deep)}
-
-  /* ─── INTEGRATION SECTION WRAPPER ─── */
-  .integ-section{padding:80px 24px;position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06)}
-
-  /* ─── FAQ SECTION WRAPPER ─── */
-  .faq-section{padding:120px 24px;position:relative;z-index:2;background:linear-gradient(180deg,var(--jade-deep),var(--jade-mid),var(--jade-deep))}
-
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+    html{scroll-behavior:auto}
+    .amb i,.amb-day::after{animation:none!important}
+    .stars i{animation:none!important} /* stars hold still — the scroll still fades them */
+    .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
+    .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
+    .step:hover .stseal svg{transform:rotate(5deg)}
+  }
 </style>
 </head>
 <body>
 
-<!-- Noise Texture Overlay -->
-<canvas class="noise-overlay" id="noise-canvas"></canvas>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="wax-sm">
+      <circle cx="50" cy="50" r="46" fill="var(--seal-disc)"/>
+      <circle cx="50" cy="50" r="31" fill="none" stroke="var(--seal-ring)" stroke-width="6"/>
+      <text x="50" y="52" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="52" font-weight="700" fill="var(--seal-ring)">A</text>
+    </g>
+    <g id="rising">
+      <path d="M4 18 L9 7 L14 15 L20 6" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </defs>
+</svg>
 
-<!-- Scroll Progress -->
-<div class="scroll-progress" id="scroll-progress"></div>
+<div class="amb amb-night" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="amb amb-day" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="stars" id="stars" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<div class="clock" id="clock" aria-hidden="true"><i></i><span id="clock-t">11:47&#8202;pm</span></div>
 
-<!-- Background WebGL Canvas -->
-<div id="hero-canvas"></div>
-
-<!-- Nav -->
-<nav class="nav" id="nav">
-  <div class="nav-logo"><span style="width:30px;height:30px;border-radius:8px;background:#0C2A21;display:inline-flex;align-items:center;justify-content:center;flex:none;box-shadow:0 1px 3px rgba(0,0,0,.4)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>HireFlow</div>
-  <div class="nav-links">
-    <a href="#how" class="magnetic-link">How it works</a>
-    <a href="#live" class="magnetic-link">Live demo</a>
-    <a href="#proof" class="magnetic-link">Results</a>
-    <a href="/auth" target="_parent" class="nav-cta magnetic-btn">Try free</a>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="HireFlow — back to top">
+      <span class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </a>
+    <nav class="nav-links" aria-label="Page sections">
+      <a href="#how">How it works</a>
+      <a href="#answered">No ghosting</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn go" href="/auth" target="_parent" style="margin-left:8px">Try free</a>
   </div>
-</nav>
+</header>
 
-<!-- Hero -->
-<section class="hero" id="hero">
-  <div class="hero-inner">
-    <div class="hero-left">
-      <div class="hero-orb-wrap"><video class="hero-loop" autoplay muted loop playsinline poster="/landing-assets/rise-poster.png" aria-hidden="true"><source src="/landing-assets/rise-loop.webm" type="video/webm"><source src="/landing-assets/rise-loop.mp4" type="video/mp4"></video></div>
-      <div class="hero-badge"><span class="pulse-dot"></span>Hey — I'm here to help you hire</div>
-    </div>
-    <div class="hero-right">
-      <h1 id="hero-headline">
-        <span class="line">Meet <span class="accent">Ava</span>.</span>
-        <span class="line">She handles hiring,</span>
-        <span class="line">so you don't have to.</span>
-      </h1>
-      <p class="hero-sub">Brief her on the role. She builds the screening flow, interviews every candidate, and hands you a <strong>ranked shortlist</strong> — ready to Advance or Pass.</p>
-      <div class="cta-row">
-        <a href="/auth" target="_parent" class="btn-primary magnetic-btn">Try free — first hire at no cost</a>
-        <a href="#live" class="btn-ghost magnetic-btn">Watch how it works</a>
-      </div>
-      <div class="hero-risk">
-        <span><span class="check">✓</span> No credit card</span>
-        <span><span class="check">✓</span> Cancel anytime</span>
-        <span><span class="check">✓</span> First hire free</span>
-      </div>
-    </div>
-  </div>
-  <div class="scroll-hint">Scroll to explore</div>
-</section>
+<main id="top">
 
-<!-- How It Works -->
-<section class="section section-alt" id="how">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">How it works</span>
-      <h2 class="sec-title">From brief to shortlist in 4 steps</h2>
-      <p class="sec-sub">Ava does the heavy lifting. You make the final call.</p>
-    </div>
-    <div class="pipeline-wrap" id="pipeline-wrap">
-      <div class="pipe-track"><div class="pipe-fill" id="pipe-fill"></div></div>
-                              <div class="pipeline">
-        <div class="stage tilt-card" data-reveal data-index="0">
-          <div class="stage-num">1</div>
-          <h3>Brief Ava</h3>
-          <p>Tell her the role, pay, and what matters. She listens and builds the perfect screening flow.</p>
+  <!-- ── NIGHT · the hero ── -->
+  <section class="hero" aria-label="While you slept">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
+        <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
+        <p class="sub hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
+          not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
+          <b>You were asleep the whole time.</b></p>
+        <div class="ava-line hi" style="--d:.42s">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+          <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
         </div>
-        <div class="stage tilt-card" data-reveal data-index="1">
-          <div class="stage-num">2</div>
-          <h3>Publish & Collect</h3>
-          <p>Share your role anywhere. Candidates apply, take a timed quiz, and answer questions out loud.</p>
-        </div>
-        <div class="stage tilt-card" data-reveal data-index="2">
-          <div class="stage-num">3</div>
-          <h3>Ava Screens</h3>
-          <p>She grades every quiz, transcribes voice answers, and scores candidates on the traits you care about.</p>
-        </div>
-        <div class="stage tilt-card" data-reveal data-index="3">
-          <div class="stage-num">4</div>
-          <h3>Your Shortlist</h3>
-          <p>A ranked list of the best candidates, with scores and interview clips. Tap Advance or Pass.</p>
+        <div class="ctas hi" style="--d:.52s">
+          <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
+          <a class="btn lg" href="#morning">Watch how it works</a>
         </div>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- Why Us -->
-<section class="compare-section" id="why">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">Why Hireflow</span>
-      <h2 class="sec-title">The old way vs. the smart way</h2>
-      <p class="sec-sub">Stop managing hiring. Start making decisions.</p>
-    </div>
-    <div class="compare-wrap" data-reveal>
-      <div class="compare-col old">
-        <div class="compare-head">❌ Hiring the old way</div>
-        <div class="compare-item"><span class="x">×</span> Post on 5 job boards, sift through 50+ resumes</div>
-        <div class="compare-item"><span class="x">×</span> Phone screen every applicant manually</div>
-        <div class="compare-item"><span class="x">×</span> No idea who's actually qualified until you meet them</div>
-        <div class="compare-item"><span class="x">×</span> Spreadsheet tracking that breaks by week 2</div>
-        <div class="compare-item"><span class="x">×</span> 2-4 weeks to make your first hire</div>
-      </div>
-      <div class="compare-col new">
-        <div class="compare-head">✓ Hiring with Ava</div>
-        <div class="compare-item"><span class="check">✓</span> One brief. Ava builds a smart link and collects candidates.</div>
-        <div class="compare-item"><span class="check">✓</span> Ava interviews every candidate with voice quizzes</div>
-        <div class="compare-item"><span class="check">✓</span> Scored shortlist ranked by fit — data, not gut</div>
-        <div class="compare-item"><span class="check">✓</span> One dashboard. Listen to clips, Advance or Pass</div>
-        <div class="compare-item"><span class="check">✓</span> Top picks in 48-72 hours, not weeks</div>
+      <div class="tlcard hi" style="--d:.35s" aria-label="Overnight timeline">
+        <div class="tl-h"><span class="lbl">Tonight, at your shop</span><span class="live lbl"><i></i>Ava is on</span></div>
+        <ol class="tl" id="tl">
+          <li class="tstep"><span class="tt">11:47 pm</span>
+            <div><b>She applies</b><small>From her phone, after her shift ends.</small></div></li>
+          <li class="tstep"><span class="tt">11:51 pm</span>
+            <div><b>Ava interviews her</b><small>Eight minutes, by voice. Skills, availability, the questions you&#8217;d ask.</small></div></li>
+          <li class="tstep"><span class="tt">11:59 pm</span>
+            <div><b>Sealed for the morning</b><small>Scored, evidence attached, waiting on your desk.</small></div>
+            <span class="tseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></span></li>
+        </ol>
+        <div class="tl-f"><span><b>Nobody got ghosted tonight.</b> Everyone hears back.</span><span class="dim">Illustrative demo</span></div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- App Mockup -->
-<section class="mockup-section" id="app">
-  <div class="mockup-wrap">
-    <div class="mockup-text">
-      <h3>Your hiring, in one dashboard</h3>
-      <p>No more spreadsheets, no more email threads, no more sifting through 50 resumes. Ava hands you a clean shortlist with scores and interview clips.</p>
-      <div class="mockup-feature"><div class="mockup-feature-icon">☕</div><span>See all active roles and applicant counts</span></div>
-      <div class="mockup-feature"><div class="mockup-feature-icon">📊</div><span>Ranked shortlist with scores and Ava's read</span></div>
-      <div class="mockup-feature"><div class="mockup-feature-icon">🎙️</div><span>Listen to voice interview clips in one tap</span></div>
-      <div class="mockup-feature"><div class="mockup-feature-icon">✅</div><span>Advance or Pass — one decision, done</span></div>
+  <!-- ── DAWN · scrolling through this strip turns night into morning ── -->
+  <section class="dawn" id="dawn" aria-label="Morning arrives">
+    <div class="dawn-sun" id="sun" aria-hidden="true"></div>
+    <div class="wrap dawn-in">
+      <p class="kick lbl io">7:02 am</p>
+      <h2 class="io" style="--d:.08s">Then the sun comes up.</h2>
+      <p class="sub io" style="--d:.16s">Ava doesn&#8217;t page you at midnight. She lets you sleep — and leaves the
+        shortlist on your desk, sealed, for the morning. Keep scrolling: this is what daylight looks like.</p>
     </div>
-    <div class="phone-frame" data-reveal>
-      <div class="phone-screen">
-        <div class="phone-notch"></div>
-        <div class="phone-header"><div class="phone-orb"></div><div class="phone-wm">Hireflow</div></div>
-        <div class="phone-card"><div class="phone-card-label">Shortlist ready</div><div class="phone-card-val">5</div><div class="phone-card-sub">for Barista — part-time</div></div>
-        <div class="phone-list">
-          <div class="phone-row"><div class="phone-row-av" style="background:#d9d4ec;color:#3e3bc4">JD</div><div class="phone-row-info"><div class="phone-row-name">Jordan Davis</div><div class="phone-row-role">Scored 8.4</div></div><div class="phone-row-score">8.4</div></div>
-          <div class="phone-row"><div class="phone-row-av" style="background:#f3d9cc;color:#b5491f">AO</div><div class="phone-row-info"><div class="phone-row-name">Alex Ortiz</div><div class="phone-row-role">Scored 7.8</div></div><div class="phone-row-score">7.8</div></div>
-          <div class="phone-row"><div class="phone-row-av" style="background:#cfeee0;color:#0c7a57">TM</div><div class="phone-row-info"><div class="phone-row-name">Taylor Morgan</div><div class="phone-row-role">Scored 6.2</div></div><div class="phone-row-score">6.2</div></div>
+    <p class="beat" data-c="0.37" style="top:36%"><span class="bt">1:20 am</span> — two more applied. Both interviewed within minutes.</p>
+    <p class="beat" data-c="0.57" style="top:55%"><span class="bt">3:47 am</span> — Marisol asked about the scanner. Good question.</p>
+    <p class="beat" data-c="0.77" style="top:74%"><span class="bt">5:36 am</span> — a third sealed for your morning.</p>
+  </section>
+
+  <!-- ── DAY · the morning read (live demo) ── -->
+  <section id="morning" aria-label="The morning read">
+    <div class="wrap">
+      <div class="demo-head">
+        <p class="kick lbl io">The morning read</p>
+        <h2 class="io" style="--d:.08s">Open the shop. It&#8217;s already done.</h2>
+        <p class="sub io" style="--d:.16s">Sample role — a <b>Part-Time Mechanic</b> at a neighborhood garage.
+          Demo data, and the same screen you&#8217;ll see in the app.</p>
+      </div>
+      <div class="window io" style="--d:.2s" id="demo">
+        <div class="win-bar">
+          <span class="brand-mark"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+          <span class="win-t">HireFlow — Dashboard</span>
+          <span class="dim">Tue · 7:02 am</span>
+        </div>
+        <div class="win-in">
+          <div class="greet"><h3>Good morning, Ray.</h3><span class="dim">Part-Time Mechanic · day 6</span></div>
+          <div class="nightbar">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+            <div class="night-t"><b>Ava worked overnight.</b> Read <span class="n">41</span> · interviewed all 41 ·
+              sealed <span class="n">3</span> — none of your time, nobody left waiting.</div>
+            <div class="ticker" id="ticker" aria-hidden="true"></div>
+          </div>
+          <div class="rowlist">
+            <div class="wrow">
+              <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur · mornings</div></div>
+              <div class="rwhy">Named the right torque sequence unprompted. <b>Can start Monday.</b></div>
+              <div class="rscore"><span data-count="92">92</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+            <div class="wrow">
+              <div class="rid"><div class="rav">MR</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Marisol Reyes</div><div class="rmeta">East Atlanta · flexible</div></div>
+              <div class="rwhy">Strong diagnostics. Smart questions about <b>your scanner</b>.</div>
+              <div class="rscore"><span data-count="88">88</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+            <div class="wrow">
+              <div class="rid"><div class="rav">TB</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
+              <div class="rwho"><div class="rname">Tyrone Baptiste</div><div class="rmeta">Kirkwood · weekends <span class="chip">Needs training</span></div></div>
+              <div class="rwhy"><b>Least experience, sharpest answers on customers.</b> A bet worth meeting.</div>
+              <div class="rscore"><span data-count="81">81</span><span class="lbl">Sealed</span></div>
+              <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+            </div>
+          </div>
+          <div class="rest">
+            <span><b>38 didn&#8217;t make the cut</b> — every one already got a polite reply in your name.</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- Live Simulation -->
-<section class="section" id="live">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">Live demo</span>
-      <h2 class="sec-title">Watch Ava screen in real time</h2>
-      <p class="sec-sub">This is what your dashboard looks like while candidates move through the pipeline.</p>
+  <!-- ── How it works ── -->
+  <section id="how" aria-label="How it works">
+    <div class="wrap">
+      <p class="kick lbl io">How it works</p>
+      <h2 class="io" style="--d:.08s">Brief her. She screens. You decide.</h2>
+      <ol class="steps">
+        <li class="step io" style="--d:.05s">
+          <div class="step-n" aria-hidden="true">1</div>
+          <h3>Tell Ava about the job</h3>
+          <p>Five minutes, talking or typing. She turns it into a proper job post, lists it where local
+            job-seekers actually look, and gives you a link and a QR code for the counter.</p>
+        </li>
+        <li class="step io" style="--d:.18s">
+          <div class="step-n" aria-hidden="true">2</div>
+          <h3>She interviews everyone</h3>
+          <p>Every applicant gets a real screening interview <b>minutes after applying</b> — 11 pm on a Sunday
+            included. Not a quiz, not a form: a conversation about the actual work.</p>
+        </li>
+        <li class="step io" style="--d:.31s">
+          <span class="stseal" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+          <div class="step-n" aria-hidden="true">3</div>
+          <h3>You make the call</h3>
+          <p>You get a short, sealed shortlist — each score backed by evidence you can check: quotes, transcripts,
+            timings. Meet the ones you like. <b>Every yes and every no is your click.</b></p>
+        </li>
+      </ol>
     </div>
-    <div class="sim-card" data-reveal>
-      <div class="sim-header">
-        <div class="sim-orb"></div>
-        <div><h3>Ava is screening</h3><div class="sim-status">6 Barista applicants in progress</div></div>
-      </div>
-      <div class="sim-candidates" id="sim-candidates"></div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- Pricing -->
-<section class="pricing-section" id="pricing">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">Pricing</span>
-      <h2 class="sec-title">Simple pricing. No surprises.</h2>
-      <p class="sec-sub">Pay only for what you use. First hire is always free.</p>
+  <!-- ── Every applicant answered ── -->
+  <section class="slabband" id="answered" aria-label="Every applicant answered">
+    <div class="wrap">
+      <p class="kick lbl io">Nobody left waiting</p>
+      <h2 class="io" style="--d:.08s">41 people applied. All 41 got interviewed.<br>You talked to three.</h2>
+      <p class="sub io" style="--d:.16s">Applying for work usually ends in silence — most people never hear back at
+        all. Not at your place. Everyone who applies gets a real interview and a courteous answer either way,
+        signed from your shop. <b>Nobody who applies to you gets ghosted again.</b></p>
+      <div class="bigstats io" style="--d:.2s" id="bigstats">
+        <div class="bigstat"><div class="v" data-count="41">41</div><div class="l lbl">Applied</div></div>
+        <div class="bigstat"><div class="v" data-count="41">41</div><div class="l lbl">Interviewed</div></div>
+        <div class="bigstat"><div class="v" data-count="3">3</div><div class="l lbl">You met</div></div>
+      </div>
+      <span class="dim io" style="--d:.26s">Numbers from the demo role above — your roles will have their own.</span>
     </div>
-    <div class="pricing-row">
-      <div class="price-card" data-reveal>
-        <div class="price-name">Starter</div>
-        <div class="price-amount"><span>$</span>29</div>
-        <div class="price-period">per month</div>
-        <ul class="price-features">
-          <li>1 active role</li>
-          <li>Up to 50 applicants per role</li>
-          <li>AI screening & scoring</li>
-          <li>Voice interview transcripts</li>
-          <li>Email support</li>
-        </ul>
-        <a href="/auth" target="_parent" class="btn-ghost" style="width:100%;display:block">Start free</a>
-        <div class="price-risk">No credit card required</div>
-      </div>
-      <div class="price-card popular" data-reveal>
-        <div class="price-badge">Most Popular</div>
-        <div class="price-name">Growth</div>
-        <div class="price-amount"><span>$</span>79</div>
-        <div class="price-period">per month</div>
-        <ul class="price-features">
-          <li>5 active roles</li>
-          <li>Unlimited applicants</li>
-          <li>AI screening & scoring</li>
-          <li>Voice interview transcripts</li>
-          <li>Priority Slack support</li>
-          <li>Custom screening questions</li>
-        </ul>
-        <a href="/auth" target="_parent" class="btn-primary" style="width:100%;display:block">Start free</a>
-        <div class="price-risk">First hire free. Cancel anytime.</div>
-      </div>
-      <div class="price-card" data-reveal>
-        <div class="price-name">Enterprise</div>
-        <div class="price-amount" style="font-size:36px;margin-top:12px">Custom</div>
-        <div class="price-period">For teams of 10+</div>
-        <ul class="price-features">
-          <li>Unlimited active roles</li>
-          <li>Unlimited applicants</li>
-          <li>Advanced AI scoring</li>
-          <li>API access</li>
-          <li>SSO & team permissions</li>
-          <li>Dedicated account manager</li>
-        </ul>
-        <a href="mailto:hello@hireflownow.com" target="_parent" class="btn-ghost" style="width:100%;display:block">Contact sales</a>
-        <div class="price-risk">Custom onboarding included</div>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- Integrations -->
-<section class="integ-section" id="integrations">
-  <div class="section-narrow">
-    <div class="sec-head" style="margin-bottom:24px">
-      <span class="sec-eyebrow">Integrations</span>
-      <h2 class="sec-title" style="font-size:28px">Works with your tools</h2>
+  <!-- ── You make every call ── -->
+  <section id="trust" aria-label="You make every call">
+    <div class="wrap">
+      <p class="kick lbl io">You make every call</p>
+      <h2 class="io" style="--d:.08s">Ava recommends. She never rejects.</h2>
+      <p class="sub io" style="--d:.16s">Ava has no reject button. Hiring at your shop stays yours — she just
+        carries the weight of it.</p>
+      <div class="twocol">
+        <div class="col io" style="--d:.05s">
+          <div class="col-h">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+            <span class="lbl">Ava&#8217;s side of the counter</span>
+          </div>
+          <ul>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Reads every application — the 11&#8202;pm ones included</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Interviews everyone within minutes, at any hour</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Writes every score down <b>with the evidence behind it</b></span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Sends the courteous &ldquo;not this time&rdquo; notes — after you decide, in your name</span></li>
+          </ul>
+        </div>
+        <div class="col yours io" style="--d:.18s">
+          <div class="col-h">
+            <span class="brand-mark" style="width:22px;height:22px;border-radius:6px"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+            <span class="lbl">Yours, always</span>
+          </div>
+          <ul>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Read three short briefs over coffee</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Pick who to meet — and meet them your way</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Say <b>every yes and every no</b> — each one is your click</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Make the hire, shake the hand</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="never io" style="--d:.1s">Ava never rejects anyone. <b>Not quietly, not automatically, not ever.</b></p>
     </div>
-    <div class="integ-row">
-      <div class="integ-item">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.521-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521zM15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.526 2.526 0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
-        <span>Slack</span>
-      </div>
-      <div class="integ-item">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        <span>Google Calendar</span>
-      </div>
-      <div class="integ-item">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.131 1.58l.623-4.029C17.33.631 15.157 0 12.567 0 8.765 0 6.007 1.756 6.007 4.872c0 2.995 1.782 4.055 5.828 5.592 2.567.956 3.36 1.576 3.36 2.574 0 .98-.84 1.545-2.353 1.545-1.875 0-4.965-.921-6.99-2.109l-.66 4.039C5.064 21.566 8.205 22.001 11.51 22.001c4.039 0 6.835-1.652 6.835-4.898 0-3.118-1.954-4.118-5.37-5.953z"/></svg>
-        <span>Stripe</span>
-      </div>
-      <div class="integ-item">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.453-.233 4.764 7.279v-6.44l-1.215-.14c-.093-.514.28-.887.747-.933l3.174-.186z"/></svg>
-        <span>Notion</span>
-      </div>
-      <div class="integ-item">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.164 7.93V5.084a2.198 2.198 0 0 0 1.267-1.984 2.21 2.21 0 0 0-4.42 0c0 .852.49 1.59 1.2 1.953V7.93c-2.274.424-4.11 1.975-4.965 4.15H6.857V7.758a2.204 2.204 0 0 0 1.255-1.99 2.21 2.21 0 0 0-4.42 0c0 .862.497 1.606 1.215 1.968v4.517h-.567c-1.215 0-2.2 1.07-2.2 2.39v.002c0 1.32.985 2.39 2.2 2.39h.567v3.015c-.718.362-1.215 1.106-1.215 1.968a2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.255-1.99v-2.993h3.894c1.215 0 2.2-1.07 2.2-2.39 0-1.32-.985-2.39-2.2-2.39H6.857V12.08h.629c.855 2.175 2.69 3.726 4.965 4.15v2.846a2.198 2.198 0 0 0-1.267 1.984 2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.267-1.984v-2.846c2.274-.424 4.11-1.975 4.965-4.15h.906v2.993a2.198 2.198 0 0 0-1.255 1.99 2.21 2.21 0 0 0 4.42 0 2.198 2.198 0 0 0-1.255-1.99V15.87c1.215 0 2.2-1.07 2.2-2.39 0-1.32-.985-2.39-2.2-2.39h-.906z"/></svg>
-        <span>Zapier</span>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- Social Proof -->
-<section class="section section-alt" id="proof">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">Results</span>
-      <h2 class="sec-title">Built for owners who need<br>to hire fast, not manage tools</h2>
+  <!-- ── FAQ ── -->
+  <section id="faq" aria-label="Questions, answered straight">
+    <div class="wrap">
+      <div style="text-align:center">
+        <p class="kick lbl io">Fair questions</p>
+        <h2 class="io" style="--d:.08s">Asked straight, answered straight.</h2>
+      </div>
+      <div class="faq io" style="--d:.14s">
+        <details>
+          <summary>What does it cost?</summary>
+          <p>Simple pricing, announced at launch. What we&#8217;ll promise now: <b>your first hire is free</b> —
+            post the job, read the shortlist, hire someone, pay nothing. Judge HireFlow by the person
+            you hired, not by a sales page.</p>
+        </details>
+        <details>
+          <summary>Are my applicants talking to a bot?</summary>
+          <p>They&#8217;re talking to Ava, and she says so — she introduces herself as your hiring assistant and
+            never pretends to be human. It&#8217;s a real conversation about the actual job, by voice or text,
+            at whatever hour they apply. Most applicants prefer a fair listen at 11&#8202;pm to a form and
+            three weeks of silence.</p>
+        </details>
+        <details>
+          <summary>I already post on job boards. What changes?</summary>
+          <p>Keep whatever works. HireFlow lists your job where local job-seekers already look, and gives you a
+            link and QR code for the door, the counter, or your socials. Wherever people come from, every one
+            of them gets the same interview and lands in the same shortlist.</p>
+        </details>
+        <details>
+          <summary>How fast is it, really?</summary>
+          <p>Applicants are interviewed <b>minutes after applying</b>, day or night. Your shortlist builds as they
+            come in — most owners are reading sealed briefs with their coffee the next morning, not sorting
+            resumes on Sunday night.</p>
+        </details>
+        <details>
+          <summary>Can Ava turn someone down without me?</summary>
+          <p><b>No. Never.</b> Ava scores, seals, and recommends — passing on someone is always your click. And when
+            you do pass, she sends a courteous reply in your name, so the answer is a kindness instead of silence.</p>
+        </details>
+      </div>
     </div>
-    <div class="stats-row">
-      <div class="stat-card" data-reveal><div class="stat-val">Every</div><div class="stat-label">applicant screened on the same rubric</div></div>
-      <div class="stat-card" data-reveal><div class="stat-val">24/7</div><div class="stat-label">Ava replies while you're working</div></div>
-      <div class="stat-card" data-reveal><div class="stat-val">0</div><div class="stat-label">resumes you have to read first</div></div>
-    </div>
-  </div>
-</section>
+  </section>
 
-<!-- FAQ -->
-<section class="faq-section" id="faq">
-  <div class="section-narrow">
-    <div class="sec-head">
-      <span class="sec-eyebrow">FAQ</span>
-      <h2 class="sec-title">Questions, answered</h2>
-      <p class="sec-sub">Everything you need to know before starting your first role.</p>
-    </div>
-    <div class="faq-list">
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">What if Ava picks the wrong people?</div>
-        <div class="faq-a">Ava doesn't make final decisions — she screens and ranks. You always review the shortlist and choose who to Advance or Pass. Think of her as a super-powered recruiter, not a replacement for your judgment.</div>
+  <!-- ── Closing CTA (full daylight) ── -->
+  <section class="cta" id="cta" aria-label="Get started">
+    <div class="wrap">
+      <p class="kick lbl io">HireFlow</p>
+      <h2 class="io" style="--d:.08s">Hiring, handled.</h2>
+      <p class="sub io" style="--d:.16s">Post the job tonight. Read the shortlist with tomorrow&#8217;s coffee.</p>
+      <div class="ctas io" style="--d:.22s">
+        <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
+        <a class="btn lg" href="#morning">Watch how it works</a>
       </div>
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">How is my candidate data protected?</div>
-        <div class="faq-a">All data is encrypted at rest and in transit. Resumes and candidate files are stored privately and are only reachable through short-lived, access-checked links. Candidate data is never sold or shared with third parties.</div>
-      </div>
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">Can I customize the screening questions?</div>
-        <div class="faq-a">Absolutely. Ava starts with smart defaults based on your role, but you can add, edit, or remove any question. You can also set custom scoring weights for the traits that matter most to your business.</div>
-      </div>
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">What happens after the free trial?</div>
-        <div class="faq-a">Your first hire is always free, no matter what plan you're on. After that, you can upgrade to Growth or stay on Starter. No surprise charges, no locked-in contracts.</div>
-      </div>
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">Do candidates need to download an app?</div>
-        <div class="faq-a">Nope. Candidates apply through a simple web link — no app install, no account creation. They take a quiz, answer voice questions, and they're done in under 10 minutes.</div>
-      </div>
-      <div class="faq-item" data-reveal>
-        <div class="faq-q">Can I integrate with my existing tools?</div>
-        <div class="faq-a">Yes. Hireflow connects with Slack, Google Calendar, Stripe, Notion, and Zapier. New integrations are added monthly based on customer requests.</div>
+      <div class="ava-line io" style="--d:.3s">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+        <p>&ldquo;I&#8217;ll take the night shift.&rdquo;&nbsp;<b>— Ava</b></p>
       </div>
     </div>
-  </div>
-</section>
+  </section>
+</main>
 
-<!-- Try It -->
-<section class="section" id="try">
-  <div class="section-narrow" style="text-align:center">
-    <span class="sec-eyebrow">Try it now</span>
-    <h2 class="sec-title">What would Ava build for your role?</h2>
-    <p class="sec-sub">Type any job title and see the screening flow she'd create.</p>
-    <div class="try-input-wrap">
-      <input type="text" class="try-input" placeholder="e.g. Barista, Dog Groomer, Line Cook..." id="try-input" value="Barista">
-      <button class="try-btn magnetic-btn" id="try-btn">Build my flow</button>
-    </div>
-    <div class="try-result" id="try-result">
-      <div class="try-flow">
-        <h4>Ava's screening flow for "<span id="try-role-name">Barista</span>"</h4>
-        <div id="try-phases"></div>
-        <div style="margin-top:24px;text-align:center"><a href="/auth" target="_parent" class="btn-primary magnetic-btn" style="padding:12px 28px;font-size:13px;display:inline-block">Get the full flow — free</a></div>
-      </div>
-    </div>
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="#top">
+      <span class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+      <span class="brand-name" style="font-size:17px">HireFlow</span>
+    </a>
+    <span>© 2026 HireFlow · hireflownow.com</span>
+    <nav class="foot-links" aria-label="Legal">
+      <a href="/privacy" target="_parent">Privacy</a>
+      <a href="/terms" target="_parent">Terms</a>
+    </nav>
   </div>
-</section>
-
-<!-- Footer -->
-<footer class="footer">
-  <div class="footer-trust">
-    <div class="footer-trust-item"><span class="icon">🔒</span> Encrypted in transit &amp; at rest</div>
-    <div class="footer-trust-item"><span class="icon">🛡️</span> Private candidate files</div>
-    <div class="footer-trust-item"><span class="icon">💳</span> Stripe Payments</div>
-  </div>
-  <div class="footer-links"><a href="/privacy" target="_parent">Privacy</a><a href="/terms" target="_parent">Terms</a><a href="mailto:hello@hireflownow.com" target="_parent">Contact</a></div>
-  <p>© 2026 Hireflow. Hiring, handled by Ava.</p>
 </footer>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
-<script type="module">
-import * as THREE from 'three';
+<script>
+(function(){
+  "use strict";
+  var d=document,root=d.documentElement;
+  var RM=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var ANIM=!RM&&"IntersectionObserver" in window;
+  if(ANIM)root.classList.add("anim");
 
-// MOUSE TRACKING + MAGNETIC BUTTONS + TILT
-const isTouch = window.matchMedia('(pointer:coarse)').matches;
-
-let mouseX = 0.5, mouseY = 0.5;
-window.addEventListener('mousemove', (e) => { mouseX = e.clientX / window.innerWidth; mouseY = 1.0 - e.clientY / window.innerHeight; });
-
-if (!isTouch) {
-  const magneticEls = document.querySelectorAll('.magnetic-btn, .magnetic-link, .tilt-card');
-  magneticEls.forEach(el => {
-    el.addEventListener('mousemove', (e) => {
-      const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = (e.clientX - cx) * 0.15;
-      const dy = (e.clientY - cy) * 0.15;
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
-    });
-    el.addEventListener('mouseleave', () => { el.style.transform = ''; });
-  });
-}
-
-// 3D Tilt cards
-if (!isTouch) {
-  document.querySelectorAll('.tilt-card').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const cx = rect.width / 2;
-      const cy = rect.height / 2;
-      const rx = (y - cy) / cy * -8;
-      const ry = (x - cx) / cx * 8;
-      card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(10px)`;
-    });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-  });
-}
-
-// FAQ accordion
-document.querySelectorAll('.faq-q').forEach(q => {
-  q.addEventListener('click', () => {
-    const item = q.parentElement;
-    const wasOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-    if (!wasOpen) item.classList.add('open');
-  });
-});
-
-// Noise texture
-(function() {
-  const canvas = document.getElementById('noise-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  resize();
-  window.addEventListener('resize', resize);
-  const imgData = ctx.createImageData(200, 200);
-  for (let i = 0; i < imgData.data.length; i += 4) {
-    const v = Math.random() * 255;
-    imgData.data[i] = v;
-    imgData.data[i + 1] = v;
-    imgData.data[i + 2] = v;
-    imgData.data[i + 3] = 255;
+  /* ── Night → Day: scroll-driven interpolation of the root tokens.
+     The crossfade runs while the #dawn strip crosses the viewport.
+     Surfaces drift with the smooth curve; foreground tokens (third field = 1)
+     invert, so they flip on a steep curve centred where ink and paper would
+     otherwise meet — the text re-inks in a blink instead of fading away. ── */
+  var TOK={
+    "--ground":["#17140F","#F0EBDF"],"--ground-2":["#1C1813","#E9E2D2"],"--sidebar":["#120F0B","#E7E0CE"],
+    "--surface":["#221D17","#FCFAF4"],"--surface-2":["#2C2620","#E4DCC7"],
+    "--line":["rgba(244,239,227,.15)","#D6CDB6"],"--line-soft":["rgba(244,239,227,.085)","#E2DAC6"],
+    "--hair":["rgba(201,164,94,.42)","#C6B893"],"--track":["rgba(244,239,227,.10)","#E9E2D2"],
+    "--ink":["#F4EFE3","#14201B",1],"--ink-2":["#C3BBA9","#3F4B45",1],"--ink-3":["#948B7C","#5C655E",1],
+    "--slab":["#0B2A21","#0C2A21"],"--slab-ink":["#F2EFE5","#F2EFE5"],"--slab-ink-2":["#A9C6B8","#A9C6B8"],
+    "--jade":["#4FBF95","#0F6B4F",1],"--jade-bright":["#67E3AF","#3FCE97"],
+    "--jade-soft":["rgba(79,191,149,.15)","#DCEDE3"],"--jade-soft-fg":["#6ADCAA","#0A5340",1],
+    "--brass":["#E0B96A","#8A6420",1],"--brass-line":["rgba(224,185,106,.55)","#C9A45E"],
+    "--amber-bg":["rgba(224,170,80,.16)","#F6E7C6"],"--amber-fg":["#E4B76E","#7A5410",1],
+    "--btn-fg":["#17140F","#F7F4EB",1],
+    "--seal-disc":["#17805F","#0F6B4F"],"--seal-ring":["#D9B876","#C9A45E"],
+    "--seal-shadow":["rgba(0,0,0,.55)","rgba(20,32,27,.32)"],
+    "--sh1":["rgba(0,0,0,.45)","rgba(20,32,27,.05)"],"--sh2":["rgba(0,0,0,0)","rgba(20,32,27,.11)"],
+    "--shtop":["rgba(244,239,227,.055)","rgba(244,239,227,0)"],
+    "--sm1":["rgba(0,0,0,.5)","rgba(20,32,27,.06)"],"--sm2":["rgba(0,0,0,.9)","rgba(20,32,27,.34)"],
+    "--smtop":["rgba(244,239,227,.075)","rgba(244,239,227,0)"],
+    "--bm1":["rgba(255,255,255,.12)","rgba(255,255,255,.16)"],"--bm2":["rgba(0,0,0,.5)","rgba(12,42,33,.28)"]
+  };
+  function parseC(s){
+    if(s.charAt(0)==="#"){var n=parseInt(s.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255,1];}
+    var m=s.match(/rgba?\(([^)]+)\)/),p=m[1].split(",").map(parseFloat);
+    return[p[0],p[1],p[2],p.length>3?p[3]:1];
   }
-  const offCanvas = document.createElement('canvas');
-  offCanvas.width = 200; offCanvas.height = 200;
-  offCanvas.getContext('2d').putImageData(imgData, 0, 0);
-  ctx.fillStyle = ctx.createPattern(offCanvas, 'repeat');
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  var PAIRS=Object.keys(TOK).map(function(k){return[k,parseC(TOK[k][0]),parseC(TOK[k][1]),TOK[k][2]===1];});
+  var dawn=d.getElementById("dawn"),vh=innerHeight,dTop=0,dH=1,lastT=-1,ticking=false;
+  var sun=d.getElementById("sun"),morning=d.getElementById("morning"),mTop=0;
+  var clock=d.getElementById("clock"),clockT=d.getElementById("clock-t"),lastLabel="",lastCO=-1;
+  var BEATS=[].slice.call(d.querySelectorAll(".beat")).map(function(el){
+    return[el,parseFloat(el.getAttribute("data-c"))];});
+  function measure(){
+    vh=innerHeight;
+    var r=dawn.getBoundingClientRect();
+    dTop=r.top+(window.scrollY||window.pageYOffset);dH=r.height;
+    mTop=morning.getBoundingClientRect().top+(window.scrollY||window.pageYOffset);
+  }
+  function applyT(t){
+    var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
+    var u=(e-0.42)/0.16;u=u<0?0:u>1?1:u;
+    var es=u*u*(3-2*u); /* the ink flip — steep, centred on the crossing */
+    for(var i=0;i<PAIRS.length;i++){
+      var p=PAIRS[i],a=p[1],b=p[2],f=p[3]?es:e;
+      root.style.setProperty(p[0],"rgba("+Math.round(a[0]+(b[0]-a[0])*f)+","+Math.round(a[1]+(b[1]-a[1])*f)+","+
+        Math.round(a[2]+(b[2]-a[2])*f)+","+(a[3]+(b[3]-a[3])*f).toFixed(3)+")");
+    }
+    root.style.setProperty("--dawn",e.toFixed(3));
+    /* the sun comes UP — it climbs the sky, blooming golden right at the crossover */
+    if(sun){
+      var g=Math.exp(-((e-0.5)/0.075)*((e-0.5)/0.075));
+      sun.style.transform="translate3d(-50%,"+((1-e)*0.5*vh-0.3*vh).toFixed(1)+"px,0) scale("+(0.85+0.3*e).toFixed(3)+")";
+      sun.style.opacity=((0.5+0.5*g)*(e<0.12?e/0.12:1)*(e>0.82?1-((e-0.82)/0.18)*0.45:1)).toFixed(3);
+    }
+    /* the night's work ticks by — each beat owns a band of the same progress */
+    for(var j=0;j<BEATS.length;j++){
+      var bd=(t-BEATS[j][1])/0.115,bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
+      BEATS[j][0].style.opacity=bo.toFixed(3);
+      BEATS[j][0].style.transform="translate3d(-50%,"+(-bd*12).toFixed(1)+"px,0)";
+    }
+  }
+  function frame(){
+    ticking=false;
+    var y=window.scrollY||window.pageYOffset;
+    var start=dTop-vh*0.5,end=dTop+dH-vh*0.55;
+    var t=(y-start)/(end-start);t=t<0?0:t>1?1:t;
+    if(Math.abs(t-lastT)>0.0015||lastT<0){lastT=t;applyT(t);}
+    /* the clock rides the scroll — 11:47 pm → 7:02 am, the dawn strip carrying the night */
+    if(clock){
+      var p1=start>0?y/start:1;p1=p1<0?0:p1>1?1:p1;
+      var ce=Math.max(end+1,mTop-vh*0.42);
+      var p3=(y-end)/(ce-end);p3=p3<0?0:p3>1?1:p3;
+      /* shaped so the chip agrees with each sky beat as it passes (1:20 / 3:47 / 5:36) */
+      var ts=t<0.37?t*0.546:t<0.57?0.202+(t-0.37)*1.833:t<0.77?0.569+(t-0.57)*1.359:0.840+(t-0.77)*0.696;
+      var total=(23*60+47+Math.round(12*p1+401*ts+22*p3))%1440;
+      var h=Math.floor(total/60)%12||12,m=total%60;
+      var label=h+":"+(m<10?"0":"")+m+" "+(total>=720?"pm":"am");
+      if(label!==lastLabel){lastLabel=label;clockT.textContent=label;}
+      var co=1-(y-(mTop-vh*0.40))/(vh*0.25);co=co<0?0:co>1?1:co;
+      if(Math.abs(co-lastCO)>0.015){lastCO=co;clock.style.opacity=co.toFixed(2);}
+    }
+  }
+  function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(frame);}}
+  addEventListener("scroll",onScroll,{passive:true});
+  addEventListener("resize",function(){measure();lastT=-1;onScroll();},{passive:true});
+  measure();frame();
+  /* late layout shifts (fonts) move the dawn strip — re-measure once settled */
+  addEventListener("load",function(){measure();lastT=-1;onScroll();});
+
+  /* ── Ava's overnight ticker: 41 reads, 3 keeps ── */
+  var ticker=d.getElementById("ticker");
+  if(ticker){
+    var KEEP=[7,19,33];
+    for(var i=0;i<41;i++){
+      var t=d.createElement("i");
+      if(KEEP.indexOf(i)>=0)t.className="keep";
+      t.style.setProperty("--i",i);
+      ticker.appendChild(t);
+    }
+  }
+
+  /* ── The stars: seeded (LCG) so the sky never re-rolls; they die with --dawn ── */
+  var sky=d.getElementById("stars");
+  if(sky){
+    var seed=1747;
+    var lcg=function(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+    var frag=d.createDocumentFragment();
+    for(var k=0;k<56;k++){
+      var st=d.createElement("i"),sz=lcg()<.3?2:1;
+      st.style.left=(lcg()*100).toFixed(2)+"%";
+      st.style.top=(lcg()*lcg()*100).toFixed(2)+"%"; /* biased skyward */
+      st.style.width=sz+"px";st.style.height=sz+"px";
+      st.style.setProperty("--so",(0.2+lcg()*0.4).toFixed(2));
+      st.style.setProperty("--tw",(2.6+lcg()*3.8).toFixed(2)+"s");
+      st.style.setProperty("--td",(-lcg()*6).toFixed(2)+"s");
+      if(k%9===4)st.className="jd";
+      frag.appendChild(st);
+    }
+    sky.appendChild(frag);
+  }
+
+  /* ── Count-up (rAF, ease-out cubic) ── */
+  function countUp(el,dur){
+    var to=parseInt(el.getAttribute("data-count"),10)||0;
+    var t0=performance.now();
+    function f(now){
+      var p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3);
+      el.textContent=Math.round(to*e);
+      if(p<1)requestAnimationFrame(f);
+    }
+    requestAnimationFrame(f);
+  }
+
+  /* ── Scroll reveals ── */
+  if(ANIM){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});
+    },{threshold:.18,rootMargin:"0px 0px -36px 0px"});
+    d.querySelectorAll(".io").forEach(function(el){io.observe(el);});
+  }
+
+  /* ── Hero ledger: the night ticks by, seals press, then it replays ── */
+  var steps=[].slice.call(d.querySelectorAll("#tl .tstep")),tlTimers=[];
+  if(steps.length){
+    if(!ANIM){steps.forEach(function(s){s.classList.add("on");});}
+    else{
+      var runTl=function(){
+        tlTimers.forEach(clearTimeout);tlTimers=[];
+        steps.forEach(function(s){s.classList.remove("on");});
+        steps.forEach(function(s,i){tlTimers.push(setTimeout(function(){s.classList.add("on");},700+i*1300));});
+        tlTimers.push(setTimeout(runTl,700+steps.length*1300+2900));
+      };
+      runTl();
+    }
+  }
+
+  /* ── The demo: rows land, seals press one by one, scores count.
+     Replays each time it scrolls back into view. ── */
+  var demo=d.getElementById("demo");
+  var demoScores=demo?[].slice.call(demo.querySelectorAll("[data-count]")):[];
+  var demoTimers=[];
+  if(demo&&ANIM){
+    demoScores.forEach(function(el){el.textContent="0";});
+    var playing=false;
+    var ob=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.intersectionRatio>=.35&&!playing){
+          playing=true;demo.classList.add("play");
+          demoScores.forEach(function(el,i){
+            el.textContent="0";
+            demoTimers.push(setTimeout(function(){countUp(el,800);},950+i*500));
+          });
+        }else if(e.intersectionRatio===0&&playing){
+          playing=false;demo.classList.remove("play");
+          demoTimers.forEach(clearTimeout);demoTimers=[];
+          demoScores.forEach(function(el){el.textContent="0";});
+        }
+      });
+    },{threshold:[0,.35]});
+    ob.observe(demo);
+  }
+
+  /* ── Big stats count once ── */
+  var stats=d.getElementById("bigstats");
+  if(stats&&ANIM){
+    var nums=[].slice.call(stats.querySelectorAll("[data-count]"));
+    nums.forEach(function(el){el.textContent="0";});
+    var sb=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          nums.forEach(function(el,i){setTimeout(function(){countUp(el,900);},i*160);});
+          sb.unobserve(stats);
+        }
+      });
+    },{threshold:.4});
+    sb.observe(stats);
+  }
 })();
-
-
-// HERO TEXT REVEAL
-const headline = document.getElementById('hero-headline');
-const lines = headline.querySelectorAll('.line');
-let charDelay = 0;
-lines.forEach((line, lineIdx) => {
-  const text = line.textContent;
-  line.innerHTML = '';
-  const words = text.split(' ');
-  words.forEach((word, wi) => {
-    const wordSpan = document.createElement('span');
-    wordSpan.style.display = 'inline-block';
-    wordSpan.style.whiteSpace = 'nowrap';
-    for (let i = 0; i < word.length; i++) {
-      const span = document.createElement('span');
-      span.className = 'char';
-      span.textContent = word[i];
-      span.style.animationDelay = (0.6 + charDelay * 0.025) + 's';
-      wordSpan.appendChild(span);
-      charDelay++;
-    }
-    line.appendChild(wordSpan);
-    if (wi < words.length - 1) {
-      const space = document.createElement('span');
-      space.className = 'char space';
-      space.style.animationDelay = (0.6 + charDelay * 0.025) + 's';
-      line.appendChild(space);
-      charDelay++;
-    }
-  });
-});
-
-
-// WEBGL HERO BACKGROUND — Jade Aurora
-const bgVert = `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.0);}`;
-const bgFrag = `precision highp float;varying vec2 vUv;uniform float uTime;uniform vec2 uResolution;uniform vec2 uMouse;
-vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
-float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod(i,289.0);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=1.0/7.0;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
-float fbm(vec3 p){float v=0.0,a=0.5;for(int i=0;i<4;i++){v+=a*snoise(p);p*=2.0;a*=0.5;}return v;}
-void main(){vec2 uv=vUv;vec2 aspect=vec2(uResolution.x/uResolution.y,1.0);vec2 p=(uv-0.5)*aspect;float t=uTime*0.12;float n1=fbm(vec3(p*1.2,t));float n2=fbm(vec3(p*2.5,t*0.7+50.0));float n3=fbm(vec3(p*0.6,t*1.3+100.0));vec3 jadeDeep=vec3(0.039,0.125,0.098);vec3 jadeMid=vec3(0.055,0.165,0.133);vec3 jadeLight=vec3(0.086,0.220,0.173);vec3 brass=vec3(0.796,0.639,0.416);vec3 mint=vec3(0.624,0.906,0.788);vec3 col=mix(jadeDeep,jadeMid,uv.y+0.3);col=mix(col,jadeLight,n3*0.3+0.3);float band1=smoothstep(-0.3,0.6,n1);float band2=smoothstep(0.2,0.8,n2);col=mix(col,jadeLight*1.1,band1*0.15);col=mix(col,vec3(0.12,0.35,0.28),band2*0.12);float wisp=smoothstep(0.4,0.9,n1*n2);col=mix(col,brass*0.4,wisp*0.08);float highlight=smoothstep(0.5,0.9,n3);col=mix(col,mint*0.3,highlight*0.06);float vig=1.0-smoothstep(0.4,1.2,length(p));col*=0.85+0.15*vig;vec2 mouseOffset=(uMouse-0.5)*aspect;float mouseDist=length(p-mouseOffset);float mouseGlow=smoothstep(0.8,0.0,mouseDist)*0.04;col+=vec3(0.5,0.8,0.6)*mouseGlow;gl_FragColor=vec4(col,1.0);}`;
-
-const heroCanvas = document.getElementById('hero-canvas');
-const bgRenderer = new THREE.WebGLRenderer({ alpha: false, antialias: false });
-bgRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-const bgScene = new THREE.Scene();
-const bgCamera = new THREE.Camera();
-const bgUniforms = { uTime: { value: 0 }, uResolution: { value: new THREE.Vector2() }, uMouse: { value: new THREE.Vector2(0.5, 0.5) } };
-const bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ vertexShader: bgVert, fragmentShader: bgFrag, uniforms: bgUniforms }));
-bgScene.add(bgMesh);
-heroCanvas.appendChild(bgRenderer.domElement);
-
-function resizeBg() { const w = window.innerWidth, h = window.innerHeight; bgRenderer.setSize(w, h); bgUniforms.uResolution.value.set(w, h); }
-resizeBg();
-window.addEventListener('resize', resizeBg);
-
-(function bgLoop(now) {
-  requestAnimationFrame(bgLoop);
-  bgUniforms.uTime.value = now * 0.001;
-  bgUniforms.uMouse.value.x += (mouseX - bgUniforms.uMouse.value.x) * 0.03;
-  bgUniforms.uMouse.value.y += (mouseY - bgUniforms.uMouse.value.y) * 0.03;
-  bgRenderer.render(bgScene, bgCamera);
-})(performance.now());
-
-
-// THE LIVING ORB
-const orbVert = `uniform float uTime,uFlow,uAmp,uSize;varying float vB;varying float vBrass;varying float vFace;varying float vVel;
-vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
-float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod(i,289.0);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=1.0/7.0;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
-void main(){vec3 nrm=normalize(position);float n1=snoise(nrm*2.4+vec3(0.0,0.0,uTime*uFlow));float n2=snoise(nrm*5.2-vec3(uTime*uFlow*0.6,0.0,0.0));float n3=snoise(nrm*8.0+vec3(uTime*uFlow*0.3,0.0,0.0));float disp=n1*0.55+n2*0.30+n3*0.15;vec3 p=nrm*(1.0+disp*uAmp);vec4 mv=modelViewMatrix*vec4(p,1.0);vec3 vn=normalize((modelViewMatrix*vec4(nrm,0.0)).xyz);vFace=clamp(vn.z,0.0,1.0);vB=smoothstep(-0.4,0.9,disp);vBrass=smoothstep(0.4,0.92,n2*0.5+0.5);vVel=smoothstep(0.3,0.9,abs(n3));gl_PointSize=uSize*(4.2/-mv.z)*(0.40+0.95*vB)*(0.45+0.7*vFace)*(0.7+0.6*vVel);gl_Position=projectionMatrix*mv;}`;
-const orbFrag = `precision highp float;varying float vB;varying float vBrass;varying float vFace;varying float vVel;uniform vec3 cJade,cMint,cBrass,cDeep;uniform float uBright,uAlpha,uEdge;
-void main(){vec2 c=gl_PointCoord-0.5;float d=length(c);if(d>0.5)discard;float a=smoothstep(0.5,0.08,d);vec3 col=mix(cJade,cMint,vB);col=mix(col,cBrass,vBrass*0.65);col=mix(col,cDeep,(1.0-vB)*0.15);float fall=uEdge+(1.0-uEdge)*vFace;float bright=(0.22+0.95*vB+0.3*vVel)*fall*uBright;float glow=a*a*0.5;gl_FragColor=vec4(col*bright+glow*vec3(0.6,0.9,0.75),a*fall*uAlpha);}`;
-const innerVert = `varying vec3 vN;varying vec3 vView;void main(){vec4 wp=modelMatrix*vec4(position,1.0);vN=normalize(mat3(modelMatrix)*normal);vView=cameraPosition-wp.xyz;gl_Position=projectionMatrix*viewMatrix*wp;}`;
-const innerFrag = `precision highp float;varying vec3 vN;varying vec3 vView;void main(){float f=clamp(dot(normalize(vN),normalize(vView)),0.0,1.0);vec3 col=mix(vec3(0.015,0.05,0.035),vec3(0.08,0.22,0.16),pow(f,1.25));gl_FragColor=vec4(col,1.0);}`;
-
-// Hero film replaced the WebGL orb - no per-frame render needed for it.
-const heroVideo = document.querySelector('.hero-loop');
-if (heroVideo) {
-  try {
-    const wrap = heroVideo.parentElement;
-    const kCanvas = document.createElement('canvas');
-    kCanvas.className = 'hero-key';
-    wrap.appendChild(kCanvas);
-    const kRenderer = new THREE.WebGLRenderer({ canvas: kCanvas, alpha: true, antialias: false });
-    kRenderer.setClearColor(0x000000, 0);
-    kRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    const kScene = new THREE.Scene();
-    const kCam = new THREE.Camera();
-    const kTex = new THREE.VideoTexture(heroVideo);
-    kTex.colorSpace = THREE.SRGBColorSpace;
-    const kMat = new THREE.ShaderMaterial({
-      transparent: true,
-      uniforms: { uTex: { value: kTex } },
-      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-      fragmentShader: `varying vec2 vUv; uniform sampler2D uTex;
-        void main(){
-          vec4 c = texture2D(uTex, vUv);
-          float l = max(max(c.r, c.g), c.b);
-          float a = smoothstep(0.035, 0.16, l);
-          gl_FragColor = vec4(c.rgb, a);
-        }`,
-    });
-    kScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), kMat));
-    function kResize() { const w = kCanvas.clientWidth || 500, h = kCanvas.clientHeight || 500; kRenderer.setSize(w, h, false); }
-    new ResizeObserver(kResize).observe(kCanvas); kResize();
-    (function kLoop() { requestAnimationFrame(kLoop); if (heroVideo.readyState >= 2) kRenderer.render(kScene, kCam); })();
-  } catch (e) {
-    heroVideo.style.opacity = '1'; // no WebGL: the plain film is better than nothing
-  }
-}
-
-const heroWrap = document.querySelector('.hero-orb-wrap');
-if (heroWrap && !isTouch) {
-  window.addEventListener('mousemove', () => {
-    const dx = (mouseX - 0.5) * 22, dy = (0.5 - mouseY) * 16;
-    heroWrap.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotateY(${dx * 0.25}deg) rotateX(${dy * -0.25}deg)`;
-  }, { passive: true });
-}
-
-
-
-// FLOATING PARTICLES
-(function () {
-  const canvas = document.createElement('canvas');
-  canvas.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;width:100%;height:100%;';
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
-  let W, H; const particles = [];
-  function resize() { W = canvas.width = window.innerWidth * 0.5; H = canvas.height = window.innerHeight * 0.5; canvas.style.width = '100%'; canvas.style.height = '100%'; }
-  resize(); window.addEventListener('resize', resize);
-  for (let i = 0; i < 60; i++) particles.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * 0.3, vy: (Math.random() - .5) * 0.3, r: Math.random() * 1.5 + 0.5, alpha: Math.random() * 0.3 + 0.1 });
-  let frame = 0;
-  (function loop() {
-    requestAnimationFrame(loop); frame++;
-    if (frame % 2 !== 0) return;
-    ctx.clearRect(0, 0, W, H);
-    const mx = mouseX * W, my = mouseY * H;
-    for (const p of particles) {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0; if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-      const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 80) { p.x += dx / dist * 0.8; p.y += dy / dist * 0.8; }
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3);
-      g.addColorStop(0, `rgba(159,231,201,${p.alpha})`); g.addColorStop(1, 'rgba(159,231,201,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(159,231,201,0.03)'; ctx.lineWidth = 0.5;
-    for (let i = 0; i < 60; i++) for (let j = i + 1; j < 60; j++) {
-      const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y, d = Math.sqrt(dx * dx + dy * dy);
-      if (d < 100) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
-    }
-  })();
-})();
-
-
-// SCROLL ANIMATIONS + NAV
-const nav = document.getElementById('nav');
-const scrollProgress = document.getElementById('scroll-progress');
-window.addEventListener('scroll', () => {
-  nav.classList.toggle('visible', window.scrollY > 500);
-  if (scrollProgress) {
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const pct = Math.min(window.scrollY / docHeight, 1);
-    scrollProgress.style.transform = `scaleX(${pct})`;
-  }
-}, { passive: true });
-
-// Pipeline animation controller
-const pipeFill = document.getElementById('pipe-fill');
-const pipelineWrap = document.getElementById('pipeline-wrap');
-let pipelineActivated = false;
-
-function activatePipeline() {
-  if (pipelineActivated) return;
-  pipelineActivated = true;
-  if (pipeFill) pipeFill.classList.add('active');
-}
-
-const pipelineObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      activatePipeline();
-      pipelineObserver.unobserve(entry.target);
-    }
-  });
-}, { threshold: 0.2 });
-if (pipelineWrap) pipelineObserver.observe(pipelineWrap);
-
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (entry.isIntersecting) {
-      const idx = parseInt(entry.target.dataset.index || '0', 10);
-      const delay = 400 + idx * 450;
-      setTimeout(() => {
-        entry.target.classList.add('visible');
-
-      }, delay);
-      observer.unobserve(entry.target);
-    }
-  });
-}, { threshold: 0.05 });
-document.querySelectorAll('[data-reveal]').forEach(el => observer.observe(el));
-
-const kpiObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const el = entry.target;
-      const target = parseInt(el.dataset.target);
-      const suffix = el.dataset.suffix || '';
-      let current = 0;
-      const duration = 2200;
-      const start = performance.now();
-      function tick(now) {
-        const elapsed = now - start;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        current = Math.round(target * eased);
-        el.textContent = current + suffix;
-        if (progress < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-      kpiObserver.unobserve(el);
-    }
-  });
-}, { threshold: 0.5 });
-document.querySelectorAll('.stat-val').forEach(el => kpiObserver.observe(el));
-
-
-// LIVE SIMULATION
-const candidates = [
-  { name: 'Jordan D.', initials: 'JD', color: '#d9d4ec', text: '#3e3bc4', stages: [1, 1, 1, 1], score: 8.4, label: 'Scored' },
-  { name: 'Alex O.', initials: 'AO', color: '#f3d9cc', text: '#b5491f', stages: [1, 1, 1, 0], score: null, label: 'Interview' },
-  { name: 'Taylor M.', initials: 'TM', color: '#cfeee0', text: '#0c7a57', stages: [1, 1, 0, 0], score: null, label: 'Quiz' },
-  { name: 'Riley P.', initials: 'RP', color: '#f0e4c6', text: '#8a5a09', stages: [1, 1, 1, 0], score: null, label: 'Interview' },
-  { name: 'Sam K.', initials: 'SK', color: 'rgba(127,127,127,.18)', text: 'rgba(238,246,241,.5)', stages: [1, 0, 0, 0], score: null, label: 'Applied' },
-];
-const simContainer = document.getElementById('sim-candidates');
-const stageLabels = ['Applied', 'Quiz', 'Interview', 'Scored'];
-function renderCandidates() {
-  simContainer.innerHTML = candidates.map(c => `
-    <div class="sim-row">
-      <div class="sim-av" style="background:${c.color};color:${c.text}">${c.initials}</div>
-      <div class="sim-name">${c.name}</div>
-      <div class="sim-track">${c.stages.map((done, i) => `<div class="track-step ${done ? 'done' : (i === c.stages.indexOf(0) ? 'current' : '')}"></div>`).join('')}</div>
-      <div class="track-label">${c.label}</div>
-      <div class="sim-score">${c.score !== null ? c.score : '—'}</div>
-    </div>
-  `).join('');
-}
-renderCandidates();
-let simStep = 0;
-setInterval(() => {
-  simStep++;
-  const movable = candidates.filter(c => c.stages.includes(0));
-  if (movable.length > 0) {
-    const c = movable[Math.floor(Math.random() * movable.length)];
-    const nextIdx = c.stages.indexOf(0);
-    if (nextIdx !== -1) {
-      c.stages[nextIdx] = 1;
-      if (nextIdx === 3) { c.score = (Math.random() * 4 + 5.5).toFixed(1); c.label = 'Scored'; }
-      else { c.label = stageLabels[nextIdx + 1]; }
-      renderCandidates();
-    }
-  }
-  if (simStep % 22 === 0) { candidates.forEach(c => { c.stages = [0, 0, 0, 0]; c.score = null; c.label = 'Applied'; }); renderCandidates(); }
-}, 2800);
-
-
-// TRY IT INTERACTIVE
-const tryInput = document.getElementById('try-input');
-const tryBtn = document.getElementById('try-btn');
-const tryResult = document.getElementById('try-result');
-const tryRoleName = document.getElementById('try-role-name');
-const tryPhases = document.getElementById('try-phases');
-const flowTemplates = {
-  barista: [{ title: 'Application', desc: 'Work history, availability, and why this role' }, { title: 'Timed Quiz', desc: '3 scenario questions — 90 seconds each. Customer service under pressure.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Ava listens for clarity, warmth, and initiative.' }, { title: 'Ranked Shortlist', desc: 'Top 5 candidates, scored and ranked. You decide who to advance.' }],
-  chef: [{ title: 'Application', desc: 'Kitchen experience, cuisine specialty, and references' }, { title: 'Timed Quiz', desc: '4 scenario questions — food safety, line pressure, and creativity under constraints.' }, { title: 'Voice Interview', desc: 'Answer 6 questions out loud. Leadership, hygiene standards, and calm under fire.' }, { title: 'Ranked Shortlist', desc: 'Top 3 candidates, scored and ranked. You decide who to advance.' }],
-  groomer: [{ title: 'Application', desc: 'Animal handling experience, certification, and availability' }, { title: 'Timed Quiz', desc: '3 scenario questions — difficult pet behavior, safety protocols, and client communication.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Patience, technique, and care for anxious animals.' }, { title: 'Ranked Shortlist', desc: 'Top 5 candidates, scored and ranked. You decide who to advance.' }],
-  default: [{ title: 'Application', desc: 'Work history, skills, and availability' }, { title: 'Timed Quiz', desc: '3 scenario questions tailored to your role and industry.' }, { title: 'Voice Interview', desc: 'Answer 5 questions out loud. Ava scores on the traits that matter to you.' }, { title: 'Ranked Shortlist', desc: 'Top candidates, scored and ranked. You decide who to advance.' }],
-};
-function getFlow(title) { const t = title.toLowerCase(); if (t.includes('barista')) return flowTemplates.barista; if (t.includes('chef') || t.includes('cook') || t.includes('kitchen')) return flowTemplates.chef; if (t.includes('groom') || t.includes('dog')) return flowTemplates.groomer; return flowTemplates.default; }
-function showFlow(title) {
-  const flow = getFlow(title); tryRoleName.textContent = title || 'your role';
-  tryPhases.innerHTML = flow.map((phase, i) => `<div class="try-phase" style="animation-delay:${i * 0.15}s"><div class="try-phase-num">${i + 1}</div><div><div class="try-phase-title">${phase.title}</div><div class="try-phase-desc">${phase.desc}</div></div></div>`).join('');
-  tryResult.classList.add('show');
-}
-tryBtn.addEventListener('click', () => showFlow(tryInput.value));
-tryInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') showFlow(tryInput.value); });
-showFlow('Barista');
 </script>
 </body>
 </html>
