@@ -209,7 +209,21 @@ export default function CockpitAnalytics() {
     ];
     const funnelPeak = Math.max(...funnel.map((s) => s.count), 1);
 
-    const sources = analytics.sources;
+    // Where they came from must count the same people the rest of the page
+    // counts. The analytics hook builds its rows from a strict 30-day window, so
+    // an account with 41 applicants and 12 arrivals this month would read "All
+    // 12 arrived through your apply link" directly under an "Applied 41" tile,
+    // and an account whose applicants are all older than a month would lose the
+    // section outright. No applicant carries a channel yet — everyone reaches
+    // this account through the apply link — so the one honest row is that
+    // channel counted over all time, on the same set as the tile. The hook still
+    // names the channel, and the day it splits the traffic for real that split
+    // is shown as it comes.
+    const channels = analytics.sources;
+    const sources =
+      channels.length > 1
+        ? channels.map((s) => ({ label: s.label, value: s.value }))
+        : [{ label: channels[0]?.label ?? "Direct apply", value: total }];
     const sourcePeak = Math.max(...sources.map((s) => s.value), 1);
     const sourceTotal = sources.reduce((sum, s) => sum + s.value, 0);
 
@@ -446,29 +460,23 @@ export default function CockpitAnalytics() {
           {/* ── Where they came from ────────────────────────── */}
           <section>
             <SectionTitle>Where they came from</SectionTitle>
+            {/* Only reached once someone has applied, and the rows below now
+                account for every one of them — so there is no sourceless case
+                left to draw here. */}
             <div className="ck-card p-4">
-              {view.sources.length > 0 ? (
-                <>
-                  {view.sources.map((s) => (
-                    <BarRow
-                      key={s.label}
-                      label={s.label}
-                      value={String(s.value)}
-                      pct={(s.value / view.sourcePeak) * 100}
-                    />
-                  ))}
-                  {view.sources.length === 1 && (
-                    <Footnote>
-                      All {view.sourceTotal} arrived through your apply link — there is no second channel
-                      to split out yet.
-                    </Footnote>
-                  )}
-                </>
-              ) : (
-                <p className="text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
-                  Everyone so far has arrived through your apply link. Once a second channel sends someone,
-                  the split shows up here.
-                </p>
+              {view.sources.map((s) => (
+                <BarRow
+                  key={s.label}
+                  label={s.label}
+                  value={String(s.value)}
+                  pct={(s.value / view.sourcePeak) * 100}
+                />
+              ))}
+              {view.sources.length === 1 && (
+                <Footnote>
+                  All {view.sourceTotal} arrived through your apply link — there is no second channel
+                  to split out yet.
+                </Footnote>
               )}
             </div>
           </section>

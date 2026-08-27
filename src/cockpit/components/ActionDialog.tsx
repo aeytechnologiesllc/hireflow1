@@ -125,7 +125,9 @@ export function ActionDialog({
               noteTone === "good"
                 ? { background: "color-mix(in srgb, var(--hf-green) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-green) 25%, transparent)", color: "var(--hf-text)" }
                 : noteTone === "caution"
-                  ? { background: "color-mix(in srgb, var(--hf-gold-hover) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-gold-hover) 28%, transparent)", color: "var(--hf-gold)" }
+                  // Caution uses the system's own amber pair rather than a brass tint: this line
+                  // is the last warning before an irreversible pass/hire, so it has to stay legible.
+                  ? { background: "var(--amber-bg)", border: "1px solid var(--brass-line)", color: "var(--amber-fg)" }
                   : { background: "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }
             }
           >

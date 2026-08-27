@@ -235,11 +235,14 @@ export default function CockpitInterviews() {
     return (
       <div className="space-y-5">
         <div className="ck-reveal h-[52px] rounded-xl" style={{ background: "var(--hf-surface)", opacity: 0.55 }} />
-        <div className="grid grid-cols-5 gap-2">
+        {/* Below 760px the loaded week is a scrollable strip of 132px cards, so
+            the skeleton that stands in for it must be too — otherwise every
+            visit opens on five squeezed slivers that then jump into place. */}
+        <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible md:pb-0">
           {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="ck-reveal h-[62px]"
+              className="ck-reveal h-[62px] w-[132px] shrink-0 md:w-auto md:shrink"
               style={{ ["--ck-i" as string]: i, background: "var(--hf-surface)", borderRadius: 10, opacity: 0.55 }}
             />
           ))}
@@ -262,7 +265,11 @@ export default function CockpitInterviews() {
         subtitle={subtitle}
         actions={
           candidates.length > 0 ? (
-            <button className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => navigate("/applicants")}>
+            /* Going to the applicant list is navigation, not a decision. Jade is
+               spent on the one control that needs the owner — "Review times" on
+               a reschedule request — so this stays quiet, and at the one button
+               size the rest of the page uses. */
+            <button className="ck-btn ck-btn-outline !py-2" onClick={() => navigate("/applicants")}>
               Schedule an interview
             </button>
           ) : undefined
@@ -376,14 +383,19 @@ export default function CockpitInterviews() {
             <div className="space-y-2">
               {upcoming.map((s, i) => {
                 const confirm = s.response === "reschedule_requested";
+                /* The chip beside the name already carries the state, so the
+                   line under it says what happens next instead of saying the
+                   same word twice. A confirmed time needs nothing further from
+                   me, and nothing here promises a reminder we do not send — the
+                   only mail that goes out is the one at booking. */
                 const meta = [
                   s.minutes ? `${s.minutes} min` : null,
                   typeLabel(s.type),
                   confirm
                     ? "they asked for a different time — your slot is still held"
-                    : s.response === "confirmed"
-                      ? "they have confirmed"
-                      : "waiting on them to confirm",
+                    : s.response === "pending"
+                      ? "I sent them the time by email"
+                      : null,
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -443,7 +455,10 @@ export default function CockpitInterviews() {
                           className="mt-0.5 block text-[12px] leading-[1.35]"
                           style={{ color: "var(--ink-3)" }}
                         >
-                          {s.role} &middot; {meta}
+                          {/* A confirmed row with no duration or type on it
+                              leaves meta empty — the role must not trail a
+                              separator into nothing. */}
+                          {meta ? `${s.role} · ${meta}` : s.role}
                         </span>
                       </span>
                     </button>

@@ -40,6 +40,12 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
   // `url` is the stored value (legacy public URL or bare path). Resolve it to a
   // short-lived signed URL on open so the private bucket stays private.
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
+  // Anything that stops the file reaching the panel — signing threw, or the
+  // signed url was refused/expired by the time the browser fetched it.
+  const [failed, setFailed] = useState(false);
+  // Bumped by "Try again". A signed url only lives 300s, so re-minting it is
+  // the right fix for both a dead link and a connection that dropped.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => { if (open) setZoom(1); }, [open, url]);
 
@@ -47,10 +53,15 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
     let cancelled = false;
     if (open && url) {
       setDisplayUrl(null);
-      resolveResumeUrl(url).then((signed) => { if (!cancelled) setDisplayUrl(signed); });
+      setFailed(false);
+      resolveResumeUrl(url)
+        .then((signed) => { if (!cancelled) { if (signed) setDisplayUrl(signed); else setFailed(true); } })
+        // createSignedUrl rejects outright when the network is down — say so
+        // rather than holding "Loading resume…" forever.
+        .catch(() => { if (!cancelled) setFailed(true); });
     }
     return () => { cancelled = true; };
-  }, [open, url]);
+  }, [open, url, attempt]);
 
   useEffect(() => {
     if (!open) return;
@@ -106,7 +117,17 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
 
         {/* body */}
         <div className="ck-scroll relative flex-1 overflow-auto" style={{ background: "var(--hf-bg)" }}>
-          {!displayUrl ? (
+          {failed ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <FileText className="h-10 w-10" style={{ color: "var(--hf-text-muted)" }} />
+              <p className="max-w-[320px] text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
+                I couldn’t open this resume. The secure link may have expired.
+              </p>
+              <button type="button" className="ck-btn ck-btn-outline" onClick={() => setAttempt((n) => n + 1)}>
+                Try again
+              </button>
+            </div>
+          ) : !displayUrl ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
               <AvaSeal size={30} />
               <p className="text-[13px]" style={{ color: "var(--hf-text-soft)" }}>Loading resume…</p>
@@ -115,12 +136,14 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
             <img
               src={displayUrl}
               alt={`${candidateName}'s resume`}
+              onError={() => setFailed(true)}
               style={{ display: "block", margin: "16px auto", width: `${zoom * 100}%`, maxWidth: zoom <= 1 ? 760 : "none", borderRadius: 8 }}
             />
           ) : isPdf ? (
             <iframe
               src={`${displayUrl}#view=FitH`}
               title={`${candidateName}'s resume`}
+              onError={() => setFailed(true)}
               className="h-full w-full"
               style={{ border: "none", background: "var(--hf-bg)" }}
             />

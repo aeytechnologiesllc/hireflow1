@@ -6,7 +6,6 @@ import {
   MoreHorizontal,
   MoreVertical,
   Briefcase,
-  Sparkles,
   CalendarDays,
   FileText,
   Check,
@@ -24,13 +23,15 @@ import { useDeleteTeamMember } from "@/hooks/useTeamMembers";
 import { useDeleteInvitation } from "@/hooks/useTeam";
 import { TeamInviteWizard } from "@/components/team/TeamInviteWizard";
 
-const ROW_ICONS = { briefcase: Briefcase, sparkle: Sparkles, calendar: CalendarDays, doc: FileText, users: Users };
+// `sparkle` is in the row type but never emitted by the hook (rule 3 bans the
+// icon), so it maps to a glyph we already use rather than importing Sparkles.
+const ROW_ICONS = { briefcase: Briefcase, sparkle: Briefcase, calendar: CalendarDays, doc: FileText, users: Users };
 
 function TeamKpi({ k }: { k: ReturnType<typeof useCockpitTeam>["team"]["kpis"][number] }) {
   const Icon = k.icon === "users" ? Users : k.icon === "mail" ? Mail : Eye;
   const dotColor = k.dot === "jade" ? "var(--hf-green)" : k.dot === "brass" ? "var(--hf-gold)" : "var(--hf-text-muted)";
   return (
-    <div className="ck-card flex items-center gap-4 p-5">
+    <div className="ck-card flex items-center gap-4 p-4">
       <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ border: "1px solid color-mix(in srgb, var(--hf-green-border) 50%, transparent)", color: "var(--hf-green)", background: "color-mix(in srgb, var(--hf-green-soft) 20%, transparent)" }}>
         <Icon className="h-5 w-5" />
       </span>
@@ -99,21 +100,35 @@ export default function CockpitTeam() {
         onClose={() => setConfirm(null)}
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {team.kpis.map((k) => <TeamKpi key={k.label} k={k} />)}
-      </div>
+      {/* Day one has no members and no invites, so all three tiles would read 0.
+          A row of noughts is not an honest opening — hold them back until one
+          of them has something to say. */}
+      {(team.members.length > 0 || team.invites.length > 0) && (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 min-[1041px]:grid-cols-3">
+          {team.kpis.map((k) => <TeamKpi key={k.label} k={k} />)}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* left column */}
-        <div className="space-y-5">
+        <div className="space-y-3">
           {/* members */}
-          <div className="ck-card p-5">
-            <div className="font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Team members</div>
-            <div className="mt-4 hidden grid-cols-[2fr_1fr_1.4fr_1fr] gap-2 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)" }}>
-              <div>Member</div><div>Role</div><div>Permissions</div><div>Status</div>
-            </div>
+          <div className="ck-card p-4">
+            <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em" }}>Team members</div>
+            {/* No owner row comes back from the hook, so a fresh account has an
+                empty list here — column headers over nothing is an empty frame. */}
+            {team.members.length > 0 && (
+              <div className="mt-4 hidden grid-cols-[2fr_1fr_1.4fr_1fr] gap-2 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)" }}>
+                <div>Member</div><div>Role</div><div>Permissions</div><div>Status</div>
+              </div>
+            )}
             <div className="mt-1">
-              {team.members.map((m) => (
+              {team.members.length === 0 ? (
+                <p className="py-6 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
+                  It's just you so far. Invite someone and they'll show up here.
+                </p>
+              ) : (
+                team.members.map((m) => (
                 <div key={m.id} className="grid grid-cols-[1.4fr_auto] items-center gap-2 py-3 md:grid-cols-[2fr_1fr_1.4fr_1fr]" style={{ borderTop: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)" }}>
                   <div className="flex items-center gap-2.5 min-w-0">
                     <CkAvatar who={m.avatar} size={36} />
@@ -136,16 +151,19 @@ export default function CockpitTeam() {
                     )}
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
           {/* pending invites */}
-          <div className="ck-card p-5">
-            <div className="font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Pending invites</div>
-            <div className="mt-4 hidden grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto] gap-2 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)" }}>
-              <div>Invitee</div><div>Invited by</div><div>Role</div><div>Status</div><div>Expires</div><div />
-            </div>
+          <div className="ck-card p-4">
+            <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em" }}>Pending invites</div>
+            {team.invites.length > 0 && (
+              <div className="mt-4 hidden grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto] gap-2 text-[12px] md:grid" style={{ color: "var(--hf-text-muted)" }}>
+                <div>Invitee</div><div>Invited by</div><div>Role</div><div>Status</div><div>Expires</div><div />
+              </div>
+            )}
             <div className="mt-1">
               {team.invites.length === 0 ? (
                 <p className="py-6 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
@@ -184,8 +202,8 @@ export default function CockpitTeam() {
         </div>
 
         {/* right: permissions matrix */}
-        <div className="ck-card p-5">
-          <div className="font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Permissions at a glance</div>
+        <div className="ck-card p-4">
+          <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em" }}>Permissions at a glance</div>
           <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>See what each role can do in Hireflow.</p>
 
           <div className="ck-scroll mt-4 overflow-x-auto">

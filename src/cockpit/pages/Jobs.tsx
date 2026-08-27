@@ -25,7 +25,7 @@ import type { JobRow, JobStatus } from "../data";
  */
 
 /** The three places a published role is listed automatically. Drafts show these dimmed. */
-const LISTINGS = ["Your job page", "Google for Jobs", "Your job feed"] as const;
+const LISTINGS = ["Your job page", "Google for Jobs", "Job boards"] as const;
 
 const CHIP: Record<JobStatus, { label: string; bg: string; fg: string }> = {
   live: { label: "Live", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
@@ -118,39 +118,6 @@ function StatusPill({
   );
 }
 
-// The amber job code is itself a copy button — the code is what an applicant
-// types in, so copying it is the only thing anyone ever wants to do with it.
-function JobCodeButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success("Job code copied");
-    } catch {
-      toast.error("Could not copy");
-    }
-  }, [code]);
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        void copy();
-      }}
-      title="Copy job code"
-      className="inline-flex items-center gap-1.5 font-mono text-[11.5px] transition-opacity hover:opacity-75"
-      style={{ color: "var(--brass)" }}
-    >
-      {code}
-      {copied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
-    </button>
-  );
-}
-
 interface RowExtras {
   /** "Posted 5 days ago" — real timestamps where we have them. */
   when: string;
@@ -208,12 +175,11 @@ function JobListRow({
         }
       }}
       aria-label={draft ? `Finish ${job.title}` : `Open applicants for ${job.title}`}
-      className="ck-row ck-reveal flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
-      style={{
-        ["--ck-i" as string]: index,
-        // A live role carries a jade edge — it is the one that is working right now.
-        boxShadow: live ? "inset 3px 0 0 var(--jade), var(--hf-shadow-soft)" : undefined,
-      }}
+      // A live role carries a jade edge — it is the one that is working right now.
+      // It has to be a class: an inline box-shadow outranks .ck-row:hover, which
+      // left the rows that matter most as the only ones that never lifted.
+      className={`ck-row ck-reveal flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3${live ? " ck-row-live" : ""}`}
+      style={{ ["--ck-i" as string]: index }}
     >
       {/* who / what */}
       <div className="min-w-0 flex-1 basis-[240px] sm:min-w-[240px]">
@@ -224,42 +190,19 @@ function JobListRow({
         <div className="mt-[3px] text-[12px] leading-snug" style={{ color: "var(--ink-3)" }}>
           {meta}
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
-          {job.roleCode && <JobCodeButton code={job.roleCode} />}
-          {!draft && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="transition-colors hover:underline"
-              style={{ color: "var(--ink-3)" }}
-            >
-              Edit
-            </button>
-          )}
-          {live && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(`${window.location.origin}/candidate/job/${job.id}`, "_blank", "noopener");
-              }}
-              className="transition-colors hover:underline"
-              style={{ color: "var(--ink-3)" }}
-            >
-              See it live
-            </button>
-          )}
-        </div>
       </div>
 
       {/* where it is listed — automatic on publish, dimmed while it is a draft */}
       {job.status !== "closed" && (
         <div
           className="hidden shrink-0 items-center gap-[5px] xl:flex"
-          title={live ? "Listed here automatically" : "Where it will be listed once you publish"}
+          // "Job boards" is not automatic the way the first two are, so the
+          // tooltip says which is which rather than claiming all three.
+          title={
+            live
+              ? "Your job page and Google go up automatically — boards list you once you send them your link"
+              : "Where it will be listed once you publish"
+          }
         >
           {LISTINGS.map((net) => (
             <span
@@ -335,6 +278,37 @@ function JobListRow({
   );
 }
 
+// The listings link is the whole point of the strip — it is the thing you hand
+// to a board. Copying it beats opening it: the page behind it is written for
+// their crawler, not for you.
+function CopyListingsLink() {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/jobs.xml`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Listings link copied");
+    } catch {
+      toast.error("Could not copy");
+    }
+  }, []);
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      // Jade, not brass: sending boards your listings costs nothing.
+      className="ml-auto inline-flex shrink-0 items-center gap-1.5 font-semibold transition-opacity hover:opacity-75"
+      style={{ color: "var(--jade)" }}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
+      {copied ? "Copied" : "Copy your listings link"}
+    </button>
+  );
+}
+
 /** "Marisol Reyes" → "Marisol R." — enough to recognise your own hire, no more. */
 function shortName(full: string) {
   const parts = full.trim().split(/\s+/).filter(Boolean);
@@ -371,7 +345,9 @@ export default function CockpitJobs() {
       jobs.reduce(
         (acc, j) => ({
           applicants: acc.applicants + j.applicants,
-          inPlay: acc.inPlay + j.stats.shortlist,
+          // Shortlist stops at "offered" — a hire is the clearest case of
+          // someone who got past the first read, so it counts here too.
+          inPlay: acc.inPlay + j.stats.shortlist + j.stats.hired,
         }),
         { applicants: 0, inPlay: 0 },
       ),
@@ -629,19 +605,11 @@ export default function CockpitJobs() {
               style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
             >
               <span className="min-w-0 flex-1">
-                <b style={{ color: "var(--ink-2)" }}>Every live role is listed in three places</b> — your own job
-                page, tagged for Google for Jobs, and in your XML feed. Send that feed to Adzuna, Jooble or
-                Talent.com and they list you free.
+                <b style={{ color: "var(--ink-2)" }}>Your live roles sit on your own job page and go to Google
+                automatically.</b> Adzuna, Jooble and Talent.com will list you free too — send them your listings
+                link.
               </span>
-              <a
-                href={`${window.location.origin}/jobs.xml`}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto font-semibold"
-                style={{ color: "var(--brass)" }}
-              >
-                Open your feed →
-              </a>
+              <CopyListingsLink />
             </div>
           )}
         </>

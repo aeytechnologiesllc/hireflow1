@@ -101,6 +101,12 @@ function stampLabel(ms: number): string {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 }
 
+/** Ava talks to the employer about a person, not a record — so she uses the
+ *  name they'd say out loud. Same helper the other cockpit pages carry. */
+function firstName(full: string): string {
+  return full.trim().split(/\s+/)[0] || full;
+}
+
 function clip(text: string, max: number): string {
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
@@ -700,11 +706,56 @@ export default function CockpitApplicants() {
   const activeFilters = [search.trim(), stageFilter, scoreFilter].filter(Boolean).length;
   const sealedTotal = roleScoped.filter((c) => bucketOf(c) === "sealed").length;
 
+  /* ── While the record loads ───────────────────────────────────────────
+     Shaped like the page it becomes — head, tab strip, then the list column
+     beside the inspector — so nothing slides sideways at the moment the data
+     lands. Ava's seal breathes at the head so the blocks read as pending
+     rather than as cards that failed to paint. */
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="ck-rise h-[44px] w-[280px] rounded-xl" style={{ background: "var(--surface)", opacity: 0.55 }} />
-        <div className="ck-reveal h-[420px] rounded-xl" style={{ background: "var(--surface)", opacity: 0.5 }} />
+        <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
+          <span className="ck-seal-breathe">
+            <AvaSeal size={22} title="I'm pulling up your applicants" />
+          </span>
+          <div className="h-[26px] w-[200px] rounded-lg" style={{ background: "var(--surface)", opacity: 0.55 }} />
+          <div className="h-[13px] w-[104px] rounded" style={{ background: "var(--surface)", opacity: 0.4 }} />
+          <div className="ml-auto flex gap-2">
+            <div className="h-[34px] w-[72px] rounded-lg" style={{ background: "var(--surface)", opacity: 0.55 }} />
+            <div className="h-[34px] w-[92px] rounded-lg" style={{ background: "var(--surface)", opacity: 0.55 }} />
+          </div>
+        </header>
+
+        <div className="flex flex-col items-stretch gap-3.5 min-[1160px]:flex-row">
+          {/* left — where the field will be, at the width it settles at */}
+          <div className="flex w-full shrink-0 flex-col min-[1160px]:w-[clamp(280px,32%,360px)]">
+            <div className="mb-3 flex gap-4 pb-2">
+              {[62, 84, 74].map((w, i) => (
+                <div
+                  key={w}
+                  className="ck-reveal h-[13px] rounded"
+                  style={{ ["--ck-i" as string]: i, width: w, background: "var(--surface)", opacity: 0.5 }}
+                />
+              ))}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="ck-reveal h-[60px] rounded-[10px]"
+                  style={{ ["--ck-i" as string]: i + 1, background: "var(--surface)", opacity: 0.55 }}
+                />
+              ))}
+            </div>
+          </div>
+          {/* right — the letterhead */}
+          <div className="min-w-0 flex-1">
+            <div
+              className="ck-reveal h-[420px] rounded-xl"
+              style={{ ["--ck-i" as string]: 2, background: "var(--surface)", opacity: 0.55 }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -960,7 +1011,8 @@ export default function CockpitApplicants() {
                         disabled={isUpdating}
                         onClick={() => openReject(selected)}
                       >
-                        Decline offer
+                        {/* Same words as the dialog it opens, so the decision reads the same twice. */}
+                        Take back offer
                       </button>
                       <button
                         className="ck-btn ck-btn-primary !py-2 !text-[12.5px]"
@@ -1052,12 +1104,24 @@ export default function CockpitApplicants() {
         const st = statusById[cand.id];
         const label = advanceTargetLabel(st);
         const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand));
+        const who = firstName(cand.name);
+        /* Ava asks in the same words as the button that opened this, and says
+           what she will actually do next. Never "advance", "stage", "pipeline"
+           or "the candidate" — this is a person, by name. */
+        const ask =
+          label === "Shortlist"
+            ? { title: `Move ${who} to your shortlist?`, body: `I'll let ${who} know they've moved on, and keep them near the top of your list.` }
+            : label === "Interview"
+              ? { title: `Take ${who} to interview?`, body: `I'll tell ${who} you'd like to meet. You can pick the time straight after this.` }
+              : label === "Offer"
+                ? { title: `Make ${who} an offer?`, body: `I'll let ${who} know an offer is on its way from you, so nothing goes quiet while you write it.` }
+                : { title: `Move ${who} forward?`, body: `I'll move ${who} on to the next step and let them know.` };
         return (
           <ActionDialog
             open
-            title={`Advance ${cand.name}?`}
-            description={label ? `This moves ${cand.name} into your ${label} stage and notifies them of the progress.` : `This moves ${cand.name} forward in your pipeline.`}
-            confirmLabel={label ? `Move to ${label}` : "Advance"}
+            title={ask.title}
+            description={ask.body}
+            confirmLabel={label ? `Move to ${label}` : "Move forward"}
             tone="brass"
             busy={isUpdating}
             note={rec.text}
@@ -1069,8 +1133,8 @@ export default function CockpitApplicants() {
       })()}
       <ActionDialog
         open={actionDialog?.type === "hire"}
-        title={actionDialog ? `Hire ${actionDialog.cand.name}?` : ""}
-        description={actionDialog ? `This marks ${actionDialog.cand.name} as hired for ${actionDialog.cand.role} and lets them know. You can send an offer letter next.` : ""}
+        title={actionDialog ? `Hire ${firstName(actionDialog.cand.name)}?` : ""}
+        description={actionDialog ? `I'll mark ${firstName(actionDialog.cand.name)} as hired for ${actionDialog.cand.role} and let them know today. You can send the offer letter next.` : ""}
         confirmLabel="Confirm hire"
         tone="brass"
         busy={isUpdating}
@@ -1079,17 +1143,19 @@ export default function CockpitApplicants() {
       />
       <ActionDialog
         open={actionDialog?.type === "reject"}
-        title={actionDialog ? (statusById[actionDialog.cand.id] === "offered" ? `Decline offer to ${actionDialog.cand.name}?` : `Pass on ${actionDialog.cand.name}?`) : ""}
+        title={actionDialog ? (statusById[actionDialog.cand.id] === "offered" ? `Take back ${firstName(actionDialog.cand.name)}'s offer?` : `Pass on ${firstName(actionDialog.cand.name)}?`) : ""}
         description={
           actionDialog && statusById[actionDialog.cand.id] === "offered"
-            ? "This withdraws the offer and notifies the candidate. Add a short note for your records (optional)."
-            : "This removes the candidate from your active pipeline and notifies them. Add a short note for your records (optional)."
+            ? `I'll let ${firstName(actionDialog.cand.name)} know the offer is no longer open, in your name and kindly.`
+            : actionDialog
+              ? `${firstName(actionDialog.cand.name)} comes off your list and I send a polite note in your name.`
+              : ""
         }
-        confirmLabel={actionDialog && statusById[actionDialog.cand.id] === "offered" ? "Decline offer" : "Pass candidate"}
+        confirmLabel={actionDialog && statusById[actionDialog.cand.id] === "offered" ? "Take back offer" : "Pass"}
         tone="danger"
         busy={isUpdating}
         withReason
-        reasonLabel="Reason (optional, private to you)"
+        reasonLabel="Why, in a line? Only you see this."
         reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
         onConfirm={(reason) => void confirmReject(reason)}
         onClose={() => setActionDialog(null)}

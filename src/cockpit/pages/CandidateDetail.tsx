@@ -42,10 +42,37 @@ export default function CockpitCandidateDetail() {
     else navigate("/applicants");
   };
 
-  if (isLoading || !c) {
+  // Two different held states, and they must not read the same. Wax does not
+  // spin, so the wait is the breathing seal plus a line saying what it's doing.
+  if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" />
+      <div className="mx-auto flex min-h-[40vh] max-w-[640px] flex-col items-center justify-center gap-4">
+        <span className="ck-seal-breathe">
+          <AvaSeal size={44} />
+        </span>
+        <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>Pulling up their record…</p>
+      </div>
+    );
+  }
+
+  // A stale bookmark or a withdrawn application lands here with nothing to show.
+  // It used to spin forever above the only way out, so say it and offer the door.
+  if (!c) {
+    return (
+      <div className="mx-auto max-w-[640px] pt-10">
+        <div className="ck-card-flat px-4 py-8 text-center">
+          <span className="inline-flex"><AvaSeal size={28} /></span>
+          <p className="mt-3 text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+            I can't find that applicant any more. The application may have been withdrawn or removed.
+          </p>
+          <button
+            type="button"
+            className="ck-btn ck-btn-outline mt-3 !py-2 !text-[12.5px]"
+            onClick={() => navigate("/applicants")}
+          >
+            Back to applicants
+          </button>
+        </div>
       </div>
     );
   }
@@ -76,7 +103,7 @@ export default function CockpitCandidateDetail() {
   };
 
   return (
-    <div className="mx-auto max-w-[640px] pb-28">
+    <div className="mx-auto max-w-[640px] pb-24 md:pb-20">
       {/* Sticky back — stays pinned to the top of the profile while scrolling, so
           there's always a clear way back to the list (it used to scroll away). */}
       <div
@@ -107,17 +134,23 @@ export default function CockpitCandidateDetail() {
 
       <div className="space-y-3">
         <div className="ck-card flex items-center gap-4 p-4">
-          <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={c.overall} rich variant="signal" />
+          {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
+          <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={analyzed ? c.overall : undefined} rich variant="signal" />
           <div className="min-w-0 flex-1">
             <div className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
             <div className="mt-1.5"><span className="ck-pill ck-pill-stage">{c.stage}</span></div>
           </div>
+          {/* The record carries the score once, in jade, the way .read-sc does
+              in the design. Unscored is "—", not "0%" — a 0 would be a claim. */}
           <div className="text-right">
-            <div className="ck-num leading-none" style={{ fontSize: 36, color: "var(--hf-text)" }}>
-              {c.overall}<span className="text-[16px]" style={{ color: "var(--hf-text-muted)" }}>%</span>
+            <div className="ck-num" style={{ fontSize: 38, fontWeight: 600, lineHeight: 0.85, color: analyzed ? "var(--jade)" : "var(--ink-3)" }}>
+              {analyzed ? c.overall : "—"}
+              {analyzed && <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>/100</span>}
             </div>
-            <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>match</div>
+            <div className="mt-1.5 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+              {analyzed ? "match" : "not scored yet"}
+            </div>
           </div>
         </div>
 
@@ -146,11 +179,12 @@ export default function CockpitCandidateDetail() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Quiz and Voice only — the overall lives up top, and repeating it here
+            made the same number the answer to three different questions. */}
+        <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Quiz", v: c.quiz },
             { label: "Voice", v: c.voice },
-            { label: "Overall", v: c.overall },
           ].map((s) => (
             <div key={s.label} className="ck-card p-4 text-center">
               <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{s.label}</div>
@@ -187,7 +221,10 @@ export default function CockpitCandidateDetail() {
       </div>
 
       <div
-        className="fixed inset-x-0 z-30 flex items-center gap-2 px-4 py-3 md:absolute md:rounded-2xl"
+        // Mobile: pinned above the tab bar. Desktop: there is no tab bar, and
+        // absolute here resolves against the Shell wrapper — so pin it to the
+        // same 640px column as the cards it acts on instead of the full width.
+        className="fixed inset-x-0 z-30 flex items-center gap-2 px-4 py-3 md:absolute md:left-1/2 md:right-auto md:w-[640px] md:-translate-x-1/2 md:!bottom-4 md:rounded-2xl"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)", background: "color-mix(in srgb, var(--hf-bg) 96%, transparent)", borderTop: "1px solid var(--hf-surface-raised)" }}
       >
         {isTerminal ? (

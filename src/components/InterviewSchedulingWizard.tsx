@@ -27,7 +27,7 @@ import {
   Clock,
   Video,
   Users,
-  Sparkles,
+  FileText,
   CheckCircle,
   Loader2,
   ChevronRight,
@@ -281,9 +281,11 @@ export default function InterviewSchedulingWizard({
 
   const connectGoogleCalendar = () => {
     if (!GOOGLE_CLIENT_ID) {
-      toast.error("Google Calendar integration not configured", {
-        description: "Please add VITE_GOOGLE_CLIENT_ID to your environment.",
-      });
+      // The owner can still finish scheduling without Google, so name the fallback
+      // rather than the missing config — setup is our job, not theirs.
+      toast.error(
+        "I can't reach your Google Calendar yet — pick a time here and I'll send it by email instead."
+      );
       return;
     }
 
@@ -411,7 +413,10 @@ export default function InterviewSchedulingWizard({
       // Call onComplete to notify parent that scheduling was successful
       onComplete?.();
     } catch (error: any) {
-      toast.error(error.message || "Failed to schedule interview");
+      // Raw Supabase/Postgres messages mean nothing to the owner — keep them in
+      // the console for us and give them the one thing they can act on.
+      console.error("Interview scheduling failed:", error);
+      toast.error("I couldn't book that time. Try again, or pick another slot.");
     } finally {
       setIsCreating(false);
     }
@@ -905,7 +910,7 @@ export default function InterviewSchedulingWizard({
                     <div className="rounded-xl border border-border overflow-hidden">
                       <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 border-b border-border">
                         <h3 className="font-semibold text-foreground flex items-center gap-2">
-                          <Sparkles className="h-5 w-5 text-primary" />
+                          <CheckCircle className="h-5 w-5 text-primary" />
                           Interview Summary
                         </h3>
                       </div>
@@ -961,7 +966,7 @@ export default function InterviewSchedulingWizard({
 
                         {notes && (
                           <div className="flex items-start gap-3 pt-2 border-t border-border">
-                            <Sparkles className="h-5 w-5 text-muted-foreground mt-0.5" />
+                            <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div>
                               <p className="text-sm text-muted-foreground">Notes</p>
                               <p className="text-sm">{notes}</p>

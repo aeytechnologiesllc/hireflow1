@@ -64,22 +64,24 @@ interface Node {
   layer: 0 | 1 | 2;
 }
 
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
-
 /**
- * Score → ring colours. High = cool jade→mint; as the score eases down the
- * accent warms gently toward refined amber/brass. Never red, never harsh.
+ * Score → ring colours. High = jade; as the score eases down the accent warms
+ * gently toward brass. Never red, never harsh.
+ *
+ * Both ends of the ramp are tokens and the blend happens in CSS, not in JS —
+ * so the ring resolves against whichever theme is mounted instead of baking
+ * one palette into both. Interpolating with color-mix keeps the gradient.
  */
 function ringColors(score: number) {
   // warmth: ~0 at 90+, eases to 1 by ~20 — gentle, so the band shifts smoothly
   let w = (90 - score) / 70;
   w = Math.min(1, Math.max(0, w));
   w = w * w * (3 - 2 * w); // smoothstep
-  const c0 = `hsl(${lerp(152, 38, w).toFixed(0)} ${lerp(46, 68, w).toFixed(0)}% ${lerp(50, 54, w).toFixed(0)}%)`;
-  const c1 = `hsl(${lerp(156, 43, w).toFixed(0)} ${lerp(62, 72, w).toFixed(0)}% ${lerp(71, 62, w).toFixed(0)}%)`;
-  const glow = `hsl(${lerp(154, 40, w).toFixed(0)} ${lerp(54, 66, w).toFixed(0)}% ${lerp(50, 55, w).toFixed(0)}% / 0.5)`;
+  const warm = `${(w * 100).toFixed(0)}%`;
+  const c0 = `color-mix(in srgb, var(--brass) ${warm}, var(--jade))`;
+  const c1 = `color-mix(in srgb, var(--brass-line) ${warm}, var(--jade-bright))`;
+  // glow tracks the deep stop (opaque in both themes) so the halo never fades out
+  const glow = `color-mix(in srgb, ${c0} 50%, transparent)`;
   return { c0, c1, glow };
 }
 

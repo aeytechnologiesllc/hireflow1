@@ -8,26 +8,32 @@ interface PageHeaderProps {
 }
 
 /**
- * Big Fraunces page title + subtitle, optional right-aligned actions.
+ * The cockpit's one page header: Fraunces title, subtitle and actions on a
+ * single row (`.head` / `.h1` in design/preview/app.html). The title is a flat
+ * 30px — the top of the type scale — so it never changes size between tabs or
+ * as the window moves; the -0.025em tracking is what Fraunces needs at 30px.
  * On mobile the title is rendered by the app's top bar, so here we only show
  * the subtitle + full-width actions to avoid a duplicate title.
  */
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps) {
   return (
     <div className={className}>
-      {/* Desktop: title + subtitle + right-aligned actions */}
-      <div className="hidden md:flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display leading-[1.05]" style={{ fontSize: "clamp(30px, 4vw, 44px)", color: "var(--hf-text)", fontWeight: 500 }}>
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-1.5 text-[14px]" style={{ color: "var(--hf-text-muted)" }}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-        {actions && <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>}
+      {/* Desktop: title, subtitle and actions share one 14px-gapped row */}
+      <div className="hidden md:flex flex-wrap items-center gap-3.5">
+        <h1
+          className="min-w-0 font-display"
+          style={{ fontSize: 30, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1.15, color: "var(--hf-text)" }}
+        >
+          {title}
+        </h1>
+        {subtitle && (
+          <span className="min-w-0 text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
+            {subtitle}
+          </span>
+        )}
+        {/* ml-auto, not justify-between: the subtitle must sit beside the title,
+            not get pushed to the far edge when there are no actions. */}
+        {actions && <div className="ml-auto flex flex-shrink-0 items-center gap-2">{actions}</div>}
       </div>
 
       {/* Mobile: subtitle sits under the top-bar title; actions go full width */}

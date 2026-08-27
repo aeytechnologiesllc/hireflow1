@@ -49,7 +49,7 @@ export { useSchemaMode };
 
 export function useCockpitAccount() {
   const { data: mode } = useSchemaMode();
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: profile, isLoading: profileLoading, isError: profileFailed, refetch: refetchProfile } = useProfile();
   const { getTrialTimeRemaining, isTrialing, subscriptionBypass } = useSubscription();
   const trial = getTrialTimeRemaining();
 
@@ -64,10 +64,22 @@ export function useCockpitAccount() {
     return buildAccountFromProfile(profile, trial?.expired ? 0 : trial?.days ?? null);
   }, [mode, showcaseQ.data, profile, trial]);
 
+  // Retry for the failure card. Plain closure — it only ever runs from a click.
+  const refetch = () => {
+    void refetchProfile();
+    void showcaseQ.refetch();
+  };
+
   return {
     account,
     profile,
     isLoading: profileLoading || showcaseQ.isLoading,
+    // With retries exhausted a refused/offline query settles as error while
+    // `isLoading` goes false and `data` stays undefined — so every fallback in
+    // this file ("", 0, []) would otherwise read as a confident "you have
+    // nothing". Pages must branch on this before rendering an empty state.
+    isError: mode === "showcase" ? showcaseQ.isError : profileFailed,
+    refetch,
     showTrialAccess: mode === "showcase" || isTrialing,
     subscriptionBypass: mode === "showcase" ? false : subscriptionBypass,
   };
@@ -75,8 +87,8 @@ export function useCockpitAccount() {
 
 export function useCockpitJobsData() {
   const { data: mode } = useSchemaMode();
-  const { data: jobs = [], isLoading: jobsLoading } = useEmployerJobs();
-  const { data: applications = [], isLoading: appsLoading } = useEmployerApplications();
+  const { data: jobs = [], isLoading: jobsLoading, isError: jobsFailed, refetch: refetchJobs } = useEmployerJobs();
+  const { data: applications = [], isLoading: appsLoading, isError: appsFailed, refetch: refetchApps } = useEmployerApplications();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-jobs"],
@@ -89,17 +101,27 @@ export function useCockpitJobsData() {
     return jobs.map((j) => mapJobRow(j, applications));
   }, [mode, showcaseQ.data, jobs, applications]);
 
+  const refetch = () => {
+    void refetchJobs();
+    void refetchApps();
+    void showcaseQ.refetch();
+  };
+
   return {
     jobs: rows,
     rawJobs: jobs,
     applications,
     isLoading: mode === "showcase" ? showcaseQ.isLoading : jobsLoading || appsLoading,
+    // Failed ≠ empty: "You haven't posted a role yet" must not stand in for a
+    // fetch that never came back.
+    isError: mode === "showcase" ? showcaseQ.isError : jobsFailed || appsFailed,
+    refetch,
   };
 }
 
 export function useCockpitCandidates() {
   const { data: mode } = useSchemaMode();
-  const { data: applications = [], isLoading: hfLoading } = useEmployerApplications();
+  const { data: applications = [], isLoading: hfLoading, isError: hfFailed, refetch: refetchApps } = useEmployerApplications();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-candidates"],
@@ -133,20 +155,29 @@ export function useCockpitCandidates() {
 
   const showcaseApps = showcaseQ.data?.applications ?? [];
 
+  const refetch = () => {
+    void refetchApps();
+    void showcaseQ.refetch();
+  };
+
   return {
     candidates,
     applications: mode === "showcase" ? showcaseApps : applications,
     pipeline,
     signals,
     isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading,
+    // Failed ≠ empty: "Nobody has applied yet" would be a false statement in
+    // Ava's voice to an owner whose pipeline simply failed to load.
+    isError: mode === "showcase" ? showcaseQ.isError : hfFailed,
+    refetch,
   };
 }
 
 export function useCockpitDashboard() {
   const { account } = useCockpitAccount();
   const { data: mode } = useSchemaMode();
-  const { data: jobs = [], isLoading: jobsLoading } = useEmployerJobs();
-  const { data: applications = [], isLoading: appsLoading } = useEmployerApplications();
+  const { data: jobs = [], isLoading: jobsLoading, isError: jobsFailed, refetch: refetchJobs } = useEmployerJobs();
+  const { data: applications = [], isLoading: appsLoading, isError: appsFailed, refetch: refetchApps } = useEmployerApplications();
   const { data: stats } = useApplicationStats();
   const { activities = [], isLoading: activityLoading } = useActivityFeed(8);
 
@@ -172,17 +203,27 @@ export function useCockpitDashboard() {
     return buildPipeline(applications);
   }, [mode, showcaseQ.data, applications]);
 
+  const refetch = () => {
+    void refetchJobs();
+    void refetchApps();
+    void showcaseQ.refetch();
+  };
+
   return {
     account,
     dashboard,
     pipeline,
     stats,
     isLoading: mode === "showcase" ? showcaseQ.isLoading : jobsLoading || appsLoading || activityLoading,
+    // Jobs + applications are what the zero-state copy speaks for; the activity
+    // feed has no error flag to read yet (useActivityFeed returns isLoading only).
+    isError: mode === "showcase" ? showcaseQ.isError : jobsFailed || appsFailed,
+    refetch,
   };
 }
 
 export function useCockpitCandidate(id: string | undefined) {
-  const { candidates, applications, isLoading } = useCockpitCandidates();
+  const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
   const candidate = useMemo(
     () => candidates.find((c) => c.id === id) ?? null,
     [candidates, id],
@@ -191,7 +232,7 @@ export function useCockpitCandidate(id: string | undefined) {
     () => applications.find((a) => a.id === id) ?? applications[0] ?? null,
     [applications, id],
   );
-  return { candidate, application, isLoading };
+  return { candidate, application, isLoading, isError, refetch };
 }
 
 /** DB status progression for the "Advance" button. Caps at "offered" — moving
@@ -223,12 +264,15 @@ export function advanceTargetLabel(currentStatus?: string): string | null {
   return next ? STATUS_STAGE_LABEL[next] ?? next : null;
 }
 
-/** Ava's recommendation on whether to advance, derived from the real match score. */
+/** Ava's recommendation on whether to advance, derived from the real match score.
+ *  She speaks in the first person here — this renders as her note inside the
+ *  advance dialog — and prints the score in the same unit her letterhead does
+ *  ("x out of 100"), so one number is never shown as two different units. */
 export function avaAdvanceRec(overall: number, analyzed: boolean): { tone: "good" | "neutral" | "caution"; text: string } {
-  if (!analyzed) return { tone: "neutral", text: "Ava hasn't finished screening this candidate yet — advance at your discretion." };
-  if (overall >= 75) return { tone: "good", text: `Ava recommends advancing — ${overall}% is a strong match.` };
-  if (overall >= 50) return { tone: "neutral", text: `Ava leans toward advancing — ${overall}% match. Worth a closer look first.` };
-  return { tone: "caution", text: `Ava suggests caution — a ${overall}% match is below your stronger candidates.` };
+  if (!analyzed) return { tone: "neutral", text: "I haven't finished reading this one yet, so this is your call." };
+  if (overall >= 75) return { tone: "good", text: `I'd talk to them — ${overall} out of 100 against this job is a strong match.` };
+  if (overall >= 50) return { tone: "neutral", text: `I'd look closer first — ${overall} out of 100. Worth a read before you move them on.` };
+  return { tone: "caution", text: `I'd be careful here — ${overall} out of 100 is a weak match for this job.` };
 }
 
 export function useCockpitActions() {
@@ -345,7 +389,7 @@ export function useCockpitActions() {
 
 export function useCockpitInterviews() {
   const { data: mode } = useSchemaMode();
-  const { data: interviews = [], isLoading: hfLoading } = useInterviews();
+  const { data: interviews = [], isLoading: hfLoading, isError: hfFailed, refetch: refetchInterviews } = useInterviews();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-interviews"],
@@ -389,12 +433,22 @@ export function useCockpitInterviews() {
     };
   }, [mode, showcaseQ.data, interviews]);
 
-  return { interviews: data, isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading };
+  const refetch = () => {
+    void refetchInterviews();
+    void showcaseQ.refetch();
+  };
+
+  return {
+    interviews: data,
+    isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading,
+    isError: mode === "showcase" ? showcaseQ.isError : hfFailed,
+    refetch,
+  };
 }
 
 export function useCockpitDocuments() {
   const { data: mode } = useSchemaMode();
-  const { data: documents = [], isLoading: hfLoading } = useDocuments();
+  const { data: documents = [], isLoading: hfLoading, isError: hfFailed, refetch: refetchDocuments } = useDocuments();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-documents"],
@@ -422,15 +476,26 @@ export function useCockpitDocuments() {
     };
   }, [mode, showcaseQ.data, documents]);
 
-  return { documents: data, isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading };
+  const refetch = () => {
+    void refetchDocuments();
+    void showcaseQ.refetch();
+  };
+
+  return {
+    documents: data,
+    isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading,
+    // Failed ≠ empty: "The drawer is empty" must not stand in for a failed fetch.
+    isError: mode === "showcase" ? showcaseQ.isError : hfFailed,
+    refetch,
+  };
 }
 
 export function useCockpitMessages(contactId: string | null) {
   const { data: mode } = useSchemaMode();
   const { user } = useAuth();
-  const { data: conversations = [], isLoading: convLoading } = useConversations();
+  const { data: conversations = [], isLoading: convLoading, isError: convFailed, refetch: refetchConversations } = useConversations();
   const { data: applications = [] } = useEmployerApplications();
-  const { data: thread = [], isLoading: threadLoading } = useMessages(contactId);
+  const { data: thread = [], isLoading: threadLoading, isError: threadFailed, refetch: refetchThread } = useMessages(contactId);
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
 
@@ -476,6 +541,13 @@ export function useCockpitMessages(contactId: string | null) {
     [markAsRead, mode],
   );
 
+  const refetch = () => {
+    void refetchConversations();
+    void refetchThread();
+    void showcaseConvsQ.refetch();
+    void showcaseThreadQ.refetch();
+  };
+
   return {
     conversations: mappedConversations,
     thread: mappedThread,
@@ -486,6 +558,12 @@ export function useCockpitMessages(contactId: string | null) {
       mode === "showcase"
         ? showcaseConvsQ.isLoading || showcaseThreadQ.isLoading
         : convLoading || threadLoading,
+    // Failed ≠ empty: an unreachable inbox must not read as "no messages".
+    isError:
+      mode === "showcase"
+        ? showcaseConvsQ.isError || showcaseThreadQ.isError
+        : convFailed || threadFailed,
+    refetch,
     isSending: sendMessage.isPending,
   };
 }
@@ -493,8 +571,8 @@ export function useCockpitMessages(contactId: string | null) {
 export function useCockpitTeam() {
   const { data: mode } = useSchemaMode();
   const { data: profile } = useProfile();
-  const { data: members = [], isLoading: membersLoading } = useTeamMembers();
-  const { data: invites = [], isLoading: invitesLoading } = useTeamInvitations();
+  const { data: members = [], isLoading: membersLoading, isError: membersFailed, refetch: refetchMembers } = useTeamMembers();
+  const { data: invites = [], isLoading: invitesLoading, isError: invitesFailed, refetch: refetchInvites } = useTeamInvitations();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-team", profile?.full_name, profile?.email],
@@ -521,30 +599,49 @@ export function useCockpitTeam() {
       ],
       members: mappedMembers,
       invites: mappedInvites,
+      // The three access levels the invite wizard can actually hand out
+      // (`PermissionLevel` in TeamInviteWizard.tsx). "Manager", "Shift Lead" and
+      // "Accountant" are not roles this product has, so no member's permission
+      // pill could ever match them.
       permissionCols: [
-        { title: "Owner", sub: "Full Admin" },
-        { title: "Manager", sub: "Can manage\npipeline" },
-        { title: "Shift Lead", sub: "Can message\ncandidates" },
-        { title: "Accountant", sub: "Documents\nonly" },
-        { title: "View-only", sub: "Can view\nonly" },
+        { title: "Full Admin", sub: "Jobs and\ncandidates" },
+        { title: "Limited Access", sub: "Candidates,\nnot jobs" },
+        { title: "View Only", sub: "Can view only" },
       ],
+      // Mirrors `defaultPermissions` in TeamInviteWizard.tsx — the real flags on
+      // team_members, and what each level starts with. Messaging and scheduling
+      // share a row because they default identically at all three levels.
+      // Typed against Team.tsx's whole ROW_ICONS key set (not just the keys used
+      // here) so this array keeps the same type as the showcase branch's — a
+      // narrower one would turn `team.permissionRows` into a union of two array
+      // types and break Team.tsx's `.map`. "sparkle" is never emitted: rule 3.
       permissionRows: [
-        { label: "Create jobs", icon: "briefcase" as const, allow: [true, true, true, false, false] },
-        { label: "Advance / pass candidates", icon: "sparkle" as const, allow: [true, true, false, false, false] },
-        { label: "Schedule interviews", icon: "calendar" as const, allow: [true, true, true, false, false] },
-        { label: "Send documents", icon: "doc" as const, allow: [true, true, true, true, false] },
-        { label: "Manage team and settings", icon: "users" as const, allow: [true, false, false, false, false] },
-      ],
+        { label: "Create and delete jobs", icon: "briefcase", allow: [true, false, false] },
+        { label: "Advance and pass candidates", icon: "users", allow: [true, true, false] },
+        { label: "Message candidates and schedule interviews", icon: "calendar", allow: [true, true, false] },
+        { label: "Send documents", icon: "doc", allow: [true, true, false] },
+      ] as Array<{ label: string; icon: "briefcase" | "sparkle" | "calendar" | "doc" | "users"; allow: boolean[] }>,
     };
   }, [mode, showcaseQ.data, members, invites]);
 
-  return { team, isLoading: mode === "showcase" ? showcaseQ.isLoading : membersLoading || invitesLoading };
+  const refetch = () => {
+    void refetchMembers();
+    void refetchInvites();
+    void showcaseQ.refetch();
+  };
+
+  return {
+    team,
+    isLoading: mode === "showcase" ? showcaseQ.isLoading : membersLoading || invitesLoading,
+    isError: mode === "showcase" ? showcaseQ.isError : membersFailed || invitesFailed,
+    refetch,
+  };
 }
 
 export function useCockpitAnalytics() {
   const { data: mode } = useSchemaMode();
-  const { data, isLoading: hfLoading } = useAdvancedAnalytics();
-  const { pipeline: hfPipeline } = useCockpitCandidates();
+  const { data, isLoading: hfLoading, isError: hfFailed, refetch: refetchAnalytics } = useAdvancedAnalytics();
+  const { pipeline: hfPipeline, isError: candsFailed, refetch: refetchCandidates } = useCockpitCandidates();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-analytics"],
@@ -609,5 +706,18 @@ export function useCockpitAnalytics() {
 
   const pipeline = mode === "showcase" && showcaseQ.data ? showcaseQ.data.pipeline : hfPipeline;
 
-  return { analytics, pipeline, isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading };
+  const refetch = () => {
+    void refetchAnalytics();
+    refetchCandidates();
+    void showcaseQ.refetch();
+  };
+
+  return {
+    analytics,
+    pipeline,
+    isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading,
+    // A zeroed funnel is a real answer for a new account; an unreachable one is not.
+    isError: mode === "showcase" ? showcaseQ.isError : hfFailed || candsFailed,
+    refetch,
+  };
 }

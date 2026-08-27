@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
 import {
@@ -10,7 +11,7 @@ import {
 } from "../hooks/useCockpitData";
 
 /**
- * Messages — Ava answers first.
+ * Messages — every thread with an applicant, in one place.
  *
  * Two panes: the threads on the left, triaged by whether anything is actually
  * waiting on you, and the conversation on the right. No hero graphic; the
@@ -18,7 +19,10 @@ import {
  *
  * Ava's drafted-reply block from the mockup is deliberately absent: nothing in
  * the app produces a draft yet, and a fabricated one would be a message put in
- * the owner's mouth. It comes back the day there is a real draft to show.
+ * the owner's mouth. The mockup's subhead ("Ava answers first · you approve
+ * anything that matters") and its "Ava handled" filter go with it — both are
+ * promises only that block can keep, and claiming them on a page that has no
+ * draft in it is proof of work nobody did. All three return together.
  */
 
 /** Real wax never sits square. A stable per-row tilt, so it does not jitter on re-render. */
@@ -198,6 +202,9 @@ export default function CockpitMessages() {
   const appliedParam = useRef<string | null>(null);
 
   const contactId = activeId;
+  // `isLoading` is the conversations fetch OR the thread fetch. Coarse, but the
+  // page-level skeleton below already absorbs the first, so by the time a thread
+  // is on screen it reads as "this conversation is still in flight".
   const { conversations, thread, rawThread, send, markRead, isLoading, isSending } =
     useCockpitMessages(contactId);
 
@@ -301,12 +308,20 @@ export default function CockpitMessages() {
     if (composerRef.current) composerRef.current.style.height = "auto";
   }, [contactId]);
 
-  const handleSend = () => {
+  // Everywhere else in the cockpit a failed write says so; here the payload is
+  // the owner's own words, so it is the one place where a silent failure costs
+  // something that cannot be recovered. Empty the box only once the insert has
+  // landed — offline, or on a policy refusal, the line stays where they typed it.
+  const handleSend = async () => {
     const text = draft.trim();
     if (!text || !contactId) return;
-    void send(text, contactId);
-    setDraft("");
-    if (composerRef.current) composerRef.current.style.height = "auto";
+    try {
+      await send(text, contactId);
+      setDraft("");
+      if (composerRef.current) composerRef.current.style.height = "auto";
+    } catch {
+      toast.error("I couldn't send that — your message is still in the box.");
+    }
   };
 
   if (isLoading && !conversations.length) {
@@ -335,7 +350,7 @@ export default function CockpitMessages() {
         Messages
       </h1>
       <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
-        Ava answers first · you approve anything that matters
+        Every message with an applicant, in one place.
       </span>
     </header>
   );
@@ -352,7 +367,7 @@ export default function CockpitMessages() {
           </h2>
           <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
             {candidates.length > 0
-              ? "Open an applicant and message them — everything you send, and everything Ava sends in your name, lands back here."
+              ? "Open an applicant and message them — everything you send lands back here."
               : "Post a role and share its link. The first time an applicant writes, the thread opens here."}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -479,7 +494,21 @@ export default function CockpitMessages() {
                 className="ck-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 min-[1120px]:px-[18px]"
               >
                 <div className="mt-auto flex flex-col gap-2.5">
-                  {thread.length === 0 ? (
+                  {thread.length === 0 && isLoading ? (
+                    // Switching threads swaps the query key, so `thread` is empty
+                    // for the length of the fetch. Saying "no messages yet" there
+                    // tells the owner a real person never wrote — about a thread
+                    // that may hold twenty. Wait first, and say what we're doing.
+                    <div className="flex flex-col items-center gap-2.5 py-4">
+                      {/* The line below already says it, so the seal stays decorative. */}
+                      <span className="ck-seal-breathe">
+                        <AvaSeal size={26} />
+                      </span>
+                      <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+                        Pulling up your messages with {firstName(partner.name)}…
+                      </p>
+                    </div>
+                  ) : thread.length === 0 ? (
                     <p className="text-center text-[12.5px]" style={{ color: "var(--ink-3)" }}>
                       No messages with {firstName(partner.name)} yet — write the first one.
                     </p>
@@ -515,7 +544,7 @@ export default function CockpitMessages() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      handleSend();
+                      void handleSend();
                     }
                   }}
                   className="min-h-[38px] max-h-24 flex-1 resize-none rounded-[10px] px-3 py-2.5 text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
@@ -528,7 +557,7 @@ export default function CockpitMessages() {
                 <button
                   type="button"
                   className="ck-btn ck-btn-primary shrink-0 !px-4 !py-2.5 !text-[13px]"
-                  onClick={handleSend}
+                  onClick={() => void handleSend()}
                   disabled={isSending || !draft.trim()}
                   style={isSending || !draft.trim() ? { opacity: 0.55 } : undefined}
                 >

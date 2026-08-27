@@ -15,24 +15,7 @@ import type { DocRow, DocStatus } from "../data";
  * person it belongs to. No folder tree — a short list you can finish.
  */
 
-/** Human labels for the wizard's raw document_type values. */
-const TYPE_LABELS: Record<string, string> = {
-  offer_letter: "Offer letter",
-  employment_contract: "Employment contract",
-  nda: "Non-disclosure agreement",
-  non_compete: "Non-compete agreement",
-  ip_assignment: "IP assignment",
-  background_check: "Background check",
-  custom: "Document",
-};
-
-function typeLabel(type: string) {
-  const key = (type ?? "").toLowerCase();
-  if (TYPE_LABELS[key]) return TYPE_LABELS[key];
-  const words = key.replace(/[_-]+/g, " ").trim();
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Document";
-}
-
+/** The document type reads off the title and the icon, so it needs no words. */
 function typeIcon(type: string) {
   const t = (type ?? "").toLowerCase();
   if (t.includes("offer")) return FileText;
@@ -89,14 +72,15 @@ function shortDate(value: string) {
   return value.replace(new RegExp(`,\\s*${new Date().getFullYear()}$`), "");
 }
 
+/**
+ * The second line carries only what the row does not already say. The chip owns
+ * the state and the title already names the document and its recipient, so all
+ * that is left is who it sits with and how long it has sat there.
+ */
 function statusLine(row: DocRow) {
   const person = named(row.candidate, "Candidate");
-  const who = person ? firstName(person) : "the recipient";
-  const when = row.updated ? ` · ${row.updated}` : "";
-  if (row.status === "Pending") return `Waiting on ${who} to sign${when}`;
-  if (row.status === "Signed") return `Signed by ${who}${when}`;
-  if (row.status === "Declined") return `${who} declined this${when}`;
-  return `On file from ${who}${when}`;
+  const who = person ? firstName(person) : null;
+  return [who, row.updated].filter(Boolean).join(", ");
 }
 
 /**
@@ -138,12 +122,14 @@ function openDocument(fileUrl: string) {
   else URL.revokeObjectURL(url);
 }
 
-function DocRowItem({ row, index }: { row: DocRow; index: number }) {
+function DocRowItem({ row, index, primary }: { row: DocRow; index: number; primary?: boolean }) {
   const Icon = typeIcon(row.type);
   const chip = CHIPS[row.status];
   const person = named(row.candidate, "Candidate");
+  const line = statusLine(row);
+  // Created said the same thing as the "2 days ago" on the line below the
+  // title, so only the date you could still miss earns a tile.
   const meta: Array<{ v: string; l: string }> = [];
-  if (row.created) meta.push({ v: shortDate(row.created), l: "Created" });
   if (row.expires) meta.push({ v: shortDate(row.expires), l: "Expires" });
 
   return (
@@ -164,9 +150,11 @@ function DocRowItem({ row, index }: { row: DocRow; index: number }) {
         <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }} title={row.title}>
           {row.title}
         </div>
-        <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--ink-3)" }}>
-          {typeLabel(row.type)} · {statusLine(row)}
-        </div>
+        {line && (
+          <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--ink-3)" }}>
+            {line}
+          </div>
+        )}
       </div>
 
       {meta.length > 0 && (
@@ -198,7 +186,7 @@ function DocRowItem({ row, index }: { row: DocRow; index: number }) {
         {row.fileUrl ? (
           <button
             type="button"
-            className={`ck-btn !py-2 !text-[12.5px] ${row.status === "Pending" ? "ck-btn-primary" : "ck-btn-outline"}`}
+            className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}
             onClick={() => openDocument(row.fileUrl!)}
             aria-label={`Open ${row.title}${person ? ` for ${person}` : ""}`}
           >
@@ -234,7 +222,7 @@ export default function CockpitDocuments() {
   // One shape for both schema modes — the showcase rows carry the same fields.
   const rows: DocRow[] = documents.rows;
 
-  const { packet, people, ready, pending, declined } = useMemo(() => {
+  const { packet, people, ready, pending, declined, urgentId } = useMemo(() => {
     const byAttention = (a: DocRow, b: DocRow) => ATTENTION[a.status] - ATTENTION[b.status];
     const packetRows = rows.filter(isPacket).sort(byAttention);
 
@@ -256,12 +244,21 @@ export default function CockpitDocuments() {
     }
     for (const group of groups.values()) group.rows.sort(byAttention);
 
+    const people = [...groups.values()];
+
+    // One heavy button on the page, on the first thing still waiting on
+    // someone — reading order, so packet first. Four outstanding signatures
+    // should look like one thing to start, not four identical demands.
+    const inPageOrder = [...packetRows, ...people.flatMap((g) => g.rows)];
+    const urgent = inPageOrder.find((r) => r.status === "Pending" && r.fileUrl);
+
     return {
       packet: packetRows,
-      people: [...groups.values()],
+      people,
       ready: rows.filter(isReady).length,
       pending: rows.filter((r) => r.status === "Pending").length,
       declined: rows.filter((r) => r.status === "Declined").length,
+      urgentId: urgent?.id ?? null,
     };
   }, [rows]);
 
@@ -298,7 +295,7 @@ export default function CockpitDocuments() {
         Documents
       </h1>
       <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
-        Everything for this hire, in one drawer
+        Every offer, form and file you send &mdash; one drawer
       </span>
       <div className="ml-auto flex gap-2 max-md:w-full max-md:[&>button]:flex-1">
         <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setWizard({})}>
@@ -395,7 +392,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush>Hiring packet</SectionTitle>
           <div className="flex flex-col gap-2">
             {packet.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} />
             ))}
           </div>
         </>
@@ -406,7 +403,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush={g === 0 && packet.length === 0}>{group.title}</SectionTitle>
           <div className="flex flex-col gap-2">
             {group.rows.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} />
             ))}
           </div>
         </div>

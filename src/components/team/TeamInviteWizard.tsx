@@ -281,24 +281,27 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
             </div>
 
             <div className="grid gap-3">
+              {/* The system has exactly three status tints (.chip crit / amber / mut).
+                  Ranking the levels by how much damage the access can do keeps this
+                  dialog reading as part of the cockpit instead of a stock-palette popup. */}
               {[
                 {
                   level: "full_admin" as PermissionLevel,
                   title: "Full Admin",
                   description: "Can create, edit, delete jobs and manage everything",
-                  color: "bg-red-500/10 border-red-500/20 text-red-500",
+                  color: "bg-[var(--crit-bg)] border-transparent text-[var(--crit)]",
                 },
                 {
                   level: "limited" as PermissionLevel,
                   title: "Limited Access",
                   description: "Can manage applicants but cannot create or delete jobs",
-                  color: "bg-yellow-500/10 border-yellow-500/20 text-yellow-500",
+                  color: "bg-[var(--amber-bg)] border-transparent text-[var(--amber-fg)]",
                 },
                 {
                   level: "view_only" as PermissionLevel,
                   title: "View Only",
                   description: "Can only view jobs and applicants, no actions allowed",
-                  color: "bg-blue-500/10 border-blue-500/20 text-blue-500",
+                  color: "bg-[var(--surface-2)] border-transparent text-[var(--ink-2)]",
                 },
               ].map((option) => (
                 <button
@@ -473,8 +476,9 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6 text-center"
           >
-            <div className="p-4 rounded-full bg-green-500/10 w-fit mx-auto">
-              <Check className="h-12 w-12 text-green-500" />
+            {/* Success is jade — the action colour — not a Tailwind green. */}
+            <div className="p-4 rounded-full bg-[var(--jade-soft)] w-fit mx-auto">
+              <Check className="h-12 w-12 text-[var(--jade-soft-fg)]" />
             </div>
 
             <div>

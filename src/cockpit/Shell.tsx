@@ -13,8 +13,8 @@ import {
   ChevronDown,
   Bell,
   MoreHorizontal,
-  CalendarDays as CalIcon,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
 import { useUnreadCount } from "@/hooks/useNotifications";
@@ -95,9 +95,13 @@ function TrialBadge() {
   if (!showTrialAccess) return null;
 
   return (
+    // Brass costs money, and brass is outlined — the system has no filled brass
+    // surface. The old gold wash put brass ink on a brass slab (~2.3:1); on the
+    // sidebar an outline reads 5.1:1 in Paper and 9.0:1 in Ink.
+    // Hidden in the collapsed rail, where there is no room for the words.
     <div
-      className="rounded-xl px-3.5 py-3"
-      style={{ background: "color-mix(in srgb, var(--hf-gold-hover) 40%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-gold-hover) 30%, transparent)" }}
+      className="hidden rounded-xl px-3.5 py-3 min-[1121px]:block"
+      style={{ background: "transparent", border: "1px solid var(--brass-line)" }}
     >
       <div className="flex items-center gap-2">
         <Clock className="h-3.5 w-3.5" style={{ color: "var(--hf-gold)" }} />
@@ -105,7 +109,7 @@ function TrialBadge() {
           {account.trialDaysLeft} days left
         </span>
       </div>
-      <div className="mt-1 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+      <div className="mt-1 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
         Your trial ends {account.trialEnds}
       </div>
     </div>
@@ -116,12 +120,21 @@ function Sidebar() {
   const { pathname } = useLocation();
   const { account } = useCockpitAccount();
   return (
+    // Two widths, as the design specifies: a 64px icon rail from md up to
+    // 1120px, the full 216px column above that. --line is the only rule that
+    // stays darker than both the sidebar and the page in either theme; a
+    // surface-derived border inverts into a pale glow on Paper.
     <aside
-      className="hidden md:flex w-[216px] shrink-0 flex-col px-3 py-5"
-      style={{ background: "hsl(var(--ck-sidebar))", borderRight: "1px solid color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)" }}
+      className="hidden md:flex w-16 min-[1121px]:w-[216px] shrink-0 flex-col px-2 py-5 min-[1121px]:px-3"
+      style={{ background: "hsl(var(--ck-sidebar))", borderRight: "1px solid var(--line)" }}
     >
-      <div className="px-2 pb-6 pt-1">
-        <Wordmark size={26} />
+      <div className="pb-6 pt-1 min-[1121px]:px-2">
+        <span className="flex justify-center min-[1121px]:hidden">
+          <Wordmark size={26} markOnly />
+        </span>
+        <span className="hidden min-[1121px]:flex">
+          <Wordmark size={26} />
+        </span>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
@@ -132,39 +145,65 @@ function Sidebar() {
             <Link
               key={item.to}
               to={item.to}
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors"
-              style={{
-                background: active ? "var(--hf-surface-raised)" : "transparent",
-                color: active ? "var(--hf-text)" : "var(--hf-text-soft)",
-              }}
+              // The label is display:none in the rail, so the name has to be
+              // carried by aria-label or the link goes unnamed.
+              aria-label={item.label}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "group flex items-center gap-3 rounded-xl py-2.5 text-[14px] font-medium transition-colors",
+                "justify-center px-0 min-[1121px]:justify-start min-[1121px]:px-3",
+                // Hover and focus live in classes, not inline styles — an inline
+                // background would beat any :hover rule we could write.
+                "hover:bg-[var(--hf-surface-raised)] hover:text-[var(--hf-text)]",
+                "focus-visible:[outline:2px_solid_var(--jade)] focus-visible:[outline-offset:-2px]",
+                active
+                  ? "bg-[var(--hf-surface-raised)] font-semibold text-[var(--hf-text)]"
+                  : "text-[var(--hf-text-soft)]",
+              )}
+              // Jade marks where you are. Brass is money, and never the rail.
+              style={active ? { boxShadow: "inset 2px 0 0 var(--jade), var(--hf-shadow-soft)" } : undefined}
             >
-              <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }} />
-              {item.label}
+              <Icon className="h-[18px] w-[18px] shrink-0 transition-transform group-hover:translate-x-px" />
+              <span className="hidden min-[1121px]:inline">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 flex flex-col gap-3">
         <TrialBadge />
-        <AccountMenu align="start" side="top">
-          <button
-            aria-label="Account menu"
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-[var(--hf-surface-raised)]"
-            style={{ background: "var(--hf-surface-raised)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)" }}
-          >
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold"
-              style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
-            >
-              {account.initials}
-            </span>
-            <span className="flex-1 text-left text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
-              {account.name}
-            </span>
-            <ChevronDown className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
-          </button>
-        </AccountMenu>
+        {/* The design's app frame is rail + page, with no top bar, so the bell
+            sits at the foot of the rail beside the account block — the one
+            place the account is printed. */}
+        <div className="flex flex-col items-center gap-2 min-[1121px]:flex-row">
+          <div className="w-full min-w-0 min-[1121px]:flex-1">
+            <AccountMenu align="start" side="top">
+              <button
+                aria-label="Account menu"
+                className="flex w-full min-w-0 items-center justify-center gap-2.5 rounded-xl px-0 py-2.5 transition-colors min-[1121px]:justify-start min-[1121px]:px-3"
+                style={{ background: "var(--hf-surface-raised)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)" }}
+              >
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
+                  style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
+                >
+                  {account.initials}
+                </span>
+                {/* A long business name has to ellipsize, not wrap the chip onto
+                    two lines and squeeze the bell beside it. */}
+                <span
+                  className="hidden min-w-0 flex-1 truncate text-left text-[14px] font-medium min-[1121px]:block"
+                  style={{ color: "var(--hf-text)" }}
+                  title={account.name}
+                >
+                  {account.name}
+                </span>
+                <ChevronDown className="hidden h-4 w-4 min-[1121px]:block" style={{ color: "var(--hf-text-muted)" }} />
+              </button>
+            </AccountMenu>
+          </div>
+          <NotificationBell />
+        </div>
       </div>
     </aside>
   );
@@ -177,7 +216,7 @@ function NotificationBell({ compact }: { compact?: boolean }) {
     <button
       aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
       onClick={() => navigate("/notifications")}
-      className="relative flex items-center justify-center rounded-lg"
+      className="relative flex shrink-0 items-center justify-center rounded-lg"
       style={{
         width: 36,
         height: 36,
@@ -185,11 +224,21 @@ function NotificationBell({ compact }: { compact?: boolean }) {
         border: compact ? "none" : "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)",
       }}
     >
-      <Bell className="h-5 w-5" style={{ color: "var(--hf-gold)" }} />
+      {/* Brass is money. A bell is not, whether or not anything is unread. */}
+      <Bell className="h-5 w-5" style={{ color: "var(--hf-text-soft)" }} />
       {unread > 0 && (
         <span
           className="absolute -right-1 -top-1 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-          style={{ minWidth: 16, height: 16, background: "var(--hf-danger)", color: "hsl(0 0% 100%)", border: "1.5px solid hsl(var(--ck-bg))" }}
+          // Jade on --btn-fg, the system's filled-count pair: --crit is for
+          // errors and for a candidate passed on, and raw white is not a token.
+          // The ring takes the ground the bell actually sits on.
+          style={{
+            minWidth: 16,
+            height: 16,
+            background: "var(--jade)",
+            color: "var(--btn-fg)",
+            border: `1.5px solid hsl(var(--ck-${compact ? "bg" : "sidebar"}))`,
+          }}
         >
           {unread > 9 ? "9+" : unread}
         </span>
@@ -198,58 +247,10 @@ function NotificationBell({ compact }: { compact?: boolean }) {
   );
 }
 
-function TodayPill() {
-  return (
-    <button
-      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13.5px]"
-      style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 70%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text-soft)" }}
-    >
-      <CalIcon className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
-      Today
-      <ChevronDown className="h-3.5 w-3.5" />
-    </button>
-  );
-}
-
-function DesktopTopBar() {
-  const { pathname } = useLocation();
-  const { account } = useCockpitAccount();
-  const isDashboard = isActive(pathname, "/dashboard");
-  // Dashboard: breadcrumb on the left (matches mockup). Other pages: the big
-  // page title lives in the PageHeader, so the bar only carries the account +
-  // date controls on the right — no duplicate-title breadcrumb.
-  return (
-    <header className="hidden md:flex h-16 shrink-0 items-center justify-between px-10">
-      {isDashboard ? (
-        <>
-          <div className="flex items-center gap-2 text-[14px]">
-            <span style={{ color: "var(--hf-gold)" }}>Dashboard</span>
-            <span style={{ color: "var(--hf-text-muted)" }}>/</span>
-            <AccountMenu align="start" side="bottom">
-              <button aria-label="Account menu" className="flex items-center gap-1.5" style={{ color: "var(--hf-text-soft)" }}>
-                {account.name}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </AccountMenu>
-          </div>
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <TodayPill />
-          </div>
-        </>
-      ) : (
-        <>
-          <div />
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <AccountChip />
-            <TodayPill />
-          </div>
-        </>
-      )}
-    </header>
-  );
-}
+// There is no desktop top bar. The design's frame is rail + page: every page
+// prints its own title, the account is printed once in the rail's foot, and the
+// bell moved there with it. The old h-16 header spent 64px of every page on a
+// duplicated account name and a "Today" pill that opened nothing.
 
 function MobileTopBar() {
   const { pathname } = useLocation();
@@ -290,10 +291,17 @@ function MobileTabBar() {
           <button
             key={tab.to}
             onClick={() => navigate(tab.to)}
-            className="flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
+            aria-current={active ? "page" : undefined}
+            className="relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
           >
-            <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }} />
-            <span className="text-[11px] font-medium" style={{ color: active ? "var(--hf-gold)" : "var(--hf-text-muted)" }}>
+            {/* The sidebar's jade rail, rotated onto the tab bar's top edge. */}
+            <span
+              aria-hidden
+              className="absolute -top-2 h-[2px] w-8 rounded-full"
+              style={{ background: active ? "var(--jade)" : "transparent" }}
+            />
+            <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
+            <span className="text-[11px] font-medium" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }}>
               {tab.label}
             </span>
           </button>
@@ -322,10 +330,11 @@ export function CockpitShell({ children }: { children: ReactNode }) {
           <i />
         </div>
         <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
-          <DesktopTopBar />
           {!hasOwnMobileHeader && <MobileTopBar />}
           <main
-            className="ck-scroll flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-1 md:px-10 md:pb-10 md:pt-2"
+            // .main{padding:18px 26px 40px} in the design — with the top bar
+            // gone the page title starts where the mockup starts it.
+            className="ck-scroll flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-1 md:px-[26px] md:pb-10 md:pt-[18px]"
             style={isMobile ? undefined : undefined}
           >
             <div className="mx-auto w-full max-w-[1240px]">{children}</div>

@@ -58,6 +58,31 @@
     --amb-a: rgba(15, 107, 79, 0.10);
     --amb-b: rgba(201, 164, 94, 0.11);
 
+    /* ── The type scale ───────────────────────────────────────────────────────
+       The mockup's steps, verbatim. Every size in the app has to land on one of
+       these — without the scale here there was nothing to snap to and each page
+       eyeballed its own half-pixels. No step exists between 14 and 16, or
+       between 20 and 26; that gap is the point. Sizes carry no colour, so NIGHT
+       needs no copy of them. */
+    --t-10: 10px;
+    --t-11: 11px;
+    --t-12: 12px;
+    --t-13: 13px;
+    --t-14: 14px;
+    --t-16: 16px;
+    --t-18: 18px;
+    --t-20: 20px;
+    --t-26: 26px;
+    --t-30: 30px;
+    --t-38: 38px;
+
+    /* ── The vertical beat ────────────────────────────────────────────────────
+       One three-step scale. Every block margin in the mockup resolves to it, so
+       switching tabs never re-spaces the screen. */
+    --s2: 8px;
+    --s3: 12px;
+    --s4: 16px;
+
     /* ── shadcn / Tailwind (HSL triplets) ──────────────────────────────────── */
     --background: 42 36% 91%;
     --foreground: 155 23% 10%;
@@ -190,7 +215,10 @@
 
     --amber-bg: rgba(224, 170, 80, 0.16);
     --amber-fg: #E4B76E;
-    --crit: #D9715F;
+    /* Lifted one step off the mockup's #D9715F: on its own 14% tint that
+       read 4.23:1, so the Passed/Declined chips failed where every other
+       tinted pair in NIGHT clears comfortably. Same warm red, 5.4:1. */
+    --crit: #E58A78;
     --crit-bg: rgba(217, 113, 95, 0.14);
     --btn-fg: #17140F;
 
@@ -286,7 +314,7 @@
     --hf-gold-hover: #E9C983;
     --hf-gold-soft: rgba(224, 170, 80, 0.16);
     --hf-gold-border: rgba(224, 185, 106, 0.55);
-    --hf-danger: #D9715F;
+    --hf-danger: #E58A78;   /* stays in step with --crit above */
     --hf-warning: #E4B76E;
     --hf-shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 28px -16px rgba(0, 0, 0, 0.9);
     --hf-shadow-raised: 0 3px 6px rgba(0, 0, 0, 0.55), 0 20px 44px -22px rgba(0, 0, 0, 0.92);
@@ -719,8 +747,12 @@
     animation: none !important;
   }
   
-  /* Optimize touch interactions on mobile */
-  * {
+  /* Killing the native tap flash is only safe where we hand back a press of our
+     own. These two define :active in cockpit.css; everything else — the mobile
+     tab bar, More rows, person and thread rows — keeps the OS highlight, so a
+     tap is never a dead press on a device that has no hover. */
+  .ck-btn,
+  .ck-lift {
     -webkit-tap-highlight-color: transparent;
   }
   
@@ -734,9 +766,12 @@
 @media (max-width: 640px) {
 /* Flex containers: removed aggressive wrap rule to prevent icon+text breakage */
   
-  /* Smaller buttons on mobile */
-  button:not([data-size="icon"]), 
-  [role="button"]:not([data-size="icon"]) {
+  /* Smaller buttons on mobile — but not the cockpit's. At (0,1,1) this selector
+     beat .ck-btn and silently reformatted the whole cockpit at 390px: 32px tall
+     buttons and labels wrapping, where the spec's button is a constant 36px at
+     every breakpoint. */
+  button:not([data-size="icon"]):not(.ck-btn), 
+  [role="button"]:not([data-size="icon"]):not(.ck-btn) {
     font-size: 0.75rem;
     padding-left: 0.625rem;
     padding-right: 0.625rem;
