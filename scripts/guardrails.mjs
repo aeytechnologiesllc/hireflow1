@@ -245,6 +245,49 @@ const guards = [
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
+
+  {
+    id: "subscription-and-notification-writes-locked",
+    why:
+      "'System can insert/update subscriptions', 'System can insert/update usage' and " +
+      "'System can insert notifications' all had USING/WITH CHECK (true) with no `TO` " +
+      "clause — any anon or authenticated caller could rewrite someone else's plan or " +
+      "spoof a notification to any user_id. The two lockdown migrations close that; " +
+      "nothing may ever bring those permissive policies back.",
+    async run() {
+      const SUB_MIGRATION = "supabase/migrations/20260827210000_lockdown_subscription_writes.sql";
+      const NOTIF_MIGRATION = "supabase/migrations/20260827211000_lockdown_notification_inserts.sql";
+      const bad = [];
+
+      if ((await read(SUB_MIGRATION)) == null) bad.push(`${SUB_MIGRATION} is missing`);
+      if ((await read(NOTIF_MIGRATION)) == null) bad.push(`${NOTIF_MIGRATION} is missing`);
+
+      const migrationFiles = (await readdir(path.join(ROOT, "supabase/migrations")).catch(() => []))
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
+
+      // A recreation only matters if it actually brings the policy back with
+      // CREATE POLICY — a defensive `DROP POLICY IF EXISTS "System can ..."`
+      // in some later migration is not a regression and must not fail this.
+      const recreates = /CREATE\s+POLICY\s+"System can (insert|update) (subscriptions|usage|notifications)"/i;
+
+      for (const [migrationRel, label] of [
+        [SUB_MIGRATION, "subscription"],
+        [NOTIF_MIGRATION, "notification"],
+      ]) {
+        const name = path.basename(migrationRel);
+        const later = migrationFiles.filter((f) => f > name);
+        for (const f of later) {
+          const text = await read(`supabase/migrations/${f}`);
+          if (text && recreates.test(text)) {
+            bad.push(`supabase/migrations/${f} recreates a permissive "System can ..." ${label} policy`);
+          }
+        }
+      }
+
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
 ];
 
 /* --------------------------------------------------------------------- main */
