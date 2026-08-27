@@ -15,20 +15,6 @@ import { AvaOrb } from "@/components/ava/AvaOrb";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Authoritative check (against auth.users via a SECURITY DEFINER RPC) used to
-// turn Supabase's deliberately-vague "Invalid login credentials" into a real,
-// actionable message: "no account" vs "wrong password". Falls back to `null`
-// (unknown) if the RPC is unavailable so we never block sign-in on it.
-async function checkEmailExists(email: string): Promise<boolean | null> {
-  try {
-    const { data, error } = await supabase.rpc("email_exists", { p_email: email });
-    if (error) return null;
-    return Boolean(data);
-  } catch {
-    return null;
-  }
-}
-
 // Detect if running inside a WebView (Natively or generic)
 const isWebView = () => {
   if (typeof window === "undefined") return false;
@@ -262,31 +248,14 @@ export default function Auth() {
       const isBadCreds = /invalid login credentials/i.test(error.message);
 
       if (isBadCreds) {
-        // Disambiguate the generic credential error so the user knows whether
-        // to create an account or just fix/reset their password.
-        const exists = await checkEmailExists(signInEmail);
-
-        if (exists === false) {
-          toast({
-            variant: "warning",
-            title: "No account found",
-            description: "We couldn't find an account for that email. Switching you to Sign Up.",
-          });
-          setSignUpEmail(signInEmail);
-          setActiveTab("signup");
-        } else if (exists === true) {
-          toast({
-            variant: "warning",
-            title: "Incorrect password",
-            description: "That password doesn't match this account. Try again or use \u201cForgot password?\u201d to reset it.",
-          });
-        } else {
-          toast({
-            variant: "warning",
-            title: "Sign In Failed",
-            description: "Invalid email or password. Please try again.",
-          });
-        }
+        // Deliberately the same answer whether the email has an account or not.
+        // Telling them apart turns this form into a way to discover who holds a
+        // HireFlow account.
+        toast({
+          variant: "warning",
+          title: "Sign In Failed",
+          description: "Invalid email or password. Please try again, or use \u201cForgot password?\u201d to reset it.",
+        });
       } else if (/email not confirmed/i.test(error.message)) {
         toast({
           variant: "warning",
@@ -383,20 +352,6 @@ export default function Auth() {
         setIsLoading(false);
         return;
       }
-    }
-
-    // First check if the email actually has an account (authoritative, against
-    // auth.users). If the RPC is unavailable it returns null → we fall through
-    // and send the reset anyway rather than blocking the user.
-    const exists = await checkEmailExists(forgotPasswordEmail);
-    if (exists === false) {
-      toast({
-        variant: "warning",
-        title: "Email Not Found",
-        description: "No account found with this email address. Please check the email or sign up for a new account.",
-      });
-      setIsLoading(false);
-      return;
     }
 
     const redirectUrl = `${window.location.origin}/auth?reset=true`;
