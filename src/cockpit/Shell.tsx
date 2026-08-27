@@ -329,6 +329,9 @@ export function CockpitShell({ children }: { children: ReactNode }) {
           <i />
           <i />
         </div>
+        {/* Paper is a material — a whisper of grain so the ground reads as
+            stock, not a hex fill. */}
+        <div className="ck-grain" aria-hidden />
         <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
           {!hasOwnMobileHeader && <MobileTopBar />}
           <main
@@ -337,7 +340,9 @@ export function CockpitShell({ children }: { children: ReactNode }) {
             className="ck-scroll flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-1 md:px-[26px] md:pb-10 md:pt-[18px]"
             style={isMobile ? undefined : undefined}
           >
-            <div className="mx-auto w-full max-w-[1240px]">{children}</div>
+            {/* Keyed on the route so every navigation gets a quiet page-turn
+                instead of a hard content swap. */}
+            <div key={pathname} className="ck-page mx-auto w-full max-w-[1240px]">{children}</div>
           </main>
           <MobileTabBar />
         </div>

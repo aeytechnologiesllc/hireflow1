@@ -5,6 +5,7 @@ import { ChevronRight, CalendarDays, Briefcase } from "lucide-react";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
+import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
 import {
   useCockpitAccount,
@@ -121,11 +122,14 @@ function SealedRow({
         >
           <span className="relative shrink-0">
             <CkAvatar who={candidate.name} size={40} />
-            <AvaSeal
-              size={20}
-              tilt={TILTS[index % TILTS.length]}
-              style={{ position: "absolute", right: -6, bottom: -6 }}
-            />
+            {/* The stamp comes DOWN — overshoot into the paper, settle. Rows
+                seal one after the next, which is the whole product in 1.5s. */}
+            <span
+              className="ck-seal ck-seal-press absolute"
+              style={{ right: -6, bottom: -6, ["--press-delay" as string]: `${350 + index * 260}ms` }}
+            >
+              <AvaSeal size={20} tilt={TILTS[index % TILTS.length]} />
+            </span>
           </span>
           <span className="min-w-0">
             <span
@@ -158,7 +162,7 @@ function SealedRow({
             className="ck-num font-semibold"
             style={{ fontSize: 38, lineHeight: 0.85, color: "var(--jade)" }}
           >
-            {candidate.overall}
+            <CountUp value={candidate.overall} duration={700} delay={350 + index * 260} />
           </div>
           <div
             className="mt-[5px] text-[10px] font-bold uppercase leading-[1.2] tracking-[0.08em]"
@@ -271,7 +275,7 @@ export default function CockpitDashboard() {
       <header className="ck-rise flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1
-            className="font-display"
+            className="font-display ck-ink"
             style={{ fontSize: "clamp(26px, 3.2vw, 38px)", lineHeight: 1.1, color: "var(--hf-text)", fontWeight: 500 }}
           >
             {greeting(now)}{who ? `, ${who}` : ""}.
@@ -320,7 +324,9 @@ export default function CockpitDashboard() {
                 border: "1px solid transparent",
               }}
             >
-              <AvaSeal size={26} />
+              <span className="ck-seal-breathe shrink-0">
+                <AvaSeal size={26} />
+              </span>
               <p
                 className="min-w-0 flex-1 text-[13px] min-[901px]:truncate max-[900px]:line-clamp-2 max-[900px]:text-[12px] max-[900px]:leading-[1.35]"
                 style={{ color: "var(--slab-ink-2)" }}
@@ -343,6 +349,13 @@ export default function CockpitDashboard() {
                 )}
                 {" — none of your time, nobody left waiting."}
               </p>
+              {/* One tick per person read — lighting up in sequence, then a
+                  slow idle shimmer. Ava never reads as past-tense. */}
+              <span className="ck-ticker ml-auto hidden shrink-0 min-[901px]:flex" aria-hidden>
+                {Array.from({ length: Math.min(readCount, 28) }, (_, i) => (
+                  <i key={i} style={{ ["--i" as string]: i }} />
+                ))}
+              </span>
             </section>
           )}
 

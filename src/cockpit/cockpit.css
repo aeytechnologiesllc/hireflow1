@@ -451,24 +451,61 @@
   filter: blur(90px);
   will-change: transform;
 }
+/* The same token painted twice ≈ doubles its presence without inventing a new
+   colour — the mockup's values were tuned for a demo reel, and at one coat the
+   lights are invisible on ivory. Longer travel so the drift actually reads. */
 .ck-ambient i:nth-child(1) {
-  width: 560px; height: 560px; top: -150px; right: -90px;
-  background: radial-gradient(circle, var(--amb-a), transparent 66%);
-  animation: ck-drift1 26s ease-in-out infinite alternate;
+  width: 620px; height: 620px; top: -150px; right: -90px;
+  background:
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%);
+  animation: ck-drift1 22s ease-in-out infinite alternate;
 }
 .ck-ambient i:nth-child(2) {
-  width: 500px; height: 500px; bottom: -170px; left: 18%;
-  background: radial-gradient(circle, var(--amb-b), transparent 66%);
-  animation: ck-drift2 34s ease-in-out infinite alternate;
+  width: 560px; height: 560px; bottom: -170px; left: 18%;
+  background:
+    radial-gradient(circle, var(--amb-b), transparent 66%),
+    radial-gradient(circle, var(--amb-b), transparent 66%),
+    radial-gradient(circle, var(--amb-b), transparent 66%);
+  animation: ck-drift2 28s ease-in-out infinite alternate;
 }
 .ck-ambient i:nth-child(3) {
-  width: 320px; height: 320px; top: 34%; left: -120px;
-  background: radial-gradient(circle, var(--amb-a), transparent 66%);
-  animation: ck-drift3 30s ease-in-out infinite alternate;
+  width: 380px; height: 380px; top: 34%; left: -120px;
+  background:
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%);
+  animation: ck-drift3 25s ease-in-out infinite alternate;
 }
-@keyframes ck-drift1 { to { transform: translate3d(-70px, 50px, 0) scale(1.08); } }
-@keyframes ck-drift2 { to { transform: translate3d(80px, -40px, 0) scale(1.05); } }
-@keyframes ck-drift3 { to { transform: translate3d(50px, 60px, 0); } }
+@keyframes ck-drift1 { from { opacity: 0.7; } to { opacity: 1; transform: translate3d(-160px, 110px, 0) scale(1.14); } }
+@keyframes ck-drift2 { from { opacity: 1; } to { opacity: 0.65; transform: translate3d(190px, -90px, 0) scale(1.08); } }
+@keyframes ck-drift3 { from { opacity: 0.7; } to { opacity: 1; transform: translate3d(130px, 140px, 0) scale(1.06); } }
+
+/* Night's ambient tokens are whisper-alpha over near-black — two coats vanish
+   entirely (pixel-diff proved it: 0.1% movement). Four coats in the dark,
+   same locked hues. */
+.dark .ck-ambient i:nth-child(1) {
+  background:
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%);
+}
+.dark .ck-ambient i:nth-child(2) {
+  background:
+    radial-gradient(circle, var(--amb-b), transparent 66%),
+    radial-gradient(circle, var(--amb-b), transparent 66%),
+    radial-gradient(circle, var(--amb-b), transparent 66%),
+    radial-gradient(circle, var(--amb-b), transparent 66%);
+}
+.dark .ck-ambient i:nth-child(3) {
+  background:
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%),
+    radial-gradient(circle, var(--amb-a), transparent 66%);
+}
 
 /* Rows and cards lift toward you. */
 .ck-card,
@@ -515,4 +552,73 @@
      worse. Zero the transform itself so the seal never jumps. */
   .ck-card:hover .ck-seal svg,
   .ck-row:hover .ck-seal svg { transform: none; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The difference between generic and alive: motion that tells the product's
+   story. Ink dries, wax presses, Ava keeps working. All transform/opacity,
+   all off under prefers-reduced-motion.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Paper grain — the ivory is a material, not a hex value. One monochrome
+   noise tile over everything; no hue, so the theme lock is untouched. */
+.ck-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .ck-grain { opacity: 0.07; }
+
+/* Every route change is a small page turn, not a hard swap. */
+@keyframes ck-page-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ck-page { animation: ck-page-in 230ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+
+/* The greeting inks in — blur settles like ink drying on the page. */
+@keyframes ck-ink-in {
+  0%   { opacity: 0; filter: blur(7px); letter-spacing: 0.015em; }
+  100% { opacity: 1; filter: blur(0);   letter-spacing: -0.01em; }
+}
+.ck-ink { animation: ck-ink-in 640ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+
+/* The seal PRESSES — arrives from above, overshoots into the paper, settles.
+   Stagger with --press-delay so a list of rows stamps down one by one. */
+@keyframes ck-seal-press-in {
+  0%   { opacity: 0; transform: scale(1.9) rotate(-14deg); }
+  55%  { opacity: 1; transform: scale(0.88) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.ck-seal-press {
+  animation: ck-seal-press-in 460ms cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  animation-delay: var(--press-delay, 0ms);
+}
+
+/* Ava's activity ticker — one tick per applicant read, lighting up in
+   sequence, then a slow idle shimmer so she never reads as past-tense. */
+.ck-ticker { display: flex; align-items: center; gap: 3px; }
+.ck-ticker i {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--slab-ink-2);
+  height: 12px;
+  animation:
+    ck-tick-in 300ms cubic-bezier(0.2, 0.7, 0.3, 1) both,
+    ck-tick-idle 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 45ms + 500ms), calc(var(--i) * 140ms + 1.6s);
+}
+.ck-ticker i:nth-child(3n)  { height: 16px; }
+.ck-ticker i:nth-child(4n)  { height: 9px; }
+.ck-ticker i:nth-child(5n)  { height: 14px; }
+@keyframes ck-tick-in   { from { opacity: 0; transform: scaleY(0.3); } to { opacity: 0.55; transform: scaleY(1); } }
+@keyframes ck-tick-idle { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-page, .ck-ink, .ck-seal-press { animation: none; }
+  .ck-ticker i { animation: none; opacity: 0.7; }
 }
