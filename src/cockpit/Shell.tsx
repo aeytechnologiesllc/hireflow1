@@ -29,8 +29,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: Home },
-  { label: "Jobs", to: "/jobs", icon: Briefcase },
+  // People before job admin — the design puts Applicants second on purpose.
   { label: "Applicants", to: "/applicants", icon: Users },
+  { label: "Jobs", to: "/jobs", icon: Briefcase },
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "Messages", to: "/messages", icon: MessageSquare },
   { label: "Documents", to: "/documents", icon: FileText },
@@ -40,8 +41,8 @@ const NAV: NavItem[] = [
 
 const MOBILE_TABS = [
   { label: "Dashboard", to: "/dashboard", icon: Home },
-  { label: "Jobs", to: "/jobs", icon: Briefcase },
   { label: "Applicants", to: "/applicants", icon: Users },
+  { label: "Jobs", to: "/jobs", icon: Briefcase },
   { label: "Messages", to: "/messages", icon: MessageSquare },
   { label: "More", to: "/more", icon: MoreHorizontal },
 ];
