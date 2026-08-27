@@ -15,7 +15,7 @@ import {
   FileText,
   ArrowLeft,
 } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
+import AvaSeal from "@/components/ava/AvaSeal";
 import { CandidateMark } from "../components/CandidateMark";
 import { ActionDialog } from "../components/ActionDialog";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
@@ -122,7 +122,7 @@ export default function CockpitCandidateDetail() {
         </div>
 
         <div className="ck-card flex items-start gap-3 p-4">
-          <AvaOrb size={72} reflection={false} glow={false} amp={0.22} flow={0.5} />
+          <AvaSeal size={34} />
           <div className="min-w-0">
             <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</div>
             <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{c.readFull}</p>

@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { Clock, UserCheck, Star, MessageSquare, ChevronDown, ChevronRight } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { Pipeline } from "../components/Pipeline";
@@ -157,7 +156,6 @@ export default function CockpitAnalytics() {
         </div>
 
         <div className="ck-card flex items-center gap-4 p-5 md:p-6">
-          <AvaOrb size={150} reflection={false} amp={0.22} flow={0.5} />
           <div className="min-w-0">
             <div className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
               Ava's insight

@@ -20,7 +20,6 @@ import { toast } from "sonner";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { AvaCard } from "../components/AvaCard";
-import { AvaOrb } from "@/components/ava/AvaOrb";
 import { useCockpitJobsData, useCockpitAccount, useCockpitCandidates } from "../hooks/useCockpitData";
 import { ShareKitDialog } from "../components/ShareKitDialog";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
@@ -280,7 +279,6 @@ export default function CockpitJobs() {
               <div className="ck-card p-8 text-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>Loading roles…</div>
             ) : jobs.length === 0 ? (
               <div className="ck-card flex flex-col items-center gap-4 p-10 text-center">
-                <AvaOrb size={132} reflection={false} />
                 <div>
                   <div className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Create your first role with Ava</div>
                   <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed" style={{ color: "var(--hf-text-muted)" }}>

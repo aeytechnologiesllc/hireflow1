@@ -16,7 +16,7 @@ import {
   XCircle,
   CalendarPlus,
 } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
+import AvaSeal from "@/components/ava/AvaSeal";
 import { PageHeader } from "../components/PageHeader";
 import { Pipeline } from "../components/Pipeline";
 import { CandidateMark } from "../components/CandidateMark";
@@ -145,7 +145,7 @@ function DetailPanel({ c, status, onClose, onAdvance, onHire, onReject, onSchedu
       {/* Ava's read — first content, no scrolling needed */}
       <div className="ck-inset mt-3 p-3">
         <div className="flex items-center gap-2">
-          <AvaOrb size={34} reflection={false} glow={false} amp={0.22} flow={0.5} />
+          <AvaSeal size={28} />
           <span className="font-display text-[14px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</span>
         </div>
         {analyzed ? (

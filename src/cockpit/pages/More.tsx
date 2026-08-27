@@ -13,7 +13,6 @@ import {
   LogOut,
 } from "lucide-react";
 import { toast } from "sonner";
-import AvaOrb from "@/components/ava/AvaOrb";
 import { useCockpitAccount } from "../hooks/useCockpitData";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -78,7 +77,6 @@ export default function CockpitMore() {
 
       {/* Ava card */}
       <div className="ck-card flex items-center gap-3 p-4" onClick={() => navigate("/analytics")}>
-        <AvaOrb size={84} reflection={false} amp={0.22} flow={0.5} />
         <div className="min-w-0">
           <div className="font-display text-[19px] leading-tight" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava is watching your pipeline</div>
           <button className="mt-1.5 flex items-center gap-1 text-[13px]" style={{ color: "var(--hf-gold)" }}>View recommendations<ChevronRight className="h-3.5 w-3.5" /></button>

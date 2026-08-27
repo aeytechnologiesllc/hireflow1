@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, FileText } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
+import AvaSeal from "@/components/ava/AvaSeal";
 import { isImageResumeUrl, isPdfResumeUrl } from "@/utils/resumeFiles";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
@@ -108,7 +108,7 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
         <div className="ck-scroll relative flex-1 overflow-auto" style={{ background: "var(--hf-bg)" }}>
           {!displayUrl ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <AvaOrb size={40} reflection={false} glow={false} amp={0.22} flow={0.5} />
+              <AvaSeal size={30} />
               <p className="text-[13px]" style={{ color: "var(--hf-text-soft)" }}>Loading resume…</p>
             </div>
           ) : isImage ? (
@@ -135,7 +135,7 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
         {/* optional Ava one-liner — keeps context while reading the resume */}
         {avaRead && (
           <div className="flex items-start gap-2.5 border-t px-4 py-3" style={{ borderColor: "var(--hf-border-strong)", background: "var(--hf-bg)" }}>
-            <AvaOrb size={32} reflection={false} glow={false} amp={0.22} flow={0.5} />
+            <AvaSeal size={26} />
             <div className="min-w-0">
               <div className="text-[11px] font-semibold" style={{ color: "var(--hf-text)" }}>Ava’s read</div>
               <p className="text-[12.5px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{avaRead}</p>

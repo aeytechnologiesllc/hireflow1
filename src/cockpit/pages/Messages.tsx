@@ -18,7 +18,6 @@ import {
   ChevronLeft,
   ListFilter,
 } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { CandidateMark } from "../components/CandidateMark";
 import { useCockpitMessages, useCockpitAccount, useCockpitCandidates } from "../hooks/useCockpitData";
@@ -271,7 +270,6 @@ export default function CockpitMessages() {
           <div className="flex items-center justify-center text-[13px]" style={{ color: "var(--hf-text-muted)" }}>Select a conversation</div>
         )}
         <div style={{ borderLeft: "1px solid var(--hf-surface-raised)" }} className="p-4">
-          <div className="flex justify-center"><AvaOrb size={100} reflection={false} amp={0.22} flow={0.5} /></div>
           {activeCandidate && (
             <p className="mt-3 text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>
               {activeCandidate.name} · {activeCandidate.stage} · {activeCandidate.overall}% match

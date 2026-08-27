@@ -12,7 +12,6 @@ import {
   Star,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import AvaOrb from "@/components/ava/AvaOrb";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { CandidateMark } from "../components/CandidateMark";
@@ -141,7 +140,6 @@ export default function CockpitInterviews() {
         <div className="ck-card p-5">
           <div className="font-display text-[17px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's interview reads</div>
           <div className="mt-2 flex justify-center">
-            <AvaOrb size={140} reflection={false} amp={0.22} flow={0.5} />
           </div>
           <div className="mt-3 space-y-2.5">
             {interviews.reads.length === 0 ? (

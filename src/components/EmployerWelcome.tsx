@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { AvaOrb } from "@/components/ava/AvaOrb";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useSubscription } from "@/hooks/useSubscription";
 
@@ -59,7 +58,6 @@ export default function EmployerWelcome() {
         transition={{ duration: reduce ? 0 : 0.5, ease: [0.4, 0, 0.2, 1] }}
         className="relative z-10 my-auto flex w-full max-w-xl flex-col items-center text-center"
       >
-        <AvaOrb size={172} reflection={false} />
 
         <span
           className="mt-6 text-[11px] font-bold uppercase tracking-[0.22em]"

@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
+import AvaSeal from "@/components/ava/AvaSeal";
 
 interface AvaCardProps {
   /** "rail" = vertical card (Jobs right rail). "wide" = horizontal banner (mobile). "interview" = orb + list. */
@@ -18,7 +18,7 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
     return (
       <div className={`ck-card flex items-center gap-3 p-3 ${className ?? ""}`}>
         <div className="shrink-0">
-          <AvaOrb size={orbSize ?? 56} reflection={false} glow={false} amp={0.22} flow={0.5} />
+          <AvaSeal size={orbSize ?? 30} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-[15px]" style={{ color: "var(--hf-text)" }}>
@@ -38,9 +38,7 @@ export function AvaCard({ variant = "rail", title = "Ava", text, ctaLabel = "Vie
 
   return (
     <div className={`ck-card flex flex-col p-5 ${className ?? ""}`}>
-      <div className="-mt-1 flex justify-center">
-        <AvaOrb size={orbSize ?? 168} reflection={false} amp={0.22} flow={0.5} />
-      </div>
+      <AvaSeal size={orbSize ?? 30} />
       <div className="mt-1 font-display text-[20px]" style={{ color: "var(--hf-text)" }}>
         {title}
       </div>
