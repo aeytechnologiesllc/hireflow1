@@ -1,281 +1,324 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { ChevronRight, CalendarDays, MessageSquare, Briefcase } from "lucide-react";
 import { clearDraft } from "@/lib/avaEngine/draft";
-import {
-  Briefcase,
-  Users,
-  Clock,
-  CheckCircle2,
-  ChevronRight,
-  Mic,
-  Star,
-  Sparkles,
-  UserPlus,
-  CalendarDays,
-  Megaphone,
-} from "lucide-react";
-import AvaOrb from "@/components/ava/AvaOrb";
-import { HeroBackground } from "@/components/ava/HeroBackground";
-import { StatCard } from "../components/StatCard";
-import { Pipeline } from "../components/Pipeline";
-import { CandidateMark } from "../components/CandidateMark";
-import { useCockpitDashboard } from "../hooks/useCockpitData";
+import AvaSeal from "@/components/ava/AvaSeal";
+import CkAvatar from "../components/Avatar";
+import { useCockpitAccount, useCockpitCandidates, useCockpitActions } from "../hooks/useCockpitData";
 
-const KPI_ICONS = {
-  briefcase: <Briefcase className="h-[18px] w-[18px]" />,
-  users: <Users className="h-[18px] w-[18px]" />,
-  clock: <Clock className="h-[18px] w-[18px]" />,
-  check: <CheckCircle2 className="h-[18px] w-[18px]" />,
-};
+/**
+ * The morning read.
+ *
+ * This screen answers one question: who is worth your time today. Ava says what
+ * she did overnight in one line, then the people she sealed, each with the one
+ * piece of evidence behind the score and the only two decisions that matter —
+ * pass, or talk to them. Everything else is a link away.
+ *
+ * No hero graphic: the greeting carries the page.
+ */
 
-const ACTIVITY_ICONS = {
-  mic: Mic,
-  star: Star,
-  sparkle: Sparkles,
-  userplus: UserPlus,
-};
+/** Real wax never sits square. A stable per-row tilt, so it does not jitter on re-render. */
+const TILTS = [-6, 4, -3, 5, -4];
 
-function ActivityRow({ item, first }: { item: ReturnType<typeof useCockpitDashboard>["dashboard"]["activity"][number]; first?: boolean }) {
-  const Icon = ACTIVITY_ICONS[item.icon];
+function greeting(now: Date) {
+  const h = now.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function firstName(full: string) {
+  return full.trim().split(/\s+/)[0] || full;
+}
+
+function SealedRow({
+  candidate,
+  index,
+  onPass,
+  onInterview,
+  onOpen,
+  busy,
+}: {
+  candidate: ReturnType<typeof useCockpitCandidates>["candidates"][number];
+  index: number;
+  onPass: () => void;
+  onInterview: () => void;
+  onOpen: () => void;
+  busy: boolean;
+}) {
   return (
-    <div
-      className="flex items-center gap-3 py-3"
-      style={{ borderTop: first ? "none" : "1px solid color-mix(in srgb, var(--hf-border-strong) 70%, transparent)" }}
-    >
-      <div className="relative shrink-0">
-        {item.avatar ? (
-          <CandidateMark who={item.avatar} size={34} variant="calm" />
-        ) : (
+    <div className="ck-card ck-reveal p-4 md:p-5" style={{ ["--ck-i" as string]: 2 + index }}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        {/* who */}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left md:flex-none md:basis-[210px]"
+        >
+          <span className="relative shrink-0">
+            <CkAvatar who={candidate.name} size={40} />
+            <AvaSeal
+              size={20}
+              tilt={TILTS[index % TILTS.length]}
+              style={{ position: "absolute", right: -6, bottom: -6 }}
+            />
+          </span>
+          <span className="min-w-0">
+            <span
+              className="block truncate text-[15px] font-semibold"
+              style={{ color: "var(--hf-text)" }}
+            >
+              {candidate.name}
+            </span>
+            <span className="block truncate text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
+              {candidate.role}
+            </span>
+          </span>
+        </button>
+
+        {/* why — Ava's evidence. Never truncate the meaning; the mapper caps the length. */}
+        <p
+          className="order-3 min-w-0 flex-1 basis-full text-[14px] leading-snug md:order-none md:basis-0"
+          style={{
+            color: "var(--hf-text-soft)",
+            borderLeft: "2px solid var(--hf-gold-border)",
+            paddingLeft: 14,
+          }}
+        >
+          {candidate.read}
+        </p>
+
+        {/* the score */}
+        <div className="shrink-0 text-center">
           <div
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-full"
-            style={{ background: "var(--hf-green-soft)", color: "var(--hf-text-soft)" }}
+            className="font-display leading-none"
+            style={{ fontSize: 34, fontWeight: 600, color: "var(--hf-text)" }}
           >
-            <UserPlus className="h-4 w-4" />
+            {candidate.overall}
           </div>
-        )}
+          <div
+            className="mt-1 text-[10px] tracking-[0.14em]"
+            style={{ color: "var(--hf-text-muted)" }}
+          >
+            SEALED
+          </div>
+        </div>
+
+        {/* the only two decisions */}
+        <div className="flex shrink-0 items-center gap-2">
+          <button className="ck-btn ck-btn-outline !py-2 !text-[13px]" onClick={onPass} disabled={busy}>
+            Pass
+          </button>
+          <button className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={onInterview} disabled={busy}>
+            Interview
+          </button>
+        </div>
       </div>
-      <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--hf-gold)" }} />
-      <p className="min-w-0 flex-1 truncate text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
-        <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>{item.name}</span> {item.action}
-      </p>
-      <span className="shrink-0 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-        {item.time}
-      </span>
     </div>
   );
 }
 
 export default function CockpitDashboard() {
   const navigate = useNavigate();
-  const { dashboard, pipeline, isLoading } = useCockpitDashboard();
-  const { hero, kpis, activity } = dashboard;
-  const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
-  const hasApplicants = pipeline.some((p) => p.count > 0);
+  const { account, profile } = useCockpitAccount();
+  const { candidates, isLoading } = useCockpitCandidates();
+  const { advance, pass, isUpdating } = useCockpitActions();
+
+  const now = useMemo(() => new Date(), []);
+  const who = firstName(profile?.full_name?.trim() || account.name);
+
+  const { sealed, passedOver, readCount, hired } = useMemo(() => {
+    const live = candidates.filter((c) => c.stage !== "Rejected");
+    const ranked = [...live].sort((a, b) => b.overall - a.overall);
+    return {
+      sealed: ranked.slice(0, 3),
+      passedOver: candidates.filter((c) => c.stage === "Rejected").length,
+      readCount: candidates.length,
+      hired: candidates.filter((c) => c.stage === "Hired").length,
+    };
+  }, [candidates]);
+
+  const startRole = () => {
+    clearDraft();
+    sessionStorage.removeItem("ava-create-active");
+    navigate("/jobs/create");
+  };
 
   if (isLoading) {
     return (
-      <div className="space-y-6 md:space-y-7">
-        <div className="ck-rise grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="ck-card ck-reveal h-[132px]"
-              style={{ ["--ck-i" as string]: i, opacity: 0.55 }}
-            />
-          ))}
-        </div>
-        <div className="ck-card ck-reveal h-[220px]" style={{ ["--ck-i" as string]: 4, opacity: 0.55 }} />
+      <div className="space-y-5">
+        <div className="ck-reveal h-[52px] rounded-xl" style={{ background: "var(--hf-surface)", opacity: 0.55 }} />
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="ck-card ck-reveal h-[92px]"
+            style={{ ["--ck-i" as string]: i, opacity: 0.55 }}
+          />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 md:space-y-7">
-      {/* ── Hero (mobile) ────────────────────────────────── */}
-      <section
-        className="ck-rise relative overflow-hidden rounded-2xl p-4 md:hidden"
-        // Transparent section — the ONLY thing painted is the glow layer below,
-        // which is radially masked to fade to nothing before every edge. No
-        // rectangle, no hard border: the orb + glow melt into the page.
-        style={{ background: "transparent" }}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 100% 110% at 40% 50%, color-mix(in srgb, var(--hf-green-soft) 40%, transparent) 0%, color-mix(in srgb, var(--hf-green-soft) 16%, transparent) 46%, transparent 80%)",
-            // Feathered-rectangle mask: the ambient animation fills the hero
-            // edge-to-edge but the outer sliver of each side fades to nothing —
-            // full-bleed motion, no hard box.
-            maskImage:
-              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
-            maskComposite: "intersect",
-            WebkitMaskComposite: "source-in",
-          }}
-        >
-          <HeroBackground contained className="opacity-90" />
-        </div>
-        <div className="relative z-10 flex items-center gap-3">
-          {/* Circular mask: the orb's WebGL canvas is square and its glow doesn't
-              fade at the canvas edges — mask fades it to a soft circle so it melts
-              into the page instead of showing a rectangular box. */}
-          <div
-            className="shrink-0"
-            style={{
-              maskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
-              WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
-            }}
+    <div className="space-y-5 md:space-y-6">
+      {/* ── The greeting carries the page ─────────────────── */}
+      <header className="ck-rise flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1
+            className="font-display"
+            style={{ fontSize: "clamp(26px, 3.2vw, 38px)", lineHeight: 1.1, color: "var(--hf-text)", fontWeight: 500 }}
           >
-            <AvaOrb size={132} variant="landing" reflection={false} />
-          </div>
-          <div className="min-w-0">
-            <h1 className="font-display" style={{ fontSize: 22, lineHeight: 1.08, color: "var(--hf-text)", fontWeight: 500 }}>
-              {hero.headline}
-            </h1>
-            <p className="mt-2 text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
-              {hero.sub}
-            </p>
-          </div>
-        </div>
-        <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2">
-          <button className="ck-btn ck-btn-primary !px-3" onClick={() => navigate("/applicants")}>
-            Review shortlist
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <button className="ck-btn ck-btn-outline !px-3" onClick={() => navigate("/interviews")}>
-            <CalendarDays className="h-4 w-4" style={{ color: "var(--hf-text-soft)" }} />
-            Schedule
-          </button>
-            <button className="ck-btn ck-btn-outline !px-3" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
-              <Megaphone className="h-4 w-4" style={{ color: "var(--hf-text-soft)" }} />
-              New role
-            </button>
-        </div>
-      </section>
-
-      {/* ── Hero (desktop) ───────────────────────────────── */}
-      <section
-        className="ck-rise relative hidden overflow-hidden md:grid"
-        // Transparent section — no painted rectangle. All ambient light lives in
-        // the glow layer below, radially masked so it fades to pure page-black
-        // before reaching any edge. The clip lands in empty space = no hard box.
-        style={{
-          gridTemplateColumns: "minmax(260px,360px) 1fr",
-          alignItems: "center",
-          columnGap: 32,
-          background: "transparent",
-        }}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 92% 105% at 42% 50%, color-mix(in srgb, var(--hf-green-soft) 40%, transparent) 0%, color-mix(in srgb, var(--hf-green-soft) 16%, transparent) 46%, transparent 78%)",
-            // Feathered-rectangle mask: full-bleed ambient animation (particles
-            // top-to-bottom, edge-to-edge) that fades only in the outer sliver of
-            // each side — restores the subtle motion without a hard rectangle.
-            maskImage:
-              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, transparent 0%, #000 8%, #000 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%)",
-            maskComposite: "intersect",
-            WebkitMaskComposite: "source-in",
-          }}
-        >
-          <HeroBackground contained className="opacity-90" />
-        </div>
-        <div className="relative z-10 flex justify-center">
-          {/* Circular mask (see mobile note) — fades the orb's square canvas glow
-              into a soft circle so the hero has no rectangular edge. */}
-          <div
-            style={{
-              maskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
-              WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 42%, transparent 68%)",
-            }}
-          >
-            <AvaOrb size={320} variant="landing" reflection={false} />
-          </div>
-        </div>
-        <div className="relative z-10 min-w-0">
-          <h1 className="font-display" style={{ fontSize: "clamp(34px, 3.6vw, 52px)", lineHeight: 1.05, color: "var(--hf-text)", fontWeight: 500 }}>
-            {hero.headline}
+            {greeting(now)}, {who}.
           </h1>
-          <p className="mt-3 text-[16px]" style={{ color: "var(--hf-text-soft)", maxWidth: 460 }}>
-            {hero.sub}
+          <span className="text-[14px]" style={{ color: "var(--hf-text-muted)" }}>
+            {format(now, "EEEE, MMM d")}
+          </span>
+        </div>
+        <button className="ck-btn ck-btn-primary !py-2 !text-[13.5px]" onClick={startRole}>
+          + New job
+        </button>
+      </header>
+
+      {readCount === 0 ? (
+        /* ── Nothing has come in yet. Say so plainly. ─────── */
+        <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+          <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+            Nobody has applied yet.
+          </h2>
+          <p className="mt-2 max-w-[52ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+            Publish a role and share its link. The moment someone applies, Ava screens them and
+            they show up here — already read, already scored.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button className="ck-btn ck-btn-primary" onClick={() => navigate("/applicants")}>
-              Review shortlist
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button className="ck-btn ck-btn-primary" onClick={startRole}>
+              Post your first job
+            </button>
+            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/jobs")}>
+              See your jobs
               <ChevronRight className="h-4 w-4" />
             </button>
-            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/interviews")}>
-              <CalendarDays className="h-4 w-4" style={{ color: "var(--hf-text-soft)" }} />
-              Schedule interviews
-            </button>
-            <button className="ck-btn ck-btn-outline" onClick={() => { clearDraft(); sessionStorage.removeItem("ava-create-active"); navigate("/jobs/create"); }}>
-              <Megaphone className="h-4 w-4" style={{ color: "var(--hf-text-soft)" }} />
-              New role
-            </button>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <>
+          {/* ── What Ava did, in one line ──────────────────── */}
+          <section
+            className="ck-rise flex items-center gap-3 rounded-xl px-4 py-3"
+            style={{ background: "var(--slab)", color: "var(--slab-ink)" }}
+          >
+            <AvaSeal size={26} />
+            <p className="min-w-0 text-[14px] leading-snug">
+              <span style={{ fontWeight: 600 }}>Ava has been working.</span>{" "}
+              Read {readCount} {readCount === 1 ? "applicant" : "applicants"}
+              {sealed.length > 0 ? ` · sealed ${sealed.length}` : ""} — none of your time, nobody
+              left waiting.
+            </p>
+          </section>
 
-      {/* ── KPIs ─────────────────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {kpis.map((k, i) => (
-          <StatCard key={k.label} label={k.label} value={k.value} icon={KPI_ICONS[k.icon]} index={i} />
-        ))}
-      </section>
+          {/* ── The people worth your time ─────────────────── */}
+          {sealed.map((c, i) => (
+            <SealedRow
+              key={c.id}
+              candidate={c}
+              index={i}
+              busy={isUpdating}
+              onOpen={() => navigate(`/applicants/${c.id}`)}
+              onPass={() => pass(c.id)}
+              onInterview={() => advance(c.id, undefined)}
+            />
+          ))}
 
-      {/* ── Pipeline + Activity ──────────────────────────── */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_1fr] md:gap-5">
-        <div className="ck-card ck-reveal p-5 md:p-6" style={{ ["--ck-i" as string]: 4 }}>
-          <h2 className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Pipeline Health
-          </h2>
-          <div className="mt-5">
-            <Pipeline variant="health" nodes={pipeline} />
-          </div>
-          <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-[13.5px]" style={{ color: "var(--hf-text)" }}>
-                <span className="ck-dot" style={{ background: bottleneck ? "var(--hf-danger)" : "var(--hf-green)" }} />
-                {bottleneck ? `${bottleneck.label} is your bottleneck` : hasApplicants ? "Pipeline looks healthy" : "No applicants yet"}
-              </div>
-              <p className="mt-1 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                {bottleneck
-                  ? `Most drop-off happens at the ${bottleneck.label.toLowerCase()} stage.`
-                  : hasApplicants
-                    ? "Candidates are moving through smoothly."
-                    : "Publish a role and share your apply link to start receiving applicants."}
+          {passedOver > 0 && (
+            <div className="ck-card-flat ck-reveal flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+                <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>
+                  {passedOver} didn&rsquo;t make the cut
+                </span>{" "}
+                — every one already got a polite reply in your name.
               </p>
+              <button
+                className="text-[13px]"
+                style={{ color: "var(--hf-gold)" }}
+                onClick={() => navigate("/applicants")}
+              >
+                Review them →
+              </button>
             </div>
-            <button
-              className="ck-btn ck-btn-outline !py-2 !text-[13px]"
-              onClick={() => navigate("/analytics")}
-            >
-              View pipeline insights
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+          )}
 
-        <div className="ck-card ck-reveal p-5 md:p-6" style={{ ["--ck-i" as string]: 5 }}>
-          <h2 className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Recent Activity
-          </h2>
-          <div className="mt-2">
-            {activity.map((item, i) => (
-              <div key={item.id} className="ck-reveal" style={{ ["--ck-i" as string]: 6 + i }}>
-                <ActivityRow item={item} first={i === 0} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+          {/* ── Also today ─────────────────────────────────── */}
+          <section>
+            <h2
+              className="font-display mb-3 text-[19px]"
+              style={{ color: "var(--hf-text)", fontWeight: 500 }}
+            >
+              Also today
+            </h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              <button
+                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
+                onClick={() => navigate("/interviews")}
+              >
+                <CalendarDays className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
+                    Interviews
+                  </span>
+                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                    Confirm the times Ava held
+                  </span>
+                </span>
+              </button>
+              <button
+                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
+                onClick={() => navigate("/messages")}
+              >
+                <MessageSquare className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
+                    Messages
+                  </span>
+                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                    Replies waiting on you
+                  </span>
+                </span>
+              </button>
+              <button
+                className="ck-card ck-reveal flex items-center gap-3 p-4 text-left"
+                onClick={() => navigate("/jobs")}
+              >
+                <Briefcase className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-gold)" }} />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
+                    Your jobs
+                  </span>
+                  <span className="block text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                    Where they are listed
+                  </span>
+                </span>
+              </button>
+            </div>
+          </section>
+
+          {/* ── The record, only when there is one ─────────── */}
+          {hired > 0 && (
+            <div className="ck-card-flat flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+                <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>Your record:</span>{" "}
+                {hired} {hired === 1 ? "hire" : "hires"} made through HireFlow.
+              </p>
+              <button
+                className="text-[13px]"
+                style={{ color: "var(--hf-gold)" }}
+                onClick={() => navigate("/analytics")}
+              >
+                See analytics →
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
